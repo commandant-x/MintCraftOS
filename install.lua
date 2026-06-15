@@ -592,6 +592,7 @@ local M = {
   notifications = nil,
   menuOpen = false,
   contextMenu = nil,
+  lastMonitorTap = nil,
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -757,6 +758,16 @@ function M.handle(event)
   if button == 2 then
     openContextMenu(x, y)
     return true
+  end
+
+  if event.monitorTouch then
+    local now = os.clock()
+    local last = M.lastMonitorTap
+    M.lastMonitorTap = { x = x, y = y, time = now }
+    if last and last.x == x and last.y == y and now - last.time < 0.5 then
+      openContextMenu(x, y)
+      return true
+    end
   end
 
   if button == 1 and x >= 2 and x <= 11 then
@@ -925,6 +936,16 @@ local notifd = require("system.services.notifd")
 local M = {}
 
 local function normalize(raw)
+  if raw[1] == "monitor_touch" then
+    return {
+      name = "mouse_click",
+      args = { 1, raw[3], raw[4] },
+      raw = raw,
+      monitorTouch = true,
+      monitorSide = raw[2],
+    }
+  end
+
   return {
     name = raw[1],
     args = { select(2, table.unpack(raw)) },

@@ -11,6 +11,16 @@ local notifd = require("system.services.notifd")
 local M = {}
 
 local function normalize(raw)
+  if raw[1] == "monitor_touch" then
+    return {
+      name = "mouse_click",
+      args = { 1, raw[3], raw[4] },
+      raw = raw,
+      monitorTouch = true,
+      monitorSide = raw[2],
+    }
+  end
+
   return {
     name = raw[1],
     args = { select(2, table.unpack(raw)) },
