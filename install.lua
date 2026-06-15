@@ -1,4 +1,4 @@
--- MintCraft OS V0.12.0 installer for CC:Tweaked
+-- MintCraft OS V0.13.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -225,7 +225,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -549,7 +549,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -608,7 +608,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -790,7 +790,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1095,7 +1095,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1172,7 +1172,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1289,7 +1289,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1368,9 +1368,9 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.settings.main",
-  permissions = { "system.config", "audio.control" },
+  permissions = { "system.config", "audio.control", "system.auth" },
 }
 ]],
   ["apps/settings/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1518,13 +1518,23 @@ function M.run(ctx)
       end
     elseif self.page == "security" then
       local cfg = config.load("/system/config/security.cfg", {})
+      local user = securityd.currentUser()
       renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "single-user"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "User: " .. tostring(cfg.currentUser or "admin"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "users"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "User: " .. tostring(user and user.name or "admin"), colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Service: " .. securityd.statusText(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "Apps carry declared permissions.", colors.gray, colors.lightGray)
-      renderer.writeAt(1, 9, "Denied actions are logged in system.log.", colors.gray, colors.lightGray)
-      renderer.writeAt(1, 10, "Users/enforcement are simulated in V0.10.", colors.gray, colors.lightGray)
+      renderer.button(1, 8, 10, "Lock", false)
+      renderer.button(13, 8, 12, "Unlock", false)
+      renderer.button(27, 8, 12, "Admin", user and user.name == "admin")
+      renderer.button(41, 8, 12, "Guest", user and user.name == "guest")
+      renderer.button(1, 10, 18, "Set password", false)
+      renderer.writeAt(1, 12, "Policy: app permissions + user permissions.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 13, "Locked sessions deny sensitive actions.", colors.gray, colors.lightGray)
+      local users = securityd.users()
+      for i = 1, math.min(#users, h - 14) do
+        local item = users[i]
+        renderer.writeAt(1, 14 + i, renderer.crop((item.active and "* " or "  ") .. item.name .. "  " .. item.role .. "  " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
+      end
     elseif self.page == "apps" then
       local rows = ctx.apps.list()
       renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)
@@ -1548,10 +1558,18 @@ function M.run(ctx)
       renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
       renderer.button(1, 7, 14, "Open Editor", false)
     end
-    if self.mode == "label" then
+    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
       self.keyboard.x = 1
       self.keyboard.y = math.max(1, h - keyboard.height() + 1)
-      self.keyboard.hint = "Label: " .. self.input
+      if self.mode == "label" then
+        self.keyboard.hint = "Label: " .. self.input
+      elseif self.mode == "unlock" then
+        self.keyboard.hint = "Unlock password: " .. string.rep("*", #self.input)
+      elseif self.mode == "adminLogin" then
+        self.keyboard.hint = "Admin password: " .. string.rep("*", #self.input)
+      else
+        self.keyboard.hint = "New admin password: " .. string.rep("*", #self.input)
+      end
       keyboard.draw(1, self.keyboard.y, w, self.keyboard)
     end
     renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
@@ -1561,12 +1579,29 @@ function M.run(ctx)
   app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
   app.keyboard.onEnter = function()
     if app.mode == "label" and os.setComputerLabel then os.setComputerLabel(app.input) end
+    if app.mode == "unlock" then
+      local ok, msg = securityd.unlock(app.input)
+      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
+    elseif app.mode == "adminLogin" then
+      local ok, msg = securityd.login("admin", app.input)
+      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
+    elseif app.mode == "setPassword" then
+      local allowed, denied = app.securityRequire("system.auth", "set admin password")
+      if allowed then
+        local ok, msg = securityd.setPassword("admin", app.input)
+        if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", ok and "Password changed" or tostring(msg), 3) end
+      elseif app.systemNotifications then
+        app.systemNotifications:push("warn", "Security", tostring(denied), 3)
+      end
+    end
     app.mode = nil
     app.input = ""
   end
+  app.systemNotifications = ctx.notifications
+  app.securityRequire = ctx.security.require
 
   function app:handle(event)
-    if self.mode == "label" then
+    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
       if event.name == "char" then self.input = self.input .. event.args[1] return true end
       if event.name == "key" and event.args[1] == keys.backspace then self.input = self.input:sub(1, -2) return true end
       if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
@@ -1626,6 +1661,26 @@ function M.run(ctx)
         ctx.notifications:push(ok and "success" or "warn", "Audio", ok and ("Using " .. item.side) or tostring(err), 3)
         return true
       end
+    elseif self.page == "security" and y == 8 and x <= 10 then
+      securityd.lock()
+      ctx.notifications:push("warn", "Security", "Session locked", 3)
+      return true
+    elseif self.page == "security" and y == 8 and x >= 13 and x <= 24 then
+      self.mode = "unlock"
+      self.input = ""
+      return true
+    elseif self.page == "security" and y == 8 and x >= 27 and x <= 38 then
+      self.mode = "adminLogin"
+      self.input = ""
+      return true
+    elseif self.page == "security" and y == 8 and x >= 41 and x <= 52 then
+      securityd.logout()
+      ctx.notifications:push("info", "Security", "Guest session", 3)
+      return true
+    elseif self.page == "security" and y == 10 and x <= 18 then
+      self.mode = "setPassword"
+      self.input = ""
+      return true
     elseif self.page == "system" and y == 10 and x <= 16 then
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
@@ -1656,7 +1711,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1765,7 +1820,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1879,9 +1934,9 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.12.0",
+  version = "0.13.0",
   main = "apps.terminal.main",
-  permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" },
+  permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
 ]],
   ["apps/terminal/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1889,6 +1944,7 @@ local log = require("system.libraries.log")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local autocomplete = require("system.dev.autocomplete")
+local securityd = require("system.services.securityd")
 
 local M = {}
 
@@ -1919,6 +1975,12 @@ local help = {
   messenger = "messenger - open Rednet chat",
   store = "store - open package store",
   install = "install <pkg> - install package",
+  whoami = "whoami - show current security user",
+  lock = "lock - lock current session",
+  unlock = "unlock <password> - unlock current user",
+  login = "login <user> [password] - switch user",
+  logout = "logout - switch to guest",
+  passwd = "passwd <password> - change admin password",
 }
 
 local function trashPath(name)
@@ -2056,6 +2118,33 @@ local function runCommand(app, ctx, input)
     if rest == "" then append(app, "Usage: install <package>") else
       local allowed, denied = ctx.security.require("packages.install", rest)
       if allowed then ctx.security.audit("install", rest) local ok, msg = ctx.system.packages.install(rest) append(app, tostring(msg)) else append(app, denied) end
+    end
+  elseif cmd == "whoami" then
+    append(app, securityd.statusText())
+  elseif cmd == "lock" then
+    local allowed, denied = ctx.security.require("system.auth", "lock")
+    if allowed then securityd.lock() ctx.security.audit("lock", "terminal") append(app, "locked") else append(app, denied) end
+  elseif cmd == "unlock" then
+    local ok, msg = securityd.unlock(rest)
+    append(app, tostring(msg or ok))
+  elseif cmd == "login" then
+    local name, password = rest:match("^(%S+)%s*(.*)$")
+    if not name then append(app, "Usage: login <user> [password]") else
+      local ok, msg = securityd.login(name, password or "")
+      append(app, tostring(msg or ok))
+    end
+  elseif cmd == "logout" then
+    securityd.logout()
+    append(app, "guest session")
+  elseif cmd == "passwd" then
+    if rest == "" then append(app, "Usage: passwd <new-admin-password>") else
+      local allowed, denied = ctx.security.require("system.auth", "passwd")
+      if allowed then
+        local ok, msg = securityd.setPassword("admin", rest)
+        append(app, ok and "password changed" or tostring(msg))
+      else
+        append(app, denied)
+      end
     end
   elseif cmd == "files" then
     ctx.apps.launch("files")
@@ -2225,7 +2314,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.12.0",
+  version = "0.13.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2509,7 +2598,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.12.0 base:
+This repository currently contains the V0.13.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -2534,10 +2623,10 @@ This repository currently contains the V0.12.0 base:
 - CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
-- simulated security service with declared app permissions and logged denials for sensitive actions
+- user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 
-Not included yet: real multi-user login enforcement.
+Not included yet: encrypted password storage and per-file ACLs.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -2627,7 +2716,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.12.0",
+    version = "0.13.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -2635,7 +2724,7 @@ local function ensureDefaults()
   })
   config.ensure("/system/config/security.cfg", {
     enabled = true,
-    mode = "single-user",
+    mode = "users",
     currentUser = "admin",
     logDenied = true,
     logSensitive = true,
@@ -2653,8 +2742,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.12.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.12.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.13.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.13.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2798,14 +2887,14 @@ return M
 ]],
   ["system/config/security.cfg"] = [[{
   enabled = true,
-  mode = "single-user",
+  mode = "users",
   currentUser = "admin",
   logDenied = true,
   logSensitive = true,
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.12.0",
+  version = "0.13.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -2844,6 +2933,7 @@ local ccWords = {
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
   "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "store", "install", "files", "settings", "devices",
+  "whoami", "lock", "unlock", "login", "logout", "passwd",
   "reboot", "help",
 }
 
@@ -3829,19 +3919,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.12.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.12.0", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.12.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.12.0", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.12.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.12.0", permissions = { "system.config", "audio.control" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.12.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.12.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.12.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.12.0", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.12.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.12.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.12.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.13.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.13.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.13.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.13.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.13.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.13.0", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.13.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.13.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.13.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.13.0", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.13.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.13.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.13.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -4054,7 +4144,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.12.0",
+    version = meta.version or "0.13.0",
     permissions = meta.permissions or {},
   }
 end
@@ -4443,6 +4533,11 @@ function M.has(actor, permission)
   if permission == nil or permission == "" then return true end
   if actor == nil then return true end
   if actor.system == true then return true end
+  local okSecurity, securityd = pcall(require, "system.services.securityd")
+  if okSecurity and securityd and securityd.authorize then
+    local allowed = securityd.authorize(actor, permission)
+    if not allowed then return false end
+  end
   local permissions = actor.permissions or {}
   if permissions[permission] == true then return true end
   local set = listToSet(permissions)
@@ -4451,6 +4546,16 @@ end
 
 function M.require(actor, permission, target)
   if M.has(actor, permission) then return true end
+  local okSecurity, securityd = pcall(require, "system.services.securityd")
+  if okSecurity and securityd and securityd.authorize then
+    local allowed, reason = securityd.authorize(actor, permission)
+    if not allowed then
+      local message = tostring(reason)
+      if target then message = message .. " on " .. tostring(target) end
+      log.warn("security", actorLabel(actor) .. " " .. message)
+      return false, message
+    end
+  end
   local message = "permission denied: " .. tostring(permission)
   if target then message = message .. " on " .. tostring(target) end
   log.warn("security", actorLabel(actor) .. " " .. message)
@@ -4461,6 +4566,189 @@ function M.audit(actor, action, target)
   local message = actorLabel(actor) .. " " .. tostring(action)
   if target then message = message .. " " .. tostring(target) end
   log.info("security", message)
+end
+
+return M
+]],
+  ["system/security/users.lua"] = [[local config = require("system.libraries.config")
+
+local M = {
+  path = "/system/security/users.db",
+}
+
+local function computerId()
+  if os.getComputerID then return os.getComputerID() end
+  if os.computerID then return os.computerID() end
+  return 0
+end
+
+local function hashPassword(password)
+  password = tostring(password or "")
+  local h = 5381 + computerId()
+  for i = 1, #password do
+    h = ((h * 33) + string.byte(password, i)) % 2147483647
+  end
+  return tostring(h)
+end
+
+local function defaults()
+  return {
+    currentUser = "admin",
+    locked = false,
+    users = {
+      admin = {
+        name = "admin",
+        role = "admin",
+        passwordHash = hashPassword(""),
+        permissions = { "*" },
+      },
+      guest = {
+        name = "guest",
+        role = "guest",
+        passwordHash = hashPassword(""),
+        permissions = {
+          "filesystem.read",
+          "network.http",
+          "rednet.send",
+          "rednet.receive",
+          "logs.read",
+          "devices.list",
+        },
+      },
+    },
+    roles = {
+      admin = { "*" },
+      guest = {
+        "filesystem.read",
+        "network.http",
+        "rednet.send",
+        "rednet.receive",
+        "logs.read",
+        "devices.list",
+      },
+    },
+  }
+end
+
+local function mergeDefaults(db)
+  local def = defaults()
+  db = db or {}
+  db.currentUser = db.currentUser or def.currentUser
+  db.locked = db.locked == true
+  db.users = db.users or {}
+  db.roles = db.roles or def.roles
+  for name, user in pairs(def.users) do
+    db.users[name] = db.users[name] or user
+    db.users[name].permissions = db.users[name].permissions or user.permissions
+    db.users[name].role = db.users[name].role or user.role
+    db.users[name].passwordHash = db.users[name].passwordHash or user.passwordHash
+  end
+  return db
+end
+
+function M.load()
+  local db = mergeDefaults(config.load(M.path, nil))
+  config.save(M.path, db)
+  return db
+end
+
+function M.save(db)
+  return config.save(M.path, mergeDefaults(db))
+end
+
+function M.current()
+  local db = M.load()
+  return db.users[db.currentUser], db
+end
+
+local function listToSet(list, set)
+  set = set or {}
+  for _, item in ipairs(list or {}) do set[item] = true end
+  return set
+end
+
+function M.permissionSet(user, db)
+  db = db or M.load()
+  user = user or db.users[db.currentUser]
+  local set = {}
+  if user then
+    listToSet(db.roles[user.role] or {}, set)
+    listToSet(user.permissions or {}, set)
+  end
+  return set
+end
+
+function M.hasPermission(permission)
+  if permission == nil or permission == "" then return true end
+  local user, db = M.current()
+  if not user then return false end
+  local set = M.permissionSet(user, db)
+  return set["*"] == true or set[permission] == true
+end
+
+function M.verify(name, password)
+  local db = M.load()
+  local user = db.users[name]
+  if not user then return false, "unknown user" end
+  if user.passwordHash ~= hashPassword(password or "") then return false, "bad password" end
+  return true
+end
+
+function M.login(name, password)
+  local ok, err = M.verify(name, password)
+  if not ok then return false, err end
+  local db = M.load()
+  db.currentUser = name
+  db.locked = false
+  M.save(db)
+  return true, "logged in as " .. tostring(name)
+end
+
+function M.lock()
+  local db = M.load()
+  db.locked = true
+  M.save(db)
+  return true
+end
+
+function M.unlock(password)
+  local db = M.load()
+  return M.login(db.currentUser or "admin", password)
+end
+
+function M.logout()
+  local db = M.load()
+  db.currentUser = "guest"
+  db.locked = false
+  M.save(db)
+  return true
+end
+
+function M.setPassword(name, password)
+  local db = M.load()
+  if not db.users[name] then return false, "unknown user" end
+  db.users[name].passwordHash = hashPassword(password or "")
+  M.save(db)
+  return true
+end
+
+function M.list()
+  local db = M.load()
+  local rows = {}
+  for _, user in pairs(db.users) do
+    table.insert(rows, {
+      name = user.name,
+      role = user.role,
+      permissions = user.permissions or {},
+      active = user.name == db.currentUser,
+    })
+  end
+  table.sort(rows, function(a, b) return a.name < b.name end)
+  return rows
+end
+
+function M.isLocked()
+  return M.load().locked == true
 end
 
 return M
@@ -4888,6 +5176,7 @@ return Notifd
 ]],
   ["system/services/securityd.lua"] = [[local config = require("system.libraries.config")
 local log = require("system.libraries.log")
+local users = require("system.security.users")
 
 local M = {
   cfgPath = "/system/config/security.cfg",
@@ -4898,17 +5187,76 @@ local M = {
 function M.load()
   M.cfg = config.load(M.cfgPath, {
     enabled = true,
-    mode = "single-user",
+    mode = "users",
     currentUser = "admin",
     logDenied = true,
     logSensitive = true,
   })
+  if M.cfg.mode == "single-user" then
+    M.cfg.mode = "users"
+    config.save(M.cfgPath, M.cfg)
+  end
+  users.load()
   return M.cfg
 end
 
 function M.statusText()
   if not M.cfg then M.load() end
-  return tostring(M.cfg.mode) .. " user=" .. tostring(M.cfg.currentUser)
+  local user, db = users.current()
+  return tostring(M.cfg.mode) .. " user=" .. tostring(user and user.name or "?") .. (db.locked and " locked" or " unlocked")
+end
+
+function M.currentUser()
+  local user = users.current()
+  return user
+end
+
+function M.isLocked()
+  return users.isLocked()
+end
+
+function M.login(name, password)
+  local ok, msg = users.login(name, password)
+  log.info("securityd", ok and msg or ("login failed " .. tostring(name)))
+  return ok, msg
+end
+
+function M.unlock(password)
+  local ok, msg = users.unlock(password)
+  log.info("securityd", ok and "session unlocked" or "unlock failed")
+  return ok, msg
+end
+
+function M.lock()
+  users.lock()
+  log.info("securityd", "session locked")
+  return true
+end
+
+function M.logout()
+  users.logout()
+  log.info("securityd", "logged out to guest")
+  return true
+end
+
+function M.setPassword(name, password)
+  local ok, msg = users.setPassword(name, password)
+  log.info("securityd", ok and ("password changed for " .. tostring(name)) or tostring(msg))
+  return ok, msg
+end
+
+function M.users()
+  return users.list()
+end
+
+function M.authorize(actor, permission)
+  if not M.cfg then M.load() end
+  if M.cfg.enabled == false then return true end
+  if actor and actor.system == true then return true end
+  if permission == nil or permission == "" then return true end
+  if users.isLocked() and permission ~= "system.auth" then return false, "session locked" end
+  if not users.hasPermission(permission) then return false, "user permission denied: " .. tostring(permission) end
+  return true
 end
 
 function M.start()
@@ -5561,7 +5909,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.12.0
+  ["VERSION"] = [[0.13.0
 ]],
 }
 
@@ -5583,5 +5931,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.12.0 installed.")
+print("MintCraft OS 0.13.0 installed.")
 print("Run reboot to start MintCraft OS.")

@@ -143,13 +143,23 @@ function M.run(ctx)
       end
     elseif self.page == "security" then
       local cfg = config.load("/system/config/security.cfg", {})
+      local user = securityd.currentUser()
       renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "single-user"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "User: " .. tostring(cfg.currentUser or "admin"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "users"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "User: " .. tostring(user and user.name or "admin"), colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Service: " .. securityd.statusText(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "Apps carry declared permissions.", colors.gray, colors.lightGray)
-      renderer.writeAt(1, 9, "Denied actions are logged in system.log.", colors.gray, colors.lightGray)
-      renderer.writeAt(1, 10, "Users/enforcement are simulated in V0.10.", colors.gray, colors.lightGray)
+      renderer.button(1, 8, 10, "Lock", false)
+      renderer.button(13, 8, 12, "Unlock", false)
+      renderer.button(27, 8, 12, "Admin", user and user.name == "admin")
+      renderer.button(41, 8, 12, "Guest", user and user.name == "guest")
+      renderer.button(1, 10, 18, "Set password", false)
+      renderer.writeAt(1, 12, "Policy: app permissions + user permissions.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 13, "Locked sessions deny sensitive actions.", colors.gray, colors.lightGray)
+      local users = securityd.users()
+      for i = 1, math.min(#users, h - 14) do
+        local item = users[i]
+        renderer.writeAt(1, 14 + i, renderer.crop((item.active and "* " or "  ") .. item.name .. "  " .. item.role .. "  " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
+      end
     elseif self.page == "apps" then
       local rows = ctx.apps.list()
       renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)
@@ -173,10 +183,18 @@ function M.run(ctx)
       renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
       renderer.button(1, 7, 14, "Open Editor", false)
     end
-    if self.mode == "label" then
+    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
       self.keyboard.x = 1
       self.keyboard.y = math.max(1, h - keyboard.height() + 1)
-      self.keyboard.hint = "Label: " .. self.input
+      if self.mode == "label" then
+        self.keyboard.hint = "Label: " .. self.input
+      elseif self.mode == "unlock" then
+        self.keyboard.hint = "Unlock password: " .. string.rep("*", #self.input)
+      elseif self.mode == "adminLogin" then
+        self.keyboard.hint = "Admin password: " .. string.rep("*", #self.input)
+      else
+        self.keyboard.hint = "New admin password: " .. string.rep("*", #self.input)
+      end
       keyboard.draw(1, self.keyboard.y, w, self.keyboard)
     end
     renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
@@ -186,12 +204,29 @@ function M.run(ctx)
   app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
   app.keyboard.onEnter = function()
     if app.mode == "label" and os.setComputerLabel then os.setComputerLabel(app.input) end
+    if app.mode == "unlock" then
+      local ok, msg = securityd.unlock(app.input)
+      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
+    elseif app.mode == "adminLogin" then
+      local ok, msg = securityd.login("admin", app.input)
+      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
+    elseif app.mode == "setPassword" then
+      local allowed, denied = app.securityRequire("system.auth", "set admin password")
+      if allowed then
+        local ok, msg = securityd.setPassword("admin", app.input)
+        if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", ok and "Password changed" or tostring(msg), 3) end
+      elseif app.systemNotifications then
+        app.systemNotifications:push("warn", "Security", tostring(denied), 3)
+      end
+    end
     app.mode = nil
     app.input = ""
   end
+  app.systemNotifications = ctx.notifications
+  app.securityRequire = ctx.security.require
 
   function app:handle(event)
-    if self.mode == "label" then
+    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
       if event.name == "char" then self.input = self.input .. event.args[1] return true end
       if event.name == "key" and event.args[1] == keys.backspace then self.input = self.input:sub(1, -2) return true end
       if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
@@ -251,6 +286,26 @@ function M.run(ctx)
         ctx.notifications:push(ok and "success" or "warn", "Audio", ok and ("Using " .. item.side) or tostring(err), 3)
         return true
       end
+    elseif self.page == "security" and y == 8 and x <= 10 then
+      securityd.lock()
+      ctx.notifications:push("warn", "Security", "Session locked", 3)
+      return true
+    elseif self.page == "security" and y == 8 and x >= 13 and x <= 24 then
+      self.mode = "unlock"
+      self.input = ""
+      return true
+    elseif self.page == "security" and y == 8 and x >= 27 and x <= 38 then
+      self.mode = "adminLogin"
+      self.input = ""
+      return true
+    elseif self.page == "security" and y == 8 and x >= 41 and x <= 52 then
+      securityd.logout()
+      ctx.notifications:push("info", "Security", "Guest session", 3)
+      return true
+    elseif self.page == "security" and y == 10 and x <= 18 then
+      self.mode = "setPassword"
+      self.input = ""
+      return true
     elseif self.page == "system" and y == 10 and x <= 16 then
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""

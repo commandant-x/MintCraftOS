@@ -3,6 +3,7 @@ local log = require("system.libraries.log")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local autocomplete = require("system.dev.autocomplete")
+local securityd = require("system.services.securityd")
 
 local M = {}
 
@@ -33,6 +34,12 @@ local help = {
   messenger = "messenger - open Rednet chat",
   store = "store - open package store",
   install = "install <pkg> - install package",
+  whoami = "whoami - show current security user",
+  lock = "lock - lock current session",
+  unlock = "unlock <password> - unlock current user",
+  login = "login <user> [password] - switch user",
+  logout = "logout - switch to guest",
+  passwd = "passwd <password> - change admin password",
 }
 
 local function trashPath(name)
@@ -170,6 +177,33 @@ local function runCommand(app, ctx, input)
     if rest == "" then append(app, "Usage: install <package>") else
       local allowed, denied = ctx.security.require("packages.install", rest)
       if allowed then ctx.security.audit("install", rest) local ok, msg = ctx.system.packages.install(rest) append(app, tostring(msg)) else append(app, denied) end
+    end
+  elseif cmd == "whoami" then
+    append(app, securityd.statusText())
+  elseif cmd == "lock" then
+    local allowed, denied = ctx.security.require("system.auth", "lock")
+    if allowed then securityd.lock() ctx.security.audit("lock", "terminal") append(app, "locked") else append(app, denied) end
+  elseif cmd == "unlock" then
+    local ok, msg = securityd.unlock(rest)
+    append(app, tostring(msg or ok))
+  elseif cmd == "login" then
+    local name, password = rest:match("^(%S+)%s*(.*)$")
+    if not name then append(app, "Usage: login <user> [password]") else
+      local ok, msg = securityd.login(name, password or "")
+      append(app, tostring(msg or ok))
+    end
+  elseif cmd == "logout" then
+    securityd.logout()
+    append(app, "guest session")
+  elseif cmd == "passwd" then
+    if rest == "" then append(app, "Usage: passwd <new-admin-password>") else
+      local allowed, denied = ctx.security.require("system.auth", "passwd")
+      if allowed then
+        local ok, msg = securityd.setPassword("admin", rest)
+        append(app, ok and "password changed" or tostring(msg))
+      else
+        append(app, denied)
+      end
     end
   elseif cmd == "files" then
     ctx.apps.launch("files")

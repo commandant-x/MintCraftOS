@@ -16,6 +16,7 @@ local ccWords = {
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
   "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "store", "install", "files", "settings", "devices",
+  "whoami", "lock", "unlock", "login", "logout", "passwd",
   "reboot", "help",
 }
 
