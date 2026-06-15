@@ -44,10 +44,16 @@ local function runCommand(app, ctx, input)
     append(app, ok and "killed" or err)
   elseif cmd == "logs" then
     for _, line in ipairs(log.tail(10)) do append(app, line) end
+  elseif cmd == "files" then
+    ctx.apps.launch("files")
+  elseif cmd == "settings" then
+    ctx.apps.launch("settings")
+  elseif cmd == "devices" then
+    ctx.apps.launch("devices")
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "help" then
-    append(app, "Commands: ls cd cat clear ps kill logs reboot help")
+    append(app, "Commands: ls cd cat clear ps kill logs files settings devices reboot help")
   else
     append(app, "Unknown command: " .. cmd)
   end
@@ -60,15 +66,100 @@ function M.run(ctx)
     cwd = "/home/user",
   }
 
+  local quick = {
+    { label = "ls", text = "ls" },
+    { label = "cd home", text = "cd /home/user" },
+    { label = "files", text = "files" },
+    { label = "ps", text = "ps" },
+    { label = "logs", text = "logs" },
+    { label = "clear", text = "clear" },
+  }
+
+  local keysRows = {
+    "1234567890",
+    "qwertyuiop",
+    "asdfghjkl",
+    "zxcvbnm",
+  }
+
+  local function keyboardTop(h)
+    return math.max(3, h - 6)
+  end
+
+  local function submit()
+    local input = app.input
+    app.input = ""
+    runCommand(app, ctx, input)
+  end
+
+  local function hitQuick(x, y)
+    if y ~= 1 then return false end
+    local cursor = 1
+    for _, item in ipairs(quick) do
+      local width = #item.label + 2
+      if x >= cursor and x < cursor + width then
+        app.input = item.text
+        submit()
+        return true
+      end
+      cursor = cursor + width + 1
+    end
+    return false
+  end
+
+  local function hitKeyboard(x, y, h)
+    local top = keyboardTop(h)
+    local row = y - top + 1
+    if row >= 1 and row <= #keysRows then
+      local chars = keysRows[row]
+      local index = math.floor((x + 1) / 2)
+      local ch = chars:sub(index, index)
+      if ch ~= "" then
+        app.input = app.input .. ch
+        return true
+      end
+    elseif y == top + 4 then
+      if x >= 1 and x <= 8 then
+        app.input = app.input .. " "
+        return true
+      elseif x >= 10 and x <= 17 then
+        app.input = string.sub(app.input, 1, -2)
+        return true
+      elseif x >= 19 and x <= 27 then
+        submit()
+        return true
+      end
+    end
+    return false
+  end
+
   function app:draw(w, h)
-    local start = math.max(1, #self.lines - h + 2)
-    local y = 1
+    self.lastH = h
+    local top = keyboardTop(h)
+    local logHeight = math.max(1, top - 3)
+    local cursor = 1
+    for _, item in ipairs(quick) do
+      local label = " " .. item.label .. " "
+      renderer.writeAt(cursor, 1, renderer.crop(label, #label), colors.white, colors.gray)
+      cursor = cursor + #label + 1
+      if cursor > w then break end
+    end
+
+    local start = math.max(1, #self.lines - logHeight + 1)
+    local y = 2
     for i = start, #self.lines do
       renderer.writeAt(1, y, renderer.crop(self.lines[i], w), colors.black, colors.lightGray)
       y = y + 1
-      if y >= h then break end
+      if y >= top - 1 then break end
     end
-    renderer.writeAt(1, h, renderer.crop(self.cwd .. "> " .. self.input, w), colors.white, colors.gray)
+    renderer.writeAt(1, top - 1, renderer.crop(self.cwd .. "> " .. self.input, w), colors.white, colors.gray)
+
+    for row, chars in ipairs(keysRows) do
+      local line = ""
+      for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
+      renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
+    end
+    renderer.writeAt(1, top + 4, renderer.crop("[space] [back] [enter]", w), colors.white, colors.gray)
   end
 
   function app:handle(event)
@@ -86,12 +177,17 @@ function M.run(ctx)
         self.input = string.sub(self.input, 1, -2)
         return true
       end
+    elseif event.name == "mouse_click" and event.monitorTouch then
+      local _, x, y = table.unpack(event.args)
+      local h = self.lastH or 12
+      if hitQuick(x, y) then return true end
+      if hitKeyboard(x, y, h) then return true end
     end
     return false
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Terminal", w = math.min(68, sw - 4), h = math.min(20, sh - 3), x = 4, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Terminal", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 

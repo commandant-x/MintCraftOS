@@ -6,7 +6,7 @@ local M = {
   nativeTerm = nil,
 }
 
-local function scan()
+function M.scan()
   local devices = {}
   if peripheral and peripheral.getNames then
     for _, name in ipairs(peripheral.getNames()) do
@@ -20,7 +20,7 @@ local function scan()
   return devices
 end
 
-local function useMonitorIfPresent()
+function M.useMonitor()
   if not peripheral or not peripheral.find then return false end
   local monitor = peripheral.find("monitor")
   if not monitor then return false end
@@ -36,16 +36,20 @@ local function useMonitorIfPresent()
   return true
 end
 
+function M.isRedirected()
+  return M.redirected
+end
+
 function M.start(ctx)
-  scan()
-  useMonitorIfPresent()
+  M.scan()
+  M.useMonitor()
   if ctx and ctx.eventBus then
     ctx.eventBus:on("peripheral", function()
-      scan()
-      if not M.redirected then useMonitorIfPresent() end
+      M.scan()
+      if not M.redirected then M.useMonitor() end
     end)
     ctx.eventBus:on("peripheral_detach", function()
-      scan()
+      M.scan()
     end)
   end
   log.info("deviced", "device service ready")
@@ -59,7 +63,7 @@ function M.stop()
 end
 
 function M.list()
-  scan()
+  M.scan()
   local rows = {}
   for _, device in pairs(M.devices) do table.insert(rows, device) end
   table.sort(rows, function(a, b) return a.name < b.name end)

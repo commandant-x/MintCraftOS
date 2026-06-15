@@ -22,23 +22,42 @@ function M.run(ctx)
   local app = {}
 
   function app:draw(w, h)
-    renderer.writeAt(1, 1, renderer.crop("DEVICE          TYPE", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 1, renderer.crop("[Rescan] [Use monitor]", w), colors.white, colors.gray)
+    local tw, th = term.getSize()
+    renderer.writeAt(1, 2, renderer.crop("Display: " .. tostring(tw) .. "x" .. tostring(th), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(deviced.isRedirected()), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("DEVICE          TYPE", w), colors.black, colors.lightGray)
     local rows = deviced.list()
     if #rows == 0 then
-      renderer.writeAt(1, 3, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
     end
-    for i = 1, math.min(#rows, h - 1) do
+    for i = 1, math.min(#rows, h - 5) do
       local d = rows[i]
-      renderer.writeAt(1, i + 1, renderer.crop(d.name .. "          " .. tostring(d.type), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, i + 5, renderer.crop(d.name .. "          " .. tostring(d.type), w), colors.black, colors.lightGray)
     end
   end
 
-  function app:handle()
+  function app:handle(event)
+    if event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if y == 1 and x <= 8 then
+        deviced.scan()
+        ctx.notifications:push("success", "Devices", "Rescan complete", 3)
+        return true
+      elseif y == 1 and x >= 10 and x <= 22 then
+        if deviced.useMonitor() then
+          ctx.notifications:push("success", "Devices", "Monitor selected", 3)
+        else
+          ctx.notifications:push("warn", "Devices", "No monitor found", 3)
+        end
+        return true
+      end
+    end
     return false
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Devices", w = math.min(44, sw - 4), h = math.min(12, sh - 3), x = 4, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Devices", w = math.min(52, sw - 4), h = math.min(16, sh - 3), x = 4, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -301,10 +320,16 @@ local function runCommand(app, ctx, input)
     append(app, ok and "killed" or err)
   elseif cmd == "logs" then
     for _, line in ipairs(log.tail(10)) do append(app, line) end
+  elseif cmd == "files" then
+    ctx.apps.launch("files")
+  elseif cmd == "settings" then
+    ctx.apps.launch("settings")
+  elseif cmd == "devices" then
+    ctx.apps.launch("devices")
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "help" then
-    append(app, "Commands: ls cd cat clear ps kill logs reboot help")
+    append(app, "Commands: ls cd cat clear ps kill logs files settings devices reboot help")
   else
     append(app, "Unknown command: " .. cmd)
   end
@@ -317,15 +342,100 @@ function M.run(ctx)
     cwd = "/home/user",
   }
 
+  local quick = {
+    { label = "ls", text = "ls" },
+    { label = "cd home", text = "cd /home/user" },
+    { label = "files", text = "files" },
+    { label = "ps", text = "ps" },
+    { label = "logs", text = "logs" },
+    { label = "clear", text = "clear" },
+  }
+
+  local keysRows = {
+    "1234567890",
+    "qwertyuiop",
+    "asdfghjkl",
+    "zxcvbnm",
+  }
+
+  local function keyboardTop(h)
+    return math.max(3, h - 6)
+  end
+
+  local function submit()
+    local input = app.input
+    app.input = ""
+    runCommand(app, ctx, input)
+  end
+
+  local function hitQuick(x, y)
+    if y ~= 1 then return false end
+    local cursor = 1
+    for _, item in ipairs(quick) do
+      local width = #item.label + 2
+      if x >= cursor and x < cursor + width then
+        app.input = item.text
+        submit()
+        return true
+      end
+      cursor = cursor + width + 1
+    end
+    return false
+  end
+
+  local function hitKeyboard(x, y, h)
+    local top = keyboardTop(h)
+    local row = y - top + 1
+    if row >= 1 and row <= #keysRows then
+      local chars = keysRows[row]
+      local index = math.floor((x + 1) / 2)
+      local ch = chars:sub(index, index)
+      if ch ~= "" then
+        app.input = app.input .. ch
+        return true
+      end
+    elseif y == top + 4 then
+      if x >= 1 and x <= 8 then
+        app.input = app.input .. " "
+        return true
+      elseif x >= 10 and x <= 17 then
+        app.input = string.sub(app.input, 1, -2)
+        return true
+      elseif x >= 19 and x <= 27 then
+        submit()
+        return true
+      end
+    end
+    return false
+  end
+
   function app:draw(w, h)
-    local start = math.max(1, #self.lines - h + 2)
-    local y = 1
+    self.lastH = h
+    local top = keyboardTop(h)
+    local logHeight = math.max(1, top - 3)
+    local cursor = 1
+    for _, item in ipairs(quick) do
+      local label = " " .. item.label .. " "
+      renderer.writeAt(cursor, 1, renderer.crop(label, #label), colors.white, colors.gray)
+      cursor = cursor + #label + 1
+      if cursor > w then break end
+    end
+
+    local start = math.max(1, #self.lines - logHeight + 1)
+    local y = 2
     for i = start, #self.lines do
       renderer.writeAt(1, y, renderer.crop(self.lines[i], w), colors.black, colors.lightGray)
       y = y + 1
-      if y >= h then break end
+      if y >= top - 1 then break end
     end
-    renderer.writeAt(1, h, renderer.crop(self.cwd .. "> " .. self.input, w), colors.white, colors.gray)
+    renderer.writeAt(1, top - 1, renderer.crop(self.cwd .. "> " .. self.input, w), colors.white, colors.gray)
+
+    for row, chars in ipairs(keysRows) do
+      local line = ""
+      for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
+      renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
+    end
+    renderer.writeAt(1, top + 4, renderer.crop("[space] [back] [enter]", w), colors.white, colors.gray)
   end
 
   function app:handle(event)
@@ -343,12 +453,17 @@ function M.run(ctx)
         self.input = string.sub(self.input, 1, -2)
         return true
       end
+    elseif event.name == "mouse_click" and event.monitorTouch then
+      local _, x, y = table.unpack(event.args)
+      local h = self.lastH or 12
+      if hitQuick(x, y) then return true end
+      if hitKeyboard(x, y, h) then return true end
     end
     return false
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Terminal", w = math.min(68, sw - 4), h = math.min(20, sh - 3), x = 4, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Terminal", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -1260,7 +1375,7 @@ local M = {
   nativeTerm = nil,
 }
 
-local function scan()
+function M.scan()
   local devices = {}
   if peripheral and peripheral.getNames then
     for _, name in ipairs(peripheral.getNames()) do
@@ -1274,7 +1389,7 @@ local function scan()
   return devices
 end
 
-local function useMonitorIfPresent()
+function M.useMonitor()
   if not peripheral or not peripheral.find then return false end
   local monitor = peripheral.find("monitor")
   if not monitor then return false end
@@ -1290,16 +1405,20 @@ local function useMonitorIfPresent()
   return true
 end
 
+function M.isRedirected()
+  return M.redirected
+end
+
 function M.start(ctx)
-  scan()
-  useMonitorIfPresent()
+  M.scan()
+  M.useMonitor()
   if ctx and ctx.eventBus then
     ctx.eventBus:on("peripheral", function()
-      scan()
-      if not M.redirected then useMonitorIfPresent() end
+      M.scan()
+      if not M.redirected then M.useMonitor() end
     end)
     ctx.eventBus:on("peripheral_detach", function()
-      scan()
+      M.scan()
     end)
   end
   log.info("deviced", "device service ready")
@@ -1313,7 +1432,7 @@ function M.stop()
 end
 
 function M.list()
-  scan()
+  M.scan()
   local rows = {}
   for _, device in pairs(M.devices) do table.insert(rows, device) end
   table.sort(rows, function(a, b) return a.name < b.name end)
