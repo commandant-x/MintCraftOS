@@ -131,6 +131,7 @@ local function openContextMenu(x, y)
       { label = "Open Files", action = function() launch("files") end },
       { label = "Terminal", action = function() launch("terminal") end },
       { label = "Settings", action = function() launch("settings") end },
+      { label = "Devices", action = function() launch("devices") end },
     },
   }
 end

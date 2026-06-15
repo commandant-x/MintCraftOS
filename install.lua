@@ -716,6 +716,7 @@ local function openContextMenu(x, y)
       { label = "Open Files", action = function() launch("files") end },
       { label = "Terminal", action = function() launch("terminal") end },
       { label = "Settings", action = function() launch("settings") end },
+      { label = "Devices", action = function() launch("devices") end },
     },
   }
 end
@@ -1485,6 +1486,7 @@ function Window.new(opts)
     minimized = false,
     closed = false,
     dragging = false,
+    movePending = false,
     app = opts.app,
   }, Window)
 end
@@ -1510,7 +1512,8 @@ function Window:draw()
   self:clamp()
   renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
-  renderer.writeAt(self.x, self.y, renderer.crop(" " .. self.title, self.w - 6), theme.get("titleFg"), theme.get("titleBg"))
+  local title = self.movePending and " Tap destination" or (" " .. self.title)
+  renderer.writeAt(self.x, self.y, renderer.crop(title, self.w - 6), theme.get("titleFg"), theme.get("titleBg"))
   renderer.writeAt(self.x + self.w - 5, self.y, " _ X ", theme.get("titleFg"), theme.get("titleBg"))
 
   if self.app and self.app.draw then
@@ -1533,6 +1536,13 @@ function Window:handle(event)
   if self.closed or self.minimized then return false end
   if event.name == "mouse_click" then
     local button, x, y = table.unpack(event.args)
+    if self.movePending then
+      self.x = x - math.floor(self.w / 2)
+      self.y = y
+      self.movePending = false
+      self:clamp()
+      return true
+    end
     if button == 1 and y == self.y and x >= self.x + self.w - 2 then
       self.closed = true
       return true
@@ -1540,6 +1550,10 @@ function Window:handle(event)
       self.minimized = true
       return true
     elseif button == 1 and self:titleContains(x, y) then
+      if event.monitorTouch then
+        self.movePending = true
+        return true
+      end
       self.dragging = { dx = x - self.x, dy = y - self.y }
       return true
     end
@@ -1559,7 +1573,13 @@ function Window:handle(event)
       local args = { table.unpack(event.args) }
       args[2] = args[2] - self.x
       args[3] = args[3] - self.y
-      localEvent = { name = event.name, args = args, raw = event.raw }
+      localEvent = {
+        name = event.name,
+        args = args,
+        raw = event.raw,
+        monitorTouch = event.monitorTouch,
+        monitorSide = event.monitorSide,
+      }
     end
     return self.app:handle(localEvent, self)
   end
@@ -1620,6 +1640,10 @@ end
 function WindowManager:handle(event)
   if event.name == "mouse_click" then
     local _, x, y = table.unpack(event.args)
+    local active = self.windows[#self.windows]
+    if active and active.movePending then
+      return active:handle(event)
+    end
     for i = #self.windows, 1, -1 do
       local win = self.windows[i]
       if win.minimized and y == ({ term.getSize() })[2] then

@@ -50,6 +50,10 @@ end
 function WindowManager:handle(event)
   if event.name == "mouse_click" then
     local _, x, y = table.unpack(event.args)
+    local active = self.windows[#self.windows]
+    if active and active.movePending then
+      return active:handle(event)
+    end
     for i = #self.windows, 1, -1 do
       local win = self.windows[i]
       if win.minimized and y == ({ term.getSize() })[2] then
