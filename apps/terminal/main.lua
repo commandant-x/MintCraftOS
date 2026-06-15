@@ -90,7 +90,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Terminal", w = 44, h = 15, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Terminal", w = math.min(68, sw - 4), h = math.min(20, sh - 3), x = 4, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 

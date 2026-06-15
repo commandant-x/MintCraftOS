@@ -35,7 +35,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Files", w = 38, h = 14, x = 9, y = 4, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Files", w = math.min(58, sw - 4), h = math.min(18, sh - 3), x = 6, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 

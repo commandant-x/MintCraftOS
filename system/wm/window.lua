@@ -6,18 +6,30 @@ Window.__index = Window
 
 function Window.new(opts)
   local w, h = term.getSize()
+  local width = opts.w or math.min(38, w - 8)
+  local height = opts.h or math.min(12, h - 5)
+  width = math.max(12, math.min(width, w))
+  height = math.max(5, math.min(height, h - 1))
   return setmetatable({
     id = opts.id,
     title = opts.title or "Window",
     x = opts.x or 6,
     y = opts.y or 3,
-    w = opts.w or math.min(38, w - 8),
-    h = opts.h or math.min(12, h - 5),
+    w = width,
+    h = height,
     minimized = false,
     closed = false,
     dragging = false,
     app = opts.app,
   }, Window)
+end
+
+function Window:clamp()
+  local sw, sh = term.getSize()
+  local maxX = math.max(1, sw - self.w + 1)
+  local maxY = math.max(1, sh - self.h)
+  self.x = math.max(1, math.min(self.x, maxX))
+  self.y = math.max(1, math.min(self.y, maxY))
 end
 
 function Window:contains(x, y)
@@ -30,6 +42,7 @@ end
 
 function Window:draw()
   if self.closed or self.minimized then return end
+  self:clamp()
   renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
   renderer.writeAt(self.x, self.y, renderer.crop(" " .. self.title, self.w - 6), theme.get("titleFg"), theme.get("titleBg"))
@@ -67,8 +80,9 @@ function Window:handle(event)
     end
   elseif event.name == "mouse_drag" and self.dragging then
     local _, x, y = table.unpack(event.args)
-    self.x = math.max(1, x - self.dragging.dx)
-    self.y = math.max(1, y - self.dragging.dy)
+    self.x = x - self.dragging.dx
+    self.y = y - self.dragging.dy
+    self:clamp()
     return true
   elseif event.name == "mouse_up" then
     self.dragging = false

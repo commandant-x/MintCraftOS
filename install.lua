@@ -5,6 +5,45 @@ local files = {
   ["shell.allow_startup"] = true,
 }
 ]],
+  ["apps/devices/app.cfg"] = [[{
+  id = "devices",
+  name = "Devices",
+  version = "0.4.0",
+  main = "apps.devices.main",
+  permissions = { "devices.list" },
+}
+]],
+  ["apps/devices/main.lua"] = [[local renderer = require("system.gui.renderer")
+local deviced = require("system.services.deviced")
+
+local M = {}
+
+function M.run(ctx)
+  local app = {}
+
+  function app:draw(w, h)
+    renderer.writeAt(1, 1, renderer.crop("DEVICE          TYPE", w), colors.black, colors.lightGray)
+    local rows = deviced.list()
+    if #rows == 0 then
+      renderer.writeAt(1, 3, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+    end
+    for i = 1, math.min(#rows, h - 1) do
+      local d = rows[i]
+      renderer.writeAt(1, i + 1, renderer.crop(d.name .. "          " .. tostring(d.type), w), colors.black, colors.lightGray)
+    end
+  end
+
+  function app:handle()
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Devices", w = math.min(44, sw - 4), h = math.min(12, sh - 3), x = 4, y = 3, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
@@ -50,7 +89,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Files", w = 38, h = 14, x = 9, y = 4, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Files", w = math.min(58, sw - 4), h = math.min(18, sh - 3), x = 6, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -84,7 +124,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Logs", w = 50, h = 14, x = 8, y = 3, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Logs", w = math.min(72, sw - 4), h = math.min(18, sh - 3), x = 5, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -118,7 +159,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Services", w = 36, h = 10, x = 16, y = 5, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Services", w = math.min(46, sw - 4), h = math.min(14, sh - 3), x = 10, y = 4, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -163,7 +205,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Settings", w = 36, h = 10, x = 12, y = 5, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Settings", w = math.min(46, sw - 4), h = math.min(12, sh - 3), x = 8, y = 4, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -197,7 +240,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Task Manager", w = 42, h = 12, x = 14, y = 4, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Task Manager", w = math.min(58, sw - 4), h = math.min(16, sh - 3), x = 8, y = 4, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -303,7 +347,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Terminal", w = 44, h = 15, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Terminal", w = math.min(68, sw - 4), h = math.min(20, sh - 3), x = 4, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -370,8 +415,9 @@ This repository currently contains the V0.4 base:
 - cooperative scheduler and process table
 - event bus
 - terminal renderer, themes and window manager
-- desktop, taskbar, start menu and notifications
-- minimal Terminal, Files, Settings, Task Manager, Services and Logs apps
+- desktop, taskbar, start menu, right-click context menu and notifications
+- monitor auto-display through `deviced`
+- minimal Terminal, Files, Settings, Task Manager, Services, Devices and Logs apps
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -545,6 +591,7 @@ local M = {
   wm = nil,
   notifications = nil,
   menuOpen = false,
+  contextMenu = nil,
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -552,15 +599,43 @@ function M.setWindowManager(wm) M.wm = wm end
 function M.setNotifications(notifications) M.notifications = notifications end
 
 local function drawIcons()
-  local icons = {
-    { x = 2, y = 2, label = "Terminal", app = "terminal" },
-    { x = 2, y = 5, label = "Files", app = "files" },
-    { x = 2, y = 8, label = "Settings", app = "settings" },
+  local _, h = term.getSize()
+  local labels = {
+    { label = "Terminal", app = "terminal" },
+    { label = "Files", app = "files" },
+    { label = "Settings", app = "settings" },
+    { label = "Devices", app = "devices" },
   }
+  local icons = {}
+  local x, y = 2, 2
+  for _, item in ipairs(labels) do
+    table.insert(icons, { x = x, y = y, label = item.label, app = item.app })
+    y = y + 3
+    if y > h - 5 then
+      y = 2
+      x = x + 13
+    end
+  end
 
   for _, icon in ipairs(icons) do
     renderer.writeAt(icon.x, icon.y, "[ ]", colors.white, theme.get("desktopBg"))
     renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
+  end
+end
+
+local function drawContextMenu()
+  if not M.contextMenu then return end
+  local w, h = term.getSize()
+  local items = M.contextMenu.items
+  local menuW = 18
+  local menuH = #items + 2
+  local x = math.min(M.contextMenu.x, math.max(1, w - menuW + 1))
+  local y = math.min(M.contextMenu.y, math.max(1, h - menuH))
+  M.contextMenu.x, M.contextMenu.y = x, y
+  renderer.fill(x, y, menuW, menuH, colors.lightGray)
+  renderer.writeAt(x + 1, y, "Desktop", colors.black, colors.lightGray)
+  for i, item in ipairs(items) do
+    renderer.writeAt(x + 1, y + i, renderer.crop(item.label, menuW - 2), colors.black, colors.lightGray)
   end
 end
 
@@ -592,6 +667,7 @@ function M.draw()
   drawIcons()
   drawTaskbar()
   drawMenu()
+  drawContextMenu()
 end
 
 local function launch(appId)
@@ -602,10 +678,64 @@ local function launch(appId)
   end
 end
 
+local function nextFreePath(base, ext)
+  local index = 1
+  local path
+  repeat
+    path = base .. tostring(index) .. ext
+    index = index + 1
+  until not fs.exists(path)
+  return path
+end
+
+local function createTextFile()
+  local path = nextFreePath("/home/user/desktop/new_file_", ".txt")
+  local h = fs.open(path, "w")
+  if h then
+    h.write("")
+    h.close()
+    if M.notifications then M.notifications:push("success", "Desktop", fs.getName(path) .. " created", 3) end
+  end
+end
+
+local function createFolder()
+  local path = nextFreePath("/home/user/desktop/new_folder_", "")
+  fs.makeDir(path)
+  if M.notifications then M.notifications:push("success", "Desktop", fs.getName(path) .. " created", 3) end
+end
+
+local function openContextMenu(x, y)
+  M.menuOpen = false
+  M.contextMenu = {
+    x = x,
+    y = y,
+    items = {
+      { label = "New file", action = createTextFile },
+      { label = "New folder", action = createFolder },
+      { label = "Open Files", action = function() launch("files") end },
+      { label = "Terminal", action = function() launch("terminal") end },
+      { label = "Settings", action = function() launch("settings") end },
+    },
+  }
+end
+
 function M.handle(event)
   if event.name ~= "mouse_click" then return false end
   local button, x, y = table.unpack(event.args)
   local w, h = term.getSize()
+
+  if M.contextMenu then
+    local menu = M.contextMenu
+    local index = y - menu.y
+    if button == 1 and x >= menu.x and x < menu.x + 18 and index >= 1 and menu.items[index] then
+      local action = menu.items[index].action
+      M.contextMenu = nil
+      action()
+      return true
+    end
+    M.contextMenu = nil
+    return true
+  }
 
   if y == h and x <= 8 then
     M.menuOpen = not M.menuOpen
@@ -622,6 +752,11 @@ function M.handle(event)
       return true
     end
     M.menuOpen = false
+  end
+
+  if button == 2 then
+    openContextMenu(x, y)
+    return true
   end
 
   if button == 1 and x >= 2 and x <= 11 then
@@ -804,6 +939,7 @@ local function bootApps(ctx)
   apps.register("taskmanager", "Task Manager", "apps.taskmanager.main")
   apps.register("logs", "Logs", "apps.logs.main")
   apps.register("services", "Services", "apps.services.main")
+  apps.register("devices", "Devices", "apps.devices.main")
 
   desktop.setApps(apps)
   desktop.setWindowManager(ctx.wm)
@@ -825,6 +961,7 @@ function M.start()
   ctx.apps = apps
   ctx.apps.setContext(ctx)
   ctx.services:register("logd", "system.services.logd", true)
+  ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:startAutostart()
   bootApps(ctx)
@@ -1093,6 +1230,76 @@ end
 
 return M
 ]],
+  ["system/services/deviced.lua"] = [[local log = require("system.libraries.log")
+
+local M = {
+  devices = {},
+  redirected = false,
+  nativeTerm = nil,
+}
+
+local function scan()
+  local devices = {}
+  if peripheral and peripheral.getNames then
+    for _, name in ipairs(peripheral.getNames()) do
+      devices[name] = {
+        name = name,
+        type = peripheral.getType(name),
+      }
+    end
+  end
+  M.devices = devices
+  return devices
+end
+
+local function useMonitorIfPresent()
+  if not peripheral or not peripheral.find then return false end
+  local monitor = peripheral.find("monitor")
+  if not monitor then return false end
+
+  if monitor.setTextScale then monitor.setTextScale(0.5) end
+  if monitor.setBackgroundColor then monitor.setBackgroundColor(colors.black) end
+  if monitor.clear then monitor.clear() end
+
+  M.nativeTerm = term.current()
+  term.redirect(monitor)
+  M.redirected = true
+  log.info("deviced", "using attached monitor as display")
+  return true
+end
+
+function M.start(ctx)
+  scan()
+  useMonitorIfPresent()
+  if ctx and ctx.eventBus then
+    ctx.eventBus:on("peripheral", function()
+      scan()
+      if not M.redirected then useMonitorIfPresent() end
+    end)
+    ctx.eventBus:on("peripheral_detach", function()
+      scan()
+    end)
+  end
+  log.info("deviced", "device service ready")
+end
+
+function M.stop()
+  if M.redirected and M.nativeTerm then
+    term.redirect(M.nativeTerm)
+    M.redirected = false
+  end
+end
+
+function M.list()
+  scan()
+  local rows = {}
+  for _, device in pairs(M.devices) do table.insert(rows, device) end
+  table.sort(rows, function(a, b) return a.name < b.name end)
+  return rows
+end
+
+return M
+]],
   ["system/services/logd.lua"] = [[local log = require("system.libraries.log")
 
 local M = {}
@@ -1243,18 +1450,30 @@ Window.__index = Window
 
 function Window.new(opts)
   local w, h = term.getSize()
+  local width = opts.w or math.min(38, w - 8)
+  local height = opts.h or math.min(12, h - 5)
+  width = math.max(12, math.min(width, w))
+  height = math.max(5, math.min(height, h - 1))
   return setmetatable({
     id = opts.id,
     title = opts.title or "Window",
     x = opts.x or 6,
     y = opts.y or 3,
-    w = opts.w or math.min(38, w - 8),
-    h = opts.h or math.min(12, h - 5),
+    w = width,
+    h = height,
     minimized = false,
     closed = false,
     dragging = false,
     app = opts.app,
   }, Window)
+end
+
+function Window:clamp()
+  local sw, sh = term.getSize()
+  local maxX = math.max(1, sw - self.w + 1)
+  local maxY = math.max(1, sh - self.h)
+  self.x = math.max(1, math.min(self.x, maxX))
+  self.y = math.max(1, math.min(self.y, maxY))
 end
 
 function Window:contains(x, y)
@@ -1267,6 +1486,7 @@ end
 
 function Window:draw()
   if self.closed or self.minimized then return end
+  self:clamp()
   renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
   renderer.writeAt(self.x, self.y, renderer.crop(" " .. self.title, self.w - 6), theme.get("titleFg"), theme.get("titleBg"))
@@ -1304,8 +1524,9 @@ function Window:handle(event)
     end
   elseif event.name == "mouse_drag" and self.dragging then
     local _, x, y = table.unpack(event.args)
-    self.x = math.max(1, x - self.dragging.dx)
-    self.y = math.max(1, y - self.dragging.dy)
+    self.x = x - self.dragging.dx
+    self.y = y - self.dragging.dy
+    self:clamp()
     return true
   elseif event.name == "mouse_up" then
     self.dragging = false

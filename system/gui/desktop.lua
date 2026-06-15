@@ -6,6 +6,7 @@ local M = {
   wm = nil,
   notifications = nil,
   menuOpen = false,
+  contextMenu = nil,
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -13,15 +14,43 @@ function M.setWindowManager(wm) M.wm = wm end
 function M.setNotifications(notifications) M.notifications = notifications end
 
 local function drawIcons()
-  local icons = {
-    { x = 2, y = 2, label = "Terminal", app = "terminal" },
-    { x = 2, y = 5, label = "Files", app = "files" },
-    { x = 2, y = 8, label = "Settings", app = "settings" },
+  local _, h = term.getSize()
+  local labels = {
+    { label = "Terminal", app = "terminal" },
+    { label = "Files", app = "files" },
+    { label = "Settings", app = "settings" },
+    { label = "Devices", app = "devices" },
   }
+  local icons = {}
+  local x, y = 2, 2
+  for _, item in ipairs(labels) do
+    table.insert(icons, { x = x, y = y, label = item.label, app = item.app })
+    y = y + 3
+    if y > h - 5 then
+      y = 2
+      x = x + 13
+    end
+  end
 
   for _, icon in ipairs(icons) do
     renderer.writeAt(icon.x, icon.y, "[ ]", colors.white, theme.get("desktopBg"))
     renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
+  end
+end
+
+local function drawContextMenu()
+  if not M.contextMenu then return end
+  local w, h = term.getSize()
+  local items = M.contextMenu.items
+  local menuW = 18
+  local menuH = #items + 2
+  local x = math.min(M.contextMenu.x, math.max(1, w - menuW + 1))
+  local y = math.min(M.contextMenu.y, math.max(1, h - menuH))
+  M.contextMenu.x, M.contextMenu.y = x, y
+  renderer.fill(x, y, menuW, menuH, colors.lightGray)
+  renderer.writeAt(x + 1, y, "Desktop", colors.black, colors.lightGray)
+  for i, item in ipairs(items) do
+    renderer.writeAt(x + 1, y + i, renderer.crop(item.label, menuW - 2), colors.black, colors.lightGray)
   end
 end
 
@@ -53,6 +82,7 @@ function M.draw()
   drawIcons()
   drawTaskbar()
   drawMenu()
+  drawContextMenu()
 end
 
 local function launch(appId)
@@ -63,10 +93,64 @@ local function launch(appId)
   end
 end
 
+local function nextFreePath(base, ext)
+  local index = 1
+  local path
+  repeat
+    path = base .. tostring(index) .. ext
+    index = index + 1
+  until not fs.exists(path)
+  return path
+end
+
+local function createTextFile()
+  local path = nextFreePath("/home/user/desktop/new_file_", ".txt")
+  local h = fs.open(path, "w")
+  if h then
+    h.write("")
+    h.close()
+    if M.notifications then M.notifications:push("success", "Desktop", fs.getName(path) .. " created", 3) end
+  end
+end
+
+local function createFolder()
+  local path = nextFreePath("/home/user/desktop/new_folder_", "")
+  fs.makeDir(path)
+  if M.notifications then M.notifications:push("success", "Desktop", fs.getName(path) .. " created", 3) end
+end
+
+local function openContextMenu(x, y)
+  M.menuOpen = false
+  M.contextMenu = {
+    x = x,
+    y = y,
+    items = {
+      { label = "New file", action = createTextFile },
+      { label = "New folder", action = createFolder },
+      { label = "Open Files", action = function() launch("files") end },
+      { label = "Terminal", action = function() launch("terminal") end },
+      { label = "Settings", action = function() launch("settings") end },
+    },
+  }
+end
+
 function M.handle(event)
   if event.name ~= "mouse_click" then return false end
   local button, x, y = table.unpack(event.args)
   local w, h = term.getSize()
+
+  if M.contextMenu then
+    local menu = M.contextMenu
+    local index = y - menu.y
+    if button == 1 and x >= menu.x and x < menu.x + 18 and index >= 1 and menu.items[index] then
+      local action = menu.items[index].action
+      M.contextMenu = nil
+      action()
+      return true
+    end
+    M.contextMenu = nil
+    return true
+  }
 
   if y == h and x <= 8 then
     M.menuOpen = not M.menuOpen
@@ -83,6 +167,11 @@ function M.handle(event)
       return true
     end
     M.menuOpen = false
+  end
+
+  if button == 2 then
+    openContextMenu(x, y)
+    return true
   end
 
   if button == 1 and x >= 2 and x <= 11 then

@@ -9,8 +9,9 @@ This repository currently contains the V0.4 base:
 - cooperative scheduler and process table
 - event bus
 - terminal renderer, themes and window manager
-- desktop, taskbar, start menu and notifications
-- minimal Terminal, Files, Settings, Task Manager, Services and Logs apps
+- desktop, taskbar, start menu, right-click context menu and notifications
+- monitor auto-display through `deviced`
+- minimal Terminal, Files, Settings, Task Manager, Services, Devices and Logs apps
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 

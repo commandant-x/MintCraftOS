@@ -18,7 +18,8 @@ function M.run(ctx)
     return false
   end
 
-  local win = ctx.windowManager:create({ title = "Task Manager", w = 42, h = 12, x = 14, y = 4, app = app })
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Task Manager", w = math.min(58, sw - 4), h = math.min(16, sh - 3), x = 8, y = 4, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
