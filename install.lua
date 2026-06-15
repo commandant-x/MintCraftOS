@@ -1,4 +1,4 @@
--- MintCraft OS V0.8.0 installer for CC:Tweaked
+-- MintCraft OS V0.8.1 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -21,6 +21,64 @@ local ui = require("system.gui.components")
 local httpClient = require("system.network.http_client")
 
 local M = {}
+
+local function entity(text)
+  text = tostring(text or "")
+  local named = {
+    amp = "&", lt = "<", gt = ">", quot = "\"", apos = "'",
+    nbsp = " ", copy = "(c)", reg = "(r)",
+  }
+  text = text:gsub("&#(%d+);", function(n)
+    n = tonumber(n)
+    if n and n >= 32 and n <= 126 then return string.char(n) end
+    return " "
+  end)
+  text = text:gsub("&([%a]+);", function(name) return named[name] or " " end)
+  return text
+end
+
+local function clean(text)
+  return entity(text):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function htmlToText(html, url)
+  html = tostring(html or "")
+  local rows = {}
+  local lowerUrl = tostring(url or ""):lower()
+
+  if lowerUrl:find("youtube%.com", 1, true) or lowerUrl:find("youtu%.be", 1, true) then
+    table.insert(rows, "YouTube: video decode is not available inside CC:Tweaked.")
+    table.insert(rows, "MintCraft Browser can show text metadata only.")
+    table.insert(rows, "")
+  end
+
+  html = html:gsub("<script.-</script>", " "):gsub("<style.-</style>", " ")
+  html = html:gsub("<!%-%-.-%-%->", " ")
+
+  local title = clean(html:match("<title[^>]*>(.-)</title>"))
+  if title ~= "" then
+    table.insert(rows, "# " .. title)
+    table.insert(rows, "")
+  end
+
+  html = html:gsub("<[hH]([1-6])[^>]*>", "\n# "):gsub("</[hH][1-6]>", "\n")
+  html = html:gsub("<[pP][^>]*>", "\n"):gsub("</[pP]>", "\n")
+  html = html:gsub("<br%s*/?>", "\n"):gsub("<br>", "\n")
+  html = html:gsub("<li[^>]*>", "\n- "):gsub("</li>", "\n")
+  html = html:gsub("<a[^>]-href=[\"']([^\"']+)[\"'][^>]*>(.-)</a>", function(href, label)
+    label = clean(label)
+    if label == "" then label = href end
+    return label .. " <" .. href .. ">"
+  end)
+  html = html:gsub("<[^>]+>", " ")
+
+  for line in html:gmatch("[^\r\n]+") do
+    line = clean(line)
+    if line ~= "" and line ~= title then table.insert(rows, line) end
+  end
+  if #rows == 0 then table.insert(rows, "(no readable text)") end
+  return table.concat(rows, "\n")
+end
 
 local function splitLines(text, width)
   local rows = {}
@@ -58,7 +116,7 @@ function M.run(ctx)
     local response, err = httpClient.get(app.url)
     if response then
       app.status = tostring(response.code) .. " " .. tostring(response.size) .. " bytes"
-      app.lines = splitLines(response.body, app.lastW or 48)
+      app.lines = splitLines(htmlToText(response.body, response.url), app.lastW or 48)
       app.scroll = 1
     else
       app.status = tostring(err)
@@ -125,7 +183,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -184,7 +242,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -366,7 +424,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -671,7 +729,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -745,10 +803,154 @@ end
 
 return M
 ]],
+  ["apps/messenger/app.cfg"] = [[{
+  id = "messenger",
+  name = "Messenger",
+  version = "0.8.1",
+  main = "apps.messenger.main",
+  permissions = { "rednet.send", "rednet.receive" },
+}
+]],
+  ["apps/messenger/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+local ui = require("system.gui.components")
+
+local M = {}
+
+local protocol = "mintcraft.chat"
+
+local function computerId()
+  if os.getComputerID then return os.getComputerID() end
+  if os.computerID then return os.computerID() end
+  return 0
+end
+
+local function openModem()
+  if not peripheral or not peripheral.find or not rednet then return false, "no rednet" end
+  local side
+  for _, name in ipairs(peripheral.getNames and peripheral.getNames() or {}) do
+    if peripheral.getType(name) == "modem" then side = name break end
+  end
+  if not side then return false, "no modem" end
+  if not rednet.isOpen(side) then rednet.open(side) end
+  return true, side
+end
+
+local function label()
+  if os.getComputerLabel then
+    local current = os.getComputerLabel()
+    if current and current ~= "" then return current end
+  end
+  return "MintCraft-" .. tostring(computerId())
+end
+
+function M.run(ctx)
+  local app = {
+    input = "",
+    status = "Opening modem...",
+    scroll = 1,
+    messages = {},
+    keyboard = {},
+  }
+
+  local actions = {
+    { id = "send", label = "Send" },
+    { id = "clear", label = "Clear" },
+    { id = "rescan", label = "Modem" },
+  }
+
+  local function push(line)
+    table.insert(app.messages, line)
+    if #app.messages > 80 then table.remove(app.messages, 1) end
+  end
+
+  local function rescan()
+    local ok, msg = openModem()
+    app.status = ok and ("Modem " .. tostring(msg) .. " ready") or tostring(msg)
+    return ok
+  end
+
+  local function send()
+    if app.input == "" then return end
+    if not rescan() then return end
+    local packet = {
+      type = "message",
+      from = label(),
+      id = computerId(),
+      text = app.input,
+      time = os.time and os.time() or 0,
+    }
+    rednet.broadcast(textutils.serialize(packet), protocol)
+    push("me: " .. app.input)
+    app.input = ""
+    app.status = "Sent"
+  end
+
+  app.keyboard.onText = function(ch) app.input = app.input .. ch end
+  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
+  app.keyboard.onEnter = send
+
+  function app:draw(w, h)
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    renderer.writeAt(1, 2, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
+    local kbH = keyboard.height()
+    local listH = math.max(1, h - kbH - 4)
+    local first = math.max(1, #self.messages - listH + 1 - (self.scroll - 1))
+    for i = 1, listH do
+      local line = self.messages[first + i - 1] or ""
+      renderer.writeAt(1, i + 2, renderer.crop(line, w), colors.black, colors.lightGray)
+    end
+    renderer.writeAt(1, h - kbH, renderer.crop("> " .. self.input, w), colors.white, colors.gray)
+    self.keyboard.x = 1
+    self.keyboard.y = h - kbH + 1
+    self.keyboard.hint = "Message"
+    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+  end
+
+  function app:handle(event)
+    if event.name == "rednet_message" then
+      local sender, data, proto = table.unpack(event.args)
+      if proto == protocol then
+        local packet = type(data) == "string" and textutils.unserialize(data) or data
+        if type(packet) == "table" and packet.type == "message" then
+          push(tostring(packet.from or sender) .. ": " .. tostring(packet.text or ""))
+          self.status = "Received from " .. tostring(sender)
+          return true
+        end
+      end
+    elseif event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    elseif event.name == "char" then
+      self.input = self.input .. event.args[1]
+      return true
+    elseif event.name == "key" then
+      local key = event.args[1]
+      if key == keys.backspace then self.input = self.input:sub(1, -2) return true end
+      if key == keys.enter then send() return true end
+    elseif event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+      local action = ui.toolbarHit(self.toolbar, x, y)
+      if action == "send" then send() return true end
+      if action == "clear" then self.messages = {} self.scroll = 1 return true end
+      if action == "rescan" then rescan() return true end
+    end
+    return false
+  end
+
+  rescan()
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Messenger", w = math.min(70, sw - 4), h = math.min(22, sh - 3), x = 7, y = 4, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -827,7 +1029,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -914,11 +1116,19 @@ function M.run(ctx)
       renderer.writeAt(1, 6, "Scale: " .. tostring(d.scale or "-"), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Monitor grade: " .. monitorGrade(d), colors.black, colors.lightGray)
       renderer.button(1, 9, 18, "Refresh display", false)
+      renderer.writeAt(1, 11, "Set scale:", colors.black, colors.lightGray)
+      renderer.button(1, 12, 8, "0.5", d.scale == 0.5)
+      renderer.button(10, 12, 8, "1.0", d.scale == 1)
+      renderer.button(19, 12, 8, "1.5", d.scale == 1.5)
+      renderer.button(28, 12, 8, "2.0", d.scale == 2)
     elseif self.page == "desktop" then
       renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Context menu: desktop double tap on monitor", colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Windows: drag, minimize, maximize, close", colors.black, colors.lightGray)
+      renderer.writeAt(1, 8, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
+      renderer.button(1, 9, 14, "Mint", theme.currentId == "mint")
+      renderer.button(16, 9, 14, "Dark", theme.currentId == "dark")
     elseif self.page == "network" then
       local status = networkd.getStatus()
       renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
@@ -928,6 +1138,7 @@ function M.run(ctx)
       renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
       renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
       renderer.button(1, 10, 16, "Open Browser", false)
+      renderer.button(18, 10, 18, "Messenger", false)
     elseif self.page == "storage" then
       local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
       local cap = fs.getCapacity and fs.getCapacity("/") or nil
@@ -962,10 +1173,7 @@ function M.run(ctx)
       renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
-      renderer.button(1, 7, 14, "Mint", theme.currentId == "mint")
-      renderer.button(16, 7, 14, "Dark", theme.currentId == "dark")
-      renderer.button(1, 9, 14, "Open Editor", false)
+      renderer.button(1, 7, 14, "Open Editor", false)
     end
     if self.mode == "label" then
       self.keyboard.x = 1
@@ -1007,17 +1215,22 @@ function M.run(ctx)
       end
     end
 
-    if self.page == "dev" and y == 7 and x <= 14 then
+    if self.page == "desktop" and y == 9 and x <= 14 then
       theme.set("mint")
       ctx.notifications:push("success", "Settings", "Mint theme applied", 3)
       return true
-    elseif self.page == "dev" and y == 7 and x >= 16 and x <= 29 then
+    elseif self.page == "desktop" and y == 9 and x >= 16 and x <= 29 then
       theme.set("dark")
       ctx.notifications:push("success", "Settings", "Dark theme applied", 3)
       return true
     elseif self.page == "display" and y == 9 and x <= 18 then
       deviced.refreshDisplay()
       return true
+    elseif self.page == "display" and y == 12 then
+      if x <= 8 then deviced.setScale(0.5) return true end
+      if x >= 10 and x <= 17 then deviced.setScale(1) return true end
+      if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
+      if x >= 28 and x <= 35 then deviced.setScale(2) return true end
     elseif self.page == "system" and y == 10 and x <= 16 then
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
@@ -1025,7 +1238,10 @@ function M.run(ctx)
     elseif self.page == "network" and y == 10 and x <= 16 then
       ctx.apps.launch("browser")
       return true
-    elseif self.page == "dev" and y == 9 and x <= 14 then
+    elseif self.page == "network" and y == 10 and x >= 18 and x <= 35 then
+      ctx.apps.launch("messenger")
+      return true
+    elseif self.page == "dev" and y == 7 and x <= 14 then
       ctx.apps.launch("editor")
       return true
     end
@@ -1042,7 +1258,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1137,7 +1353,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1251,7 +1467,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.8.0",
+  version = "0.8.1",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -1287,6 +1503,7 @@ local help = {
   kill = "kill <pid> - kill after yes confirmation",
   logs = "logs - show recent logs",
   browser = "browser [url] - open text browser",
+  messenger = "messenger - open Rednet chat",
   store = "store - open package store",
   install = "install <pkg> - install package",
 }
@@ -1400,6 +1617,8 @@ local function runCommand(app, ctx, input)
     for _, line in ipairs(log.tail(10)) do append(app, line) end
   elseif cmd == "browser" then
     ctx.apps.launch("browser", { url = rest })
+  elseif cmd == "messenger" then
+    ctx.apps.launch("messenger")
   elseif cmd == "store" then
     ctx.apps.launch("store")
   elseif cmd == "install" then
@@ -1571,7 +1790,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.8.0",
+  version = "0.8.1",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1835,7 +2054,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.8.0 base:
+This repository currently contains the V0.8.1 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -1856,6 +2075,7 @@ This repository currently contains the V0.8.0 base:
 - Services, Logs and Task Manager apps with touch controls
 - HTTP/WebSocket network wrappers, `networkd` service and text Browser app
 - Store and local package manager with installable package manifests
+- Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 
 Not included yet: CraftTube, users/permissions enforcement, audio and update rollback.
 
@@ -1943,8 +2163,9 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.8.0",
+    version = "0.8.1",
     theme = "mint",
+    displayScale = 0.5,
     debug = true,
     safeMode = false,
   })
@@ -1954,8 +2175,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.8.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.8.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.8.1" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.8.1"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2037,8 +2258,9 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.8.0",
+  version = "0.8.1",
   theme = "mint",
+  displayScale = 0.5,
   debug = true,
   safeMode = false,
   display = {
@@ -2074,7 +2296,7 @@ local ccWords = {
 
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
-  "edit", "open", "clear", "ps", "kill", "logs", "browser", "store", "install", "files", "settings", "devices",
+  "edit", "open", "clear", "ps", "kill", "logs", "browser", "messenger", "store", "install", "files", "settings", "devices",
   "reboot", "help",
 }
 
@@ -2297,6 +2519,7 @@ local function drawIcons()
   local labels = {
     { app = "terminal" },
     { app = "browser" },
+    { app = "messenger" },
     { app = "files" },
     { app = "editor" },
     { app = "settings" },
@@ -2630,6 +2853,7 @@ local rows = {
   "azertyuiop",
   "qsdfghjklm",
   "wxcvbn",
+  ".,;:!?'-_/",
 }
 
 local function ensure(state)
@@ -2639,7 +2863,7 @@ local function ensure(state)
 end
 
 function M.height()
-  return 6
+  return 7
 end
 
 function M.draw(x, y, w, state)
@@ -2654,10 +2878,12 @@ function M.draw(x, y, w, state)
     end
     renderer.writeAt(x, y + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
   end
+  local symbols = state.shift and "()[]{}+*=\\\"" or ".,;:!?'-_/"
+  renderer.writeAt(x, y + 4, renderer.crop(symbols:gsub(".", "%0 "), w), colors.black, colors.lightGray)
   local control = w < 48 and "[M] [S] [C] [Tab] [Space] [<] [Enter]" or "[maj] [shift] [ctrl] [tab] [space] [back] [enter]"
   local flags = (state.caps and "CAPS " or "") .. (state.shift and "SHIFT " or "") .. (state.ctrl and "CTRL " or "")
-  renderer.writeAt(x, y + 4, renderer.crop(control, w), colors.white, colors.gray)
-  renderer.writeAt(x, y + 5, renderer.crop(flags .. (state.hint or ""), w), colors.black, colors.orange)
+  renderer.writeAt(x, y + 5, renderer.crop(control, w), colors.white, colors.gray)
+  renderer.writeAt(x, y + 6, renderer.crop(flags .. (state.hint or ""), w), colors.black, colors.orange)
 end
 
 function M.handle(event, state)
@@ -2667,8 +2893,8 @@ function M.handle(event, state)
   local relY = y - (state.y or 1) + 1
   local relX = x - (state.x or 1) + 1
 
-  if relY >= 1 and relY <= #rows then
-    local chars = rows[relY]
+  if relY >= 1 and relY <= 5 then
+    local chars = relY == 5 and (state.shift and "()[]{}+*=\\\"" or rows[5]) or rows[relY]
     local index = math.floor((relX + 1) / 2)
     local ch = chars:sub(index, index)
     if ch ~= "" then
@@ -2677,7 +2903,7 @@ function M.handle(event, state)
       if state.onText then state.onText(ch) end
       return true
     end
-  elseif relY == 5 then
+  elseif relY == 6 then
     if relX >= 1 and relX <= 5 then
       state.caps = not state.caps
       return true
@@ -2880,17 +3106,18 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.8.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.8.0", permissions = { "network.http" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.8.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.8.0", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.8.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.8.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.8.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.8.0", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.8.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.8.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.8.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.8.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.8.1", permissions = { "network.http" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.8.1", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.8.1", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.8.1", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.8.1", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.8.1", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.8.1", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.8.1", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.8.1", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.8.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.8.1", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -3097,7 +3324,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.8.0",
+    version = meta.version or "0.8.1",
     permissions = meta.permissions or {},
   }
 end
@@ -3459,6 +3686,7 @@ end
 return M
 ]],
   ["system/services/deviced.lua"] = [[local log = require("system.libraries.log")
+local config = require("system.libraries.config")
 
 local M = {
   devices = {},
@@ -3473,6 +3701,24 @@ local M = {
   },
   ctx = nil,
 }
+
+local function readScale()
+  local cfg = config.load("/system/config/system.cfg", {})
+  local value = tonumber(cfg.displayScale) or 0.5
+  if value < 0.5 then value = 0.5 end
+  if value > 5 then value = 5 end
+  return math.floor(value * 2 + 0.5) / 2
+end
+
+function M.setScale(scale)
+  local cfg = config.load("/system/config/system.cfg", {})
+  scale = tonumber(scale) or readScale()
+  if scale < 0.5 then scale = 0.5 end
+  if scale > 5 then scale = 5 end
+  cfg.displayScale = math.floor(scale * 2 + 0.5) / 2
+  config.save("/system/config/system.cfg", cfg)
+  return M.refreshDisplay()
+end
 
 function M.scan()
   local devices = {}
@@ -3493,7 +3739,8 @@ function M.useMonitor()
   local monitor, side = peripheral.find("monitor")
   if not monitor then return false end
 
-  if monitor.setTextScale then monitor.setTextScale(0.5) end
+  local scale = readScale()
+  if monitor.setTextScale then monitor.setTextScale(scale) end
   if monitor.setBackgroundColor then monitor.setBackgroundColor(colors.black) end
   if monitor.clear then monitor.clear() end
 
@@ -3503,12 +3750,12 @@ function M.useMonitor()
   local w, h = term.getSize()
   M.display = {
     target = "monitor",
-    scale = 0.5,
+    scale = scale,
     width = w,
     height = h,
     monitorSide = side or "unknown",
   }
-  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale 0.5")
+  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale " .. tostring(scale))
   return true
 end
 
@@ -3927,6 +4174,13 @@ ddddddd
 1f11110
 1111110
 ]],
+  ["system/themes/icons/messenger.nfp"] = [[bbbbbbb
+bfffbfb
+bfbfbfb
+bfffbfb
+bbbbbbb
+bbbbbfb
+]],
   ["system/themes/icons/services.nfp"] = [[bbbbbbb
 bff0ffb
 b0fff0b
@@ -4224,7 +4478,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.8.0
+  ["VERSION"] = [[0.8.1
 ]],
 }
 
@@ -4246,5 +4500,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.8.0 installed.")
+print("MintCraft OS 0.8.1 installed.")
 print("Run reboot to start MintCraft OS.")

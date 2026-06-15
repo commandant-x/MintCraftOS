@@ -1,4 +1,5 @@
 local log = require("system.libraries.log")
+local config = require("system.libraries.config")
 
 local M = {
   devices = {},
@@ -13,6 +14,24 @@ local M = {
   },
   ctx = nil,
 }
+
+local function readScale()
+  local cfg = config.load("/system/config/system.cfg", {})
+  local value = tonumber(cfg.displayScale) or 0.5
+  if value < 0.5 then value = 0.5 end
+  if value > 5 then value = 5 end
+  return math.floor(value * 2 + 0.5) / 2
+end
+
+function M.setScale(scale)
+  local cfg = config.load("/system/config/system.cfg", {})
+  scale = tonumber(scale) or readScale()
+  if scale < 0.5 then scale = 0.5 end
+  if scale > 5 then scale = 5 end
+  cfg.displayScale = math.floor(scale * 2 + 0.5) / 2
+  config.save("/system/config/system.cfg", cfg)
+  return M.refreshDisplay()
+end
 
 function M.scan()
   local devices = {}
@@ -33,7 +52,8 @@ function M.useMonitor()
   local monitor, side = peripheral.find("monitor")
   if not monitor then return false end
 
-  if monitor.setTextScale then monitor.setTextScale(0.5) end
+  local scale = readScale()
+  if monitor.setTextScale then monitor.setTextScale(scale) end
   if monitor.setBackgroundColor then monitor.setBackgroundColor(colors.black) end
   if monitor.clear then monitor.clear() end
 
@@ -43,12 +63,12 @@ function M.useMonitor()
   local w, h = term.getSize()
   M.display = {
     target = "monitor",
-    scale = 0.5,
+    scale = scale,
     width = w,
     height = h,
     monitorSide = side or "unknown",
   }
-  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale 0.5")
+  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale " .. tostring(scale))
   return true
 end
 

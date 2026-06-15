@@ -29,6 +29,7 @@ local help = {
   kill = "kill <pid> - kill after yes confirmation",
   logs = "logs - show recent logs",
   browser = "browser [url] - open text browser",
+  messenger = "messenger - open Rednet chat",
   store = "store - open package store",
   install = "install <pkg> - install package",
 }
@@ -142,6 +143,8 @@ local function runCommand(app, ctx, input)
     for _, line in ipairs(log.tail(10)) do append(app, line) end
   elseif cmd == "browser" then
     ctx.apps.launch("browser", { url = rest })
+  elseif cmd == "messenger" then
+    ctx.apps.launch("messenger")
   elseif cmd == "store" then
     ctx.apps.launch("store")
   elseif cmd == "install" then

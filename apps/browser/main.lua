@@ -5,6 +5,64 @@ local httpClient = require("system.network.http_client")
 
 local M = {}
 
+local function entity(text)
+  text = tostring(text or "")
+  local named = {
+    amp = "&", lt = "<", gt = ">", quot = "\"", apos = "'",
+    nbsp = " ", copy = "(c)", reg = "(r)",
+  }
+  text = text:gsub("&#(%d+);", function(n)
+    n = tonumber(n)
+    if n and n >= 32 and n <= 126 then return string.char(n) end
+    return " "
+  end)
+  text = text:gsub("&([%a]+);", function(name) return named[name] or " " end)
+  return text
+end
+
+local function clean(text)
+  return entity(text):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function htmlToText(html, url)
+  html = tostring(html or "")
+  local rows = {}
+  local lowerUrl = tostring(url or ""):lower()
+
+  if lowerUrl:find("youtube%.com", 1, true) or lowerUrl:find("youtu%.be", 1, true) then
+    table.insert(rows, "YouTube: video decode is not available inside CC:Tweaked.")
+    table.insert(rows, "MintCraft Browser can show text metadata only.")
+    table.insert(rows, "")
+  end
+
+  html = html:gsub("<script.-</script>", " "):gsub("<style.-</style>", " ")
+  html = html:gsub("<!%-%-.-%-%->", " ")
+
+  local title = clean(html:match("<title[^>]*>(.-)</title>"))
+  if title ~= "" then
+    table.insert(rows, "# " .. title)
+    table.insert(rows, "")
+  end
+
+  html = html:gsub("<[hH]([1-6])[^>]*>", "\n# "):gsub("</[hH][1-6]>", "\n")
+  html = html:gsub("<[pP][^>]*>", "\n"):gsub("</[pP]>", "\n")
+  html = html:gsub("<br%s*/?>", "\n"):gsub("<br>", "\n")
+  html = html:gsub("<li[^>]*>", "\n- "):gsub("</li>", "\n")
+  html = html:gsub("<a[^>]-href=[\"']([^\"']+)[\"'][^>]*>(.-)</a>", function(href, label)
+    label = clean(label)
+    if label == "" then label = href end
+    return label .. " <" .. href .. ">"
+  end)
+  html = html:gsub("<[^>]+>", " ")
+
+  for line in html:gmatch("[^\r\n]+") do
+    line = clean(line)
+    if line ~= "" and line ~= title then table.insert(rows, line) end
+  end
+  if #rows == 0 then table.insert(rows, "(no readable text)") end
+  return table.concat(rows, "\n")
+end
+
 local function splitLines(text, width)
   local rows = {}
   width = math.max(8, width or 40)
@@ -41,7 +99,7 @@ function M.run(ctx)
     local response, err = httpClient.get(app.url)
     if response then
       app.status = tostring(response.code) .. " " .. tostring(response.size) .. " bytes"
-      app.lines = splitLines(response.body, app.lastW or 48)
+      app.lines = splitLines(htmlToText(response.body, response.url), app.lastW or 48)
       app.scroll = 1
     else
       app.status = tostring(err)

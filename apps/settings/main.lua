@@ -80,11 +80,19 @@ function M.run(ctx)
       renderer.writeAt(1, 6, "Scale: " .. tostring(d.scale or "-"), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Monitor grade: " .. monitorGrade(d), colors.black, colors.lightGray)
       renderer.button(1, 9, 18, "Refresh display", false)
+      renderer.writeAt(1, 11, "Set scale:", colors.black, colors.lightGray)
+      renderer.button(1, 12, 8, "0.5", d.scale == 0.5)
+      renderer.button(10, 12, 8, "1.0", d.scale == 1)
+      renderer.button(19, 12, 8, "1.5", d.scale == 1.5)
+      renderer.button(28, 12, 8, "2.0", d.scale == 2)
     elseif self.page == "desktop" then
       renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Context menu: desktop double tap on monitor", colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Windows: drag, minimize, maximize, close", colors.black, colors.lightGray)
+      renderer.writeAt(1, 8, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
+      renderer.button(1, 9, 14, "Mint", theme.currentId == "mint")
+      renderer.button(16, 9, 14, "Dark", theme.currentId == "dark")
     elseif self.page == "network" then
       local status = networkd.getStatus()
       renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
@@ -94,6 +102,7 @@ function M.run(ctx)
       renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
       renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
       renderer.button(1, 10, 16, "Open Browser", false)
+      renderer.button(18, 10, 18, "Messenger", false)
     elseif self.page == "storage" then
       local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
       local cap = fs.getCapacity and fs.getCapacity("/") or nil
@@ -128,10 +137,7 @@ function M.run(ctx)
       renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
-      renderer.button(1, 7, 14, "Mint", theme.currentId == "mint")
-      renderer.button(16, 7, 14, "Dark", theme.currentId == "dark")
-      renderer.button(1, 9, 14, "Open Editor", false)
+      renderer.button(1, 7, 14, "Open Editor", false)
     end
     if self.mode == "label" then
       self.keyboard.x = 1
@@ -173,17 +179,22 @@ function M.run(ctx)
       end
     end
 
-    if self.page == "dev" and y == 7 and x <= 14 then
+    if self.page == "desktop" and y == 9 and x <= 14 then
       theme.set("mint")
       ctx.notifications:push("success", "Settings", "Mint theme applied", 3)
       return true
-    elseif self.page == "dev" and y == 7 and x >= 16 and x <= 29 then
+    elseif self.page == "desktop" and y == 9 and x >= 16 and x <= 29 then
       theme.set("dark")
       ctx.notifications:push("success", "Settings", "Dark theme applied", 3)
       return true
     elseif self.page == "display" and y == 9 and x <= 18 then
       deviced.refreshDisplay()
       return true
+    elseif self.page == "display" and y == 12 then
+      if x <= 8 then deviced.setScale(0.5) return true end
+      if x >= 10 and x <= 17 then deviced.setScale(1) return true end
+      if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
+      if x >= 28 and x <= 35 then deviced.setScale(2) return true end
     elseif self.page == "system" and y == 10 and x <= 16 then
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
@@ -191,7 +202,10 @@ function M.run(ctx)
     elseif self.page == "network" and y == 10 and x <= 16 then
       ctx.apps.launch("browser")
       return true
-    elseif self.page == "dev" and y == 9 and x <= 14 then
+    elseif self.page == "network" and y == 10 and x >= 18 and x <= 35 then
+      ctx.apps.launch("messenger")
+      return true
+    elseif self.page == "dev" and y == 7 and x <= 14 then
       ctx.apps.launch("editor")
       return true
     end

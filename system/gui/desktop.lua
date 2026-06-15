@@ -26,6 +26,7 @@ local function drawIcons()
   local labels = {
     { app = "terminal" },
     { app = "browser" },
+    { app = "messenger" },
     { app = "files" },
     { app = "editor" },
     { app = "settings" },
