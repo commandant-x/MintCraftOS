@@ -6,7 +6,7 @@ local WindowManager = {}
 WindowManager.__index = WindowManager
 
 function WindowManager.new()
-  return setmetatable({ windows = {}, nextId = 1 }, WindowManager)
+  return setmetatable({ windows = {}, nextId = 1, taskButtons = {} }, WindowManager)
 end
 
 function WindowManager:create(opts)
@@ -38,11 +38,16 @@ function WindowManager:draw()
 
   local w, h = term.getSize()
   local x = 10
+  self.taskButtons = {}
   for _, win in ipairs(self.windows) do
-    if win.minimized then
+    if not win.closed then
       local label = "[" .. win.title .. "]"
-      renderer.writeAt(x, h, renderer.crop(label, math.min(#label, 14)), theme.get("taskbarFg"), theme.get("taskbarBg"))
-      x = x + math.min(#label, 14) + 1
+      local width = math.min(#label, 14)
+      local bg = win.minimized and theme.get("buttonBg") or theme.get("accent")
+      renderer.writeAt(x, h, renderer.crop(label, width), theme.get("taskbarFg"), bg)
+      table.insert(self.taskButtons, { x = x, w = width, win = win })
+      x = x + width + 1
+      if x > w - 10 then break end
     end
   end
 end
@@ -50,17 +55,21 @@ end
 function WindowManager:handle(event)
   if event.name == "mouse_click" then
     local _, x, y = table.unpack(event.args)
+    if y == ({ term.getSize() })[2] then
+      for _, box in ipairs(self.taskButtons or {}) do
+        if x >= box.x and x < box.x + box.w then
+          box.win.minimized = false
+          self:focus(box.win)
+          return true
+        end
+      end
+    end
     local active = self.windows[#self.windows]
     if active and active.movePending then
       return active:handle(event)
     end
     for i = #self.windows, 1, -1 do
       local win = self.windows[i]
-      if win.minimized and y == ({ term.getSize() })[2] then
-        win.minimized = false
-        self:focus(win)
-        return true
-      end
       if win:contains(x, y) then
         self:focus(win)
         return win:handle(event)

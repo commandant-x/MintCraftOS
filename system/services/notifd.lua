@@ -30,14 +30,15 @@ function Notifd:handle()
 end
 
 function Notifd:draw()
-  local w = term.getSize()
+  local w, h = term.getSize()
   local y = 2
-  for i = #self.queue, math.max(1, #self.queue - 2), -1 do
+  for i = #self.queue, math.max(1, #self.queue - 3), -1 do
     local n = self.queue[i]
-    local bg = colors.gray
+    local bg = colors.blue
     if n.level == "error" then bg = theme.get("error") end
     if n.level == "warn" then bg = theme.get("warning") end
     if n.level == "success" then bg = theme.get("success") end
+    if y + 2 >= h then break end
     renderer.fill(math.max(1, w - 27), y, 27, 3, bg)
     renderer.writeAt(math.max(1, w - 26), y, renderer.crop(n.title, 25), colors.white, bg)
     renderer.writeAt(math.max(1, w - 26), y + 1, renderer.crop(n.message, 25), colors.white, bg)

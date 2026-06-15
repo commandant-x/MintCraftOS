@@ -27,6 +27,13 @@ local ok, err = pcall(function()
 end)
 
 if not ok then
+  if not fs.exists("/var") then fs.makeDir("/var") end
+  if not fs.exists("/var/logs") then fs.makeDir("/var/logs") end
+  local crash = fs.open("/var/logs/last_crash.log", "w")
+  if crash then
+    crash.writeLine(tostring(err))
+    crash.close()
+  end
   term.setBackgroundColor(colors.black)
   term.setTextColor(colors.red)
   term.clear()

@@ -1,6 +1,7 @@
 local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local config = require("system.libraries.config")
+local ui = require("system.gui.components")
 
 local M = {}
 
@@ -40,6 +41,19 @@ local function uniquePath(dir, prefix, ext)
   return path
 end
 
+local function trashPath(path)
+  local trash = "/home/user/.trash"
+  if not fs.exists(trash) then fs.makeDir(trash) end
+  local name = fs.getName(path)
+  local candidate = fs.combine(trash, name)
+  local i = 1
+  while fs.exists(candidate) do
+    candidate = fs.combine(trash, name .. "." .. tostring(i))
+    i = i + 1
+  end
+  return candidate
+end
+
 local function extOf(path)
   return (path:match("%.([^%.]+)$") or ""):lower()
 end
@@ -70,6 +84,7 @@ function M.run(ctx)
     { label = "Delete", id = "delete" },
     { label = "Refresh", id = "refresh" },
   }
+  local toolbar = {}
 
   local function setMode(mode, default)
     app.mode = mode
@@ -147,7 +162,10 @@ function M.run(ctx)
     elseif action == "rename" then
       if app.selected then setMode("rename", app.selected) end
     elseif action == "delete" then
-      if app.selected then app.confirm = "delete" end
+      if app.selected then
+        local full = selectedPath()
+        app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+      end
     elseif action == "refresh" then
       app.scroll = 1
     end
@@ -165,30 +183,20 @@ function M.run(ctx)
   app.keyboard.onTab = submitInput
 
   function app:draw(w, h)
-    local cursor = 1
-    for _, action in ipairs(actions) do
-      local label = " " .. action.label .. " "
-      renderer.writeAt(cursor, 1, renderer.crop(label, #label), colors.white, colors.gray)
-      cursor = cursor + #label + 1
-      if cursor > w then break end
-    end
+    toolbar = ui.toolbar(1, 1, w, actions)
     renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), colors.black, colors.lightGray)
     local files = sortedList(self.path)
     local kbH = self.mode and keyboard.height() or 0
     local listTop = 3
     local listH = math.max(1, h - listTop - kbH)
-    for i = 1, listH do
-      local index = self.scroll + i - 1
-      local name = files[index]
-      if name then
-        local full = fs.combine(self.path, name)
-        local prefix = fs.isDir(full) and "[D] " or "[F] "
-        local bg = name == self.selected and colors.cyan or colors.lightGray
-        renderer.writeAt(1, listTop + i - 1, renderer.crop(prefix .. name, w), colors.black, bg)
-      end
-    end
-    if self.confirm == "delete" then
-      renderer.writeAt(1, h, renderer.crop("Confirm delete " .. tostring(self.selected) .. "? [Delete] again / any other tap cancels", w), colors.white, colors.red)
+    ui.list(1, listTop, w, listH, files, self.selected, self.scroll, function(name)
+      local full = fs.combine(self.path, name)
+      local prefix = fs.isDir(full) and "[D] " or "[F] "
+      return prefix .. name
+    end)
+    if self.confirm then
+      local verb = self.confirm == "trash" and "Move to trash" or "Delete system file"
+      renderer.writeAt(1, h, renderer.crop(verb .. " " .. tostring(self.selected) .. "? Tap Delete again.", w), colors.white, colors.red)
     elseif self.mode then
       self.keyboard.x = 1
       self.keyboard.y = h - keyboard.height() + 1
@@ -218,10 +226,17 @@ function M.run(ctx)
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
       if self.mode and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
-      local action = y == 1 and toolbarHit(x) or nil
+      local action = y == 1 and (ui.toolbarHit(toolbar, x, y) or toolbarHit(x)) or nil
       if self.confirm then
         if action == "delete" and self.selected then
-          fs.delete(fs.combine(self.path, self.selected))
+          local full = fs.combine(self.path, self.selected)
+          if self.confirm == "trash" then
+            fs.move(full, trashPath(full))
+            ctx.notifications:push("success", "Files", "Moved to trash", 3)
+          else
+            fs.delete(full)
+            ctx.notifications:push("warn", "Files", "Deleted", 3)
+          end
           self.selected = nil
         end
         self.confirm = nil

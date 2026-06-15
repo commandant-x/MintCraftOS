@@ -1,4 +1,4 @@
--- MintCraft OS V0.6.1 installer for CC:Tweaked
+-- MintCraft OS V0.6.2 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".settings"] = [[{
@@ -31,23 +31,29 @@ SOFTWARE.
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.6 base:
+This repository currently contains the V0.6.2 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
 - cooperative scheduler and process table
 - event bus
 - terminal renderer, themes and window manager
-- desktop, taskbar, start menu, right-click context menu and notifications
+- desktop, taskbar, start menu, right-click context menu and stacked notifications
 - monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
-- custom `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
+- larger `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
+- shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
 - complete touch-first Files app with toolbar, open, create, rename and delete confirmation
 - shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
 - Editor app with Lua compile check and Tab autocomplete/snippets
 - richer Settings pages for system, display, network and developer information
 - GitHub Update app and boot-time update check through the `updated` service
 - Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
-- minimal Terminal, Files, Settings, Task Manager, Update, Services, Devices and Logs apps
+- Terminal with file commands, process commands and touch autocomplete
+- touch-first Files with trash support for user files
+- Settings pages for system, display, desktop, network, storage, apps and developer information
+- Services, Logs and Task Manager apps with touch controls
+
+Not included yet: Browser, Store, CraftTube, users/permissions enforcement, audio and update rollback.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -69,12 +75,12 @@ Then reboot:
 reboot
 ```
 ]],
-  ["VERSION"] = [[0.6.1
+  ["VERSION"] = [[0.6.2
 ]],
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -133,7 +139,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -401,14 +407,15 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.files.main",
-  permissions = { "filesystem.read" },
+  permissions = { "filesystem.read", "filesystem.write" },
 }
 ]],
   ["apps/files/main.lua"] = [[local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local config = require("system.libraries.config")
+local ui = require("system.gui.components")
 
 local M = {}
 
@@ -448,6 +455,19 @@ local function uniquePath(dir, prefix, ext)
   return path
 end
 
+local function trashPath(path)
+  local trash = "/home/user/.trash"
+  if not fs.exists(trash) then fs.makeDir(trash) end
+  local name = fs.getName(path)
+  local candidate = fs.combine(trash, name)
+  local i = 1
+  while fs.exists(candidate) do
+    candidate = fs.combine(trash, name .. "." .. tostring(i))
+    i = i + 1
+  end
+  return candidate
+end
+
 local function extOf(path)
   return (path:match("%.([^%.]+)$") or ""):lower()
 end
@@ -478,6 +498,7 @@ function M.run(ctx)
     { label = "Delete", id = "delete" },
     { label = "Refresh", id = "refresh" },
   }
+  local toolbar = {}
 
   local function setMode(mode, default)
     app.mode = mode
@@ -555,7 +576,10 @@ function M.run(ctx)
     elseif action == "rename" then
       if app.selected then setMode("rename", app.selected) end
     elseif action == "delete" then
-      if app.selected then app.confirm = "delete" end
+      if app.selected then
+        local full = selectedPath()
+        app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+      end
     elseif action == "refresh" then
       app.scroll = 1
     end
@@ -573,30 +597,20 @@ function M.run(ctx)
   app.keyboard.onTab = submitInput
 
   function app:draw(w, h)
-    local cursor = 1
-    for _, action in ipairs(actions) do
-      local label = " " .. action.label .. " "
-      renderer.writeAt(cursor, 1, renderer.crop(label, #label), colors.white, colors.gray)
-      cursor = cursor + #label + 1
-      if cursor > w then break end
-    end
+    toolbar = ui.toolbar(1, 1, w, actions)
     renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), colors.black, colors.lightGray)
     local files = sortedList(self.path)
     local kbH = self.mode and keyboard.height() or 0
     local listTop = 3
     local listH = math.max(1, h - listTop - kbH)
-    for i = 1, listH do
-      local index = self.scroll + i - 1
-      local name = files[index]
-      if name then
-        local full = fs.combine(self.path, name)
-        local prefix = fs.isDir(full) and "[D] " or "[F] "
-        local bg = name == self.selected and colors.cyan or colors.lightGray
-        renderer.writeAt(1, listTop + i - 1, renderer.crop(prefix .. name, w), colors.black, bg)
-      end
-    end
-    if self.confirm == "delete" then
-      renderer.writeAt(1, h, renderer.crop("Confirm delete " .. tostring(self.selected) .. "? [Delete] again / any other tap cancels", w), colors.white, colors.red)
+    ui.list(1, listTop, w, listH, files, self.selected, self.scroll, function(name)
+      local full = fs.combine(self.path, name)
+      local prefix = fs.isDir(full) and "[D] " or "[F] "
+      return prefix .. name
+    end)
+    if self.confirm then
+      local verb = self.confirm == "trash" and "Move to trash" or "Delete system file"
+      renderer.writeAt(1, h, renderer.crop(verb .. " " .. tostring(self.selected) .. "? Tap Delete again.", w), colors.white, colors.red)
     elseif self.mode then
       self.keyboard.x = 1
       self.keyboard.y = h - keyboard.height() + 1
@@ -626,10 +640,17 @@ function M.run(ctx)
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
       if self.mode and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
-      local action = y == 1 and toolbarHit(x) or nil
+      local action = y == 1 and (ui.toolbarHit(toolbar, x, y) or toolbarHit(x)) or nil
       if self.confirm then
         if action == "delete" and self.selected then
-          fs.delete(fs.combine(self.path, self.selected))
+          local full = fs.combine(self.path, self.selected)
+          if self.confirm == "trash" then
+            fs.move(full, trashPath(full))
+            ctx.notifications:push("success", "Files", "Moved to trash", 3)
+          else
+            fs.delete(full)
+            ctx.notifications:push("warn", "Files", "Deleted", 3)
+          end
           self.selected = nil
         end
         self.confirm = nil
@@ -662,28 +683,56 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
 ]],
   ["apps/logs/main.lua"] = [[local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
+local ui = require("system.gui.components")
 
 local M = {}
 
 function M.run(ctx)
-  local app = {}
+  local app = { filter = "all" }
+  local actions = {
+    { id = "all", label = "All" },
+    { id = "error", label = "Error" },
+    { id = "warn", label = "Warn" },
+    { id = "info", label = "Info" },
+    { id = "refresh", label = "Refresh" },
+  }
+
+  local function matches(line, filter)
+    if filter == "all" then return true end
+    return line:lower():find("\"" .. filter .. "\"", 1, true) ~= nil
+  end
 
   function app:draw(w, h)
-    renderer.writeAt(1, 1, "System Logs", colors.black, colors.lightGray)
-    local lines = log.tail(h - 1)
-    for i, line in ipairs(lines) do
-      renderer.writeAt(1, i + 1, renderer.crop(line, w), colors.black, colors.lightGray)
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), colors.black, colors.lightGray)
+    local raw = log.tail(120)
+    local lines = {}
+    for _, line in ipairs(raw) do if matches(line, self.filter) then table.insert(lines, line) end end
+    local start = math.max(1, #lines - h + 3)
+    local y = 3
+    for i = start, #lines do
+      renderer.writeAt(1, y, renderer.crop(lines[i], w), colors.black, colors.lightGray)
+      y = y + 1
+      if y > h then break end
     end
   end
 
-  function app:handle()
+  function app:handle(event)
+    if event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      local action = ui.toolbarHit(self.toolbar, x, y)
+      if action then
+        if action ~= "refresh" then self.filter = action end
+        return true
+      end
+    end
     return false
   end
 
@@ -697,28 +746,71 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
 ]],
   ["apps/services/main.lua"] = [[local renderer = require("system.gui.renderer")
+local ui = require("system.gui.components")
 
 local M = {}
 
 function M.run(ctx)
-  local app = {}
+  local app = { selected = nil, scroll = 1 }
+  local actions = {
+    { id = "start", label = "Start" },
+    { id = "stop", label = "Stop" },
+    { id = "restart", label = "Restart" },
+  }
+  local protected = { deviced = true, notifd = true, logd = true }
 
   function app:draw(w, h)
-    renderer.writeAt(1, 1, renderer.crop("SERVICE       STATE", w), colors.black, colors.lightGray)
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    renderer.writeAt(1, 2, renderer.crop("SERVICE       STATE      AUTO", w), colors.black, colors.gray)
     local rows = ctx.system.services:list()
-    for i = 1, math.min(#rows, h - 1) do
-      local s = rows[i]
-      renderer.writeAt(1, i + 1, renderer.crop(s.name .. "       " .. s.state, w), colors.black, colors.lightGray)
+    for i = 1, math.min(#rows, h - 4) do
+      local s = rows[self.scroll + i - 1]
+      if s then
+        local bg = s.name == self.selected and colors.cyan or colors.lightGray
+        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart), w), colors.black, bg)
+      end
+    end
+    local selected
+    for _, s in ipairs(rows) do if s.name == self.selected then selected = s end end
+    if selected then
+      renderer.writeAt(1, h, renderer.crop("Last error: " .. tostring(selected.error or "-"), w), colors.gray, colors.lightGray)
     end
   end
 
-  function app:handle()
+  function app:handle(event)
+    if event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    end
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    local action = ui.toolbarHit(self.toolbar, x, y)
+    if action and self.selected then
+      if protected[self.selected] and action ~= "start" then
+        if ctx.notifications then ctx.notifications:push("warn", "Services", self.selected .. " is protected", 3) end
+        return true
+      end
+      if action == "start" then
+        ctx.system.services:start(self.selected)
+      elseif action == "stop" then
+        ctx.system.services:stop(self.selected)
+      elseif action == "restart" then
+        ctx.system.services:stop(self.selected)
+        ctx.system.services:start(self.selected)
+      end
+      return true
+    end
+    if y >= 3 then
+      local rows = ctx.system.services:list()
+      local s = rows[self.scroll + y - 3]
+      if s then self.selected = s.name return true end
+    end
     return false
   end
 
@@ -732,7 +824,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -741,13 +833,22 @@ return M
 local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
+local ui = require("system.gui.components")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { page = "system" }
+  local app = { page = "system", scroll = 1 }
 
-  local pages = { "system", "display", "network", "dev", "theme" }
+  local pages = {
+    { id = "system", label = "System" },
+    { id = "display", label = "Display" },
+    { id = "desktop", label = "Desktop" },
+    { id = "network", label = "Network" },
+    { id = "storage", label = "Storage" },
+    { id = "apps", label = "Apps" },
+    { id = "dev", label = "Dev" },
+  }
 
   local function computerId()
     if os.getComputerID then return os.getComputerID() end
@@ -781,18 +882,22 @@ function M.run(ctx)
     return "modem ready"
   end
 
+  local function sizeLabel(bytes)
+    bytes = tonumber(bytes) or 0
+    if bytes >= 1024 * 1024 then return string.format("%.1f MB", bytes / 1024 / 1024) end
+    if bytes >= 1024 then return string.format("%.1f KB", bytes / 1024) end
+    return tostring(bytes) .. " B"
+  end
+
   function app:draw(w, h)
-    local x = 1
-    for _, page in ipairs(pages) do
-      renderer.button(x, 1, #page + 2, page, self.page == page)
-      x = x + #page + 3
-    end
+    ui.tabs(1, 1, w, pages, self.page)
 
     if self.page == "system" then
       renderer.writeAt(1, 3, "Computer ID: " .. tostring(computerId()), colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Label: " .. tostring(os.getComputerLabel and (os.getComputerLabel() or "-") or "-"), colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "MintCraft: " .. tostring(config.load("/system/config/system.cfg", {}).version or "?"), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 8, "CraftOS over CC:Tweaked", colors.gray, colors.lightGray)
     elseif self.page == "display" then
       local d = deviced.getDisplay()
       renderer.writeAt(1, 3, "Target: " .. tostring(d.target), colors.black, colors.lightGray)
@@ -801,52 +906,80 @@ function M.run(ctx)
       renderer.writeAt(1, 6, "Scale: " .. tostring(d.scale or "-"), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Monitor grade: " .. monitorGrade(d), colors.black, colors.lightGray)
       renderer.button(1, 9, 18, "Refresh display", false)
+    elseif self.page == "desktop" then
+      renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Context menu: desktop double tap on monitor", colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Windows: drag, minimize, maximize, close", colors.black, colors.lightGray)
     elseif self.page == "network" then
       renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
       renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
+    elseif self.page == "storage" then
+      local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
+      local cap = fs.getCapacity and fs.getCapacity("/") or nil
+      renderer.writeAt(1, 3, "Root: /", colors.black, colors.lightGray)
+      if cap and free then
+        renderer.writeAt(1, 4, "Used: " .. sizeLabel(cap - free) .. " / " .. sizeLabel(cap), colors.black, colors.lightGray)
+        renderer.writeAt(1, 5, "Free: " .. sizeLabel(free), colors.black, colors.lightGray)
+      elseif free then
+        renderer.writeAt(1, 4, "Free: " .. sizeLabel(free), colors.black, colors.lightGray)
+      else
+        renderer.writeAt(1, 4, "Storage metrics unavailable", colors.black, colors.lightGray)
+      end
+      renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
+    elseif self.page == "apps" then
+      local rows = ctx.apps.list()
+      renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY", w), colors.black, colors.gray)
+      for i = 1, math.min(#rows, h - 4) do
+        local item = rows[self.scroll + i - 1]
+        if item then
+          renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category, w), colors.black, colors.lightGray)
+        end
+      end
     elseif self.page == "dev" then
       renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
-      renderer.button(1, 7, 14, "Open Editor", false)
-    elseif self.page == "theme" then
-      renderer.writeAt(1, 3, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
-      renderer.button(1, 5, 14, "Mint", theme.currentId == "mint")
-      renderer.button(16, 5, 14, "Dark", theme.currentId == "dark")
+      renderer.writeAt(1, 6, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
+      renderer.button(1, 7, 14, "Mint", theme.currentId == "mint")
+      renderer.button(16, 7, 14, "Dark", theme.currentId == "dark")
+      renderer.button(1, 9, 14, "Open Editor", false)
     end
     renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
   end
 
   function app:handle(event)
+    if event.name == "mouse_scroll" and self.page == "apps" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    end
     if event.name ~= "mouse_click" then return false end
     local _, x, y = table.unpack(event.args)
     if y == 1 then
-      local cursor = 1
       for _, page in ipairs(pages) do
-        local width = #page + 2
-        if x >= cursor and x < cursor + width then
-          self.page = page
+        if ui.hit(page, x, y) then
+          self.page = page.id
+          self.scroll = 1
           return true
         end
-        cursor = cursor + width + 1
       end
     end
 
-    if self.page == "theme" and y == 5 and x <= 14 then
+    if self.page == "dev" and y == 7 and x <= 14 then
       theme.set("mint")
       ctx.notifications:push("success", "Settings", "Mint theme applied", 3)
       return true
-    elseif self.page == "theme" and y == 5 and x >= 16 and x <= 29 then
+    elseif self.page == "dev" and y == 7 and x >= 16 and x <= 29 then
       theme.set("dark")
       ctx.notifications:push("success", "Settings", "Dark theme applied", 3)
       return true
     elseif self.page == "display" and y == 9 and x <= 18 then
       deviced.refreshDisplay()
       return true
-    elseif self.page == "dev" and y == 7 and x <= 14 then
+    elseif self.page == "dev" and y == 9 and x <= 14 then
       ctx.apps.launch("editor")
       return true
     end
@@ -863,12 +996,13 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
 ]],
   ["apps/taskmanager/main.lua"] = [[local renderer = require("system.gui.renderer")
+local ui = require("system.gui.components")
 
 local M = {}
 
@@ -902,7 +1036,11 @@ local function memoryStats()
 end
 
 function M.run(ctx)
-  local app = {}
+  local app = { selectedPid = nil, scroll = 1 }
+  local actions = {
+    { id = "kill", label = "Kill" },
+    { id = "refresh", label = "Refresh" },
+  }
 
   function app:draw(w, h)
     local rows = ctx.listProcesses()
@@ -913,19 +1051,42 @@ function M.run(ctx)
     end
     local cpuEstimate = total > 0 and math.floor((ready / total) * 100 + 0.5) or 0
 
-    renderer.writeAt(1, 1, renderer.crop("MintCraft Task Manager", w), colors.black, colors.lightGray)
-    renderer.writeAt(2, 3, renderer.crop("CPU est.: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    renderer.writeAt(1, 2, renderer.crop("MintCraft Task Manager", w), colors.black, colors.lightGray)
+    renderer.writeAt(2, 3, renderer.crop("CPU est. CC: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 4, renderer.crop(memoryStats(), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 5, renderer.crop(diskStats(), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(1, 7, renderer.crop("PID STATE    NAME", w), colors.black, colors.gray)
 
     for i = 1, math.min(#rows, h - 7) do
-      local p = rows[i]
-      renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, colors.lightGray)
+      local p = rows[self.scroll + i - 1]
+      if p then
+        local bg = p.pid == self.selectedPid and colors.cyan or colors.lightGray
+        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, bg)
+      end
     end
   end
 
-  function app:handle()
+  function app:handle(event)
+    if event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    end
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    local action = ui.toolbarHit(self.toolbar, x, y)
+    if action == "kill" and self.selectedPid then
+      local ok, err = ctx.kill(self.selectedPid)
+      if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Task Manager", ok and "Killed" or tostring(err), 3) end
+      return true
+    elseif action then
+      return true
+    end
+    if y >= 8 then
+      local rows = ctx.listProcesses()
+      local p = rows[self.scroll + y - 8]
+      if p then self.selectedPid = p.pid return true end
+    end
     return false
   end
 
@@ -939,7 +1100,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.6.1",
+  version = "0.6.2",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -957,6 +1118,18 @@ end
 
 local function runCommand(app, ctx, input)
   append(app, "> " .. input)
+  if app.pending then
+    if input == "yes" then
+      local pending = app.pending
+      app.pending = nil
+      pending()
+      return
+    end
+    append(app, "cancelled")
+    app.pending = nil
+    return
+  end
+
   local cmd, rest = input:match("^(%S+)%s*(.*)$")
   if not cmd then return end
 
@@ -972,6 +1145,47 @@ local function runCommand(app, ctx, input)
   elseif cmd == "cd" then
     local path = rest ~= "" and fs.combine(app.cwd, rest) or "/"
     if fs.exists(path) and fs.isDir(path) then app.cwd = path else append(app, "No such directory") end
+  elseif cmd == "pwd" then
+    append(app, app.cwd)
+  elseif cmd == "mkdir" then
+    if rest == "" then append(app, "Usage: mkdir <dir>") else fs.makeDir(fs.combine(app.cwd, rest)) end
+  elseif cmd == "cp" then
+    local src, dst = rest:match("^(%S+)%s+(.+)$")
+    if not src or not dst then
+      append(app, "Usage: cp <src> <dst>")
+    else
+      local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
+      if fs.exists(from) and not fs.exists(to) then fs.copy(from, to) else append(app, "Cannot copy") end
+    end
+  elseif cmd == "mv" then
+    local src, dst = rest:match("^(%S+)%s+(.+)$")
+    if not src or not dst then
+      append(app, "Usage: mv <src> <dst>")
+    else
+      local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
+      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) else append(app, "Cannot move") end
+    end
+  elseif cmd == "rm" then
+    if rest ~= "" then
+      local path = fs.combine(app.cwd, rest)
+      if fs.exists(path) then
+        app.pending = function()
+          fs.delete(path)
+          append(app, "deleted")
+        end
+        append(app, "Type yes to delete " .. path)
+      else
+        append(app, "No such file")
+      end
+    else
+      append(app, "Usage: rm <path>")
+    end
+  elseif cmd == "edit" then
+    local path = rest ~= "" and fs.combine(app.cwd, rest) or app.cwd
+    ctx.apps.launch("editor", { path = path })
+  elseif cmd == "open" then
+    local path = rest ~= "" and fs.combine(app.cwd, rest) or app.cwd
+    if fs.isDir(path) then ctx.apps.launch("files", { path = path }) else ctx.apps.launch("editor", { path = path }) end
   elseif cmd == "cat" then
     local path = fs.combine(app.cwd, rest)
     if fs.exists(path) then
@@ -987,8 +1201,12 @@ local function runCommand(app, ctx, input)
     end
   elseif cmd == "kill" then
     local pid = tonumber(rest)
-    local ok, err = ctx.kill(pid)
-    append(app, ok and "killed" or err)
+    if not pid then append(app, "Usage: kill <pid>") return end
+    app.pending = function()
+      local ok, err = ctx.kill(pid)
+      append(app, ok and "killed" or tostring(err))
+    end
+    append(app, "Type yes to kill pid " .. tostring(pid))
   elseif cmd == "logs" then
     for _, line in ipairs(log.tail(10)) do append(app, line) end
   elseif cmd == "files" then
@@ -1000,7 +1218,7 @@ local function runCommand(app, ctx, input)
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "help" then
-    append(app, "Commands: ls cd cat clear ps kill logs files settings devices reboot help")
+    append(app, "Commands: ls cd pwd mkdir cp mv rm cat edit open clear ps kill logs files settings devices reboot help")
   else
     append(app, "Unknown command: " .. cmd)
   end
@@ -1017,7 +1235,7 @@ function M.run(ctx)
     keyboard = {},
   }
 
-  local commands = { "ls", "cd", "cat", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
+  local commands = { "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "cat", "edit", "open", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
 
   local quick = {
     { label = "ls", text = "ls" },
@@ -1154,7 +1372,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.6.1",
+  version = "0.6.2",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1251,6 +1469,13 @@ local ok, err = pcall(function()
 end)
 
 if not ok then
+  if not fs.exists("/var") then fs.makeDir("/var") end
+  if not fs.exists("/var/logs") then fs.makeDir("/var/logs") end
+  local crash = fs.open("/var/logs/last_crash.log", "w")
+  if crash then
+    crash.writeLine(tostring(err))
+    crash.close()
+  end
   term.setBackgroundColor(colors.black)
   term.setTextColor(colors.red)
   term.clear()
@@ -1306,6 +1531,7 @@ local REQUIRED_DIRS = {
   "/system/kernel",
   "/system/libraries",
   "/system/services",
+  "/system/themes",
   "/system/wm",
   "/apps",
   "/home",
@@ -1332,7 +1558,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.4.0",
+    version = "0.6.2",
     theme = "mint",
     debug = true,
     safeMode = false,
@@ -1343,7 +1569,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  splash.draw("MintCraft OS", "Version 0.4")
+  local cfg = config.load("/system/config/system.cfg", { version = "0.6.2" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.6.2"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -1418,7 +1645,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.6.1",
+  version = "0.6.2",
   theme = "mint",
   debug = true,
   safeMode = false,
@@ -1438,6 +1665,80 @@ return M
   lastStatus = "never checked",
 }
 ]],
+  ["system/gui/components.lua"] = [[local renderer = require("system.gui.renderer")
+local theme = require("system.gui.theme")
+
+local M = {}
+
+function M.button(x, y, w, label, active)
+  renderer.button(x, y, w, label, active)
+  return { x = x, y = y, w = w, h = 1, label = label }
+end
+
+function M.hit(box, x, y)
+  return box and x >= box.x and x < box.x + box.w and y >= box.y and y < box.y + (box.h or 1)
+end
+
+function M.toolbar(x, y, w, actions)
+  local boxes = {}
+  local cursor = x
+  for _, action in ipairs(actions) do
+    local width = math.min(#action.label + 2, math.max(4, w - cursor + x))
+    if cursor + width - x > w then break end
+    renderer.button(cursor, y, width, action.label, action.active)
+    action.x, action.y, action.w, action.h = cursor, y, width, 1
+    table.insert(boxes, action)
+    cursor = cursor + width + 1
+  end
+  return boxes
+end
+
+function M.toolbarHit(actions, x, y)
+  for _, action in ipairs(actions or {}) do
+    if M.hit(action, x, y) then return action.id end
+  end
+  return nil
+end
+
+function M.tabs(x, y, w, tabs, selected)
+  local boxes = {}
+  local cursor = x
+  for _, tab in ipairs(tabs) do
+    local width = math.min(#tab.label + 2, math.max(5, w - cursor + x))
+    if cursor + width - x > w then break end
+    renderer.button(cursor, y, width, tab.label, tab.id == selected)
+    tab.x, tab.y, tab.w, tab.h = cursor, y, width, 1
+    table.insert(boxes, tab)
+    cursor = cursor + width + 1
+  end
+  return boxes
+end
+
+function M.list(x, y, w, h, rows, selected, scroll, render)
+  scroll = scroll or 1
+  for i = 1, h do
+    local index = scroll + i - 1
+    local row = rows[index]
+    local bg = row == selected and colors.cyan or theme.get("windowBg")
+    local text = row and render(row, index) or ""
+    renderer.writeAt(x, y + i - 1, renderer.crop(text, w), colors.black, bg)
+  end
+end
+
+function M.input(x, y, w, label, value, focused)
+  local bg = focused and colors.white or colors.lightGray
+  renderer.writeAt(x, y, renderer.crop(label .. ": " .. tostring(value or ""), w), colors.black, bg)
+end
+
+function M.dialog(x, y, w, title, message, confirmLabel)
+  renderer.fill(x, y, w, 5, colors.gray)
+  renderer.writeAt(x + 1, y, renderer.crop(title, w - 2), colors.white, colors.gray)
+  renderer.writeAt(x + 1, y + 2, renderer.crop(message, w - 2), colors.white, colors.gray)
+  renderer.button(x + 1, y + 4, math.min(12, w - 2), confirmLabel or "Confirm", false)
+end
+
+return M
+]],
   ["system/gui/desktop.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local keyboard = require("system.gui.keyboard")
@@ -1453,6 +1754,7 @@ local M = {
   icons = {},
   search = "",
   searchFocused = false,
+  searchBox = { x = 10, y = 1, w = 20 },
   keyboard = {},
 }
 
@@ -1461,17 +1763,19 @@ function M.setWindowManager(wm) M.wm = wm end
 function M.setNotifications(notifications) M.notifications = notifications end
 
 local function drawIcons()
-  local _, h = term.getSize()
+  local w, h = term.getSize()
   local labels = {
     { app = "terminal" },
     { app = "files" },
     { app = "editor" },
     { app = "settings" },
     { app = "devices" },
+    { app = "taskmanager" },
     { app = "update" },
   }
   local icons = {}
   local x, y = 2, 2
+  local cellW, cellH = 14, 8
   for _, item in ipairs(labels) do
     local meta = M.apps and M.apps.get(item.app) or nil
     table.insert(icons, {
@@ -1482,17 +1786,17 @@ local function drawIcons()
       iconPath = meta and meta.iconPath,
       app = item.app,
     })
-    y = y + 5
-    if y > h - 5 then
+    y = y + cellH
+    if y > h - 8 then
       y = 2
-      x = x + 13
+      x = x + cellW
     end
   end
 
   M.icons = icons
   for _, icon in ipairs(icons) do
     iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"))
-    renderer.writeAt(icon.x, icon.y + 4, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
+    renderer.writeAt(icon.x, icon.y + 6, renderer.crop(icon.label, 12), colors.white, theme.get("desktopBg"))
   end
 end
 
@@ -1517,6 +1821,7 @@ local function drawTaskbar()
   renderer.fill(1, h, w, 1, theme.get("taskbarBg"))
   renderer.button(1, h, 8, "Menu", M.menuOpen)
   local searchW = math.min(24, math.max(10, w - 26))
+  M.searchBox = { x = 10, y = h, w = searchW }
   local searchBg = M.searchFocused and colors.white or colors.lightGray
   local searchFg = colors.black
   renderer.writeAt(10, h, renderer.crop("?" .. M.search, searchW), searchFg, searchBg)
@@ -1547,12 +1852,14 @@ local function drawMenu()
     end
     appList = filtered
   end
-  local height = math.min(#appList + 2, h - 2)
-  renderer.fill(1, h - height, 24, height, colors.lightGray)
-  renderer.writeAt(2, h - height, "MintCraft OS", colors.black, colors.lightGray)
+  local height = math.min(#appList + 3, h - 2)
+  local menuW = math.min(32, w)
+  renderer.fill(1, h - height, menuW, height, colors.lightGray)
+  renderer.writeAt(2, h - height, renderer.crop("MintCraft OS", menuW - 2), colors.black, colors.lightGray)
+  renderer.writeAt(2, h - height + 1, renderer.crop("Search: " .. M.search, menuW - 2), colors.gray, colors.lightGray)
   for i, app in ipairs(appList) do
-    if i <= height - 1 then
-      renderer.writeAt(2, h - height + i, renderer.crop(app.icon .. " " .. app.name, 21), colors.black, colors.lightGray)
+    if i <= height - 2 then
+      renderer.writeAt(2, h - height + i + 1, renderer.crop(app.icon .. " " .. app.name .. " [" .. app.category .. "]", menuW - 2), colors.black, colors.lightGray)
     end
   end
 end
@@ -1702,7 +2009,7 @@ function M.handle(event)
     return true
   end
 
-  if y == h and x >= 10 and x <= 33 then
+  if y == h and x >= M.searchBox.x and x < M.searchBox.x + M.searchBox.w then
     M.searchFocused = true
     M.menuOpen = true
     return true
@@ -1710,9 +2017,19 @@ function M.handle(event)
 
   if M.menuOpen then
     local appList = M.apps and M.apps.list() or {}
-    local menuTop = h - math.min(#appList + 2, h - 2)
-    local index = y - menuTop
-    if x <= 24 and index >= 1 and appList[index] then
+    if M.search ~= "" then
+      local filtered = {}
+      local query = M.search:lower()
+      for _, app in ipairs(appList) do
+        if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+          table.insert(filtered, app)
+        end
+      end
+      appList = filtered
+    end
+    local menuTop = h - math.min(#appList + 3, h - 2)
+    local index = y - menuTop - 1
+    if x <= 32 and index >= 1 and appList[index] then
       M.menuOpen = false
       launch(appList[index].id)
       return true
@@ -1737,7 +2054,7 @@ function M.handle(event)
 
   if button == 1 then
     for _, icon in ipairs(M.icons or {}) do
-      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 4 then
+      if x >= icon.x and x <= icon.x + 12 and y >= icon.y and y <= icon.y + 6 then
         launch(icon.app)
         return true
       end
@@ -1795,6 +2112,7 @@ end
 
 function M.draw(x, y, w, state)
   state = ensure(state or {})
+  renderer.fill(x, y, w, M.height(), colors.lightGray)
   for row, chars in ipairs(rows) do
     local line = ""
     for i = 1, #chars do
@@ -1804,8 +2122,9 @@ function M.draw(x, y, w, state)
     end
     renderer.writeAt(x, y + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
   end
-  local flags = (state.caps and "CAPS " or "") .. (state.ctrl and "CTRL " or "")
-  renderer.writeAt(x, y + 4, renderer.crop("[maj] [shift] [ctrl] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
+  local control = w < 48 and "[M] [S] [C] [Tab] [Space] [<] [Enter]" or "[maj] [shift] [ctrl] [tab] [space] [back] [enter]"
+  local flags = (state.caps and "CAPS " or "") .. (state.shift and "SHIFT " or "") .. (state.ctrl and "CTRL " or "")
+  renderer.writeAt(x, y + 4, renderer.crop(control, w), colors.white, colors.gray)
   renderer.writeAt(x, y + 5, renderer.crop(flags .. (state.hint or ""), w), colors.black, colors.orange)
 end
 
@@ -2028,15 +2347,15 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System" })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files" })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System" })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System" })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System" })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System" })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware" })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev" })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System" })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.6.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.6.2", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.6.2", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.6.2", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.6.2", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.6.2", permissions = { "services.list", "services.control" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.6.2", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.6.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.6.2", permissions = { "network.http", "system.update" } })
 
   desktop.setApps(apps)
   desktop.setWindowManager(ctx.wm)
@@ -2053,6 +2372,7 @@ function M.start()
     wm = WindowManager.new(),
     notifications = notifd.new(),
   }
+  ctx.scheduler.ctx = ctx
   ctx.services = ServiceManager.new(ctx)
 
   ctx.apps = apps
@@ -2081,8 +2401,8 @@ function M.start()
         ctx.notifications:push("info", "Devices", "Display refreshed", 2)
       end
       ctx.scheduler:dispatch(event)
-      ctx.wm:handle(event)
-      desktop.handle(event)
+      local handled = ctx.wm:handle(event)
+      if not handled then desktop.handle(event) end
       ctx.notifications:handle(event)
     end
 
@@ -2104,7 +2424,7 @@ local function eventMatches(filter, event)
 end
 
 function Scheduler.new()
-  return setmetatable({ processes = {}, nextPid = 1 }, Scheduler)
+  return setmetatable({ processes = {}, nextPid = 1, ctx = nil }, Scheduler)
 end
 
 function Scheduler:spawn(name, fn, meta)
@@ -2118,7 +2438,9 @@ function Scheduler:spawn(name, fn, meta)
     state = "ready",
     filter = nil,
     meta = meta or {},
+    permissions = (meta and meta.permissions) or {},
     startedAt = os.epoch("utc"),
+    window = nil,
   }
 
   self.processes[pid] = process
@@ -2140,6 +2462,10 @@ function Scheduler:resume(process, event)
     process.state = "crashed"
     process.error = tostring(filterOrErr)
     log.error("process", process.name .. ": " .. tostring(filterOrErr))
+    if process.window then process.window.closed = true end
+    if self.ctx and self.ctx.notifications then
+      self.ctx.notifications:push("error", "App crashed", process.name, 5)
+    end
     return
   end
 
@@ -2162,8 +2488,14 @@ function Scheduler:kill(pid)
   local process = self.processes[pid]
   if not process then return false, "No such process" end
   process.state = "killed"
+  if process.window then process.window.closed = true end
   log.warn("process", "killed " .. process.name .. " #" .. tostring(pid))
   return true
+end
+
+function Scheduler:attachWindow(pid, win)
+  local process = self.processes[pid]
+  if process then process.window = win end
 end
 
 function Scheduler:list()
@@ -2175,6 +2507,8 @@ function Scheduler:list()
       state = process.state,
       filter = process.filter,
       error = process.error,
+      permissions = process.permissions,
+      windowId = process.window and process.window.id or nil,
     })
   end
   table.sort(rows, function(a, b) return a.pid < b.pid end)
@@ -2222,6 +2556,8 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
+    version = meta.version or "0.6.2",
+    permissions = meta.permissions or {},
   }
 end
 
@@ -2253,12 +2589,19 @@ function M.launch(id, args)
     local procCtx = scheduler:makeContext(pid)
     procCtx.appId = id
     procCtx.args = args or {}
-    procCtx.windowManager = M.ctx.wm
+    procCtx.windowManager = {
+      create = function(_, opts)
+        opts.ownerPid = pid
+        local win = M.ctx.wm:create(opts)
+        scheduler:attachWindow(pid, win)
+        return win
+      end,
+    }
     procCtx.notifications = M.ctx.notifications
     procCtx.apps = M
     procCtx.system = M.ctx
     mod.run(procCtx, startEvent)
-  end, { appId = id })
+  end, { appId = id, permissions = app.permissions })
   scheduler:start(pid)
 
   return true, pid
@@ -2512,14 +2855,15 @@ function Notifd:handle()
 end
 
 function Notifd:draw()
-  local w = term.getSize()
+  local w, h = term.getSize()
   local y = 2
-  for i = #self.queue, math.max(1, #self.queue - 2), -1 do
+  for i = #self.queue, math.max(1, #self.queue - 3), -1 do
     local n = self.queue[i]
-    local bg = colors.gray
+    local bg = colors.blue
     if n.level == "error" then bg = theme.get("error") end
     if n.level == "warn" then bg = theme.get("warning") end
     if n.level == "success" then bg = theme.get("success") end
+    if y + 2 >= h then break end
     renderer.fill(math.max(1, w - 27), y, 27, 3, bg)
     renderer.writeAt(math.max(1, w - 26), y, renderer.crop(n.title, 25), colors.white, bg)
     renderer.writeAt(math.max(1, w - 26), y + 1, renderer.crop(n.message, 25), colors.white, bg)
@@ -2740,44 +3084,68 @@ end
 
 return M
 ]],
-  ["system/themes/icons/devices.nfp"] = [[bbb
-b0b
-bbb
+  ["system/themes/icons/devices.nfp"] = [[3333333
+3fffff3
+3f333f3
+3fffff3
+3030303
+3333333
 ]],
-  ["system/themes/icons/editor.nfp"] = [[ddd
-d0d
-ddd
-d0d
+  ["system/themes/icons/editor.nfp"] = [[ddddddd
+dfffffd
+df000fd
+dfffffd
+df000fd
+ddddddd
 ]],
-  ["system/themes/icons/files.nfp"] = [[4444
-4ee4
-4ee4
-4444
+  ["system/themes/icons/files.nfp"] = [[4440000
+4eeee00
+4e44440
+4eeeee0
+4eeeee0
+4444440
 ]],
-  ["system/themes/icons/logs.nfp"] = [[111
-1ff
-11f
+  ["system/themes/icons/logs.nfp"] = [[1111110
+1ffff10
+1f11110
+1ffff10
+1f11110
+1111110
 ]],
-  ["system/themes/icons/services.nfp"] = [[777
-7f7
-777
+  ["system/themes/icons/services.nfp"] = [[bbbbbbb
+bff0ffb
+b0fff0b
+bff0ffb
+b0fff0b
+bbbbbbb
 ]],
-  ["system/themes/icons/settings.nfp"] = [[888
-8f8
-888
+  ["system/themes/icons/settings.nfp"] = [[7777777
+77f7f77
+7fffff7
+77fff77
+7fffff7
+77f7f77
 ]],
-  ["system/themes/icons/taskmanager.nfp"] = [[5555
-5f05
-5ff5
-5555
+  ["system/themes/icons/taskmanager.nfp"] = [[5555555
+5f0f0f5
+5fffff5
+5f0f0f5
+5fffff5
+5555555
 ]],
-  ["system/themes/icons/terminal.nfp"] = [[fff
-f00
-fff
+  ["system/themes/icons/terminal.nfp"] = [[8888888
+8fffff8
+8f000f8
+8f0ff08
+8fffff8
+8888888
 ]],
-  ["system/themes/icons/update.nfp"] = [[222
-2f2
-222
+  ["system/themes/icons/update.nfp"] = [[2222222
+22fff22
+2ff0ff2
+2200f22
+2ff0ff2
+22fff22
 ]],
   ["system/wm/window.lua"] = [[local theme = require("system.gui.theme")
 local renderer = require("system.gui.renderer")
@@ -2803,6 +3171,7 @@ function Window.new(opts)
     dragging = false,
     movePending = false,
     app = opts.app,
+    ownerPid = opts.ownerPid,
   }, Window)
 end
 
@@ -2828,8 +3197,8 @@ function Window:draw()
   renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
   local title = self.movePending and " Tap destination" or (" " .. self.title)
-  renderer.writeAt(self.x, self.y, renderer.crop(title, self.w - 6), theme.get("titleFg"), theme.get("titleBg"))
-  renderer.writeAt(self.x + self.w - 5, self.y, " _ X ", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.x, self.y, renderer.crop(title, self.w - 7), theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.x + self.w - 6, self.y, " - []X", theme.get("titleFg"), theme.get("titleBg"))
 
   if self.app and self.app.draw then
     local target = window.create(term.current(), self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
@@ -2858,11 +3227,16 @@ function Window:handle(event)
       self:clamp()
       return true
     end
-    if button == 1 and y == self.y and x >= self.x + self.w - 2 then
+    if button == 1 and y == self.y and x >= self.x + self.w - 1 then
       self.closed = true
       return true
-    elseif button == 1 and y == self.y and x >= self.x + self.w - 5 then
+    elseif button == 1 and y == self.y and x >= self.x + self.w - 6 and x < self.x + self.w - 3 then
       self.minimized = true
+      return true
+    elseif button == 1 and y == self.y and x >= self.x + self.w - 3 and x < self.x + self.w - 1 then
+      local sw, sh = term.getSize()
+      self.x, self.y = 1, 1
+      self.w, self.h = sw, math.max(5, sh - 1)
       return true
     elseif button == 1 and self:titleContains(x, y) then
       if event.monitorTouch then
@@ -2911,7 +3285,7 @@ local WindowManager = {}
 WindowManager.__index = WindowManager
 
 function WindowManager.new()
-  return setmetatable({ windows = {}, nextId = 1 }, WindowManager)
+  return setmetatable({ windows = {}, nextId = 1, taskButtons = {} }, WindowManager)
 end
 
 function WindowManager:create(opts)
@@ -2943,11 +3317,16 @@ function WindowManager:draw()
 
   local w, h = term.getSize()
   local x = 10
+  self.taskButtons = {}
   for _, win in ipairs(self.windows) do
-    if win.minimized then
+    if not win.closed then
       local label = "[" .. win.title .. "]"
-      renderer.writeAt(x, h, renderer.crop(label, math.min(#label, 14)), theme.get("taskbarFg"), theme.get("taskbarBg"))
-      x = x + math.min(#label, 14) + 1
+      local width = math.min(#label, 14)
+      local bg = win.minimized and theme.get("buttonBg") or theme.get("accent")
+      renderer.writeAt(x, h, renderer.crop(label, width), theme.get("taskbarFg"), bg)
+      table.insert(self.taskButtons, { x = x, w = width, win = win })
+      x = x + width + 1
+      if x > w - 10 then break end
     end
   end
 end
@@ -2955,17 +3334,21 @@ end
 function WindowManager:handle(event)
   if event.name == "mouse_click" then
     local _, x, y = table.unpack(event.args)
+    if y == ({ term.getSize() })[2] then
+      for _, box in ipairs(self.taskButtons or {}) do
+        if x >= box.x and x < box.x + box.w then
+          box.win.minimized = false
+          self:focus(box.win)
+          return true
+        end
+      end
+    end
     local active = self.windows[#self.windows]
     if active and active.movePending then
       return active:handle(event)
     end
     for i = #self.windows, 1, -1 do
       local win = self.windows[i]
-      if win.minimized and y == ({ term.getSize() })[2] then
-        win.minimized = false
-        self:focus(win)
-        return true
-      end
       if win:contains(x, y) then
         self:focus(win)
         return win:handle(event)
@@ -2996,5 +3379,6 @@ for path, content in pairs(files) do
 end
 
 if not fs.exists("home/user/desktop") then fs.makeDir("home/user/desktop") end
-print("MintCraft OS 0.6.1 installed.")
+if not fs.exists("home/user/.trash") then fs.makeDir("home/user/.trash") end
+print("MintCraft OS 0.6.2 installed.")
 print("Run reboot() to start MintCraft OS.")

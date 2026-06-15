@@ -21,6 +21,7 @@ end
 
 function M.draw(x, y, w, state)
   state = ensure(state or {})
+  renderer.fill(x, y, w, M.height(), colors.lightGray)
   for row, chars in ipairs(rows) do
     local line = ""
     for i = 1, #chars do
@@ -30,8 +31,9 @@ function M.draw(x, y, w, state)
     end
     renderer.writeAt(x, y + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
   end
-  local flags = (state.caps and "CAPS " or "") .. (state.ctrl and "CTRL " or "")
-  renderer.writeAt(x, y + 4, renderer.crop("[maj] [shift] [ctrl] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
+  local control = w < 48 and "[M] [S] [C] [Tab] [Space] [<] [Enter]" or "[maj] [shift] [ctrl] [tab] [space] [back] [enter]"
+  local flags = (state.caps and "CAPS " or "") .. (state.shift and "SHIFT " or "") .. (state.ctrl and "CTRL " or "")
+  renderer.writeAt(x, y + 4, renderer.crop(control, w), colors.white, colors.gray)
   renderer.writeAt(x, y + 5, renderer.crop(flags .. (state.hint or ""), w), colors.black, colors.orange)
 end
 

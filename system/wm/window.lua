@@ -22,6 +22,7 @@ function Window.new(opts)
     dragging = false,
     movePending = false,
     app = opts.app,
+    ownerPid = opts.ownerPid,
   }, Window)
 end
 
@@ -47,8 +48,8 @@ function Window:draw()
   renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
   local title = self.movePending and " Tap destination" or (" " .. self.title)
-  renderer.writeAt(self.x, self.y, renderer.crop(title, self.w - 6), theme.get("titleFg"), theme.get("titleBg"))
-  renderer.writeAt(self.x + self.w - 5, self.y, " _ X ", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.x, self.y, renderer.crop(title, self.w - 7), theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.x + self.w - 6, self.y, " - []X", theme.get("titleFg"), theme.get("titleBg"))
 
   if self.app and self.app.draw then
     local target = window.create(term.current(), self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
@@ -77,11 +78,16 @@ function Window:handle(event)
       self:clamp()
       return true
     end
-    if button == 1 and y == self.y and x >= self.x + self.w - 2 then
+    if button == 1 and y == self.y and x >= self.x + self.w - 1 then
       self.closed = true
       return true
-    elseif button == 1 and y == self.y and x >= self.x + self.w - 5 then
+    elseif button == 1 and y == self.y and x >= self.x + self.w - 6 and x < self.x + self.w - 3 then
       self.minimized = true
+      return true
+    elseif button == 1 and y == self.y and x >= self.x + self.w - 3 and x < self.x + self.w - 1 then
+      local sw, sh = term.getSize()
+      self.x, self.y = 1, 1
+      self.w, self.h = sw, math.max(5, sh - 1)
       return true
     elseif button == 1 and self:titleContains(x, y) then
       if event.monitorTouch then

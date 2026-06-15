@@ -18,6 +18,8 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
+    version = meta.version or "0.6.2",
+    permissions = meta.permissions or {},
   }
 end
 
@@ -49,12 +51,19 @@ function M.launch(id, args)
     local procCtx = scheduler:makeContext(pid)
     procCtx.appId = id
     procCtx.args = args or {}
-    procCtx.windowManager = M.ctx.wm
+    procCtx.windowManager = {
+      create = function(_, opts)
+        opts.ownerPid = pid
+        local win = M.ctx.wm:create(opts)
+        scheduler:attachWindow(pid, win)
+        return win
+      end,
+    }
     procCtx.notifications = M.ctx.notifications
     procCtx.apps = M
     procCtx.system = M.ctx
     mod.run(procCtx, startEvent)
-  end, { appId = id })
+  end, { appId = id, permissions = app.permissions })
   scheduler:start(pid)
 
   return true, pid

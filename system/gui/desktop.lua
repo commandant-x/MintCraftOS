@@ -13,6 +13,7 @@ local M = {
   icons = {},
   search = "",
   searchFocused = false,
+  searchBox = { x = 10, y = 1, w = 20 },
   keyboard = {},
 }
 
@@ -21,17 +22,19 @@ function M.setWindowManager(wm) M.wm = wm end
 function M.setNotifications(notifications) M.notifications = notifications end
 
 local function drawIcons()
-  local _, h = term.getSize()
+  local w, h = term.getSize()
   local labels = {
     { app = "terminal" },
     { app = "files" },
     { app = "editor" },
     { app = "settings" },
     { app = "devices" },
+    { app = "taskmanager" },
     { app = "update" },
   }
   local icons = {}
   local x, y = 2, 2
+  local cellW, cellH = 14, 8
   for _, item in ipairs(labels) do
     local meta = M.apps and M.apps.get(item.app) or nil
     table.insert(icons, {
@@ -42,17 +45,17 @@ local function drawIcons()
       iconPath = meta and meta.iconPath,
       app = item.app,
     })
-    y = y + 5
-    if y > h - 5 then
+    y = y + cellH
+    if y > h - 8 then
       y = 2
-      x = x + 13
+      x = x + cellW
     end
   end
 
   M.icons = icons
   for _, icon in ipairs(icons) do
     iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"))
-    renderer.writeAt(icon.x, icon.y + 4, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
+    renderer.writeAt(icon.x, icon.y + 6, renderer.crop(icon.label, 12), colors.white, theme.get("desktopBg"))
   end
 end
 
@@ -77,6 +80,7 @@ local function drawTaskbar()
   renderer.fill(1, h, w, 1, theme.get("taskbarBg"))
   renderer.button(1, h, 8, "Menu", M.menuOpen)
   local searchW = math.min(24, math.max(10, w - 26))
+  M.searchBox = { x = 10, y = h, w = searchW }
   local searchBg = M.searchFocused and colors.white or colors.lightGray
   local searchFg = colors.black
   renderer.writeAt(10, h, renderer.crop("?" .. M.search, searchW), searchFg, searchBg)
@@ -107,12 +111,14 @@ local function drawMenu()
     end
     appList = filtered
   end
-  local height = math.min(#appList + 2, h - 2)
-  renderer.fill(1, h - height, 24, height, colors.lightGray)
-  renderer.writeAt(2, h - height, "MintCraft OS", colors.black, colors.lightGray)
+  local height = math.min(#appList + 3, h - 2)
+  local menuW = math.min(32, w)
+  renderer.fill(1, h - height, menuW, height, colors.lightGray)
+  renderer.writeAt(2, h - height, renderer.crop("MintCraft OS", menuW - 2), colors.black, colors.lightGray)
+  renderer.writeAt(2, h - height + 1, renderer.crop("Search: " .. M.search, menuW - 2), colors.gray, colors.lightGray)
   for i, app in ipairs(appList) do
-    if i <= height - 1 then
-      renderer.writeAt(2, h - height + i, renderer.crop(app.icon .. " " .. app.name, 21), colors.black, colors.lightGray)
+    if i <= height - 2 then
+      renderer.writeAt(2, h - height + i + 1, renderer.crop(app.icon .. " " .. app.name .. " [" .. app.category .. "]", menuW - 2), colors.black, colors.lightGray)
     end
   end
 end
@@ -262,7 +268,7 @@ function M.handle(event)
     return true
   end
 
-  if y == h and x >= 10 and x <= 33 then
+  if y == h and x >= M.searchBox.x and x < M.searchBox.x + M.searchBox.w then
     M.searchFocused = true
     M.menuOpen = true
     return true
@@ -270,9 +276,19 @@ function M.handle(event)
 
   if M.menuOpen then
     local appList = M.apps and M.apps.list() or {}
-    local menuTop = h - math.min(#appList + 2, h - 2)
-    local index = y - menuTop
-    if x <= 24 and index >= 1 and appList[index] then
+    if M.search ~= "" then
+      local filtered = {}
+      local query = M.search:lower()
+      for _, app in ipairs(appList) do
+        if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+          table.insert(filtered, app)
+        end
+      end
+      appList = filtered
+    end
+    local menuTop = h - math.min(#appList + 3, h - 2)
+    local index = y - menuTop - 1
+    if x <= 32 and index >= 1 and appList[index] then
       M.menuOpen = false
       launch(appList[index].id)
       return true
@@ -297,7 +313,7 @@ function M.handle(event)
 
   if button == 1 then
     for _, icon in ipairs(M.icons or {}) do
-      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 4 then
+      if x >= icon.x and x <= icon.x + 12 and y >= icon.y and y <= icon.y + 6 then
         launch(icon.app)
         return true
       end

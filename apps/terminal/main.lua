@@ -11,6 +11,18 @@ end
 
 local function runCommand(app, ctx, input)
   append(app, "> " .. input)
+  if app.pending then
+    if input == "yes" then
+      local pending = app.pending
+      app.pending = nil
+      pending()
+      return
+    end
+    append(app, "cancelled")
+    app.pending = nil
+    return
+  end
+
   local cmd, rest = input:match("^(%S+)%s*(.*)$")
   if not cmd then return end
 
@@ -26,6 +38,47 @@ local function runCommand(app, ctx, input)
   elseif cmd == "cd" then
     local path = rest ~= "" and fs.combine(app.cwd, rest) or "/"
     if fs.exists(path) and fs.isDir(path) then app.cwd = path else append(app, "No such directory") end
+  elseif cmd == "pwd" then
+    append(app, app.cwd)
+  elseif cmd == "mkdir" then
+    if rest == "" then append(app, "Usage: mkdir <dir>") else fs.makeDir(fs.combine(app.cwd, rest)) end
+  elseif cmd == "cp" then
+    local src, dst = rest:match("^(%S+)%s+(.+)$")
+    if not src or not dst then
+      append(app, "Usage: cp <src> <dst>")
+    else
+      local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
+      if fs.exists(from) and not fs.exists(to) then fs.copy(from, to) else append(app, "Cannot copy") end
+    end
+  elseif cmd == "mv" then
+    local src, dst = rest:match("^(%S+)%s+(.+)$")
+    if not src or not dst then
+      append(app, "Usage: mv <src> <dst>")
+    else
+      local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
+      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) else append(app, "Cannot move") end
+    end
+  elseif cmd == "rm" then
+    if rest ~= "" then
+      local path = fs.combine(app.cwd, rest)
+      if fs.exists(path) then
+        app.pending = function()
+          fs.delete(path)
+          append(app, "deleted")
+        end
+        append(app, "Type yes to delete " .. path)
+      else
+        append(app, "No such file")
+      end
+    else
+      append(app, "Usage: rm <path>")
+    end
+  elseif cmd == "edit" then
+    local path = rest ~= "" and fs.combine(app.cwd, rest) or app.cwd
+    ctx.apps.launch("editor", { path = path })
+  elseif cmd == "open" then
+    local path = rest ~= "" and fs.combine(app.cwd, rest) or app.cwd
+    if fs.isDir(path) then ctx.apps.launch("files", { path = path }) else ctx.apps.launch("editor", { path = path }) end
   elseif cmd == "cat" then
     local path = fs.combine(app.cwd, rest)
     if fs.exists(path) then
@@ -41,8 +94,12 @@ local function runCommand(app, ctx, input)
     end
   elseif cmd == "kill" then
     local pid = tonumber(rest)
-    local ok, err = ctx.kill(pid)
-    append(app, ok and "killed" or err)
+    if not pid then append(app, "Usage: kill <pid>") return end
+    app.pending = function()
+      local ok, err = ctx.kill(pid)
+      append(app, ok and "killed" or tostring(err))
+    end
+    append(app, "Type yes to kill pid " .. tostring(pid))
   elseif cmd == "logs" then
     for _, line in ipairs(log.tail(10)) do append(app, line) end
   elseif cmd == "files" then
@@ -54,7 +111,7 @@ local function runCommand(app, ctx, input)
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "help" then
-    append(app, "Commands: ls cd cat clear ps kill logs files settings devices reboot help")
+    append(app, "Commands: ls cd pwd mkdir cp mv rm cat edit open clear ps kill logs files settings devices reboot help")
   else
     append(app, "Unknown command: " .. cmd)
   end
@@ -71,7 +128,7 @@ function M.run(ctx)
     keyboard = {},
   }
 
-  local commands = { "ls", "cd", "cat", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
+  local commands = { "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "cat", "edit", "open", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
 
   local quick = {
     { label = "ls", text = "ls" },

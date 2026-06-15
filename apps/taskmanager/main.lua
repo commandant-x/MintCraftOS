@@ -1,4 +1,5 @@
 local renderer = require("system.gui.renderer")
+local ui = require("system.gui.components")
 
 local M = {}
 
@@ -32,7 +33,11 @@ local function memoryStats()
 end
 
 function M.run(ctx)
-  local app = {}
+  local app = { selectedPid = nil, scroll = 1 }
+  local actions = {
+    { id = "kill", label = "Kill" },
+    { id = "refresh", label = "Refresh" },
+  }
 
   function app:draw(w, h)
     local rows = ctx.listProcesses()
@@ -43,19 +48,42 @@ function M.run(ctx)
     end
     local cpuEstimate = total > 0 and math.floor((ready / total) * 100 + 0.5) or 0
 
-    renderer.writeAt(1, 1, renderer.crop("MintCraft Task Manager", w), colors.black, colors.lightGray)
-    renderer.writeAt(2, 3, renderer.crop("CPU est.: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    renderer.writeAt(1, 2, renderer.crop("MintCraft Task Manager", w), colors.black, colors.lightGray)
+    renderer.writeAt(2, 3, renderer.crop("CPU est. CC: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 4, renderer.crop(memoryStats(), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 5, renderer.crop(diskStats(), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(1, 7, renderer.crop("PID STATE    NAME", w), colors.black, colors.gray)
 
     for i = 1, math.min(#rows, h - 7) do
-      local p = rows[i]
-      renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, colors.lightGray)
+      local p = rows[self.scroll + i - 1]
+      if p then
+        local bg = p.pid == self.selectedPid and colors.cyan or colors.lightGray
+        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, bg)
+      end
     end
   end
 
-  function app:handle()
+  function app:handle(event)
+    if event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    end
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    local action = ui.toolbarHit(self.toolbar, x, y)
+    if action == "kill" and self.selectedPid then
+      local ok, err = ctx.kill(self.selectedPid)
+      if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Task Manager", ok and "Killed" or tostring(err), 3) end
+      return true
+    elseif action then
+      return true
+    end
+    if y >= 8 then
+      local rows = ctx.listProcesses()
+      local p = rows[self.scroll + y - 8]
+      if p then self.selectedPid = p.pid return true end
+    end
     return false
   end
 

@@ -8,7 +8,7 @@ local function eventMatches(filter, event)
 end
 
 function Scheduler.new()
-  return setmetatable({ processes = {}, nextPid = 1 }, Scheduler)
+  return setmetatable({ processes = {}, nextPid = 1, ctx = nil }, Scheduler)
 end
 
 function Scheduler:spawn(name, fn, meta)
@@ -22,7 +22,9 @@ function Scheduler:spawn(name, fn, meta)
     state = "ready",
     filter = nil,
     meta = meta or {},
+    permissions = (meta and meta.permissions) or {},
     startedAt = os.epoch("utc"),
+    window = nil,
   }
 
   self.processes[pid] = process
@@ -44,6 +46,10 @@ function Scheduler:resume(process, event)
     process.state = "crashed"
     process.error = tostring(filterOrErr)
     log.error("process", process.name .. ": " .. tostring(filterOrErr))
+    if process.window then process.window.closed = true end
+    if self.ctx and self.ctx.notifications then
+      self.ctx.notifications:push("error", "App crashed", process.name, 5)
+    end
     return
   end
 
@@ -66,8 +72,14 @@ function Scheduler:kill(pid)
   local process = self.processes[pid]
   if not process then return false, "No such process" end
   process.state = "killed"
+  if process.window then process.window.closed = true end
   log.warn("process", "killed " .. process.name .. " #" .. tostring(pid))
   return true
+end
+
+function Scheduler:attachWindow(pid, win)
+  local process = self.processes[pid]
+  if process then process.window = win end
 end
 
 function Scheduler:list()
@@ -79,6 +91,8 @@ function Scheduler:list()
       state = process.state,
       filter = process.filter,
       error = process.error,
+      permissions = process.permissions,
+      windowId = process.window and process.window.id or nil,
     })
   end
   table.sort(rows, function(a, b) return a.pid < b.pid end)
