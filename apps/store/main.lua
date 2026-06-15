@@ -58,12 +58,26 @@ function M.run(ctx)
     local _, x, y = table.unpack(event.args)
     local action = ui.toolbarHit(self.toolbar, x, y)
     if action == "install" and self.selected then
-      local ok, msg = packages.install(self.selected)
+      local allowed, denied = ctx.security.require("packages.install", self.selected)
+      local ok, msg
+      if allowed then
+        ctx.security.audit("install package", self.selected)
+        ok, msg = packages.install(self.selected)
+      else
+        ok, msg = false, denied
+      end
       self.message = tostring(msg)
       if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Store", tostring(msg), 4) end
       return true
     elseif action == "remove" and self.selected then
-      local ok, msg = packages.remove(self.selected)
+      local allowed, denied = ctx.security.require("packages.install", self.selected)
+      local ok, msg
+      if allowed then
+        ctx.security.audit("remove package", self.selected)
+        ok, msg = packages.remove(self.selected)
+      else
+        ok, msg = false, denied
+      end
       self.message = tostring(msg)
       if ctx.notifications then ctx.notifications:push(ok and "success" or "warn", "Store", tostring(msg), 4) end
       return true

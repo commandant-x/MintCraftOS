@@ -1,4 +1,5 @@
 local log = require("system.libraries.log")
+local permissions = require("system.security.permissions")
 
 local M = {
   registry = {},
@@ -18,7 +19,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.9.1",
+    version = meta.version or "0.10.0",
     permissions = meta.permissions or {},
   }
 end
@@ -51,6 +52,15 @@ function M.launch(id, args)
     local procCtx = scheduler:makeContext(pid)
     procCtx.appId = id
     procCtx.args = args or {}
+    procCtx.permissions = app.permissions
+    procCtx.security = {
+      require = function(permission, target)
+        return permissions.require({ pid = pid, appId = id, permissions = app.permissions }, permission, target)
+      end,
+      audit = function(action, target)
+        return permissions.audit({ pid = pid, appId = id, permissions = app.permissions }, action, target)
+      end,
+    }
     procCtx.windowManager = {
       create = function(_, opts)
         opts.ownerPid = pid

@@ -3,6 +3,7 @@ local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
 local networkd = require("system.services.networkd")
+local securityd = require("system.services.securityd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -17,6 +18,7 @@ function M.run(ctx)
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
+    { id = "security", label = "Security" },
     { id = "apps", label = "Apps" },
     { id = "packages", label = "Packages" },
     { id = "dev", label = "Dev" },
@@ -118,6 +120,15 @@ function M.run(ctx)
         renderer.writeAt(1, 4, "Storage metrics unavailable", colors.black, colors.lightGray)
       end
       renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
+    elseif self.page == "security" then
+      local cfg = config.load("/system/config/security.cfg", {})
+      renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "single-user"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "User: " .. tostring(cfg.currentUser or "admin"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Service: " .. securityd.statusText(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 8, "Apps carry declared permissions.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 9, "Denied actions are logged in system.log.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 10, "Users/enforcement are simulated in V0.10.", colors.gray, colors.lightGray)
     elseif self.page == "apps" then
       local rows = ctx.apps.list()
       renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)

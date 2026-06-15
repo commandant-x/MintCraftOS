@@ -115,6 +115,7 @@ function Scheduler:makeContext(pid)
       return scheduler:list()
     end,
     kill = function(targetPid)
+      log.warn("process", "pid " .. tostring(pid) .. " requested kill " .. tostring(targetPid))
       return scheduler:kill(targetPid)
     end,
   }

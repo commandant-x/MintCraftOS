@@ -24,6 +24,9 @@ function M.run(ctx)
   end
 
   function app:apply()
+    local allowed, denied = ctx.security.require("system.update", "apply")
+    if not allowed then self.message = denied return end
+    ctx.security.audit("update apply", "GitHub installer")
     self.message = "Downloading installer..."
     local ok, message = updated.apply()
     self.message = tostring(message)

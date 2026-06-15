@@ -148,6 +148,8 @@ function M.run(ctx)
     end
     local url = app.cfg.proxy .. app.cfg.searchPath .. urlEncode(app.input)
     app.status = "Searching..."
+    local allowed, denied = ctx.security.require("network.http", url)
+    if not allowed then app.status = denied return end
     local response, err = httpClient.json(url)
     if not response then
       app.status = tostring(err)
@@ -168,6 +170,8 @@ function M.run(ctx)
     local video = selectedVideo()
     if not video then app.status = "No video selected" return end
     if app.cfg.proxy and app.cfg.proxy ~= "" and app.cfg.detailsPath and app.cfg.detailsPath ~= "" then
+      local allowed = ctx.security.require("network.http", app.cfg.proxy)
+      if not allowed then return end
       local response = httpClient.json(app.cfg.proxy .. app.cfg.detailsPath .. urlEncode(video.id))
       if response and response.json then
         local detail = normalizeVideo(response.json.video or response.json.item or response.json)

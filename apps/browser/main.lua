@@ -131,6 +131,12 @@ function M.run(ctx)
       return
     end
     app.status = "Loading..."
+    local allowed, denied = ctx.security.require("network.http", app.url)
+    if not allowed then
+      app.status = denied
+      app.lines = { denied }
+      return
+    end
     local response, err = httpClient.get(app.url)
     if response then
       app.status = tostring(response.code) .. " " .. tostring(response.size) .. " bytes"

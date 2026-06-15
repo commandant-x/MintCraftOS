@@ -71,14 +71,20 @@ local function runCommand(app, ctx, input)
   elseif cmd == "pwd" then
     append(app, app.cwd)
   elseif cmd == "mkdir" then
-    if rest == "" then append(app, "Usage: mkdir <dir>") else fs.makeDir(fs.combine(app.cwd, rest)) end
+    if rest == "" then append(app, "Usage: mkdir <dir>") else
+      local path = fs.combine(app.cwd, rest)
+      local ok, err = ctx.security.require("filesystem.write", path)
+      if ok then fs.makeDir(path) ctx.security.audit("mkdir", path) else append(app, err) end
+    end
   elseif cmd == "cp" then
     local src, dst = rest:match("^(%S+)%s+(.+)$")
     if not src or not dst then
       append(app, "Usage: cp <src> <dst>")
     else
       local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
-      if fs.exists(from) and not fs.exists(to) then fs.copy(from, to) else append(app, "Cannot copy") end
+      local ok, err = ctx.security.require("filesystem.write", to)
+      if not ok then append(app, err)
+      elseif fs.exists(from) and not fs.exists(to) then fs.copy(from, to) ctx.security.audit("copy", from .. " -> " .. to) else append(app, "Cannot copy") end
     end
   elseif cmd == "mv" then
     local src, dst = rest:match("^(%S+)%s+(.+)$")
@@ -86,15 +92,17 @@ local function runCommand(app, ctx, input)
       append(app, "Usage: mv <src> <dst>")
     else
       local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
-      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) else append(app, "Cannot move") end
+      local ok, err = ctx.security.require("filesystem.write", to)
+      if not ok then append(app, err)
+      elseif fs.exists(from) and not fs.exists(to) then fs.move(from, to) ctx.security.audit("move", from .. " -> " .. to) else append(app, "Cannot move") end
     end
   elseif cmd == "rm" then
     if rest ~= "" then
       local path = fs.combine(app.cwd, rest)
       if fs.exists(path) then
         app.pending = function()
-          fs.delete(path)
-          append(app, "deleted")
+          local ok, err = ctx.security.require("filesystem.write", path)
+          if ok then fs.delete(path) ctx.security.audit("delete", path) append(app, "deleted") else append(app, err) end
         end
         append(app, "Type yes to delete " .. path)
       else
@@ -117,7 +125,9 @@ local function runCommand(app, ctx, input)
     else
       local from = trashPath(rest)
       local to = fs.combine(app.cwd, rest)
-      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) append(app, "restored") else append(app, "Cannot restore") end
+      local ok, err = ctx.security.require("filesystem.write", to)
+      if not ok then append(app, err)
+      elseif fs.exists(from) and not fs.exists(to) then fs.move(from, to) ctx.security.audit("restore", to) append(app, "restored") else append(app, "Cannot restore") end
     end
   elseif cmd == "cat" or cmd == "type" then
     local path = fs.combine(app.cwd, rest)
@@ -136,8 +146,14 @@ local function runCommand(app, ctx, input)
     local pid = tonumber(rest)
     if not pid then append(app, "Usage: kill <pid>") return end
     app.pending = function()
-      local ok, err = ctx.kill(pid)
-      append(app, ok and "killed" or tostring(err))
+      local allowed, denied = ctx.security.require("process.kill", tostring(pid))
+      if allowed then
+        ctx.security.audit("kill", tostring(pid))
+        local ok, err = ctx.kill(pid)
+        append(app, ok and "killed" or tostring(err))
+      else
+        append(app, denied)
+      end
     end
     append(app, "Type yes to kill pid " .. tostring(pid))
   elseif cmd == "logs" then
@@ -151,7 +167,10 @@ local function runCommand(app, ctx, input)
   elseif cmd == "store" then
     ctx.apps.launch("store")
   elseif cmd == "install" then
-    if rest == "" then append(app, "Usage: install <package>") else local ok, msg = ctx.system.packages.install(rest) append(app, tostring(msg)) end
+    if rest == "" then append(app, "Usage: install <package>") else
+      local allowed, denied = ctx.security.require("packages.install", rest)
+      if allowed then ctx.security.audit("install", rest) local ok, msg = ctx.system.packages.install(rest) append(app, tostring(msg)) else append(app, denied) end
+    end
   elseif cmd == "files" then
     ctx.apps.launch("files")
   elseif cmd == "settings" then
@@ -159,7 +178,8 @@ local function runCommand(app, ctx, input)
   elseif cmd == "devices" then
     ctx.apps.launch("devices")
   elseif cmd == "reboot" then
-    os.reboot()
+    local allowed, denied = ctx.security.require("system.reboot", "reboot")
+    if allowed then ctx.security.audit("reboot", "terminal") os.reboot() else append(app, denied) end
   elseif cmd == "help" then
     if rest ~= "" and help[rest] then
       append(app, help[rest])

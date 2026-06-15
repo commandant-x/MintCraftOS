@@ -1,4 +1,4 @@
--- MintCraft OS V0.9.1 installer for CC:Tweaked
+-- MintCraft OS V0.10.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -148,6 +148,12 @@ function M.run(ctx)
       return
     end
     app.status = "Loading..."
+    local allowed, denied = ctx.security.require("network.http", app.url)
+    if not allowed then
+      app.status = denied
+      app.lines = { denied }
+      return
+    end
     local response, err = httpClient.get(app.url)
     if response then
       app.status = tostring(response.code) .. " " .. tostring(response.size) .. " bytes"
@@ -219,7 +225,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -374,6 +380,8 @@ function M.run(ctx)
     end
     local url = app.cfg.proxy .. app.cfg.searchPath .. urlEncode(app.input)
     app.status = "Searching..."
+    local allowed, denied = ctx.security.require("network.http", url)
+    if not allowed then app.status = denied return end
     local response, err = httpClient.json(url)
     if not response then
       app.status = tostring(err)
@@ -394,6 +402,8 @@ function M.run(ctx)
     local video = selectedVideo()
     if not video then app.status = "No video selected" return end
     if app.cfg.proxy and app.cfg.proxy ~= "" and app.cfg.detailsPath and app.cfg.detailsPath ~= "" then
+      local allowed = ctx.security.require("network.http", app.cfg.proxy)
+      if not allowed then return end
       local response = httpClient.json(app.cfg.proxy .. app.cfg.detailsPath .. urlEncode(video.id))
       if response and response.json then
         local detail = normalizeVideo(response.json.video or response.json.item or response.json)
@@ -504,7 +514,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -563,7 +573,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -745,7 +755,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1050,7 +1060,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1127,7 +1137,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1244,7 +1254,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1323,7 +1333,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -1333,6 +1343,7 @@ local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
 local networkd = require("system.services.networkd")
+local securityd = require("system.services.securityd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -1347,6 +1358,7 @@ function M.run(ctx)
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
+    { id = "security", label = "Security" },
     { id = "apps", label = "Apps" },
     { id = "packages", label = "Packages" },
     { id = "dev", label = "Dev" },
@@ -1448,6 +1460,15 @@ function M.run(ctx)
         renderer.writeAt(1, 4, "Storage metrics unavailable", colors.black, colors.lightGray)
       end
       renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
+    elseif self.page == "security" then
+      local cfg = config.load("/system/config/security.cfg", {})
+      renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "single-user"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "User: " .. tostring(cfg.currentUser or "admin"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Service: " .. securityd.statusText(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 8, "Apps carry declared permissions.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 9, "Denied actions are logged in system.log.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 10, "Users/enforcement are simulated in V0.10.", colors.gray, colors.lightGray)
     elseif self.page == "apps" then
       local rows = ctx.apps.list()
       renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)
@@ -1557,7 +1578,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1622,12 +1643,26 @@ function M.run(ctx)
     local _, x, y = table.unpack(event.args)
     local action = ui.toolbarHit(self.toolbar, x, y)
     if action == "install" and self.selected then
-      local ok, msg = packages.install(self.selected)
+      local allowed, denied = ctx.security.require("packages.install", self.selected)
+      local ok, msg
+      if allowed then
+        ctx.security.audit("install package", self.selected)
+        ok, msg = packages.install(self.selected)
+      else
+        ok, msg = false, denied
+      end
       self.message = tostring(msg)
       if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Store", tostring(msg), 4) end
       return true
     elseif action == "remove" and self.selected then
-      local ok, msg = packages.remove(self.selected)
+      local allowed, denied = ctx.security.require("packages.install", self.selected)
+      local ok, msg
+      if allowed then
+        ctx.security.audit("remove package", self.selected)
+        ok, msg = packages.remove(self.selected)
+      else
+        ok, msg = false, denied
+      end
       self.message = tostring(msg)
       if ctx.notifications then ctx.notifications:push(ok and "success" or "warn", "Store", tostring(msg), 4) end
       return true
@@ -1652,7 +1687,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1766,9 +1801,9 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.9.1",
+  version = "0.10.0",
   main = "apps.terminal.main",
-  permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
+  permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" },
 }
 ]],
   ["apps/terminal/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1844,14 +1879,20 @@ local function runCommand(app, ctx, input)
   elseif cmd == "pwd" then
     append(app, app.cwd)
   elseif cmd == "mkdir" then
-    if rest == "" then append(app, "Usage: mkdir <dir>") else fs.makeDir(fs.combine(app.cwd, rest)) end
+    if rest == "" then append(app, "Usage: mkdir <dir>") else
+      local path = fs.combine(app.cwd, rest)
+      local ok, err = ctx.security.require("filesystem.write", path)
+      if ok then fs.makeDir(path) ctx.security.audit("mkdir", path) else append(app, err) end
+    end
   elseif cmd == "cp" then
     local src, dst = rest:match("^(%S+)%s+(.+)$")
     if not src or not dst then
       append(app, "Usage: cp <src> <dst>")
     else
       local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
-      if fs.exists(from) and not fs.exists(to) then fs.copy(from, to) else append(app, "Cannot copy") end
+      local ok, err = ctx.security.require("filesystem.write", to)
+      if not ok then append(app, err)
+      elseif fs.exists(from) and not fs.exists(to) then fs.copy(from, to) ctx.security.audit("copy", from .. " -> " .. to) else append(app, "Cannot copy") end
     end
   elseif cmd == "mv" then
     local src, dst = rest:match("^(%S+)%s+(.+)$")
@@ -1859,15 +1900,17 @@ local function runCommand(app, ctx, input)
       append(app, "Usage: mv <src> <dst>")
     else
       local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
-      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) else append(app, "Cannot move") end
+      local ok, err = ctx.security.require("filesystem.write", to)
+      if not ok then append(app, err)
+      elseif fs.exists(from) and not fs.exists(to) then fs.move(from, to) ctx.security.audit("move", from .. " -> " .. to) else append(app, "Cannot move") end
     end
   elseif cmd == "rm" then
     if rest ~= "" then
       local path = fs.combine(app.cwd, rest)
       if fs.exists(path) then
         app.pending = function()
-          fs.delete(path)
-          append(app, "deleted")
+          local ok, err = ctx.security.require("filesystem.write", path)
+          if ok then fs.delete(path) ctx.security.audit("delete", path) append(app, "deleted") else append(app, err) end
         end
         append(app, "Type yes to delete " .. path)
       else
@@ -1890,7 +1933,9 @@ local function runCommand(app, ctx, input)
     else
       local from = trashPath(rest)
       local to = fs.combine(app.cwd, rest)
-      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) append(app, "restored") else append(app, "Cannot restore") end
+      local ok, err = ctx.security.require("filesystem.write", to)
+      if not ok then append(app, err)
+      elseif fs.exists(from) and not fs.exists(to) then fs.move(from, to) ctx.security.audit("restore", to) append(app, "restored") else append(app, "Cannot restore") end
     end
   elseif cmd == "cat" or cmd == "type" then
     local path = fs.combine(app.cwd, rest)
@@ -1909,8 +1954,14 @@ local function runCommand(app, ctx, input)
     local pid = tonumber(rest)
     if not pid then append(app, "Usage: kill <pid>") return end
     app.pending = function()
-      local ok, err = ctx.kill(pid)
-      append(app, ok and "killed" or tostring(err))
+      local allowed, denied = ctx.security.require("process.kill", tostring(pid))
+      if allowed then
+        ctx.security.audit("kill", tostring(pid))
+        local ok, err = ctx.kill(pid)
+        append(app, ok and "killed" or tostring(err))
+      else
+        append(app, denied)
+      end
     end
     append(app, "Type yes to kill pid " .. tostring(pid))
   elseif cmd == "logs" then
@@ -1924,7 +1975,10 @@ local function runCommand(app, ctx, input)
   elseif cmd == "store" then
     ctx.apps.launch("store")
   elseif cmd == "install" then
-    if rest == "" then append(app, "Usage: install <package>") else local ok, msg = ctx.system.packages.install(rest) append(app, tostring(msg)) end
+    if rest == "" then append(app, "Usage: install <package>") else
+      local allowed, denied = ctx.security.require("packages.install", rest)
+      if allowed then ctx.security.audit("install", rest) local ok, msg = ctx.system.packages.install(rest) append(app, tostring(msg)) else append(app, denied) end
+    end
   elseif cmd == "files" then
     ctx.apps.launch("files")
   elseif cmd == "settings" then
@@ -1932,7 +1986,8 @@ local function runCommand(app, ctx, input)
   elseif cmd == "devices" then
     ctx.apps.launch("devices")
   elseif cmd == "reboot" then
-    os.reboot()
+    local allowed, denied = ctx.security.require("system.reboot", "reboot")
+    if allowed then ctx.security.audit("reboot", "terminal") os.reboot() else append(app, denied) end
   elseif cmd == "help" then
     if rest ~= "" and help[rest] then
       append(app, help[rest])
@@ -2092,7 +2147,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.9.1",
+  version = "0.10.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2121,6 +2176,9 @@ function M.run(ctx)
   end
 
   function app:apply()
+    local allowed, denied = ctx.security.require("system.update", "apply")
+    if not allowed then self.message = denied return end
+    ctx.security.audit("update apply", "GitHub installer")
     self.message = "Downloading installer..."
     local ok, message = updated.apply()
     self.message = tostring(message)
@@ -2356,7 +2414,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.9.1 base:
+This repository currently contains the V0.10.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -2379,8 +2437,9 @@ This repository currently contains the V0.9.1 base:
 - CraftTube native metadata client using a configurable proxy/API with card-style results, favorites and history
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
+- simulated security service with declared app permissions and logged denials for sensitive actions
 
-Not included yet: users/permissions enforcement, audio playback and update rollback.
+Not included yet: real multi-user login enforcement, audio playback and update rollback.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -2438,6 +2497,7 @@ local REQUIRED_DIRS = {
   "/system/libraries",
   "/system/network",
   "/system/package",
+  "/system/security",
   "/system/services",
   "/system/themes",
   "/system/wm",
@@ -2466,11 +2526,18 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.9.1",
+    version = "0.10.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
     safeMode = false,
+  })
+  config.ensure("/system/config/security.cfg", {
+    enabled = true,
+    mode = "single-user",
+    currentUser = "admin",
+    logDenied = true,
+    logSensitive = true,
   })
 end
 
@@ -2478,8 +2545,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.9.1" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.9.1"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.10.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.10.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2566,8 +2633,16 @@ return M
   lua = "editor",
 }
 ]],
+  ["system/config/security.cfg"] = [[{
+  enabled = true,
+  mode = "single-user",
+  currentUser = "admin",
+  logDenied = true,
+  logSensitive = true,
+}
+]],
   ["system/config/system.cfg"] = [[{
-  version = "0.9.1",
+  version = "0.10.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -3394,6 +3469,7 @@ local WindowManager = require("system.wm.window_manager")
 local ServiceManager = require("system.services.service_manager")
 local notifd = require("system.services.notifd")
 local packageManager = require("system.package.package_manager")
+local permissions = require("system.security.permissions")
 
 local M = {}
 
@@ -3416,19 +3492,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.9.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.9.1", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.9.1", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.9.1", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.9.1", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.9.1", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.9.1", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.9.1", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.9.1", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.9.1", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.9.1", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.9.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.9.1", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.10.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.10.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.10.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.10.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.10.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.10.0", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.10.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.10.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.10.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.10.0", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.10.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.10.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.10.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -3453,7 +3529,9 @@ function M.start()
   ctx.apps = apps
   ctx.apps.setContext(ctx)
   ctx.packages = packageManager
+  ctx.permissions = permissions
   ctx.services:register("logd", "system.services.logd", true)
+  ctx.services:register("securityd", "system.services.securityd", true)
   ctx.services:register("networkd", "system.services.networkd", true)
   ctx.services:register("messaged", "system.services.messaged", true)
   ctx.services:register("deviced", "system.services.deviced", true)
@@ -3609,6 +3687,7 @@ function Scheduler:makeContext(pid)
       return scheduler:list()
     end,
     kill = function(targetPid)
+      log.warn("process", "pid " .. tostring(pid) .. " requested kill " .. tostring(targetPid))
       return scheduler:kill(targetPid)
     end,
   }
@@ -3617,6 +3696,7 @@ end
 return Scheduler
 ]],
   ["system/libraries/apps.lua"] = [[local log = require("system.libraries.log")
+local permissions = require("system.security.permissions")
 
 local M = {
   registry = {},
@@ -3636,7 +3716,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.9.1",
+    version = meta.version or "0.10.0",
     permissions = meta.permissions or {},
   }
 end
@@ -3669,6 +3749,15 @@ function M.launch(id, args)
     local procCtx = scheduler:makeContext(pid)
     procCtx.appId = id
     procCtx.args = args or {}
+    procCtx.permissions = app.permissions
+    procCtx.security = {
+      require = function(permission, target)
+        return permissions.require({ pid = pid, appId = id, permissions = app.permissions }, permission, target)
+      end,
+      audit = function(action, target)
+        return permissions.audit({ pid = pid, appId = id, permissions = app.permissions }, action, target)
+      end,
+    }
     procCtx.windowManager = {
       create = function(_, opts)
         opts.ownerPid = pid
@@ -3993,6 +4082,47 @@ function M.remove(id)
   writeInstalled(installed)
   log.warn("package", "removed " .. id)
   return true, "removed, reboot recommended"
+end
+
+return M
+]],
+  ["system/security/permissions.lua"] = [[local log = require("system.libraries.log")
+
+local M = {}
+
+local function listToSet(list)
+  local set = {}
+  for _, item in ipairs(list or {}) do set[item] = true end
+  return set
+end
+
+local function actorLabel(actor)
+  if type(actor) ~= "table" then return "system" end
+  return tostring(actor.appId or actor.name or ("pid " .. tostring(actor.pid or "?")))
+end
+
+function M.has(actor, permission)
+  if permission == nil or permission == "" then return true end
+  if actor == nil then return true end
+  if actor.system == true then return true end
+  local permissions = actor.permissions or {}
+  if permissions[permission] == true then return true end
+  local set = listToSet(permissions)
+  return set[permission] == true or set["*"] == true
+end
+
+function M.require(actor, permission, target)
+  if M.has(actor, permission) then return true end
+  local message = "permission denied: " .. tostring(permission)
+  if target then message = message .. " on " .. tostring(target) end
+  log.warn("security", actorLabel(actor) .. " " .. message)
+  return false, message
+end
+
+function M.audit(actor, action, target)
+  local message = actorLabel(actor) .. " " .. tostring(action)
+  if target then message = message .. " " .. tostring(target) end
+  log.info("security", message)
 end
 
 return M
@@ -4354,6 +4484,43 @@ function Notifd:draw()
 end
 
 return Notifd
+]],
+  ["system/services/securityd.lua"] = [[local config = require("system.libraries.config")
+local log = require("system.libraries.log")
+
+local M = {
+  cfgPath = "/system/config/security.cfg",
+  status = "not started",
+  cfg = nil,
+}
+
+function M.load()
+  M.cfg = config.load(M.cfgPath, {
+    enabled = true,
+    mode = "single-user",
+    currentUser = "admin",
+    logDenied = true,
+    logSensitive = true,
+  })
+  return M.cfg
+end
+
+function M.statusText()
+  if not M.cfg then M.load() end
+  return tostring(M.cfg.mode) .. " user=" .. tostring(M.cfg.currentUser)
+end
+
+function M.start()
+  M.load()
+  M.status = "running"
+  log.info("securityd", M.statusText())
+end
+
+function M.stop()
+  M.status = "stopped"
+end
+
+return M
 ]],
   ["system/services/service_manager.lua"] = [[local log = require("system.libraries.log")
 
@@ -4912,7 +5079,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.9.1
+  ["VERSION"] = [[0.10.0
 ]],
 }
 
@@ -4934,5 +5101,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.9.1 installed.")
+print("MintCraft OS 0.10.0 installed.")
 print("Run reboot to start MintCraft OS.")
