@@ -95,14 +95,16 @@ function M.run(ctx)
       renderer.button(16, 9, 14, "Dark", theme.currentId == "dark")
     elseif self.page == "network" then
       local status = networkd.getStatus()
+      local crafttube = config.load("/system/config/crafttube.cfg", {})
       renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "WebSocket: " .. tostring(status.websocket and "available" or "missing"), colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("CraftTube proxy: " .. tostring(crafttube.proxy or ""), w), colors.black, colors.lightGray)
       renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
       renderer.button(1, 10, 16, "Open Browser", false)
       renderer.button(18, 10, 18, "Messenger", false)
+      renderer.button(38, 10, 18, "CraftTube", false)
     elseif self.page == "storage" then
       local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
       local cap = fs.getCapacity and fs.getCapacity("/") or nil
@@ -204,6 +206,9 @@ function M.run(ctx)
       return true
     elseif self.page == "network" and y == 10 and x >= 18 and x <= 35 then
       ctx.apps.launch("messenger")
+      return true
+    elseif self.page == "network" and y == 10 and x >= 38 and x <= 55 then
+      ctx.apps.launch("crafttube")
       return true
     elseif self.page == "dev" and y == 7 and x <= 14 then
       ctx.apps.launch("editor")

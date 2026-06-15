@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.8.2 base:
+This repository currently contains the V0.9.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -22,10 +22,11 @@ This repository currently contains the V0.8.2 base:
 - Terminal with file commands, process commands and touch autocomplete
 - Services, Logs and Task Manager apps with touch controls
 - HTTP/WebSocket network wrappers, `networkd` service and text Browser app
+- CraftTube native metadata client using a configurable proxy/API with favorites and history
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 
-Not included yet: CraftTube, users/permissions enforcement, audio and update rollback.
+Not included yet: users/permissions enforcement, audio playback and update rollback.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 

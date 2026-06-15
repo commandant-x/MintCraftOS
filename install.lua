@@ -1,4 +1,4 @@
--- MintCraft OS V0.8.2 installer for CC:Tweaked
+-- MintCraft OS V0.9.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -180,10 +180,286 @@ end
 
 return M
 ]],
+  ["apps/crafttube/app.cfg"] = [[{
+  id = "crafttube",
+  name = "CraftTube",
+  version = "0.9.0",
+  main = "apps.crafttube.main",
+  permissions = { "network.http", "filesystem.read", "filesystem.write" },
+}
+]],
+  ["apps/crafttube/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+local ui = require("system.gui.components")
+local config = require("system.libraries.config")
+local httpClient = require("system.network.http_client")
+
+local M = {}
+
+local cfgPath = "/system/config/crafttube.cfg"
+local dataPath = "/home/user/config/crafttube.db"
+
+local function urlEncode(text)
+  text = tostring(text or "")
+  text = text:gsub("\n", "\r\n")
+  text = text:gsub("([^%w%-%_%.%~ ])", function(ch)
+    return string.format("%%%02X", string.byte(ch))
+  end)
+  return text:gsub(" ", "+")
+end
+
+local function loadCfg()
+  return config.load(cfgPath, {
+    proxy = "",
+    searchPath = "/search?q=",
+    detailsPath = "/video?id=",
+  })
+end
+
+local function saveCfg(cfg)
+  return config.save(cfgPath, cfg)
+end
+
+local function loadData()
+  return config.load(dataPath, { favorites = {}, history = {} })
+end
+
+local function saveData(data)
+  return config.save(dataPath, data)
+end
+
+local function normalizeVideo(raw)
+  if type(raw) ~= "table" then return nil end
+  local id = raw.id
+  if type(id) == "table" then id = id.videoId or id.id end
+  id = raw.videoId or raw.video_id or id
+  local title = raw.title or raw.name or (raw.snippet and raw.snippet.title)
+  if not id and raw.url then id = tostring(raw.url):match("[?&]v=([%w%-_]+)") or tostring(raw.url):match("youtu%.be/([%w%-_]+)") end
+  if not title or title == "" then title = id or "Untitled" end
+  return {
+    id = tostring(id or title),
+    title = tostring(title),
+    channel = tostring(raw.channel or raw.channelTitle or raw.author or (raw.snippet and raw.snippet.channelTitle) or "-"),
+    description = tostring(raw.description or (raw.snippet and raw.snippet.description) or ""),
+    duration = tostring(raw.duration or raw.length or raw.lengthText or "-"),
+    url = tostring(raw.url or ("https://www.youtube.com/watch?v=" .. tostring(id or ""))),
+  }
+end
+
+local function listFromJson(json)
+  local source = json and (json.items or json.results or json.videos or json)
+  local out = {}
+  if type(source) == "table" then
+    for _, item in ipairs(source) do
+      local video = normalizeVideo(item)
+      if video then table.insert(out, video) end
+    end
+  end
+  return out
+end
+
+local function findById(rows, id)
+  for _, item in ipairs(rows or {}) do
+    if item.id == id then return item end
+  end
+  return nil
+end
+
+local function addUnique(list, item)
+  for i = #list, 1, -1 do
+    if list[i].id == item.id then table.remove(list, i) end
+  end
+  table.insert(list, 1, item)
+  while #list > 30 do table.remove(list) end
+end
+
+local function splitLines(text, width)
+  local rows = {}
+  width = math.max(8, width or 40)
+  for raw in tostring(text or ""):gmatch("[^\r\n]+") do
+    local line = raw:gsub("%s+", " ")
+    while #line > width do
+      table.insert(rows, line:sub(1, width))
+      line = line:sub(width + 1)
+    end
+    table.insert(rows, line)
+  end
+  if #rows == 0 then table.insert(rows, "") end
+  return rows
+end
+
+function M.run(ctx)
+  local app = {
+    cfg = loadCfg(),
+    data = loadData(),
+    mode = "search",
+    input = "",
+    status = "Configure proxy in Settings or paste it here.",
+    selected = nil,
+    rows = {},
+    scroll = 1,
+    keyboard = {},
+  }
+
+  local actions = {
+    { id = "search", label = "Search" },
+    { id = "proxy", label = "Proxy" },
+    { id = "fav", label = "Fav" },
+    { id = "history", label = "History" },
+    { id = "open", label = "Browser" },
+  }
+
+  local function selectedVideo()
+    return findById(app.rows, app.selected)
+  end
+
+  local function replaceSelected(video)
+    for i, item in ipairs(app.rows) do
+      if item.id == video.id then
+        app.rows[i] = video
+        return
+      end
+    end
+  end
+
+  local function showRows(rows, status)
+    app.rows = rows or {}
+    app.scroll = 1
+    app.selected = app.rows[1] and app.rows[1].id or nil
+    app.status = status or tostring(#app.rows) .. " results"
+  end
+
+  local function search()
+    app.mode = "search"
+    if app.input == "" then app.status = "Enter search text" return end
+    if not app.cfg.proxy or app.cfg.proxy == "" then
+      app.status = "No proxy. Set Proxy to https://host/api"
+      return
+    end
+    local url = app.cfg.proxy .. app.cfg.searchPath .. urlEncode(app.input)
+    app.status = "Searching..."
+    local response, err = httpClient.json(url)
+    if not response then
+      app.status = tostring(err)
+      return
+    end
+    showRows(listFromJson(response.json), "Search complete")
+  end
+
+  local function toggleFavorite()
+    local video = selectedVideo()
+    if not video then app.status = "No video selected" return end
+    addUnique(app.data.favorites, video)
+    saveData(app.data)
+    app.status = "Favorite saved"
+  end
+
+  local function openVideo()
+    local video = selectedVideo()
+    if not video then app.status = "No video selected" return end
+    if app.cfg.proxy and app.cfg.proxy ~= "" and app.cfg.detailsPath and app.cfg.detailsPath ~= "" then
+      local response = httpClient.json(app.cfg.proxy .. app.cfg.detailsPath .. urlEncode(video.id))
+      if response and response.json then
+        local detail = normalizeVideo(response.json.video or response.json.item or response.json)
+        if detail then
+          video = detail
+          replaceSelected(video)
+        end
+      end
+    end
+    addUnique(app.data.history, video)
+    saveData(app.data)
+    app.status = "Opened details"
+  end
+
+  local function saveProxy()
+    if app.input ~= "" then
+      app.cfg.proxy = app.input:gsub("/+$", "")
+      saveCfg(app.cfg)
+      app.status = "Proxy saved"
+    end
+  end
+
+  app.keyboard.onText = function(ch) app.input = app.input .. ch end
+  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
+  app.keyboard.onEnter = function()
+    if app.mode == "proxy" then saveProxy() else search() end
+  end
+
+  function app:draw(w, h)
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    local kbH = keyboard.height()
+    local selected = selectedVideo()
+    local inputLabel = self.mode == "proxy" and "Proxy" or "Search"
+    ui.input(1, 2, w, inputLabel, self.input, true)
+    renderer.writeAt(1, 3, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
+    local listH = math.max(1, h - kbH - 8)
+    for i = 1, listH do
+      local item = self.rows[self.scroll + i - 1]
+      local bg = item and item.id == self.selected and colors.cyan or colors.lightGray
+      local text = item and (item.title .. "  [" .. item.channel .. "]") or ""
+      renderer.writeAt(1, i + 3, renderer.crop(text, w), colors.black, bg)
+    end
+    local detailY = listH + 4
+    if selected then
+      renderer.writeAt(1, detailY, renderer.crop(selected.title, w), colors.white, colors.gray)
+      renderer.writeAt(1, detailY + 1, renderer.crop(selected.channel .. "  " .. selected.duration, w), colors.black, colors.lightGray)
+      local lines = splitLines(selected.description, w)
+      renderer.writeAt(1, detailY + 2, renderer.crop(lines[1] or "", w), colors.gray, colors.lightGray)
+    else
+      renderer.writeAt(1, detailY, renderer.crop("CraftTube uses a proxy/API, not youtube.com HTML.", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, detailY + 1, renderer.crop("Expected JSON: { items = { { id,title,channel,description } } }", w), colors.gray, colors.lightGray)
+    end
+    self.keyboard.x = 1
+    self.keyboard.y = h - kbH + 1
+    self.keyboard.hint = self.mode == "proxy" and "Proxy URL" or "Search"
+    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+  end
+
+  function app:handle(event)
+    if event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    elseif event.name == "char" then
+      self.input = self.input .. event.args[1]
+      return true
+    elseif event.name == "key" then
+      local key = event.args[1]
+      if key == keys.backspace then self.input = self.input:sub(1, -2) return true end
+      if key == keys.enter then self.keyboard.onEnter() return true end
+    elseif event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+      local action = ui.toolbarHit(self.toolbar, x, y)
+      if action == "search" then self.mode = "search" search() return true end
+      if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
+      if action == "fav" then toggleFavorite() return true end
+      if action == "history" then showRows(self.data.history, "History") return true end
+      if action == "open" then
+        local video = selectedVideo()
+        if video then openVideo() ctx.apps.launch("browser", { url = video.url }) end
+        return true
+      end
+      if y >= 4 then
+        local item = self.rows[self.scroll + y - 4]
+        if item then self.selected = item.id openVideo() return true end
+      end
+    end
+    return false
+  end
+
+  showRows(app.data.favorites, "Favorites")
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "CraftTube", w = math.min(78, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -242,7 +518,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -424,7 +700,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -729,7 +1005,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -806,7 +1082,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -923,7 +1199,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1002,7 +1278,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -1104,14 +1380,16 @@ function M.run(ctx)
       renderer.button(16, 9, 14, "Dark", theme.currentId == "dark")
     elseif self.page == "network" then
       local status = networkd.getStatus()
+      local crafttube = config.load("/system/config/crafttube.cfg", {})
       renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "WebSocket: " .. tostring(status.websocket and "available" or "missing"), colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("CraftTube proxy: " .. tostring(crafttube.proxy or ""), w), colors.black, colors.lightGray)
       renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
       renderer.button(1, 10, 16, "Open Browser", false)
       renderer.button(18, 10, 18, "Messenger", false)
+      renderer.button(38, 10, 18, "CraftTube", false)
     elseif self.page == "storage" then
       local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
       local cap = fs.getCapacity and fs.getCapacity("/") or nil
@@ -1214,6 +1492,9 @@ function M.run(ctx)
     elseif self.page == "network" and y == 10 and x >= 18 and x <= 35 then
       ctx.apps.launch("messenger")
       return true
+    elseif self.page == "network" and y == 10 and x >= 38 and x <= 55 then
+      ctx.apps.launch("crafttube")
+      return true
     elseif self.page == "dev" and y == 7 and x <= 14 then
       ctx.apps.launch("editor")
       return true
@@ -1231,7 +1512,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1326,7 +1607,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1440,7 +1721,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.8.2",
+  version = "0.9.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -1476,6 +1757,7 @@ local help = {
   kill = "kill <pid> - kill after yes confirmation",
   logs = "logs - show recent logs",
   browser = "browser [url] - open text browser",
+  crafttube = "crafttube - open native YouTube metadata client",
   messenger = "messenger - open Rednet chat",
   store = "store - open package store",
   install = "install <pkg> - install package",
@@ -1590,6 +1872,8 @@ local function runCommand(app, ctx, input)
     for _, line in ipairs(log.tail(10)) do append(app, line) end
   elseif cmd == "browser" then
     ctx.apps.launch("browser", { url = rest })
+  elseif cmd == "crafttube" then
+    ctx.apps.launch("crafttube")
   elseif cmd == "messenger" then
     ctx.apps.launch("messenger")
   elseif cmd == "store" then
@@ -1763,7 +2047,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.8.2",
+  version = "0.9.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2027,7 +2311,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.8.2 base:
+This repository currently contains the V0.9.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -2047,10 +2331,11 @@ This repository currently contains the V0.8.2 base:
 - Terminal with file commands, process commands and touch autocomplete
 - Services, Logs and Task Manager apps with touch controls
 - HTTP/WebSocket network wrappers, `networkd` service and text Browser app
+- CraftTube native metadata client using a configurable proxy/API with favorites and history
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 
-Not included yet: CraftTube, users/permissions enforcement, audio and update rollback.
+Not included yet: users/permissions enforcement, audio playback and update rollback.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -2136,7 +2421,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.8.2",
+    version = "0.9.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -2148,8 +2433,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.8.2" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.8.2"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.9.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.9.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2222,6 +2507,12 @@ end
 
 return M
 ]],
+  ["system/config/crafttube.cfg"] = [[{
+  proxy = "",
+  searchPath = "/search?q=",
+  detailsPath = "/video?id=",
+}
+]],
   ["system/config/mime.db"] = [[{
   txt = "editor",
   md = "editor",
@@ -2231,7 +2522,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.8.2",
+  version = "0.9.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -2269,7 +2560,7 @@ local ccWords = {
 
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
-  "edit", "open", "clear", "ps", "kill", "logs", "browser", "messenger", "store", "install", "files", "settings", "devices",
+  "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "store", "install", "files", "settings", "devices",
   "reboot", "help",
 }
 
@@ -2492,6 +2783,7 @@ local function drawIcons()
   local labels = {
     { app = "terminal" },
     { app = "browser" },
+    { app = "crafttube" },
     { app = "messenger" },
     { app = "files" },
     { app = "editor" },
@@ -3079,18 +3371,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.8.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.8.2", permissions = { "network.http" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.8.2", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.8.2", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.8.2", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.8.2", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.8.2", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.8.2", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.8.2", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.8.2", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.8.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.8.2", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.9.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.9.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.9.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.9.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.9.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.9.0", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.9.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.9.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.9.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.9.0", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.9.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.9.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.9.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -3298,7 +3591,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.8.2",
+    version = meta.version or "0.9.0",
     permissions = meta.permissions or {},
   }
 end
@@ -4235,6 +4528,13 @@ return M
 6f6f6f6
 6666666
 ]],
+  ["system/themes/icons/crafttube.nfp"] = [[eeeeeee
+efffffe
+efffefe
+effffee
+efffefe
+eeeeeee
+]],
   ["system/themes/icons/devices.nfp"] = [[3333333
 3fffff3
 3f333f3
@@ -4567,7 +4867,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.8.2
+  ["VERSION"] = [[0.9.0
 ]],
 }
 
@@ -4589,5 +4889,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.8.2 installed.")
+print("MintCraft OS 0.9.0 installed.")
 print("Run reboot to start MintCraft OS.")
