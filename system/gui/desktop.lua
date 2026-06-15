@@ -1,6 +1,7 @@
 local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local keyboard = require("system.gui.keyboard")
+local iconRenderer = require("system.gui.icon")
 
 local M = {
   apps = nil,
@@ -27,6 +28,7 @@ local function drawIcons()
     { app = "editor" },
     { app = "settings" },
     { app = "devices" },
+    { app = "update" },
   }
   local icons = {}
   local x, y = 2, 2
@@ -37,9 +39,10 @@ local function drawIcons()
       y = y,
       label = meta and meta.name or item.app,
       icon = meta and meta.icon or "[]",
+      iconPath = meta and meta.iconPath,
       app = item.app,
     })
-    y = y + 3
+    y = y + 5
     if y > h - 5 then
       y = 2
       x = x + 13
@@ -48,8 +51,8 @@ local function drawIcons()
 
   M.icons = icons
   for _, icon in ipairs(icons) do
-    renderer.writeAt(icon.x, icon.y, "[" .. renderer.crop(icon.icon, 2) .. "]", colors.white, theme.get("desktopBg"))
-    renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
+    iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"))
+    renderer.writeAt(icon.x, icon.y + 4, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
   end
 end
 
@@ -294,7 +297,7 @@ function M.handle(event)
 
   if button == 1 then
     for _, icon in ipairs(M.icons or {}) do
-      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 1 then
+      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 4 then
         launch(icon.app)
         return true
       end

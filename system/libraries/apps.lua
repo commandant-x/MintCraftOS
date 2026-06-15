@@ -16,6 +16,7 @@ function M.register(id, name, module, meta)
     name = name,
     module = module,
     icon = meta.icon or "[]",
+    iconPath = meta.iconPath,
     category = meta.category or "System",
   }
 end

@@ -11,12 +11,14 @@ This repository currently contains the V0.6 base:
 - terminal renderer, themes and window manager
 - desktop, taskbar, start menu, right-click context menu and notifications
 - monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
-- custom ASCII app icons, searchable start menu and AZERTY touch keyboard
+- custom `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
 - complete touch-first Files app with toolbar, open, create, rename and delete confirmation
 - shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
 - Editor app with Lua compile check and Tab autocomplete/snippets
 - richer Settings pages for system, display, network and developer information
-- minimal Terminal, Files, Settings, Task Manager, Services, Devices and Logs apps
+- GitHub Update app and boot-time update check through the `updated` service
+- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
+- minimal Terminal, Files, Settings, Task Manager, Update, Services, Devices and Logs apps
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 

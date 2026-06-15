@@ -1,14 +1,80 @@
--- MintCraft OS V0.6 installer for CC:Tweaked
+-- MintCraft OS V0.6.1 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".settings"] = [[{
   ["shell.allow_startup"] = true,
 }
 ]],
+  ["LICENSE"] = [[MIT License
+
+Copyright (c) 2026 commandant-x
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+]],
+  ["README.md"] = [[# MintCraft OS
+
+MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
+
+This repository currently contains the V0.6 base:
+
+- bootloader, splash, recovery and panic handling
+- persistent logs
+- cooperative scheduler and process table
+- event bus
+- terminal renderer, themes and window manager
+- desktop, taskbar, start menu, right-click context menu and notifications
+- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
+- custom `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
+- complete touch-first Files app with toolbar, open, create, rename and delete confirmation
+- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
+- Editor app with Lua compile check and Tab autocomplete/snippets
+- richer Settings pages for system, display, network and developer information
+- GitHub Update app and boot-time update check through the `updated` service
+- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
+- minimal Terminal, Files, Settings, Task Manager, Update, Services, Devices and Logs apps
+
+Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
+
+```lua
+shell.run("/boot.lua")
+```
+
+## Install From GitHub
+
+On a CC:Tweaked computer with HTTP enabled:
+
+```lua
+wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
+```
+
+Then reboot:
+
+```lua
+reboot
+```
+]],
+  ["VERSION"] = [[0.6.1
+]],
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -67,7 +133,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -335,7 +401,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.files.main",
   permissions = { "filesystem.read" },
 }
@@ -596,7 +662,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -631,7 +697,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -666,7 +732,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -797,7 +863,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -806,15 +872,56 @@ return M
 
 local M = {}
 
+local function sizeLabel(bytes)
+  bytes = tonumber(bytes) or 0
+  if bytes >= 1024 * 1024 then
+    return string.format("%.1f MB", bytes / 1024 / 1024)
+  elseif bytes >= 1024 then
+    return string.format("%.1f KB", bytes / 1024)
+  end
+  return tostring(bytes) .. " B"
+end
+
+local function diskStats()
+  if not fs.getFreeSpace then return "Disk: unavailable" end
+  local free = fs.getFreeSpace("/")
+  local capacity = fs.getCapacity and fs.getCapacity("/") or nil
+  if capacity and capacity > 0 then
+    local used = capacity - free
+    local pct = math.floor((used / capacity) * 100 + 0.5)
+    return "Disk: " .. sizeLabel(used) .. "/" .. sizeLabel(capacity) .. " " .. pct .. "%"
+  end
+  return "Disk free: " .. sizeLabel(free)
+end
+
+local function memoryStats()
+  if not collectgarbage then return "RAM: unavailable" end
+  local ok, kb = pcall(collectgarbage, "count")
+  if not ok then return "RAM: unavailable" end
+  return string.format("RAM Lua: %.1f KB", kb)
+end
+
 function M.run(ctx)
   local app = {}
 
   function app:draw(w, h)
-    renderer.writeAt(1, 1, renderer.crop("PID STATE    NAME", w), colors.black, colors.lightGray)
     local rows = ctx.listProcesses()
-    for i = 1, math.min(#rows, h - 1) do
+    local total = #rows
+    local ready = 0
+    for _, p in ipairs(rows) do
+      if p.state == "ready" then ready = ready + 1 end
+    end
+    local cpuEstimate = total > 0 and math.floor((ready / total) * 100 + 0.5) or 0
+
+    renderer.writeAt(1, 1, renderer.crop("MintCraft Task Manager", w), colors.black, colors.lightGray)
+    renderer.writeAt(2, 3, renderer.crop("CPU est.: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 4, renderer.crop(memoryStats(), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 5, renderer.crop(diskStats(), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(1, 7, renderer.crop("PID STATE    NAME", w), colors.black, colors.gray)
+
+    for i = 1, math.min(#rows, h - 7) do
       local p = rows[i]
-      renderer.writeAt(1, i + 1, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, colors.lightGray)
     end
   end
 
@@ -832,7 +939,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.6.0",
+  version = "0.6.1",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -1044,6 +1151,77 @@ end
 
 return M
 ]],
+  ["apps/update/app.cfg"] = [[{
+  id = "update",
+  name = "Update",
+  version = "0.6.1",
+}
+]],
+  ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
+local updated = require("system.services.updated")
+
+local M = {}
+
+local function buttonAt(x, y, bx, by, bw)
+  return y == by and x >= bx and x < bx + bw
+end
+
+function M.run(ctx)
+  local app = {
+    status = updated.status,
+    message = "Ready",
+  }
+
+  function app:refresh()
+    local ok, status = pcall(updated.check)
+    if ok then
+      self.status = status
+      self.message = status.message
+    else
+      self.message = tostring(status)
+    end
+  end
+
+  function app:apply()
+    self.message = "Downloading installer..."
+    local ok, message = updated.apply()
+    self.message = tostring(message)
+    if ctx.notifications then
+      ctx.notifications:push(ok and "success" or "error", "Update", self.message, 6)
+    end
+  end
+
+  function app:draw(w, h)
+    self.lastH = h
+    renderer.writeAt(1, 1, renderer.crop("MintCraft Update", w), colors.black, colors.lightGray)
+    renderer.writeAt(2, 3, renderer.crop("Local : " .. tostring(self.status.localVersion), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 4, renderer.crop("GitHub: " .. tostring(self.status.remoteVersion), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 5, renderer.crop("State : " .. tostring(self.message), w - 2), colors.black, colors.lightGray)
+    renderer.button(2, h - 1, 10, "Check", false)
+    renderer.button(14, h - 1, 10, "Apply", false)
+  end
+
+  function app:handle(event)
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    if buttonAt(x, y, 2, self.lastH - 1, 10) then
+      self:refresh()
+      return true
+    elseif buttonAt(x, y, 14, self.lastH - 1, 10) then
+      self:apply()
+      return true
+    end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  app.lastH = math.min(12, sh - 3)
+  local win = ctx.windowManager:create({ title = "Update", w = math.min(44, sw - 4), h = app.lastH, x = 7, y = 4, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
   ["boot.lua"] = [[if not table.unpack and unpack then table.unpack = unpack end
 
 if not require then
@@ -1093,44 +1271,6 @@ end
   ["packages/installed.db"] = [[{}
 ]],
   ["packages/sources.db"] = [[{}
-]],
-  ["README.md"] = [[# MintCraft OS
-
-MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
-
-This repository currently contains the V0.6 base:
-
-- bootloader, splash, recovery and panic handling
-- persistent logs
-- cooperative scheduler and process table
-- event bus
-- terminal renderer, themes and window manager
-- desktop, taskbar, start menu, right-click context menu and notifications
-- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
-- custom ASCII app icons, searchable start menu and AZERTY touch keyboard
-- Editor app with Lua compile check and Tab autocomplete/snippets
-- richer Settings pages for system, display, network and developer information
-- minimal Terminal, Files, Settings, Task Manager, Services, Devices and Logs apps
-
-Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
-
-```lua
-shell.run("/boot.lua")
-```
-
-## Install From GitHub
-
-On a CC:Tweaked computer with HTTP enabled:
-
-```lua
-wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
-```
-
-Then reboot:
-
-```lua
-reboot
-```
 ]],
   ["startup.lua"] = [[local candidates = {
   "/boot.lua",
@@ -1278,7 +1418,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.6.0",
+  version = "0.6.1",
   theme = "mint",
   debug = true,
   safeMode = false,
@@ -1290,9 +1430,18 @@ return M
   },
 }
 ]],
+  ["system/config/update.cfg"] = [[{
+  repo = "commandant-x/MintCraftOS",
+  branch = "main",
+  autoCheck = true,
+  autoApply = false,
+  lastStatus = "never checked",
+}
+]],
   ["system/gui/desktop.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local keyboard = require("system.gui.keyboard")
+local iconRenderer = require("system.gui.icon")
 
 local M = {
   apps = nil,
@@ -1319,6 +1468,7 @@ local function drawIcons()
     { app = "editor" },
     { app = "settings" },
     { app = "devices" },
+    { app = "update" },
   }
   local icons = {}
   local x, y = 2, 2
@@ -1329,9 +1479,10 @@ local function drawIcons()
       y = y,
       label = meta and meta.name or item.app,
       icon = meta and meta.icon or "[]",
+      iconPath = meta and meta.iconPath,
       app = item.app,
     })
-    y = y + 3
+    y = y + 5
     if y > h - 5 then
       y = 2
       x = x + 13
@@ -1340,8 +1491,8 @@ local function drawIcons()
 
   M.icons = icons
   for _, icon in ipairs(icons) do
-    renderer.writeAt(icon.x, icon.y, "[" .. renderer.crop(icon.icon, 2) .. "]", colors.white, theme.get("desktopBg"))
-    renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
+    iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"))
+    renderer.writeAt(icon.x, icon.y + 4, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
   end
 end
 
@@ -1586,13 +1737,36 @@ function M.handle(event)
 
   if button == 1 then
     for _, icon in ipairs(M.icons or {}) do
-      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 1 then
+      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 4 then
         launch(icon.app)
         return true
       end
     end
   end
 
+  return false
+end
+
+return M
+]],
+  ["system/gui/icon.lua"] = [[local renderer = require("system.gui.renderer")
+
+local M = {}
+
+local function fallback(x, y, label, bg)
+  renderer.writeAt(x, y, "[" .. renderer.crop(label or "?", 2) .. "]", colors.white, bg or colors.black)
+end
+
+function M.draw(path, x, y, fallbackLabel, bg)
+  if path and fs.exists(path) and paintutils and paintutils.loadImage and paintutils.drawImage then
+    local ok, image = pcall(paintutils.loadImage, path)
+    if ok and image then
+      local drawn = pcall(paintutils.drawImage, image, x, y)
+      if drawn then return true end
+    end
+  end
+
+  fallback(x, y, fallbackLabel, bg)
   return false
 end
 
@@ -1854,14 +2028,15 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", category = "System" })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", category = "Files" })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", category = "System" })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", category = "System" })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", category = "System" })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", category = "System" })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", category = "Hardware" })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", category = "Dev" })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System" })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files" })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System" })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System" })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System" })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System" })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware" })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev" })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System" })
 
   desktop.setApps(apps)
   desktop.setWindowManager(ctx.wm)
@@ -1885,6 +2060,7 @@ function M.start()
   ctx.services:register("logd", "system.services.logd", true)
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("notifd", "system.services.notifd", true)
+  ctx.services:register("updated", "system.services.updated", true)
   ctx.services:startAutostart()
   bootApps(ctx)
 
@@ -2044,6 +2220,7 @@ function M.register(id, name, module, meta)
     name = name,
     module = module,
     icon = meta.icon or "[]",
+    iconPath = meta.iconPath,
     category = meta.category or "System",
   }
 end
@@ -2431,6 +2608,177 @@ end
 
 return ServiceManager
 ]],
+  ["system/services/updated.lua"] = [[local config = require("system.libraries.config")
+
+local M = {
+  cfgPath = "/system/config/update.cfg",
+  status = {
+    localVersion = "unknown",
+    remoteVersion = "unknown",
+    updateAvailable = false,
+    message = "never checked",
+  },
+}
+
+local function trim(value)
+  return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function readFile(path)
+  if not fs.exists(path) then return nil end
+  local handle = fs.open(path, "r")
+  if not handle then return nil end
+  local data = handle.readAll()
+  handle.close()
+  return data
+end
+
+local function httpGet(url)
+  if not http or not http.get then return nil, "HTTP API disabled" end
+  local ok, handle = pcall(http.get, url)
+  if not ok then return nil, tostring(handle) end
+  if not handle then return nil, "request failed" end
+  local data = handle.readAll()
+  handle.close()
+  return data
+end
+
+function M.loadConfig()
+  return config.load(M.cfgPath, {
+    repo = "commandant-x/MintCraftOS",
+    branch = "main",
+    autoCheck = true,
+    autoApply = false,
+  })
+end
+
+function M.localVersion()
+  return trim(readFile("/VERSION") or "0.0.0")
+end
+
+function M.remoteVersion()
+  local cfg = M.loadConfig()
+  local url = "https://raw.githubusercontent.com/" .. cfg.repo .. "/" .. cfg.branch .. "/VERSION"
+  local data, err = httpGet(url)
+  if not data then return nil, err end
+  return trim(data)
+end
+
+function M.check()
+  local cfg = M.loadConfig()
+  local localVersion = M.localVersion()
+  local remoteVersion, err = M.remoteVersion()
+
+  if not remoteVersion then
+    M.status = {
+      localVersion = localVersion,
+      remoteVersion = "unknown",
+      updateAvailable = false,
+      message = err or "check failed",
+    }
+  else
+    M.status = {
+      localVersion = localVersion,
+      remoteVersion = remoteVersion,
+      updateAvailable = remoteVersion ~= localVersion,
+      message = remoteVersion ~= localVersion and "update available" or "up to date",
+    }
+  end
+
+  cfg.lastStatus = M.status.message
+  cfg.lastLocalVersion = M.status.localVersion
+  cfg.lastRemoteVersion = M.status.remoteVersion
+  cfg.lastCheckedUptime = os.clock()
+  config.save(M.cfgPath, cfg)
+  return M.status
+end
+
+function M.downloadInstaller()
+  local cfg = M.loadConfig()
+  local url = "https://raw.githubusercontent.com/" .. cfg.repo .. "/" .. cfg.branch .. "/install.lua"
+  local data, err = httpGet(url)
+  if not data then return nil, err end
+
+  local path = "/var/tmp/mintcraft_update.lua"
+  local dir = fs.getDir(path)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  local handle = fs.open(path, "w")
+  if not handle then return nil, "cannot write update installer" end
+  handle.write(data)
+  handle.close()
+  return path
+end
+
+function M.apply()
+  local path, err = M.downloadInstaller()
+  if not path then return false, err end
+  local fn, loadErr = loadfile(path)
+  if not fn then return false, loadErr end
+  local ok, runErr = pcall(fn)
+  if not ok then return false, tostring(runErr) end
+  return true, "installer finished, reboot required"
+end
+
+function M.start(ctx)
+  local cfg = M.loadConfig()
+  if not cfg.autoCheck then return end
+
+  local ok, status = pcall(M.check)
+  if ok and status.updateAvailable and ctx.notifications then
+    ctx.notifications:push("info", "Update", "Version " .. status.remoteVersion .. " available", 6)
+  elseif not ok and ctx.notifications then
+    ctx.notifications:push("warn", "Update", tostring(status), 5)
+  end
+
+  if ok and status.updateAvailable and cfg.autoApply then
+    local applied, message = M.apply()
+    if ctx.notifications then
+      ctx.notifications:push(applied and "success" or "error", "Update", tostring(message), 6)
+    end
+  end
+end
+
+return M
+]],
+  ["system/themes/icons/devices.nfp"] = [[bbb
+b0b
+bbb
+]],
+  ["system/themes/icons/editor.nfp"] = [[ddd
+d0d
+ddd
+d0d
+]],
+  ["system/themes/icons/files.nfp"] = [[4444
+4ee4
+4ee4
+4444
+]],
+  ["system/themes/icons/logs.nfp"] = [[111
+1ff
+11f
+]],
+  ["system/themes/icons/services.nfp"] = [[777
+7f7
+777
+]],
+  ["system/themes/icons/settings.nfp"] = [[888
+8f8
+888
+]],
+  ["system/themes/icons/taskmanager.nfp"] = [[5555
+5f05
+5ff5
+5555
+]],
+  ["system/themes/icons/terminal.nfp"] = [[fff
+f00
+fff
+]],
+  ["system/themes/icons/update.nfp"] = [[222
+2f2
+222
+]],
   ["system/wm/window.lua"] = [[local theme = require("system.gui.theme")
 local renderer = require("system.gui.renderer")
 
@@ -2632,29 +2980,21 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.6.0
-]],
 }
 
-local function ensureDir(path)
+local function writeFile(path, content)
   local dir = fs.getDir(path)
   if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  local handle = fs.open(path, "w")
+  if not handle then error("Cannot write " .. path) end
+  handle.write(content)
+  handle.close()
 end
-
-term.clear()
-term.setCursorPos(1, 1)
-print("MintCraft OS V0.6 installer")
-print("Writing files...")
 
 for path, content in pairs(files) do
-  ensureDir(path)
-  local h = fs.open(path, "w")
-  if not h then error("Cannot write " .. path) end
-  h.write(content)
-  h.close()
-  print("+ " .. path)
+  writeFile(path, content)
 end
 
-print("")
-print("Install complete.")
-print("Run: reboot")
+if not fs.exists("home/user/desktop") then fs.makeDir("home/user/desktop") end
+print("MintCraft OS 0.6.1 installed.")
+print("Run reboot() to start MintCraft OS.")
