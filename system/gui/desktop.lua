@@ -25,6 +25,7 @@ local function drawIcons()
   local w, h = term.getSize()
   local labels = {
     { app = "terminal" },
+    { app = "browser" },
     { app = "files" },
     { app = "editor" },
     { app = "settings" },

@@ -1,4 +1,4 @@
--- MintCraft OS V0.6.3 installer for CC:Tweaked
+-- MintCraft OS V0.7.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".settings"] = [[{
@@ -31,7 +31,7 @@ SOFTWARE.
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.6.3 base:
+This repository currently contains the V0.7.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -52,8 +52,9 @@ This repository currently contains the V0.6.3 base:
 - touch-first Files with trash support for user files
 - Settings pages for system, display, desktop, network, storage, apps and developer information
 - Services, Logs and Task Manager apps with touch controls
+- HTTP/WebSocket network wrappers, `networkd` service and text Browser app
 
-Not included yet: Browser, Store, CraftTube, users/permissions enforcement, audio and update rollback.
+Not included yet: Store, CraftTube, users/permissions enforcement, audio and update rollback.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -75,12 +76,127 @@ Then reboot:
 reboot
 ```
 ]],
-  ["VERSION"] = [[0.6.3
+  ["VERSION"] = [[0.7.0
+]],
+  ["apps/browser/app.cfg"] = [[{
+  id = "browser",
+  name = "Browser",
+  version = "0.7.0",
+  main = "apps.browser.main",
+  permissions = { "network.http" },
+}
+]],
+  ["apps/browser/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+local ui = require("system.gui.components")
+local httpClient = require("system.network.http_client")
+
+local M = {}
+
+local function splitLines(text, width)
+  local rows = {}
+  width = math.max(8, width or 40)
+  for raw in tostring(text or ""):gmatch("[^\r\n]+") do
+    local line = raw:gsub("%s+", " ")
+    while #line > width do
+      table.insert(rows, line:sub(1, width))
+      line = line:sub(width + 1)
+    end
+    table.insert(rows, line)
+  end
+  if #rows == 0 then table.insert(rows, "") end
+  return rows
+end
+
+function M.run(ctx)
+  local app = {
+    url = (ctx.args and ctx.args.url and ctx.args.url ~= "") and ctx.args.url or "https://example.com",
+    mode = "url",
+    status = "Ready",
+    lines = { "Enter a URL and tap Go." },
+    scroll = 1,
+    keyboard = {},
+  }
+
+  local actions = {
+    { id = "go", label = "Go" },
+    { id = "url", label = "URL" },
+    { id = "clear", label = "Clear" },
+  }
+
+  local function load()
+    app.status = "Loading..."
+    local response, err = httpClient.get(app.url)
+    if response then
+      app.status = tostring(response.code) .. " " .. tostring(response.size) .. " bytes"
+      app.lines = splitLines(response.body, app.lastW or 48)
+      app.scroll = 1
+    else
+      app.status = tostring(err)
+      app.lines = { "Network error:", tostring(err) }
+    end
+  end
+
+  app.keyboard.onText = function(ch)
+    if app.mode == "url" then app.url = app.url .. ch end
+  end
+  app.keyboard.onBackspace = function()
+    if app.mode == "url" then app.url = app.url:sub(1, -2) end
+  end
+  app.keyboard.onEnter = load
+
+  function app:draw(w, h)
+    self.lastW = w
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    ui.input(1, 2, w, "URL", self.url, self.mode == "url")
+    renderer.writeAt(1, 3, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
+    local kbH = self.mode == "url" and keyboard.height() or 0
+    local listH = math.max(1, h - 4 - kbH)
+    for i = 1, listH do
+      local line = self.lines[self.scroll + i - 1] or ""
+      renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, colors.lightGray)
+    end
+    if self.mode == "url" then
+      self.keyboard.x = 1
+      self.keyboard.y = h - keyboard.height() + 1
+      self.keyboard.hint = "URL"
+      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+    end
+  end
+
+  function app:handle(event)
+    if event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    elseif event.name == "char" and self.mode == "url" then
+      self.url = self.url .. event.args[1]
+      return true
+    elseif event.name == "key" and self.mode == "url" then
+      local key = event.args[1]
+      if key == keys.backspace then self.url = self.url:sub(1, -2) return true end
+      if key == keys.enter then load() return true end
+    elseif event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if self.mode == "url" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+      local action = ui.toolbarHit(self.toolbar, x, y)
+      if action == "go" then load() return true end
+      if action == "url" then self.mode = "url" return true end
+      if action == "clear" then self.lines = { "" } self.status = "Cleared" return true end
+    end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Browser", w = math.min(78, sw - 4), h = math.min(24, sh - 3), x = 5, y = 3, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
 ]],
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -139,7 +255,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -321,7 +437,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -626,7 +742,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -703,7 +819,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -782,7 +898,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -791,6 +907,7 @@ return M
 local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
+local networkd = require("system.services.networkd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -831,7 +948,8 @@ function M.run(ctx)
   end
 
   local function httpStatus()
-    return http and "available" or "missing"
+    local status = networkd.getStatus()
+    return status.http and "available" or "missing"
   end
 
   local function rednetStatus()
@@ -872,11 +990,14 @@ function M.run(ctx)
       renderer.writeAt(1, 5, "Context menu: desktop double tap on monitor", colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Windows: drag, minimize, maximize, close", colors.black, colors.lightGray)
     elseif self.page == "network" then
+      local status = networkd.getStatus()
       renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "WebSocket: " .. tostring(status.websocket and "available" or "missing"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
       renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
+      renderer.button(1, 10, 16, "Open Browser", false)
     elseif self.page == "storage" then
       local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
       local cap = fs.getCapacity and fs.getCapacity("/") or nil
@@ -963,6 +1084,9 @@ function M.run(ctx)
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
       return true
+    elseif self.page == "network" and y == 10 and x <= 16 then
+      ctx.apps.launch("browser")
+      return true
     elseif self.page == "dev" and y == 9 and x <= 14 then
       ctx.apps.launch("editor")
       return true
@@ -980,7 +1104,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1094,7 +1218,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.6.3",
+  version = "0.7.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -1129,6 +1253,7 @@ local help = {
   ps = "ps - list processes",
   kill = "kill <pid> - kill after yes confirmation",
   logs = "logs - show recent logs",
+  browser = "browser [url] - open text browser",
 }
 
 local function trashPath(name)
@@ -1238,6 +1363,8 @@ local function runCommand(app, ctx, input)
     append(app, "Type yes to kill pid " .. tostring(pid))
   elseif cmd == "logs" then
     for _, line in ipairs(log.tail(10)) do append(app, line) end
+  elseif cmd == "browser" then
+    ctx.apps.launch("browser", { url = rest })
   elseif cmd == "files" then
     ctx.apps.launch("files")
   elseif cmd == "settings" then
@@ -1405,7 +1532,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.6.3",
+  version = "0.7.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1564,6 +1691,7 @@ local REQUIRED_DIRS = {
   "/system/gui",
   "/system/kernel",
   "/system/libraries",
+  "/system/network",
   "/system/services",
   "/system/themes",
   "/system/wm",
@@ -1592,7 +1720,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.6.3",
+    version = "0.7.0",
     theme = "mint",
     debug = true,
     safeMode = false,
@@ -1603,8 +1731,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.6.3" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.6.3"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.7.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.7.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -1686,7 +1814,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.6.3",
+  version = "0.7.0",
   theme = "mint",
   debug = true,
   safeMode = false,
@@ -1723,7 +1851,7 @@ local ccWords = {
 
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
-  "edit", "open", "clear", "ps", "kill", "logs", "files", "settings", "devices",
+  "edit", "open", "clear", "ps", "kill", "logs", "browser", "files", "settings", "devices",
   "reboot", "help",
 }
 
@@ -1945,6 +2073,7 @@ local function drawIcons()
   local w, h = term.getSize()
   local labels = {
     { app = "terminal" },
+    { app = "browser" },
     { app = "files" },
     { app = "editor" },
     { app = "settings" },
@@ -2526,15 +2655,16 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.6.3", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.6.3", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.6.3", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.6.3", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.6.3", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.6.3", permissions = { "services.list", "services.control" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.6.3", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.6.3", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.6.3", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.7.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.7.0", permissions = { "network.http" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.7.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.7.0", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.7.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.7.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.7.0", permissions = { "services.list", "services.control" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.7.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.7.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.7.0", permissions = { "network.http", "system.update" } })
 
   desktop.setApps(apps)
   desktop.setWindowManager(ctx.wm)
@@ -2557,6 +2687,7 @@ function M.start()
   ctx.apps = apps
   ctx.apps.setContext(ctx)
   ctx.services:register("logd", "system.services.logd", true)
+  ctx.services:register("networkd", "system.services.networkd", true)
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
@@ -2737,7 +2868,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.6.3",
+    version = meta.version or "0.7.0",
     permissions = meta.permissions or {},
   }
 end
@@ -2863,6 +2994,88 @@ function M.tail(limit)
   end
   handle.close()
   return lines
+end
+
+return M
+]],
+  ["system/network/http_client.lua"] = [[local log = require("system.libraries.log")
+
+local M = {
+  lastStatus = {
+    available = false,
+    message = "not checked",
+  },
+}
+
+local function trim(text)
+  return tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+function M.available()
+  return http ~= nil and type(http.get) == "function"
+end
+
+function M.check()
+  M.lastStatus = {
+    available = M.available(),
+    message = M.available() and "HTTP available" or "HTTP API disabled",
+  }
+  return M.lastStatus
+end
+
+function M.get(url, opts)
+  opts = opts or {}
+  url = trim(url)
+  if url == "" then return nil, "empty URL" end
+  if not url:match("^https?://") then url = "https://" .. url end
+  if not M.available() then return nil, "HTTP API disabled" end
+
+  log.info("http", "GET " .. url)
+  local ok, handle = pcall(http.get, url, opts.headers)
+  if not ok then
+    log.error("http", tostring(handle))
+    return nil, tostring(handle)
+  end
+  if not handle then
+    log.warn("http", "request failed: " .. url)
+    return nil, "request failed"
+  end
+
+  local body = handle.readAll() or ""
+  local code = handle.getResponseCode and handle.getResponseCode() or 200
+  handle.close()
+  return {
+    url = url,
+    code = code,
+    body = body,
+    size = #body,
+  }
+end
+
+function M.json(url, opts)
+  local response, err = M.get(url, opts)
+  if not response then return nil, err end
+  if not textutils.unserializeJSON then return nil, "JSON unavailable" end
+  local ok, parsed = pcall(textutils.unserializeJSON, response.body)
+  if not ok then return nil, tostring(parsed) end
+  response.json = parsed
+  return response
+end
+
+return M
+]],
+  ["system/network/websocket.lua"] = [[local M = {}
+
+function M.available()
+  return http ~= nil and type(http.websocket) == "function"
+end
+
+function M.connect(url, headers)
+  if not M.available() then return nil, "WebSocket API disabled" end
+  if not url:match("^wss?://") then url = "wss://" .. url end
+  local ok, socket = pcall(http.websocket, url, headers)
+  if not ok then return nil, tostring(socket) end
+  return socket
 end
 
 return M
@@ -3000,6 +3213,42 @@ end
 
 function M.stop()
   log.info("logd", "log service stopped")
+end
+
+return M
+]],
+  ["system/services/networkd.lua"] = [[local log = require("system.libraries.log")
+local httpClient = require("system.network.http_client")
+local websocket = require("system.network.websocket")
+
+local M = {
+  status = {
+    http = false,
+    websocket = false,
+    message = "not started",
+  },
+}
+
+function M.refresh()
+  local httpStatus = httpClient.check()
+  M.status = {
+    http = httpStatus.available,
+    websocket = websocket.available(),
+    message = httpStatus.message,
+  }
+  return M.status
+end
+
+function M.start(ctx)
+  local status = M.refresh()
+  log.info("networkd", "http=" .. tostring(status.http) .. " websocket=" .. tostring(status.websocket))
+  if ctx and ctx.notifications then
+    ctx.notifications:push(status.http and "success" or "warn", "Network", status.message, 3)
+  end
+end
+
+function M.getStatus()
+  return M.status
 end
 
 return M
@@ -3264,6 +3513,13 @@ function M.start(ctx)
 end
 
 return M
+]],
+  ["system/themes/icons/browser.nfp"] = [[6666666
+6fffff6
+6f666f6
+6fffff6
+6f6f6f6
+6666666
 ]],
   ["system/themes/icons/devices.nfp"] = [[3333333
 3fffff3
@@ -3600,5 +3856,5 @@ end
 
 if not fs.exists("home/user/desktop") then fs.makeDir("home/user/desktop") end
 if not fs.exists("home/user/.trash") then fs.makeDir("home/user/.trash") end
-print("MintCraft OS 0.6.3 installed.")
+print("MintCraft OS 0.7.0 installed.")
 print("Run reboot() to start MintCraft OS.")

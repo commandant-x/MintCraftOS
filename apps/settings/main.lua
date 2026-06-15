@@ -2,6 +2,7 @@ local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
+local networkd = require("system.services.networkd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -42,7 +43,8 @@ function M.run(ctx)
   end
 
   local function httpStatus()
-    return http and "available" or "missing"
+    local status = networkd.getStatus()
+    return status.http and "available" or "missing"
   end
 
   local function rednetStatus()
@@ -83,11 +85,14 @@ function M.run(ctx)
       renderer.writeAt(1, 5, "Context menu: desktop double tap on monitor", colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Windows: drag, minimize, maximize, close", colors.black, colors.lightGray)
     elseif self.page == "network" then
+      local status = networkd.getStatus()
       renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "WebSocket: " .. tostring(status.websocket and "available" or "missing"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
       renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
+      renderer.button(1, 10, 16, "Open Browser", false)
     elseif self.page == "storage" then
       local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
       local cap = fs.getCapacity and fs.getCapacity("/") or nil
@@ -173,6 +178,9 @@ function M.run(ctx)
     elseif self.page == "system" and y == 10 and x <= 16 then
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
+      return true
+    elseif self.page == "network" and y == 10 and x <= 16 then
+      ctx.apps.launch("browser")
       return true
     elseif self.page == "dev" and y == 9 and x <= 14 then
       ctx.apps.launch("editor")

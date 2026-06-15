@@ -12,6 +12,7 @@ local REQUIRED_DIRS = {
   "/system/gui",
   "/system/kernel",
   "/system/libraries",
+  "/system/network",
   "/system/services",
   "/system/themes",
   "/system/wm",
@@ -40,7 +41,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.6.3",
+    version = "0.7.0",
     theme = "mint",
     debug = true,
     safeMode = false,
@@ -51,8 +52,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.6.3" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.6.3"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.7.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.7.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()

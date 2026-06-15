@@ -28,6 +28,7 @@ local help = {
   ps = "ps - list processes",
   kill = "kill <pid> - kill after yes confirmation",
   logs = "logs - show recent logs",
+  browser = "browser [url] - open text browser",
 }
 
 local function trashPath(name)
@@ -137,6 +138,8 @@ local function runCommand(app, ctx, input)
     append(app, "Type yes to kill pid " .. tostring(pid))
   elseif cmd == "logs" then
     for _, line in ipairs(log.tail(10)) do append(app, line) end
+  elseif cmd == "browser" then
+    ctx.apps.launch("browser", { url = rest })
   elseif cmd == "files" then
     ctx.apps.launch("files")
   elseif cmd == "settings" then
