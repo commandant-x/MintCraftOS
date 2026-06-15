@@ -2,6 +2,7 @@ local config = require("system.libraries.config")
 
 local M = {
   cfgPath = "/system/config/update.cfg",
+  rollbackRoot = "/var/backups/update",
   status = {
     localVersion = "unknown",
     remoteVersion = "unknown",
@@ -23,6 +24,24 @@ local function readFile(path)
   return data
 end
 
+local function copyTree(from, to)
+  if not fs.exists(from) then return true end
+  if fs.exists(to) then fs.delete(to) end
+  local dir = fs.getDir(to)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  fs.copy(from, to)
+  return true
+end
+
+local function restoreTree(from, to)
+  if not fs.exists(from) then return false, "missing backup " .. tostring(from) end
+  if fs.exists(to) then fs.delete(to) end
+  local dir = fs.getDir(to)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  fs.copy(from, to)
+  return true
+end
+
 local function httpGet(url)
   if not http or not http.get then return nil, "HTTP API disabled" end
   local ok, handle = pcall(http.get, url)
@@ -41,6 +60,15 @@ function M.loadConfig()
     autoApply = false,
   })
 end
+
+local ROLLBACK_PATHS = {
+  "/VERSION",
+  "/boot.lua",
+  "/startup.lua",
+  "/system",
+  "/apps",
+  "/packages",
+}
 
 function M.localVersion()
   return trim(readFile("/VERSION") or "0.0.0")
@@ -99,7 +127,60 @@ function M.downloadInstaller()
   return path
 end
 
+function M.rollbackInfo()
+  local latestPath = M.rollbackRoot .. "/latest.cfg"
+  if not fs.exists(latestPath) then return nil end
+  local data = config.load(latestPath, nil)
+  if not data or not data.id then return nil end
+  data.path = M.rollbackRoot .. "/" .. data.id
+  return data
+end
+
+function M.createRollback(reason)
+  if fs.exists(M.rollbackRoot) then fs.delete(M.rollbackRoot) end
+  fs.makeDir(M.rollbackRoot)
+
+  local id = tostring(math.floor(os.epoch and os.epoch("utc") or (os.clock() * 1000)))
+  local backupDir = M.rollbackRoot .. "/" .. id
+  fs.makeDir(backupDir)
+  local manifest = {
+    id = id,
+    reason = reason or "update",
+    fromVersion = M.localVersion(),
+    createdUptime = os.clock(),
+    paths = {},
+  }
+
+  for _, path in ipairs(ROLLBACK_PATHS) do
+    if fs.exists(path) then
+      local target = backupDir .. path
+      copyTree(path, target)
+      table.insert(manifest.paths, path)
+    end
+  end
+
+  config.save(backupDir .. "/manifest.cfg", manifest)
+  config.save(M.rollbackRoot .. "/latest.cfg", manifest)
+  return true, manifest
+end
+
+function M.rollback()
+  local info = M.rollbackInfo()
+  if not info then return false, "no rollback backup" end
+  local backupDir = M.rollbackRoot .. "/" .. info.id
+  local manifest = config.load(backupDir .. "/manifest.cfg", info)
+  if not manifest or type(manifest.paths) ~= "table" then return false, "invalid rollback manifest" end
+
+  for _, path in ipairs(manifest.paths) do
+    local ok, err = restoreTree(backupDir .. path, path)
+    if not ok then return false, err end
+  end
+  return true, "rollback restored " .. tostring(manifest.fromVersion or "previous") .. ", reboot required"
+end
+
 function M.apply()
+  local backedUp, backup = M.createRollback("before update")
+  if not backedUp then return false, tostring(backup) end
   local path, err = M.downloadInstaller()
   if not path then return false, err end
   local fn, loadErr = loadfile(path)

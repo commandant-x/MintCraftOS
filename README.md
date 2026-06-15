@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.11.0 base:
+This repository currently contains the V0.12.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -18,6 +18,7 @@ This repository currently contains the V0.11.0 base:
 - Editor app with Lua compile check and Tab autocomplete/snippets
 - richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
 - GitHub Update app and boot-time update check through the `updated` service
+- update rollback snapshot restored from Update or Recovery
 - Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
 - Terminal with file commands, process commands and touch autocomplete
 - Services, Logs and Task Manager apps with touch controls
@@ -29,7 +30,7 @@ This repository currently contains the V0.11.0 base:
 - simulated security service with declared app permissions and logged denials for sensitive actions
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 
-Not included yet: real multi-user login enforcement and update rollback.
+Not included yet: real multi-user login enforcement.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 

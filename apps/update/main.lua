@@ -35,14 +35,28 @@ function M.run(ctx)
     end
   end
 
+  function app:rollback()
+    local allowed, denied = ctx.security.require("system.update", "rollback")
+    if not allowed then self.message = denied return end
+    ctx.security.audit("update rollback", "latest backup")
+    local ok, message = updated.rollback()
+    self.message = tostring(message)
+    if ctx.notifications then
+      ctx.notifications:push(ok and "success" or "error", "Rollback", self.message, 6)
+    end
+  end
+
   function app:draw(w, h)
     self.lastH = h
+    local rollback = updated.rollbackInfo()
     renderer.writeAt(1, 1, renderer.crop("MintCraft Update", w), colors.black, colors.lightGray)
     renderer.writeAt(2, 3, renderer.crop("Local : " .. tostring(self.status.localVersion), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 4, renderer.crop("GitHub: " .. tostring(self.status.remoteVersion), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 5, renderer.crop("State : " .. tostring(self.message), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 7, renderer.crop("Rollback: " .. tostring(rollback and rollback.fromVersion or "none"), w - 2), colors.black, colors.lightGray)
     renderer.button(2, h - 1, 10, "Check", false)
     renderer.button(14, h - 1, 10, "Apply", false)
+    renderer.button(26, h - 1, 12, "Rollback", false)
   end
 
   function app:handle(event)
@@ -53,6 +67,9 @@ function M.run(ctx)
       return true
     elseif buttonAt(x, y, 14, self.lastH - 1, 10) then
       self:apply()
+      return true
+    elseif buttonAt(x, y, 26, self.lastH - 1, 12) then
+      self:rollback()
       return true
     end
     return false

@@ -1,4 +1,4 @@
--- MintCraft OS V0.11.0 installer for CC:Tweaked
+-- MintCraft OS V0.12.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -225,7 +225,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -549,7 +549,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -608,7 +608,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -790,7 +790,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1095,7 +1095,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1172,7 +1172,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1289,7 +1289,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1368,7 +1368,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control" },
 }
@@ -1656,7 +1656,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1765,7 +1765,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1879,7 +1879,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.11.0",
+  version = "0.12.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" },
 }
@@ -2225,7 +2225,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.11.0",
+  version = "0.12.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2265,14 +2265,28 @@ function M.run(ctx)
     end
   end
 
+  function app:rollback()
+    local allowed, denied = ctx.security.require("system.update", "rollback")
+    if not allowed then self.message = denied return end
+    ctx.security.audit("update rollback", "latest backup")
+    local ok, message = updated.rollback()
+    self.message = tostring(message)
+    if ctx.notifications then
+      ctx.notifications:push(ok and "success" or "error", "Rollback", self.message, 6)
+    end
+  end
+
   function app:draw(w, h)
     self.lastH = h
+    local rollback = updated.rollbackInfo()
     renderer.writeAt(1, 1, renderer.crop("MintCraft Update", w), colors.black, colors.lightGray)
     renderer.writeAt(2, 3, renderer.crop("Local : " .. tostring(self.status.localVersion), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 4, renderer.crop("GitHub: " .. tostring(self.status.remoteVersion), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 5, renderer.crop("State : " .. tostring(self.message), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 7, renderer.crop("Rollback: " .. tostring(rollback and rollback.fromVersion or "none"), w - 2), colors.black, colors.lightGray)
     renderer.button(2, h - 1, 10, "Check", false)
     renderer.button(14, h - 1, 10, "Apply", false)
+    renderer.button(26, h - 1, 12, "Rollback", false)
   end
 
   function app:handle(event)
@@ -2283,6 +2297,9 @@ function M.run(ctx)
       return true
     elseif buttonAt(x, y, 14, self.lastH - 1, 10) then
       self:apply()
+      return true
+    elseif buttonAt(x, y, 26, self.lastH - 1, 12) then
+      self:rollback()
       return true
     end
     return false
@@ -2492,7 +2509,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.11.0 base:
+This repository currently contains the V0.12.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -2508,6 +2525,7 @@ This repository currently contains the V0.11.0 base:
 - Editor app with Lua compile check and Tab autocomplete/snippets
 - richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
 - GitHub Update app and boot-time update check through the `updated` service
+- update rollback snapshot restored from Update or Recovery
 - Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
 - Terminal with file commands, process commands and touch autocomplete
 - Services, Logs and Task Manager apps with touch controls
@@ -2519,7 +2537,7 @@ This repository currently contains the V0.11.0 base:
 - simulated security service with declared app permissions and logged denials for sensitive actions
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 
-Not included yet: real multi-user login enforcement and update rollback.
+Not included yet: real multi-user login enforcement.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -2591,6 +2609,8 @@ local REQUIRED_DIRS = {
   "/home/user/downloads",
   "/home/user/.trash",
   "/var",
+  "/var/backups",
+  "/var/backups/update",
   "/var/cache",
   "/var/logs",
   "/var/tmp",
@@ -2607,7 +2627,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.11.0",
+    version = "0.12.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -2633,8 +2653,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.11.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.11.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.12.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.12.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2656,6 +2676,7 @@ print("Commands:")
 print("  shell  - open CraftOS shell")
 print("  logs   - show last system log lines")
 print("  crash  - show last crash log")
+print("  rollback - restore last update backup")
 print("  reboot - reboot computer")
 print("  exit   - return to caller")
 print("")
@@ -2680,6 +2701,47 @@ while true do
     else
       print("No crash log found.")
     end
+  elseif cmd == "rollback" then
+    local function restoreRaw()
+      local latestPath = "/var/backups/update/latest.cfg"
+      if not fs.exists(latestPath) then return false, "No rollback backup." end
+      local handle = fs.open(latestPath, "r")
+      if not handle then return false, "Cannot read rollback metadata." end
+      local data = handle.readAll()
+      handle.close()
+      local ok, latest = pcall(textutils.unserialize, data)
+      if not ok or type(latest) ~= "table" or not latest.id then return false, "Invalid rollback metadata." end
+      local backupDir = "/var/backups/update/" .. latest.id
+      local manifestPath = backupDir .. "/manifest.cfg"
+      local manifest = latest
+      if fs.exists(manifestPath) then
+        local mf = fs.open(manifestPath, "r")
+        if mf then
+          local parsed = mf.readAll()
+          mf.close()
+          local mok, value = pcall(textutils.unserialize, parsed)
+          if mok and type(value) == "table" then manifest = value end
+        end
+      end
+      if type(manifest.paths) ~= "table" then return false, "Invalid rollback manifest." end
+      for _, path in ipairs(manifest.paths) do
+        local source = backupDir .. path
+        if not fs.exists(source) then return false, "Missing backup " .. source end
+        if fs.exists(path) then fs.delete(path) end
+        local dir = fs.getDir(path)
+        if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+        fs.copy(source, path)
+      end
+      return true, "Rollback restored " .. tostring(manifest.fromVersion or "previous") .. ". Reboot now."
+    end
+    local ok, updated = pcall(require, "system.services.updated")
+    local success, message
+    if ok and updated and updated.rollback then
+      success, message = updated.rollback()
+    else
+      success, message = restoreRaw()
+    end
+    print(tostring(message))
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "exit" then
@@ -2743,7 +2805,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.11.0",
+  version = "0.12.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -3767,19 +3829,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.11.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.11.0", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.11.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.11.0", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.11.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.11.0", permissions = { "system.config", "audio.control" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.11.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.11.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.11.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.11.0", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.11.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.11.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.11.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.12.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.12.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.12.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.12.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.12.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.12.0", permissions = { "system.config", "audio.control" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.12.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.12.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.12.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.12.0", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.12.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.12.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.12.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -3992,7 +4054,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.11.0",
+    version = meta.version or "0.12.0",
     permissions = meta.permissions or {},
   }
 end
@@ -4944,6 +5006,7 @@ return ServiceManager
 
 local M = {
   cfgPath = "/system/config/update.cfg",
+  rollbackRoot = "/var/backups/update",
   status = {
     localVersion = "unknown",
     remoteVersion = "unknown",
@@ -4965,6 +5028,24 @@ local function readFile(path)
   return data
 end
 
+local function copyTree(from, to)
+  if not fs.exists(from) then return true end
+  if fs.exists(to) then fs.delete(to) end
+  local dir = fs.getDir(to)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  fs.copy(from, to)
+  return true
+end
+
+local function restoreTree(from, to)
+  if not fs.exists(from) then return false, "missing backup " .. tostring(from) end
+  if fs.exists(to) then fs.delete(to) end
+  local dir = fs.getDir(to)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  fs.copy(from, to)
+  return true
+end
+
 local function httpGet(url)
   if not http or not http.get then return nil, "HTTP API disabled" end
   local ok, handle = pcall(http.get, url)
@@ -4983,6 +5064,15 @@ function M.loadConfig()
     autoApply = false,
   })
 end
+
+local ROLLBACK_PATHS = {
+  "/VERSION",
+  "/boot.lua",
+  "/startup.lua",
+  "/system",
+  "/apps",
+  "/packages",
+}
 
 function M.localVersion()
   return trim(readFile("/VERSION") or "0.0.0")
@@ -5041,7 +5131,60 @@ function M.downloadInstaller()
   return path
 end
 
+function M.rollbackInfo()
+  local latestPath = M.rollbackRoot .. "/latest.cfg"
+  if not fs.exists(latestPath) then return nil end
+  local data = config.load(latestPath, nil)
+  if not data or not data.id then return nil end
+  data.path = M.rollbackRoot .. "/" .. data.id
+  return data
+end
+
+function M.createRollback(reason)
+  if fs.exists(M.rollbackRoot) then fs.delete(M.rollbackRoot) end
+  fs.makeDir(M.rollbackRoot)
+
+  local id = tostring(math.floor(os.epoch and os.epoch("utc") or (os.clock() * 1000)))
+  local backupDir = M.rollbackRoot .. "/" .. id
+  fs.makeDir(backupDir)
+  local manifest = {
+    id = id,
+    reason = reason or "update",
+    fromVersion = M.localVersion(),
+    createdUptime = os.clock(),
+    paths = {},
+  }
+
+  for _, path in ipairs(ROLLBACK_PATHS) do
+    if fs.exists(path) then
+      local target = backupDir .. path
+      copyTree(path, target)
+      table.insert(manifest.paths, path)
+    end
+  end
+
+  config.save(backupDir .. "/manifest.cfg", manifest)
+  config.save(M.rollbackRoot .. "/latest.cfg", manifest)
+  return true, manifest
+end
+
+function M.rollback()
+  local info = M.rollbackInfo()
+  if not info then return false, "no rollback backup" end
+  local backupDir = M.rollbackRoot .. "/" .. info.id
+  local manifest = config.load(backupDir .. "/manifest.cfg", info)
+  if not manifest or type(manifest.paths) ~= "table" then return false, "invalid rollback manifest" end
+
+  for _, path in ipairs(manifest.paths) do
+    local ok, err = restoreTree(backupDir .. path, path)
+    if not ok then return false, err end
+  end
+  return true, "rollback restored " .. tostring(manifest.fromVersion or "previous") .. ", reboot required"
+end
+
 function M.apply()
+  local backedUp, backup = M.createRollback("before update")
+  if not backedUp then return false, tostring(backup) end
   local path, err = M.downloadInstaller()
   if not path then return false, err end
   local fn, loadErr = loadfile(path)
@@ -5418,7 +5561,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.11.0
+  ["VERSION"] = [[0.12.0
 ]],
 }
 
@@ -5440,5 +5583,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.11.0 installed.")
+print("MintCraft OS 0.12.0 installed.")
 print("Run reboot to start MintCraft OS.")
