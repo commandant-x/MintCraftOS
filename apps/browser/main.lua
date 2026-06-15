@@ -5,6 +5,21 @@ local httpClient = require("system.network.http_client")
 
 local M = {}
 
+local function isYouTube(url)
+  url = tostring(url or ""):lower()
+  return url:find("youtube%.com", 1, true) or url:find("youtu%.be", 1, true)
+end
+
+local function youtubeQuery(url)
+  url = tostring(url or "")
+  local q = url:match("[?&]search_query=([^&]+)") or url:match("[?&]q=([^&]+)")
+  if not q then return "" end
+  q = q:gsub("+", " "):gsub("%%(%x%x)", function(hex)
+    return string.char(tonumber(hex, 16))
+  end)
+  return q
+end
+
 local function entity(text)
   text = tostring(text or "")
   local named = {
@@ -29,7 +44,7 @@ local function htmlToText(html, url)
   local rows = {}
   local lowerUrl = tostring(url or ""):lower()
 
-  if lowerUrl:find("youtube%.com", 1, true) or lowerUrl:find("youtu%.be", 1, true) then
+  if isYouTube(lowerUrl) then
     table.insert(rows, "YouTube: video decode is not available inside CC:Tweaked.")
     table.insert(rows, "MintCraft Browser can show text metadata only.")
     table.insert(rows, "")
@@ -90,11 +105,31 @@ function M.run(ctx)
 
   local actions = {
     { id = "go", label = "Go" },
+    { id = "crafttube", label = "CraftTube" },
     { id = "url", label = "URL" },
     { id = "clear", label = "Clear" },
   }
 
   local function load()
+    if isYouTube(app.url) then
+      app.status = "Use CraftTube for YouTube"
+      app.lines = {
+        "YouTube is not a normal web page for CC:Tweaked.",
+        "",
+        "MintCraft Browser cannot run YouTube's JavaScript UI,",
+        "decode video, render thumbnails, or play HTML5 streams.",
+        "",
+        "Use CraftTube instead:",
+        "- search through a configured proxy/API",
+        "- open metadata cards",
+        "- keep favorites and history",
+        "- optional audio later through DFPWM proxy",
+        "",
+        "Tap CraftTube in the toolbar.",
+      }
+      app.scroll = 1
+      return
+    end
     app.status = "Loading..."
     local response, err = httpClient.get(app.url)
     if response then
@@ -150,6 +185,7 @@ function M.run(ctx)
       if self.mode == "url" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
       local action = ui.toolbarHit(self.toolbar, x, y)
       if action == "go" then load() return true end
+      if action == "crafttube" then ctx.apps.launch("crafttube", { query = youtubeQuery(self.url) }) return true end
       if action == "url" then self.mode = "url" return true end
       if action == "clear" then self.lines = { "" } self.status = "Cleared" return true end
     end

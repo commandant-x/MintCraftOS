@@ -42,7 +42,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.9.0",
+    version = "0.9.1",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -54,8 +54,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.9.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.9.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.9.1" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.9.1"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()

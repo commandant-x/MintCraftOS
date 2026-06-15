@@ -103,7 +103,7 @@ function M.run(ctx)
     cfg = loadCfg(),
     data = loadData(),
     mode = "search",
-    input = "",
+    input = (ctx.args and ctx.args.query) or "",
     status = "Configure proxy in Settings or paste it here.",
     selected = nil,
     rows = {},
@@ -116,7 +116,7 @@ function M.run(ctx)
     { id = "proxy", label = "Proxy" },
     { id = "fav", label = "Fav" },
     { id = "history", label = "History" },
-    { id = "open", label = "Browser" },
+    { id = "details", label = "Details" },
   }
 
   local function selectedVideo()
@@ -203,22 +203,31 @@ function M.run(ctx)
     local inputLabel = self.mode == "proxy" and "Proxy" or "Search"
     ui.input(1, 2, w, inputLabel, self.input, true)
     renderer.writeAt(1, 3, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
-    local listH = math.max(1, h - kbH - 8)
-    for i = 1, listH do
+    local cardH = 3
+    local listH = math.max(1, h - kbH - 10)
+    local visible = math.max(1, math.floor(listH / cardH))
+    for i = 1, visible do
       local item = self.rows[self.scroll + i - 1]
-      local bg = item and item.id == self.selected and colors.cyan or colors.lightGray
-      local text = item and (item.title .. "  [" .. item.channel .. "]") or ""
-      renderer.writeAt(1, i + 3, renderer.crop(text, w), colors.black, bg)
+      local y = 4 + (i - 1) * cardH
+      if item then
+        local bg = item.id == self.selected and colors.cyan or colors.lightGray
+        renderer.writeAt(1, y, renderer.crop("[" .. tostring(self.scroll + i - 1) .. "] " .. item.title, w), colors.black, bg)
+        renderer.writeAt(1, y + 1, renderer.crop("    " .. item.channel .. "   " .. item.duration, w), colors.gray, colors.lightGray)
+        renderer.writeAt(1, y + 2, renderer.crop("    " .. item.url, w), colors.gray, colors.lightGray)
+      else
+        renderer.writeAt(1, y, renderer.crop("No result. Set a proxy, then search.", w), colors.gray, colors.lightGray)
+      end
     end
-    local detailY = listH + 4
+    local detailY = 4 + visible * cardH
     if selected then
-      renderer.writeAt(1, detailY, renderer.crop(selected.title, w), colors.white, colors.gray)
-      renderer.writeAt(1, detailY + 1, renderer.crop(selected.channel .. "  " .. selected.duration, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, detailY, renderer.crop("Selected: " .. selected.title, w), colors.white, colors.gray)
+      renderer.writeAt(1, detailY + 1, renderer.crop(selected.channel .. "  " .. selected.duration .. "  ID " .. selected.id, w), colors.black, colors.lightGray)
       local lines = splitLines(selected.description, w)
       renderer.writeAt(1, detailY + 2, renderer.crop(lines[1] or "", w), colors.gray, colors.lightGray)
     else
-      renderer.writeAt(1, detailY, renderer.crop("CraftTube uses a proxy/API, not youtube.com HTML.", w), colors.gray, colors.lightGray)
-      renderer.writeAt(1, detailY + 1, renderer.crop("Expected JSON: { items = { { id,title,channel,description } } }", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, detailY, renderer.crop("CraftTube is the YouTube app for MintCraft OS.", w), colors.white, colors.gray)
+      renderer.writeAt(1, detailY + 1, renderer.crop("It needs a proxy/API because CC:Tweaked cannot run YouTube web UI.", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, detailY + 2, renderer.crop("JSON: { items = { { id,title,channel,description,duration } } }", w), colors.gray, colors.lightGray)
     end
     self.keyboard.x = 1
     self.keyboard.y = h - kbH + 1
@@ -245,9 +254,9 @@ function M.run(ctx)
       if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
       if action == "fav" then toggleFavorite() return true end
       if action == "history" then showRows(self.data.history, "History") return true end
-      if action == "open" then
+      if action == "details" then
         local video = selectedVideo()
-        if video then openVideo() ctx.apps.launch("browser", { url = video.url }) end
+        if video then openVideo() end
         return true
       end
       if y >= 4 then
