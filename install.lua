@@ -1,4 +1,4 @@
--- MintCraft OS V0.10.1 installer for CC:Tweaked
+-- MintCraft OS V0.11.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -140,7 +140,7 @@ function M.run(ctx)
         "- search through a configured proxy/API",
         "- open metadata cards",
         "- keep favorites and history",
-        "- optional audio later through DFPWM proxy",
+        "- future video/audio playback through a dedicated proxy",
         "",
         "Tap CraftTube in the toolbar.",
       }
@@ -225,7 +225,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -549,7 +549,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -608,7 +608,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -790,7 +790,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1095,7 +1095,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1172,7 +1172,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1289,7 +1289,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1368,9 +1368,9 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.settings.main",
-  permissions = { "system.config" },
+  permissions = { "system.config", "audio.control" },
 }
 ]],
   ["apps/settings/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1379,6 +1379,7 @@ local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
 local networkd = require("system.services.networkd")
 local securityd = require("system.services.securityd")
+local audiod = require("system.services.audiod")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -1393,6 +1394,7 @@ function M.run(ctx)
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
+    { id = "sound", label = "Sound" },
     { id = "security", label = "Security" },
     { id = "apps", label = "Apps" },
     { id = "packages", label = "Packages" },
@@ -1495,6 +1497,25 @@ function M.run(ctx)
         renderer.writeAt(1, 4, "Storage metrics unavailable", colors.black, colors.lightGray)
       end
       renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
+    elseif self.page == "sound" then
+      local st = audiod.status()
+      renderer.writeAt(1, 3, "Audio service: " .. tostring(st.ready and "ready" or "stopped"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Enabled: " .. tostring(st.enabled and "yes" or "no"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Speakers: " .. tostring(st.count or 0), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Default side: " .. tostring(st.defaultSide or "-"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, "Volume: " .. tostring(st.volume) .. "  Notify: " .. tostring(st.notificationVolume), colors.black, colors.lightGray)
+      renderer.button(1, 9, 12, st.enabled and "Disable" or "Enable", false)
+      renderer.button(15, 9, 12, "Test", false)
+      renderer.writeAt(1, 11, "Volume:", colors.black, colors.lightGray)
+      renderer.button(1, 12, 8, "0.5", st.volume == 0.5)
+      renderer.button(10, 12, 8, "1.0", st.volume == 1)
+      renderer.button(19, 12, 8, "1.5", st.volume == 1.5)
+      renderer.button(28, 12, 8, "2.0", st.volume == 2)
+      local speakers = st.speakers or {}
+      renderer.writeAt(1, 14, "Detected speakers:", colors.black, colors.lightGray)
+      for i = 1, math.min(#speakers, h - 15) do
+        renderer.writeAt(1, 14 + i, renderer.crop(tostring(speakers[i].side) .. "  tap to use", w), colors.black, colors.lightGray)
+      end
     elseif self.page == "security" then
       local cfg = config.load("/system/config/security.cfg", {})
       renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
@@ -1583,6 +1604,28 @@ function M.run(ctx)
       if x >= 10 and x <= 17 then deviced.setScale(1) return true end
       if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
       if x >= 28 and x <= 35 then deviced.setScale(2) return true end
+    elseif self.page == "sound" and y == 9 and x <= 12 then
+      local st = audiod.status()
+      audiod.setEnabled(not st.enabled)
+      ctx.notifications:push("success", "Audio", "Audio " .. tostring(not st.enabled and "enabled" or "disabled"), 2)
+      return true
+    elseif self.page == "sound" and y == 9 and x >= 15 and x <= 26 then
+      local ok, err = audiod.test()
+      ctx.notifications:push(ok and "success" or "warn", "Audio", ok and "Test note sent" or tostring(err), 3)
+      return true
+    elseif self.page == "sound" and y == 12 then
+      if x <= 8 then audiod.setVolume(0.5) return true end
+      if x >= 10 and x <= 17 then audiod.setVolume(1) return true end
+      if x >= 19 and x <= 26 then audiod.setVolume(1.5) return true end
+      if x >= 28 and x <= 35 then audiod.setVolume(2) return true end
+    elseif self.page == "sound" and y >= 15 then
+      local st = audiod.status()
+      local item = (st.speakers or {})[y - 14]
+      if item then
+        local ok, err = audiod.use(item.side)
+        ctx.notifications:push(ok and "success" or "warn", "Audio", ok and ("Using " .. item.side) or tostring(err), 3)
+        return true
+      end
     elseif self.page == "system" and y == 10 and x <= 16 then
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
@@ -1613,7 +1656,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1722,7 +1765,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1836,7 +1879,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.10.1",
+  version = "0.11.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" },
 }
@@ -2182,7 +2225,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.10.1",
+  version = "0.11.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2449,7 +2492,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.10.1 base:
+This repository currently contains the V0.11.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -2474,8 +2517,9 @@ This repository currently contains the V0.10.1 base:
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - simulated security service with declared app permissions and logged denials for sensitive actions
+- speaker audio driver and `audiod` service with Settings controls and notification/test tones
 
-Not included yet: real multi-user login enforcement, audio playback and update rollback.
+Not included yet: real multi-user login enforcement and update rollback.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -2528,6 +2572,7 @@ local REQUIRED_DIRS = {
   "/system/boot",
   "/system/config",
   "/system/dev",
+  "/system/drivers",
   "/system/gui",
   "/system/kernel",
   "/system/libraries",
@@ -2562,7 +2607,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.10.1",
+    version = "0.11.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -2575,14 +2620,21 @@ local function ensureDefaults()
     logDenied = true,
     logSensitive = true,
   })
+  config.ensure("/system/config/audio.cfg", {
+    enabled = true,
+    volume = 1,
+    notificationVolume = 0.6,
+    defaultSide = nil,
+    notifyOnSystemReady = true,
+  })
 end
 
 function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.10.1" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.10.1"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.11.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.11.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2655,6 +2707,14 @@ end
 
 return M
 ]],
+  ["system/config/audio.cfg"] = [[{
+  enabled = true,
+  volume = 1,
+  notificationVolume = 0.6,
+  defaultSide = nil,
+  notifyOnSystemReady = true,
+}
+]],
   ["system/config/crafttube.cfg"] = [[{
   provider = "invidious",
   proxy = "https://inv.thepixora.com",
@@ -2683,7 +2743,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.10.1",
+  version = "0.11.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -2839,6 +2899,180 @@ end
 function M.commands()
   return terminalCommands
 end
+
+return M
+]],
+  ["system/drivers/speaker.lua"] = [[local config = require("system.libraries.config")
+local log = require("system.libraries.log")
+
+local M = {
+  speakers = {},
+  defaultSide = nil,
+}
+
+local CONFIG = "/system/config/audio.cfg"
+
+local function clampVolume(value)
+  value = tonumber(value) or 1
+  if value < 0 then return 0 end
+  if value > 3 then return 3 end
+  return value
+end
+
+local function loadCfg()
+  return config.load(CONFIG, {
+    enabled = true,
+    volume = 1,
+    notificationVolume = 0.6,
+    defaultSide = nil,
+    notifyOnSystemReady = true,
+  })
+end
+
+local function get(side)
+  if not peripheral or not peripheral.wrap then return nil end
+  if side and peripheral.getType and peripheral.getType(side) == "speaker" then
+    return peripheral.wrap(side), side
+  end
+  if peripheral.find then
+    local speaker, found = peripheral.find("speaker")
+    return speaker, found
+  end
+  return nil
+end
+
+function M.scan()
+  local rows = {}
+  if peripheral and peripheral.getNames and peripheral.getType then
+    for _, name in ipairs(peripheral.getNames()) do
+      if peripheral.getType(name) == "speaker" then
+        table.insert(rows, { side = name, type = "speaker" })
+      end
+    end
+  end
+  table.sort(rows, function(a, b) return a.side < b.side end)
+  M.speakers = rows
+
+  local cfg = loadCfg()
+  if cfg.defaultSide and peripheral and peripheral.getType and peripheral.getType(cfg.defaultSide) == "speaker" then
+    M.defaultSide = cfg.defaultSide
+  elseif rows[1] then
+    M.defaultSide = rows[1].side
+  else
+    M.defaultSide = nil
+  end
+  return rows
+end
+
+function M.status()
+  M.scan()
+  local cfg = loadCfg()
+  return {
+    enabled = cfg.enabled ~= false,
+    volume = clampVolume(cfg.volume),
+    notificationVolume = clampVolume(cfg.notificationVolume),
+    defaultSide = M.defaultSide,
+    count = #M.speakers,
+    speakers = M.speakers,
+  }
+end
+
+function M.setVolume(volume)
+  local cfg = loadCfg()
+  cfg.volume = clampVolume(volume)
+  config.save(CONFIG, cfg)
+  return cfg.volume
+end
+
+function M.setNotificationVolume(volume)
+  local cfg = loadCfg()
+  cfg.notificationVolume = clampVolume(volume)
+  config.save(CONFIG, cfg)
+  return cfg.notificationVolume
+end
+
+function M.setEnabled(enabled)
+  local cfg = loadCfg()
+  cfg.enabled = enabled ~= false
+  config.save(CONFIG, cfg)
+  return cfg.enabled
+end
+
+function M.use(side)
+  M.scan()
+  if not side or not peripheral or not peripheral.getType or peripheral.getType(side) ~= "speaker" then
+    return false, "No speaker on " .. tostring(side or "-")
+  end
+  local cfg = loadCfg()
+  cfg.defaultSide = side
+  config.save(CONFIG, cfg)
+  M.defaultSide = side
+  return true
+end
+
+function M.playNote(instrument, pitch, volume, side)
+  local cfg = loadCfg()
+  if cfg.enabled == false then return false, "Audio disabled" end
+  local speaker = get(side or cfg.defaultSide or M.defaultSide)
+  if not speaker or not speaker.playNote then return false, "No speaker" end
+  local ok, err = pcall(speaker.playNote, instrument or "harp", clampVolume(volume or cfg.volume), tonumber(pitch) or 12)
+  if not ok then
+    log.warn("speaker", tostring(err))
+    return false, tostring(err)
+  end
+  return true
+end
+
+function M.playSound(name, pitch, volume, side)
+  local cfg = loadCfg()
+  if cfg.enabled == false then return false, "Audio disabled" end
+  local speaker = get(side or cfg.defaultSide or M.defaultSide)
+  if not speaker or not speaker.playSound then return false, "No speaker" end
+  local ok, err = pcall(speaker.playSound, name, clampVolume(volume or cfg.volume), tonumber(pitch) or 1)
+  if not ok then
+    log.warn("speaker", tostring(err))
+    return false, tostring(err)
+  end
+  return true
+end
+
+function M.notify(level)
+  local cfg = loadCfg()
+  local pitch = 12
+  if level == "error" then pitch = 4 elseif level == "warn" then pitch = 8 elseif level == "success" then pitch = 16 end
+  return M.playNote("bell", pitch, cfg.notificationVolume)
+end
+
+function M.test()
+  local ok, err = M.playNote("harp", 12, loadCfg().volume)
+  if not ok then return false, err end
+  return true
+end
+
+function M.playDfPWM(path, side)
+  local cfg = loadCfg()
+  if cfg.enabled == false then return false, "Audio disabled" end
+  if not fs.exists(path) then return false, "Missing file" end
+  local speaker = get(side or cfg.defaultSide or M.defaultSide)
+  if not speaker or not speaker.playAudio then return false, "No speaker audio API" end
+  local okDfpwm, dfpwm = pcall(require, "cc.audio.dfpwm")
+  if not okDfpwm then return false, "DFPWM decoder unavailable" end
+  local handle = fs.open(path, "rb")
+  if not handle then return false, "Cannot open file" end
+  local decoder = dfpwm.make_decoder()
+  while true do
+    local chunk = handle.read(16 * 1024)
+    if not chunk then break end
+    local buffer = decoder(chunk)
+    while not speaker.playAudio(buffer, clampVolume(cfg.volume)) do
+      os.pullEvent("speaker_audio_empty")
+    end
+  end
+  handle.close()
+  return true
+end
+
+M.scan()
 
 return M
 ]],
@@ -3533,19 +3767,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.10.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.10.1", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.10.1", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.10.1", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.10.1", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.10.1", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.10.1", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.10.1", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.10.1", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.10.1", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.10.1", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.10.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.10.1", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.11.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.11.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.11.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.11.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.11.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.11.0", permissions = { "system.config", "audio.control" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.11.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.11.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.11.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.11.0", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.11.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.11.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.11.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -3575,6 +3809,7 @@ function M.start()
   ctx.services:register("securityd", "system.services.securityd", true)
   ctx.services:register("networkd", "system.services.networkd", true)
   ctx.services:register("messaged", "system.services.messaged", true)
+  ctx.services:register("audiod", "system.services.audiod", true)
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
@@ -3757,7 +3992,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.10.1",
+    version = meta.version or "0.11.0",
     permissions = meta.permissions or {},
   }
 end
@@ -4168,6 +4403,67 @@ end
 
 return M
 ]],
+  ["system/services/audiod.lua"] = [[local log = require("system.libraries.log")
+local speaker = require("system.drivers.speaker")
+
+local M = {
+  ctx = nil,
+  ready = false,
+}
+
+function M.start(ctx)
+  M.ctx = ctx
+  local rows = speaker.scan()
+  M.ready = true
+  log.info("audiod", "audio service ready, speakers=" .. tostring(#rows))
+  if ctx and ctx.eventBus then
+    ctx.eventBus:on("peripheral", function()
+      local found = speaker.scan()
+      log.info("audiod", "speaker rescan, speakers=" .. tostring(#found))
+    end)
+    ctx.eventBus:on("peripheral_detach", function()
+      local found = speaker.scan()
+      log.info("audiod", "speaker rescan, speakers=" .. tostring(#found))
+    end)
+  end
+end
+
+function M.stop()
+  M.ready = false
+end
+
+function M.status()
+  local st = speaker.status()
+  st.ready = M.ready
+  return st
+end
+
+function M.test()
+  return speaker.test()
+end
+
+function M.notify(level)
+  return speaker.notify(level)
+end
+
+function M.setEnabled(enabled)
+  return speaker.setEnabled(enabled)
+end
+
+function M.setVolume(volume)
+  return speaker.setVolume(volume)
+end
+
+function M.setNotificationVolume(volume)
+  return speaker.setNotificationVolume(volume)
+end
+
+function M.use(side)
+  return speaker.use(side)
+end
+
+return M
+]],
   ["system/services/deviced.lua"] = [[local log = require("system.libraries.log")
 local config = require("system.libraries.config")
 
@@ -4487,6 +4783,8 @@ function Notifd.new()
 end
 
 function Notifd:push(level, title, message, ttl)
+  local ok, audiod = pcall(require, "system.services.audiod")
+  if ok and audiod and audiod.notify then pcall(audiod.notify, level or "info") end
   table.insert(self.queue, {
     id = self.nextId,
     level = level or "info",
@@ -5120,7 +5418,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.10.1
+  ["VERSION"] = [[0.11.0
 ]],
 }
 
@@ -5142,5 +5440,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.10.1 installed.")
+print("MintCraft OS 0.11.0 installed.")
 print("Run reboot to start MintCraft OS.")

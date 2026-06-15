@@ -9,6 +9,8 @@ function Notifd.new()
 end
 
 function Notifd:push(level, title, message, ttl)
+  local ok, audiod = pcall(require, "system.services.audiod")
+  if ok and audiod and audiod.notify then pcall(audiod.notify, level or "info") end
   table.insert(self.queue, {
     id = self.nextId,
     level = level or "info",

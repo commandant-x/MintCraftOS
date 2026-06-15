@@ -9,6 +9,7 @@ local REQUIRED_DIRS = {
   "/system/boot",
   "/system/config",
   "/system/dev",
+  "/system/drivers",
   "/system/gui",
   "/system/kernel",
   "/system/libraries",
@@ -43,7 +44,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.10.1",
+    version = "0.11.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -56,14 +57,21 @@ local function ensureDefaults()
     logDenied = true,
     logSensitive = true,
   })
+  config.ensure("/system/config/audio.cfg", {
+    enabled = true,
+    volume = 1,
+    notificationVolume = 0.6,
+    defaultSide = nil,
+    notifyOnSystemReady = true,
+  })
 end
 
 function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.10.1" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.10.1"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.11.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.11.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()

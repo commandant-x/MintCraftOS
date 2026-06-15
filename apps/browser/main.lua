@@ -123,7 +123,7 @@ function M.run(ctx)
         "- search through a configured proxy/API",
         "- open metadata cards",
         "- keep favorites and history",
-        "- optional audio later through DFPWM proxy",
+        "- future video/audio playback through a dedicated proxy",
         "",
         "Tap CraftTube in the toolbar.",
       }

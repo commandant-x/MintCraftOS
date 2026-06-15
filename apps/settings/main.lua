@@ -4,6 +4,7 @@ local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
 local networkd = require("system.services.networkd")
 local securityd = require("system.services.securityd")
+local audiod = require("system.services.audiod")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -18,6 +19,7 @@ function M.run(ctx)
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
+    { id = "sound", label = "Sound" },
     { id = "security", label = "Security" },
     { id = "apps", label = "Apps" },
     { id = "packages", label = "Packages" },
@@ -120,6 +122,25 @@ function M.run(ctx)
         renderer.writeAt(1, 4, "Storage metrics unavailable", colors.black, colors.lightGray)
       end
       renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
+    elseif self.page == "sound" then
+      local st = audiod.status()
+      renderer.writeAt(1, 3, "Audio service: " .. tostring(st.ready and "ready" or "stopped"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Enabled: " .. tostring(st.enabled and "yes" or "no"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Speakers: " .. tostring(st.count or 0), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Default side: " .. tostring(st.defaultSide or "-"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, "Volume: " .. tostring(st.volume) .. "  Notify: " .. tostring(st.notificationVolume), colors.black, colors.lightGray)
+      renderer.button(1, 9, 12, st.enabled and "Disable" or "Enable", false)
+      renderer.button(15, 9, 12, "Test", false)
+      renderer.writeAt(1, 11, "Volume:", colors.black, colors.lightGray)
+      renderer.button(1, 12, 8, "0.5", st.volume == 0.5)
+      renderer.button(10, 12, 8, "1.0", st.volume == 1)
+      renderer.button(19, 12, 8, "1.5", st.volume == 1.5)
+      renderer.button(28, 12, 8, "2.0", st.volume == 2)
+      local speakers = st.speakers or {}
+      renderer.writeAt(1, 14, "Detected speakers:", colors.black, colors.lightGray)
+      for i = 1, math.min(#speakers, h - 15) do
+        renderer.writeAt(1, 14 + i, renderer.crop(tostring(speakers[i].side) .. "  tap to use", w), colors.black, colors.lightGray)
+      end
     elseif self.page == "security" then
       local cfg = config.load("/system/config/security.cfg", {})
       renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
@@ -208,6 +229,28 @@ function M.run(ctx)
       if x >= 10 and x <= 17 then deviced.setScale(1) return true end
       if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
       if x >= 28 and x <= 35 then deviced.setScale(2) return true end
+    elseif self.page == "sound" and y == 9 and x <= 12 then
+      local st = audiod.status()
+      audiod.setEnabled(not st.enabled)
+      ctx.notifications:push("success", "Audio", "Audio " .. tostring(not st.enabled and "enabled" or "disabled"), 2)
+      return true
+    elseif self.page == "sound" and y == 9 and x >= 15 and x <= 26 then
+      local ok, err = audiod.test()
+      ctx.notifications:push(ok and "success" or "warn", "Audio", ok and "Test note sent" or tostring(err), 3)
+      return true
+    elseif self.page == "sound" and y == 12 then
+      if x <= 8 then audiod.setVolume(0.5) return true end
+      if x >= 10 and x <= 17 then audiod.setVolume(1) return true end
+      if x >= 19 and x <= 26 then audiod.setVolume(1.5) return true end
+      if x >= 28 and x <= 35 then audiod.setVolume(2) return true end
+    elseif self.page == "sound" and y >= 15 then
+      local st = audiod.status()
+      local item = (st.speakers or {})[y - 14]
+      if item then
+        local ok, err = audiod.use(item.side)
+        ctx.notifications:push(ok and "success" or "warn", "Audio", ok and ("Using " .. item.side) or tostring(err), 3)
+        return true
+      end
     elseif self.page == "system" and y == 10 and x <= 16 then
       self.mode = "label"
       self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
