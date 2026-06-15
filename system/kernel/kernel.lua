@@ -75,6 +75,9 @@ function M.start()
       ctx.notifications:push("warn", "Terminate", "Use Recovery or reboot from Terminal", 4)
     else
       ctx.eventBus:emit(event.name, table.unpack(event.args))
+      if event.name == "peripheral" or event.name == "peripheral_detach" then
+        ctx.notifications:push("info", "Devices", "Display refreshed", 2)
+      end
       ctx.scheduler:dispatch(event)
       ctx.wm:handle(event)
       desktop.handle(event)

@@ -42,11 +42,11 @@ function M.run(ctx)
     if event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
       if y == 1 and x <= 8 then
-        deviced.scan()
+        deviced.refreshDisplay()
         ctx.notifications:push("success", "Devices", "Rescan complete", 3)
         return true
       elseif y == 1 and x >= 10 and x <= 22 then
-        if deviced.useMonitor() then
+        if deviced.refreshDisplay() then
           ctx.notifications:push("success", "Devices", "Monitor selected", 3)
         else
           ctx.notifications:push("warn", "Devices", "No monitor found", 3)
@@ -1128,6 +1128,9 @@ function M.start()
       ctx.notifications:push("warn", "Terminate", "Use Recovery or reboot from Terminal", 4)
     else
       ctx.eventBus:emit(event.name, table.unpack(event.args))
+      if event.name == "peripheral" or event.name == "peripheral_detach" then
+        ctx.notifications:push("info", "Devices", "Display refreshed", 2)
+      end
       ctx.scheduler:dispatch(event)
       ctx.wm:handle(event)
       desktop.handle(event)
@@ -1392,6 +1395,7 @@ local M = {
     height = 0,
     monitorSide = nil,
   },
+  ctx = nil,
 }
 
 function M.scan()
@@ -1417,7 +1421,7 @@ function M.useMonitor()
   if monitor.setBackgroundColor then monitor.setBackgroundColor(colors.black) end
   if monitor.clear then monitor.clear() end
 
-  M.nativeTerm = term.current()
+  if not M.nativeTerm then M.nativeTerm = term.current() end
   term.redirect(monitor)
   M.redirected = true
   local w, h = term.getSize()
@@ -1430,6 +1434,25 @@ function M.useMonitor()
   }
   log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale 0.5")
   return true
+end
+
+function M.refreshDisplay()
+  M.scan()
+  local oldW, oldH = M.display.width, M.display.height
+  local ok = M.useMonitor()
+  if not ok then
+    if M.redirected and M.nativeTerm then
+      term.redirect(M.nativeTerm)
+    end
+    M.redirected = false
+    M.getDisplay()
+  end
+
+  local d = M.getDisplay()
+  if M.ctx and M.ctx.notifications and (d.width ~= oldW or d.height ~= oldH) then
+    M.ctx.notifications:push("success", "Display", tostring(d.width) .. "x" .. tostring(d.height), 3)
+  end
+  return ok
 end
 
 function M.isRedirected()
@@ -1451,15 +1474,14 @@ function M.getDisplay()
 end
 
 function M.start(ctx)
-  M.scan()
-  M.useMonitor()
+  M.ctx = ctx
+  M.refreshDisplay()
   if ctx and ctx.eventBus then
     ctx.eventBus:on("peripheral", function()
-      M.scan()
-      if not M.redirected then M.useMonitor() end
+      M.refreshDisplay()
     end)
     ctx.eventBus:on("peripheral_detach", function()
-      M.scan()
+      M.refreshDisplay()
     end)
   end
   log.info("deviced", "device service ready")

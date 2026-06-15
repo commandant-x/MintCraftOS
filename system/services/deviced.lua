@@ -11,6 +11,7 @@ local M = {
     height = 0,
     monitorSide = nil,
   },
+  ctx = nil,
 }
 
 function M.scan()
@@ -36,7 +37,7 @@ function M.useMonitor()
   if monitor.setBackgroundColor then monitor.setBackgroundColor(colors.black) end
   if monitor.clear then monitor.clear() end
 
-  M.nativeTerm = term.current()
+  if not M.nativeTerm then M.nativeTerm = term.current() end
   term.redirect(monitor)
   M.redirected = true
   local w, h = term.getSize()
@@ -49,6 +50,25 @@ function M.useMonitor()
   }
   log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale 0.5")
   return true
+end
+
+function M.refreshDisplay()
+  M.scan()
+  local oldW, oldH = M.display.width, M.display.height
+  local ok = M.useMonitor()
+  if not ok then
+    if M.redirected and M.nativeTerm then
+      term.redirect(M.nativeTerm)
+    end
+    M.redirected = false
+    M.getDisplay()
+  end
+
+  local d = M.getDisplay()
+  if M.ctx and M.ctx.notifications and (d.width ~= oldW or d.height ~= oldH) then
+    M.ctx.notifications:push("success", "Display", tostring(d.width) .. "x" .. tostring(d.height), 3)
+  end
+  return ok
 end
 
 function M.isRedirected()
@@ -70,15 +90,14 @@ function M.getDisplay()
 end
 
 function M.start(ctx)
-  M.scan()
-  M.useMonitor()
+  M.ctx = ctx
+  M.refreshDisplay()
   if ctx and ctx.eventBus then
     ctx.eventBus:on("peripheral", function()
-      M.scan()
-      if not M.redirected then M.useMonitor() end
+      M.refreshDisplay()
     end)
     ctx.eventBus:on("peripheral_detach", function()
-      M.scan()
+      M.refreshDisplay()
     end)
   end
   log.info("deviced", "device service ready")

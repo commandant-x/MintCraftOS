@@ -27,11 +27,11 @@ function M.run(ctx)
     if event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
       if y == 1 and x <= 8 then
-        deviced.scan()
+        deviced.refreshDisplay()
         ctx.notifications:push("success", "Devices", "Rescan complete", 3)
         return true
       elseif y == 1 and x >= 10 and x <= 22 then
-        if deviced.useMonitor() then
+        if deviced.refreshDisplay() then
           ctx.notifications:push("success", "Devices", "Monitor selected", 3)
         else
           ctx.notifications:push("warn", "Devices", "No monitor found", 3)
