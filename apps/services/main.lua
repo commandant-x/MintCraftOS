@@ -20,7 +20,8 @@ function M.run(ctx)
       local s = rows[self.scroll + i - 1]
       if s then
         local bg = s.name == self.selected and colors.cyan or colors.lightGray
-        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart), w), colors.black, bg)
+        local mark = protected[s.name] and " protected" or ""
+        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart) .. mark, w), colors.black, bg)
       end
     end
     local selected

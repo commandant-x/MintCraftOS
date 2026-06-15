@@ -18,9 +18,14 @@ function Window.new(opts)
     w = width,
     h = height,
     minimized = false,
+    maximized = false,
     closed = false,
     dragging = false,
     movePending = false,
+    minimizeBox = nil,
+    maximizeBox = nil,
+    closeBox = nil,
+    previousBounds = nil,
     app = opts.app,
     ownerPid = opts.ownerPid,
   }, Window)
@@ -42,14 +47,46 @@ function Window:titleContains(x, y)
   return y == self.y and x >= self.x and x < self.x + self.w
 end
 
+function Window:boxHit(box, x, y)
+  return box and x >= box.x and x < box.x + box.w and y == box.y
+end
+
+function Window:updateControls()
+  local y = self.y
+  self.minimizeBox = { x = self.x + self.w - 6, y = y, w = 2 }
+  self.maximizeBox = { x = self.x + self.w - 4, y = y, w = 2 }
+  self.closeBox = { x = self.x + self.w - 2, y = y, w = 2 }
+end
+
+function Window:toggleMaximize()
+  if self.maximized and self.previousBounds then
+    self.x = self.previousBounds.x
+    self.y = self.previousBounds.y
+    self.w = self.previousBounds.w
+    self.h = self.previousBounds.h
+    self.maximized = false
+    self.previousBounds = nil
+  else
+    self.previousBounds = { x = self.x, y = self.y, w = self.w, h = self.h }
+    local sw, sh = term.getSize()
+    self.x, self.y = 1, 1
+    self.w, self.h = sw, math.max(5, sh - 1)
+    self.maximized = true
+  end
+  self:clamp()
+end
+
 function Window:draw()
   if self.closed or self.minimized then return end
   self:clamp()
   renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
+  self:updateControls()
   local title = self.movePending and " Tap destination" or (" " .. self.title)
   renderer.writeAt(self.x, self.y, renderer.crop(title, self.w - 7), theme.get("titleFg"), theme.get("titleBg"))
-  renderer.writeAt(self.x + self.w - 6, self.y, " - []X", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.minimizeBox.x, self.y, " -", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.maximizeBox.x, self.y, self.maximized and "[]" or "[]", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.closeBox.x, self.y, " X", theme.get("titleFg"), theme.get("titleBg"))
 
   if self.app and self.app.draw then
     local target = window.create(term.current(), self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
@@ -78,16 +115,15 @@ function Window:handle(event)
       self:clamp()
       return true
     end
-    if button == 1 and y == self.y and x >= self.x + self.w - 1 then
+    self:updateControls()
+    if button == 1 and self:boxHit(self.closeBox, x, y) then
       self.closed = true
       return true
-    elseif button == 1 and y == self.y and x >= self.x + self.w - 6 and x < self.x + self.w - 3 then
+    elseif button == 1 and self:boxHit(self.minimizeBox, x, y) then
       self.minimized = true
       return true
-    elseif button == 1 and y == self.y and x >= self.x + self.w - 3 and x < self.x + self.w - 1 then
-      local sw, sh = term.getSize()
-      self.x, self.y = 1, 1
-      self.w, self.h = sw, math.max(5, sh - 1)
+    elseif button == 1 and self:boxHit(self.maximizeBox, x, y) then
+      self:toggleMaximize()
       return true
     elseif button == 1 and self:titleContains(x, y) then
       if event.monitorTouch then

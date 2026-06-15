@@ -1,26 +1,8 @@
 local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
+local autocomplete = require("system.dev.autocomplete")
 
 local M = {}
-
-local snippets = {
-  ["for"] = "for i = 1, n do\n  \nend",
-  ["if"] = "if condition then\n  \nend",
-  ["function"] = "function name(args)\n  \nend",
-  ["local"] = "local name = value",
-  ["while"] = "while condition do\n  \nend",
-  ["repeat"] = "repeat\n  \n until condition",
-  ["print"] = "print(\"\")",
-  ["require"] = "local mod = require(\"module\")",
-}
-
-local words = {
-  "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
-  "if", "in", "local", "nil", "not", "or", "repeat", "return", "then",
-  "true", "until", "while", "pairs", "ipairs", "pcall", "print", "require",
-  "table.insert", "string.sub", "term.setCursorPos", "fs.open", "fs.exists",
-  "os.pullEvent", "peripheral.find", "rednet.open", "http.get", "window.create",
-}
 
 local function splitLines(text)
   local lines = {}
@@ -49,54 +31,7 @@ local function writeFile(path, lines)
 end
 
 local function currentPrefix(line, col)
-  local left = line:sub(1, col - 1)
-  return left:match("([%w_%.]+)$") or ""
-end
-
-local function suggestion(prefix)
-  if prefix == "" then return nil end
-  for key in pairs(snippets) do
-    if key:sub(1, #prefix) == prefix then return key, snippets[key] end
-  end
-  for _, word in ipairs(words) do
-    if word:sub(1, #prefix) == prefix then return word, word end
-  end
-  return nil
-end
-
-local function collectModules()
-  local roots = { "/system", "/apps" }
-  local rows = {}
-  local function walk(path)
-    if not fs.exists(path) then return end
-    for _, name in ipairs(fs.list(path)) do
-      local full = fs.combine(path, name)
-      if fs.isDir(full) then
-        walk(full)
-      elseif name:match("%.lua$") then
-        local mod = full:gsub("^/", ""):gsub("%.lua$", ""):gsub("/", ".")
-        table.insert(rows, mod)
-      end
-    end
-  end
-  for _, root in ipairs(roots) do walk(root) end
-  table.sort(rows)
-  return rows
-end
-
-local function collectLocalWords(lines)
-  local found = {}
-  for _, line in ipairs(lines) do
-    local name = line:match("^%s*local%s+function%s+([%w_]+)")
-    if name then found[name] = true end
-    name = line:match("^%s*function%s+([%w_%.]+)")
-    if name then found[name] = true end
-    for localName in line:gmatch("local%s+([%w_]+)") do found[localName] = true end
-  end
-  local rows = {}
-  for name in pairs(found) do table.insert(rows, name) end
-  table.sort(rows)
-  return rows
+  return autocomplete.prefix(line, col, "([%w_%.]+)$")
 end
 
 local function insertText(app, text)
@@ -145,25 +80,12 @@ function M.run(ctx)
   local function applySuggestion()
     local line = app.lines[app.cy]
     local prefix = currentPrefix(line, app.cx)
-    local label, text = suggestion(prefix)
-    if not text then
-      for _, word in ipairs(collectLocalWords(app.lines)) do
-        if word:sub(1, #prefix) == prefix and word ~= prefix then
-          label, text = word, word
-          break
-        end
-      end
-    end
-    if not text then
-      for _, mod in ipairs(collectModules()) do
-        if mod:sub(1, #prefix) == prefix then label, text = mod, mod break end
-      end
-    end
-    if not text then return false end
-    app.lines[app.cy] = line:sub(1, app.cx - #prefix - 1) .. line:sub(app.cx)
-    app.cx = app.cx - #prefix
-    insertText(app, text)
-    app.status = "Inserted " .. label
+    local sug = autocomplete.suggest({ mode = "editor", prefix = prefix, lines = app.lines })
+    if not sug then return false end
+    local replaced, cursor = autocomplete.apply(line, app.cx, sug, prefix)
+    app.lines[app.cy] = replaced
+    app.cx = cursor
+    app.status = "Inserted " .. sug.label
     return true
   end
 
@@ -180,7 +102,7 @@ function M.run(ctx)
 
   function app:draw(w, h)
     local prefix = currentPrefix(self.lines[self.cy] or "", self.cx)
-    local sug = suggestion(prefix)
+    local sug = autocomplete.suggest({ mode = "editor", prefix = prefix, lines = self.lines })
     renderer.writeAt(1, 1, renderer.crop("[Save] [Compile] " .. self.path, w), colors.white, colors.gray)
     local maxLines = math.max(4, h - keyboard.height() - 3)
     if self.cy < self.scroll then self.scroll = self.cy end
@@ -192,18 +114,10 @@ function M.run(ctx)
       renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), colors.black, colors.lightGray)
     end
     renderer.writeAt(1, h - 5, renderer.crop(self.status, w), colors.white, colors.gray)
-    local locals = collectLocalWords(self.lines)
-    if not sug then
-      local prefix2 = currentPrefix(self.lines[self.cy] or "", self.cx)
-      for _, word in ipairs(locals) do if word:sub(1, #prefix2) == prefix2 and word ~= prefix2 then sug = word break end end
-      if not sug then
-        for _, mod in ipairs(collectModules()) do if mod:sub(1, #prefix2) == prefix2 then sug = mod break end end
-      end
-    end
-    if sug then renderer.writeAt(1, h - keyboard.height(), renderer.crop("Tab: " .. sug, w), colors.black, colors.orange) end
+    if sug then renderer.writeAt(1, h - keyboard.height(), renderer.crop("Tab: " .. sug.label .. " [" .. sug.kind .. "]", w), colors.black, colors.orange) end
     self.keyboard.x = 1
     self.keyboard.y = h - keyboard.height() + 1
-    self.keyboard.hint = sug and ("Tab: " .. sug) or ""
+    self.keyboard.hint = sug and ("Tab: " .. sug.label) or ""
     keyboard.draw(1, self.keyboard.y, w, self.keyboard)
   end
 

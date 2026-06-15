@@ -53,13 +53,23 @@ function M.run(ctx)
     renderer.writeAt(2, 3, renderer.crop("CPU est. CC: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 4, renderer.crop(memoryStats(), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 5, renderer.crop(diskStats(), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(1, 7, renderer.crop("PID STATE    NAME", w), colors.black, colors.gray)
+    renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), colors.black, colors.gray)
 
     for i = 1, math.min(#rows, h - 7) do
       local p = rows[self.scroll + i - 1]
       if p then
         local bg = p.pid == self.selectedPid and colors.cyan or colors.lightGray
-        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, bg)
+        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. tostring(p.appId or "-") .. "   " .. p.name, w), colors.black, bg)
+      end
+    end
+    if self.selectedPid then
+      for _, p in ipairs(rows) do
+        if p.pid == self.selectedPid then
+          local perms = table.concat(p.permissions or {}, ",")
+          renderer.writeAt(1, h - 1, renderer.crop("Window: " .. tostring(p.windowId or "-") .. " Started: " .. tostring(p.startedAt or "-"), w), colors.gray, colors.lightGray)
+          renderer.writeAt(1, h, renderer.crop("Perms: " .. (perms ~= "" and perms or "-") .. " Err: " .. tostring(p.error or "-"), w), colors.gray, colors.lightGray)
+          break
+        end
       end
     end
   end

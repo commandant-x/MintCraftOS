@@ -11,12 +11,23 @@ function M.run(ctx)
     { id = "error", label = "Error" },
     { id = "warn", label = "Warn" },
     { id = "info", label = "Info" },
+    { id = "debug", label = "Debug" },
     { id = "refresh", label = "Refresh" },
   }
 
-  local function matches(line, filter)
+  local function parse(line)
+    local ok, row = pcall(textutils.unserialize, line)
+    if ok and type(row) == "table" then return row end
+    return { level = "info", source = "raw", message = line, time = "" }
+  end
+
+  local function format(row)
+    return tostring(row.time or "") .. " " .. tostring(row.level or "?") .. " " .. tostring(row.source or "?") .. ": " .. tostring(row.message or "")
+  end
+
+  local function matches(row, filter)
     if filter == "all" then return true end
-    return line:lower():find("\"" .. filter .. "\"", 1, true) ~= nil
+    return tostring(row.level or "") == filter
   end
 
   function app:draw(w, h)
@@ -24,7 +35,10 @@ function M.run(ctx)
     renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), colors.black, colors.lightGray)
     local raw = log.tail(120)
     local lines = {}
-    for _, line in ipairs(raw) do if matches(line, self.filter) then table.insert(lines, line) end end
+    for _, line in ipairs(raw) do
+      local row = parse(line)
+      if matches(row, self.filter) then table.insert(lines, format(row)) end
+    end
     local start = math.max(1, #lines - h + 3)
     local y = 3
     for i = start, #lines do

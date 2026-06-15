@@ -1,4 +1,4 @@
--- MintCraft OS V0.6.2 installer for CC:Tweaked
+-- MintCraft OS V0.6.3 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".settings"] = [[{
@@ -31,7 +31,7 @@ SOFTWARE.
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.6.2 base:
+This repository currently contains the V0.6.3 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -75,12 +75,12 @@ Then reboot:
 reboot
 ```
 ]],
-  ["VERSION"] = [[0.6.2
+  ["VERSION"] = [[0.6.3
 ]],
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -139,34 +139,16 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
 ]],
   ["apps/editor/main.lua"] = [[local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
+local autocomplete = require("system.dev.autocomplete")
 
 local M = {}
-
-local snippets = {
-  ["for"] = "for i = 1, n do\n  \nend",
-  ["if"] = "if condition then\n  \nend",
-  ["function"] = "function name(args)\n  \nend",
-  ["local"] = "local name = value",
-  ["while"] = "while condition do\n  \nend",
-  ["repeat"] = "repeat\n  \n until condition",
-  ["print"] = "print(\"\")",
-  ["require"] = "local mod = require(\"module\")",
-}
-
-local words = {
-  "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
-  "if", "in", "local", "nil", "not", "or", "repeat", "return", "then",
-  "true", "until", "while", "pairs", "ipairs", "pcall", "print", "require",
-  "table.insert", "string.sub", "term.setCursorPos", "fs.open", "fs.exists",
-  "os.pullEvent", "peripheral.find", "rednet.open", "http.get", "window.create",
-}
 
 local function splitLines(text)
   local lines = {}
@@ -195,54 +177,7 @@ local function writeFile(path, lines)
 end
 
 local function currentPrefix(line, col)
-  local left = line:sub(1, col - 1)
-  return left:match("([%w_%.]+)$") or ""
-end
-
-local function suggestion(prefix)
-  if prefix == "" then return nil end
-  for key in pairs(snippets) do
-    if key:sub(1, #prefix) == prefix then return key, snippets[key] end
-  end
-  for _, word in ipairs(words) do
-    if word:sub(1, #prefix) == prefix then return word, word end
-  end
-  return nil
-end
-
-local function collectModules()
-  local roots = { "/system", "/apps" }
-  local rows = {}
-  local function walk(path)
-    if not fs.exists(path) then return end
-    for _, name in ipairs(fs.list(path)) do
-      local full = fs.combine(path, name)
-      if fs.isDir(full) then
-        walk(full)
-      elseif name:match("%.lua$") then
-        local mod = full:gsub("^/", ""):gsub("%.lua$", ""):gsub("/", ".")
-        table.insert(rows, mod)
-      end
-    end
-  end
-  for _, root in ipairs(roots) do walk(root) end
-  table.sort(rows)
-  return rows
-end
-
-local function collectLocalWords(lines)
-  local found = {}
-  for _, line in ipairs(lines) do
-    local name = line:match("^%s*local%s+function%s+([%w_]+)")
-    if name then found[name] = true end
-    name = line:match("^%s*function%s+([%w_%.]+)")
-    if name then found[name] = true end
-    for localName in line:gmatch("local%s+([%w_]+)") do found[localName] = true end
-  end
-  local rows = {}
-  for name in pairs(found) do table.insert(rows, name) end
-  table.sort(rows)
-  return rows
+  return autocomplete.prefix(line, col, "([%w_%.]+)$")
 end
 
 local function insertText(app, text)
@@ -291,25 +226,12 @@ function M.run(ctx)
   local function applySuggestion()
     local line = app.lines[app.cy]
     local prefix = currentPrefix(line, app.cx)
-    local label, text = suggestion(prefix)
-    if not text then
-      for _, word in ipairs(collectLocalWords(app.lines)) do
-        if word:sub(1, #prefix) == prefix and word ~= prefix then
-          label, text = word, word
-          break
-        end
-      end
-    end
-    if not text then
-      for _, mod in ipairs(collectModules()) do
-        if mod:sub(1, #prefix) == prefix then label, text = mod, mod break end
-      end
-    end
-    if not text then return false end
-    app.lines[app.cy] = line:sub(1, app.cx - #prefix - 1) .. line:sub(app.cx)
-    app.cx = app.cx - #prefix
-    insertText(app, text)
-    app.status = "Inserted " .. label
+    local sug = autocomplete.suggest({ mode = "editor", prefix = prefix, lines = app.lines })
+    if not sug then return false end
+    local replaced, cursor = autocomplete.apply(line, app.cx, sug, prefix)
+    app.lines[app.cy] = replaced
+    app.cx = cursor
+    app.status = "Inserted " .. sug.label
     return true
   end
 
@@ -326,7 +248,7 @@ function M.run(ctx)
 
   function app:draw(w, h)
     local prefix = currentPrefix(self.lines[self.cy] or "", self.cx)
-    local sug = suggestion(prefix)
+    local sug = autocomplete.suggest({ mode = "editor", prefix = prefix, lines = self.lines })
     renderer.writeAt(1, 1, renderer.crop("[Save] [Compile] " .. self.path, w), colors.white, colors.gray)
     local maxLines = math.max(4, h - keyboard.height() - 3)
     if self.cy < self.scroll then self.scroll = self.cy end
@@ -338,18 +260,10 @@ function M.run(ctx)
       renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), colors.black, colors.lightGray)
     end
     renderer.writeAt(1, h - 5, renderer.crop(self.status, w), colors.white, colors.gray)
-    local locals = collectLocalWords(self.lines)
-    if not sug then
-      local prefix2 = currentPrefix(self.lines[self.cy] or "", self.cx)
-      for _, word in ipairs(locals) do if word:sub(1, #prefix2) == prefix2 and word ~= prefix2 then sug = word break end end
-      if not sug then
-        for _, mod in ipairs(collectModules()) do if mod:sub(1, #prefix2) == prefix2 then sug = mod break end end
-      end
-    end
-    if sug then renderer.writeAt(1, h - keyboard.height(), renderer.crop("Tab: " .. sug, w), colors.black, colors.orange) end
+    if sug then renderer.writeAt(1, h - keyboard.height(), renderer.crop("Tab: " .. sug.label .. " [" .. sug.kind .. "]", w), colors.black, colors.orange) end
     self.keyboard.x = 1
     self.keyboard.y = h - keyboard.height() + 1
-    self.keyboard.hint = sug and ("Tab: " .. sug) or ""
+    self.keyboard.hint = sug and ("Tab: " .. sug.label) or ""
     keyboard.draw(1, self.keyboard.y, w, self.keyboard)
   end
 
@@ -407,7 +321,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -468,6 +382,18 @@ local function trashPath(path)
   return candidate
 end
 
+local protected = {
+  ["/system"] = true,
+  ["/apps"] = true,
+  ["/boot.lua"] = true,
+  ["/startup.lua"] = true,
+}
+
+local function isProtected(path)
+  if protected[path] then return true end
+  return path:match("^/system/") or path:match("^/apps/")
+end
+
 local function extOf(path)
   return (path:match("%.([^%.]+)$") or ""):lower()
 end
@@ -496,6 +422,7 @@ function M.run(ctx)
     { label = "New dir", id = "new_dir" },
     { label = "Rename", id = "rename" },
     { label = "Delete", id = "delete" },
+    { label = "Restore", id = "restore" },
     { label = "Refresh", id = "refresh" },
   }
   local toolbar = {}
@@ -578,7 +505,23 @@ function M.run(ctx)
     elseif action == "delete" then
       if app.selected then
         local full = selectedPath()
-        app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+        if isProtected(full) then
+          ctx.notifications:push("error", "Files", "Protected path", 3)
+        else
+          app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+        end
+      end
+    elseif action == "restore" then
+      if app.selected and app.path == "/home/user/.trash" then
+        local from = selectedPath()
+        local to = fs.combine("/home/user", app.selected:gsub("%.%d+$", ""))
+        if fs.exists(from) and not fs.exists(to) then
+          fs.move(from, to)
+          ctx.notifications:push("success", "Files", "Restored to /home/user", 3)
+          app.selected = nil
+        else
+          ctx.notifications:push("warn", "Files", "Cannot restore", 3)
+        end
       end
     elseif action == "refresh" then
       app.scroll = 1
@@ -683,7 +626,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -701,12 +644,23 @@ function M.run(ctx)
     { id = "error", label = "Error" },
     { id = "warn", label = "Warn" },
     { id = "info", label = "Info" },
+    { id = "debug", label = "Debug" },
     { id = "refresh", label = "Refresh" },
   }
 
-  local function matches(line, filter)
+  local function parse(line)
+    local ok, row = pcall(textutils.unserialize, line)
+    if ok and type(row) == "table" then return row end
+    return { level = "info", source = "raw", message = line, time = "" }
+  end
+
+  local function format(row)
+    return tostring(row.time or "") .. " " .. tostring(row.level or "?") .. " " .. tostring(row.source or "?") .. ": " .. tostring(row.message or "")
+  end
+
+  local function matches(row, filter)
     if filter == "all" then return true end
-    return line:lower():find("\"" .. filter .. "\"", 1, true) ~= nil
+    return tostring(row.level or "") == filter
   end
 
   function app:draw(w, h)
@@ -714,7 +668,10 @@ function M.run(ctx)
     renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), colors.black, colors.lightGray)
     local raw = log.tail(120)
     local lines = {}
-    for _, line in ipairs(raw) do if matches(line, self.filter) then table.insert(lines, line) end end
+    for _, line in ipairs(raw) do
+      local row = parse(line)
+      if matches(row, self.filter) then table.insert(lines, format(row)) end
+    end
     local start = math.max(1, #lines - h + 3)
     local y = 3
     for i = start, #lines do
@@ -746,7 +703,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -773,7 +730,8 @@ function M.run(ctx)
       local s = rows[self.scroll + i - 1]
       if s then
         local bg = s.name == self.selected and colors.cyan or colors.lightGray
-        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart), w), colors.black, bg)
+        local mark = protected[s.name] and " protected" or ""
+        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart) .. mark, w), colors.black, bg)
       end
     end
     local selected
@@ -824,7 +782,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -834,11 +792,12 @@ local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
 local ui = require("system.gui.components")
+local keyboard = require("system.gui.keyboard")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { page = "system", scroll = 1 }
+  local app = { page = "system", scroll = 1, mode = nil, input = "", keyboard = {} }
 
   local pages = {
     { id = "system", label = "System" },
@@ -898,6 +857,7 @@ function M.run(ctx)
       renderer.writeAt(1, 5, "MintCraft: " .. tostring(config.load("/system/config/system.cfg", {}).version or "?"), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
       renderer.writeAt(1, 8, "CraftOS over CC:Tweaked", colors.gray, colors.lightGray)
+      renderer.button(1, 10, 16, "Set label", false)
     elseif self.page == "display" then
       local d = deviced.getDisplay()
       renderer.writeAt(1, 3, "Target: " .. tostring(d.target), colors.black, colors.lightGray)
@@ -932,11 +892,11 @@ function M.run(ctx)
       renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
     elseif self.page == "apps" then
       local rows = ctx.apps.list()
-      renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY", w), colors.black, colors.gray)
+      renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)
       for i = 1, math.min(#rows, h - 4) do
         local item = rows[self.scroll + i - 1]
         if item then
-          renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category, w), colors.black, colors.lightGray)
+          renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category .. "   " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
         end
       end
     elseif self.page == "dev" then
@@ -948,10 +908,30 @@ function M.run(ctx)
       renderer.button(16, 7, 14, "Dark", theme.currentId == "dark")
       renderer.button(1, 9, 14, "Open Editor", false)
     end
+    if self.mode == "label" then
+      self.keyboard.x = 1
+      self.keyboard.y = math.max(1, h - keyboard.height() + 1)
+      self.keyboard.hint = "Label: " .. self.input
+      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+    end
     renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
   end
 
+  app.keyboard.onText = function(ch) app.input = app.input .. ch end
+  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
+  app.keyboard.onEnter = function()
+    if app.mode == "label" and os.setComputerLabel then os.setComputerLabel(app.input) end
+    app.mode = nil
+    app.input = ""
+  end
+
   function app:handle(event)
+    if self.mode == "label" then
+      if event.name == "char" then self.input = self.input .. event.args[1] return true end
+      if event.name == "key" and event.args[1] == keys.backspace then self.input = self.input:sub(1, -2) return true end
+      if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
+      if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+    end
     if event.name == "mouse_scroll" and self.page == "apps" then
       self.scroll = math.max(1, self.scroll + event.args[1])
       return true
@@ -979,6 +959,10 @@ function M.run(ctx)
     elseif self.page == "display" and y == 9 and x <= 18 then
       deviced.refreshDisplay()
       return true
+    elseif self.page == "system" and y == 10 and x <= 16 then
+      self.mode = "label"
+      self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
+      return true
     elseif self.page == "dev" and y == 9 and x <= 14 then
       ctx.apps.launch("editor")
       return true
@@ -996,7 +980,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1056,13 +1040,23 @@ function M.run(ctx)
     renderer.writeAt(2, 3, renderer.crop("CPU est. CC: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 4, renderer.crop(memoryStats(), w - 2), colors.black, colors.lightGray)
     renderer.writeAt(2, 5, renderer.crop(diskStats(), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(1, 7, renderer.crop("PID STATE    NAME", w), colors.black, colors.gray)
+    renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), colors.black, colors.gray)
 
     for i = 1, math.min(#rows, h - 7) do
       local p = rows[self.scroll + i - 1]
       if p then
         local bg = p.pid == self.selectedPid and colors.cyan or colors.lightGray
-        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. p.name, w), colors.black, bg)
+        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. tostring(p.appId or "-") .. "   " .. p.name, w), colors.black, bg)
+      end
+    end
+    if self.selectedPid then
+      for _, p in ipairs(rows) do
+        if p.pid == self.selectedPid then
+          local perms = table.concat(p.permissions or {}, ",")
+          renderer.writeAt(1, h - 1, renderer.crop("Window: " .. tostring(p.windowId or "-") .. " Started: " .. tostring(p.startedAt or "-"), w), colors.gray, colors.lightGray)
+          renderer.writeAt(1, h, renderer.crop("Perms: " .. (perms ~= "" and perms or "-") .. " Err: " .. tostring(p.error or "-"), w), colors.gray, colors.lightGray)
+          break
+        end
       end
     end
   end
@@ -1100,7 +1094,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.6.2",
+  version = "0.6.3",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -1108,12 +1102,37 @@ return M
   ["apps/terminal/main.lua"] = [[local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 local keyboard = require("system.gui.keyboard")
+local ui = require("system.gui.components")
+local autocomplete = require("system.dev.autocomplete")
 
 local M = {}
 
 local function append(app, line)
   table.insert(app.lines, line)
   if #app.lines > 200 then table.remove(app.lines, 1) end
+end
+
+local help = {
+  ls = "ls [dir] - list directory",
+  cd = "cd <dir> - change directory",
+  pwd = "pwd - print current directory",
+  mkdir = "mkdir <dir> - create directory",
+  cp = "cp <src> <dst> - copy file or directory",
+  mv = "mv <src> <dst> - move or rename",
+  rm = "rm <path> - delete after yes confirmation",
+  trash = "trash - open user trash in Files",
+  restore = "restore <name> - restore from /home/user/.trash",
+  cat = "cat <file> - show file",
+  type = "type <file> - alias of cat",
+  edit = "edit <file> - open Editor",
+  open = "open <path> - open Files or Editor",
+  ps = "ps - list processes",
+  kill = "kill <pid> - kill after yes confirmation",
+  logs = "logs - show recent logs",
+}
+
+local function trashPath(name)
+  return fs.combine("/home/user/.trash", name)
 end
 
 local function runCommand(app, ctx, input)
@@ -1186,7 +1205,17 @@ local function runCommand(app, ctx, input)
   elseif cmd == "open" then
     local path = rest ~= "" and fs.combine(app.cwd, rest) or app.cwd
     if fs.isDir(path) then ctx.apps.launch("files", { path = path }) else ctx.apps.launch("editor", { path = path }) end
-  elseif cmd == "cat" then
+  elseif cmd == "trash" then
+    ctx.apps.launch("files", { path = "/home/user/.trash" })
+  elseif cmd == "restore" then
+    if rest == "" then
+      append(app, "Usage: restore <name>")
+    else
+      local from = trashPath(rest)
+      local to = fs.combine(app.cwd, rest)
+      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) append(app, "restored") else append(app, "Cannot restore") end
+    end
+  elseif cmd == "cat" or cmd == "type" then
     local path = fs.combine(app.cwd, rest)
     if fs.exists(path) then
       local h = fs.open(path, "r")
@@ -1218,7 +1247,12 @@ local function runCommand(app, ctx, input)
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "help" then
-    append(app, "Commands: ls cd pwd mkdir cp mv rm cat edit open clear ps kill logs files settings devices reboot help")
+    if rest ~= "" and help[rest] then
+      append(app, help[rest])
+    else
+      append(app, "Commands: " .. table.concat(autocomplete.commands(), " "))
+      append(app, "Use help <cmd> for details.")
+    end
   else
     append(app, "Unknown command: " .. cmd)
   end
@@ -1232,49 +1266,35 @@ function M.run(ctx)
     caps = false,
     shift = false,
     suggestion = nil,
+    history = {},
+    historyIndex = nil,
     keyboard = {},
   }
 
-  local commands = { "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "cat", "edit", "open", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
-
   local quick = {
-    { label = "ls", text = "ls" },
-    { label = "cd home", text = "cd /home/user" },
-    { label = "files", text = "files" },
-    { label = "ps", text = "ps" },
-    { label = "logs", text = "logs" },
-    { label = "clear", text = "clear" },
+    { id = "ls", label = "ls", text = "ls" },
+    { id = "home", label = "cd home", text = "cd /home/user" },
+    { id = "files", label = "files", text = "files" },
+    { id = "ps", label = "ps", text = "ps" },
+    { id = "logs", label = "logs", text = "logs" },
+    { id = "clear", label = "clear", text = "clear" },
   }
 
   local function currentWord()
-    return app.input:match("([%w_%-/%.]+)$") or ""
+    return autocomplete.prefix(app.input, #app.input + 1, "([%w_%-/%.]+)$")
   end
 
   local function updateSuggestion()
     local prefix = currentWord()
-    app.suggestion = nil
-    if prefix == "" then return end
-    for _, cmd in ipairs(commands) do
-      if cmd:sub(1, #prefix) == prefix then app.suggestion = cmd return end
-    end
-    local dir = app.cwd
-    local part = prefix
-    if prefix:find("/") then
-      dir = fs.getDir(fs.combine(app.cwd, prefix))
-      part = fs.getName(prefix)
-    end
-    if fs.exists(dir) and fs.isDir(dir) then
-      for _, name in ipairs(fs.list(dir)) do
-        if name:sub(1, #part) == part then app.suggestion = name return end
-      end
-    end
+    app.suggestion = autocomplete.suggest({ mode = "terminal", prefix = prefix, cwd = app.cwd })
   end
 
   local function acceptSuggestion()
     updateSuggestion()
     if not app.suggestion then return false end
     local prefix = currentWord()
-    app.input = app.input:sub(1, #app.input - #prefix) .. app.suggestion
+    local text = autocomplete.apply(app.input, #app.input + 1, app.suggestion, prefix)
+    app.input = text
     app.suggestion = nil
     return true
   end
@@ -1282,6 +1302,7 @@ function M.run(ctx)
   local function submit()
     local input = app.input
     app.input = ""
+    if input ~= "" then table.insert(app.history, input) app.historyIndex = nil end
     runCommand(app, ctx, input)
   end
 
@@ -1310,13 +1331,7 @@ function M.run(ctx)
     updateSuggestion()
     local top = math.max(3, h - keyboard.height())
     local logHeight = math.max(1, top - 3)
-    local cursor = 1
-    for _, item in ipairs(quick) do
-      local label = " " .. item.label .. " "
-      renderer.writeAt(cursor, 1, renderer.crop(label, #label), colors.white, colors.gray)
-      cursor = cursor + #label + 1
-      if cursor > w then break end
-    end
+    self.quickBoxes = ui.toolbar(1, 1, w, quick)
 
     local start = math.max(1, #self.lines - logHeight + 1)
     local y = 2
@@ -1326,12 +1341,12 @@ function M.run(ctx)
       if y >= top - 1 then break end
     end
     local prompt = self.cwd .. "> " .. self.input
-    if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion .. "]" end
+    if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion.label .. "]" end
     renderer.writeAt(1, top - 1, renderer.crop(prompt, w), colors.white, colors.gray)
 
     self.keyboard.x = 1
     self.keyboard.y = top
-    self.keyboard.hint = self.suggestion and ("Tab: " .. self.suggestion) or ""
+    self.keyboard.hint = self.suggestion and ("Tab: " .. self.suggestion.label) or ""
     keyboard.draw(1, top, w, self.keyboard)
   end
 
@@ -1353,9 +1368,27 @@ function M.run(ctx)
       elseif key == keys.tab then
         acceptSuggestion()
         return true
+      elseif key == keys.up then
+        if #self.history > 0 then
+          self.historyIndex = self.historyIndex and math.max(1, self.historyIndex - 1) or #self.history
+          self.input = self.history[self.historyIndex] or self.input
+        end
+        return true
+      elseif key == keys.down then
+        if self.historyIndex then
+          self.historyIndex = self.historyIndex + 1
+          if self.historyIndex > #self.history then self.historyIndex = nil self.input = "" else self.input = self.history[self.historyIndex] end
+        end
+        return true
       end
     elseif event.name == "mouse_click" and event.monitorTouch then
       local _, x, y = table.unpack(event.args)
+      local quickId = ui.toolbarHit(self.quickBoxes, x, y)
+      if quickId then
+        for _, item in ipairs(quick) do
+          if item.id == quickId then app.input = item.text submit() return true end
+        end
+      end
       if hitQuick(x, y) then return true end
       if keyboard.handle(event, self.keyboard) then return true end
     end
@@ -1372,7 +1405,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.6.2",
+  version = "0.6.3",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1527,6 +1560,7 @@ local REQUIRED_DIRS = {
   "/system",
   "/system/boot",
   "/system/config",
+  "/system/dev",
   "/system/gui",
   "/system/kernel",
   "/system/libraries",
@@ -1558,7 +1592,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.6.2",
+    version = "0.6.3",
     theme = "mint",
     debug = true,
     safeMode = false,
@@ -1569,8 +1603,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.6.2" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.6.2"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.6.3" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.6.3"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -1591,6 +1625,7 @@ print("")
 print("Commands:")
 print("  shell  - open CraftOS shell")
 print("  logs   - show last system log lines")
+print("  crash  - show last crash log")
 print("  reboot - reboot computer")
 print("  exit   - return to caller")
 print("")
@@ -1608,6 +1643,12 @@ while true do
       shell.run("type", "/var/logs/system.log")
     else
       print("No logs found.")
+    end
+  elseif cmd == "crash" then
+    if fs.exists("/var/logs/last_crash.log") then
+      shell.run("type", "/var/logs/last_crash.log")
+    else
+      print("No crash log found.")
     end
   elseif cmd == "reboot" then
     os.reboot()
@@ -1645,7 +1686,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.6.2",
+  version = "0.6.3",
   theme = "mint",
   debug = true,
   safeMode = false,
@@ -1664,6 +1705,144 @@ return M
   autoApply = false,
   lastStatus = "never checked",
 }
+]],
+  ["system/dev/autocomplete.lua"] = [[local M = {}
+
+local luaWords = {
+  "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
+  "if", "in", "local", "nil", "not", "or", "repeat", "return", "then",
+  "true", "until", "while", "pairs", "ipairs", "pcall", "print", "require",
+}
+
+local ccWords = {
+  "fs.open", "fs.exists", "fs.list", "fs.combine", "term.setCursorPos",
+  "term.getSize", "textutils.serialize", "os.pullEvent", "os.reboot",
+  "peripheral.find", "rednet.open", "http.get", "window.create",
+  "table.insert", "table.remove", "string.sub", "string.match",
+}
+
+local terminalCommands = {
+  "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
+  "edit", "open", "clear", "ps", "kill", "logs", "files", "settings", "devices",
+  "reboot", "help",
+}
+
+local snippets = {
+  { label = "function", insert = "function name(args)\n  \nend", kind = "snippet" },
+  { label = "if", insert = "if condition then\n  \nend", kind = "snippet" },
+  { label = "for", insert = "for i = 1, n do\n  \nend", kind = "snippet" },
+  { label = "while", insert = "while condition do\n  \nend", kind = "snippet" },
+  { label = "repeat", insert = "repeat\n  \nuntil condition", kind = "snippet" },
+  { label = "pcall", insert = "local ok, err = pcall(function()\n  \nend)", kind = "snippet" },
+  { label = "require", insert = "local mod = require(\"module\")", kind = "snippet" },
+}
+
+local function add(rows, seen, label, insert, kind)
+  if label and label ~= "" and not seen[label] then
+    seen[label] = true
+    table.insert(rows, { label = label, insert = insert or label, kind = kind or "word" })
+  end
+end
+
+local function listModules()
+  local rows = {}
+  local function walk(path)
+    if not fs.exists(path) then return end
+    for _, name in ipairs(fs.list(path)) do
+      local full = fs.combine(path, name)
+      if fs.isDir(full) then
+        walk(full)
+      elseif name:match("%.lua$") then
+        table.insert(rows, full:gsub("^/", ""):gsub("%.lua$", ""):gsub("/", "."))
+      end
+    end
+  end
+  walk("/system")
+  walk("/apps")
+  table.sort(rows)
+  return rows
+end
+
+local function localSymbols(lines)
+  local found = {}
+  for _, line in ipairs(lines or {}) do
+    local name = line:match("^%s*local%s+function%s+([%w_]+)")
+    if name then found[name] = true end
+    name = line:match("^%s*function%s+([%w_%.]+)")
+    if name then found[name] = true end
+    for localName in line:gmatch("local%s+([%w_]+)") do found[localName] = true end
+  end
+  local rows = {}
+  for name in pairs(found) do table.insert(rows, name) end
+  table.sort(rows)
+  return rows
+end
+
+function M.prefix(text, cursor, pattern)
+  local left = tostring(text or ""):sub(1, (cursor or 1) - 1)
+  return left:match(pattern or "([%w_%.%-/]+)$") or ""
+end
+
+function M.suggest(ctx)
+  ctx = ctx or {}
+  local prefix = ctx.prefix or M.prefix(ctx.text or "", ctx.cursor or 1, ctx.pattern)
+  if prefix == "" then return nil end
+
+  local rows, seen = {}, {}
+  if ctx.mode == "terminal" then
+    for _, cmd in ipairs(terminalCommands) do
+      if cmd:sub(1, #prefix) == prefix then add(rows, seen, cmd, cmd, "command") end
+    end
+    local dir = ctx.cwd or "/"
+    local part = prefix
+    if prefix:find("/") then
+      dir = fs.getDir(fs.combine(ctx.cwd or "/", prefix))
+      part = fs.getName(prefix)
+    end
+    if fs.exists(dir) and fs.isDir(dir) then
+      for _, name in ipairs(fs.list(dir)) do
+        if name:sub(1, #part) == part then add(rows, seen, name, name, "path") end
+      end
+    end
+  else
+    for _, item in ipairs(snippets) do
+      if item.label:sub(1, #prefix) == prefix then add(rows, seen, item.label, item.insert, item.kind) end
+    end
+    for _, word in ipairs(luaWords) do
+      if word:sub(1, #prefix) == prefix then add(rows, seen, word, word, "lua") end
+    end
+    for _, word in ipairs(ccWords) do
+      if word:sub(1, #prefix) == prefix then add(rows, seen, word, word, "cc") end
+    end
+    for _, word in ipairs(localSymbols(ctx.lines or {})) do
+      if word:sub(1, #prefix) == prefix and word ~= prefix then add(rows, seen, word, word, "local") end
+    end
+    if #rows == 0 then
+      for _, mod in ipairs(listModules()) do
+        if mod:sub(1, #prefix) == prefix then add(rows, seen, mod, mod, "module") end
+      end
+    end
+  end
+
+  return rows[1]
+end
+
+function M.apply(text, cursor, suggestion, prefix)
+  text = tostring(text or "")
+  cursor = cursor or 1
+  if not suggestion then return text, cursor end
+  prefix = prefix or M.prefix(text, cursor)
+  local before = text:sub(1, cursor - #prefix - 1)
+  local after = text:sub(cursor)
+  local insert = suggestion.insert or suggestion.label or ""
+  return before .. insert .. after, #before + #insert + 1
+end
+
+function M.commands()
+  return terminalCommands
+end
+
+return M
 ]],
   ["system/gui/components.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
@@ -2347,15 +2526,15 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.6.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.6.2", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.6.2", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.6.2", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.6.2", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.6.2", permissions = { "services.list", "services.control" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.6.2", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.6.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.6.2", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.6.3", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.6.3", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.6.3", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.6.3", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.6.3", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.6.3", permissions = { "services.list", "services.control" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.6.3", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.6.3", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.6.3", permissions = { "network.http", "system.update" } })
 
   desktop.setApps(apps)
   desktop.setWindowManager(ctx.wm)
@@ -2505,10 +2684,12 @@ function Scheduler:list()
       pid = process.pid,
       name = process.name,
       state = process.state,
+      appId = process.meta and process.meta.appId or nil,
       filter = process.filter,
       error = process.error,
       permissions = process.permissions,
       windowId = process.window and process.window.id or nil,
+      startedAt = process.startedAt,
     })
   end
   table.sort(rows, function(a, b) return a.pid < b.pid end)
@@ -2556,7 +2737,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.6.2",
+    version = meta.version or "0.6.3",
     permissions = meta.permissions or {},
   }
 end
@@ -3167,9 +3348,14 @@ function Window.new(opts)
     w = width,
     h = height,
     minimized = false,
+    maximized = false,
     closed = false,
     dragging = false,
     movePending = false,
+    minimizeBox = nil,
+    maximizeBox = nil,
+    closeBox = nil,
+    previousBounds = nil,
     app = opts.app,
     ownerPid = opts.ownerPid,
   }, Window)
@@ -3191,14 +3377,46 @@ function Window:titleContains(x, y)
   return y == self.y and x >= self.x and x < self.x + self.w
 end
 
+function Window:boxHit(box, x, y)
+  return box and x >= box.x and x < box.x + box.w and y == box.y
+end
+
+function Window:updateControls()
+  local y = self.y
+  self.minimizeBox = { x = self.x + self.w - 6, y = y, w = 2 }
+  self.maximizeBox = { x = self.x + self.w - 4, y = y, w = 2 }
+  self.closeBox = { x = self.x + self.w - 2, y = y, w = 2 }
+end
+
+function Window:toggleMaximize()
+  if self.maximized and self.previousBounds then
+    self.x = self.previousBounds.x
+    self.y = self.previousBounds.y
+    self.w = self.previousBounds.w
+    self.h = self.previousBounds.h
+    self.maximized = false
+    self.previousBounds = nil
+  else
+    self.previousBounds = { x = self.x, y = self.y, w = self.w, h = self.h }
+    local sw, sh = term.getSize()
+    self.x, self.y = 1, 1
+    self.w, self.h = sw, math.max(5, sh - 1)
+    self.maximized = true
+  end
+  self:clamp()
+end
+
 function Window:draw()
   if self.closed or self.minimized then return end
   self:clamp()
   renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
+  self:updateControls()
   local title = self.movePending and " Tap destination" or (" " .. self.title)
   renderer.writeAt(self.x, self.y, renderer.crop(title, self.w - 7), theme.get("titleFg"), theme.get("titleBg"))
-  renderer.writeAt(self.x + self.w - 6, self.y, " - []X", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.minimizeBox.x, self.y, " -", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.maximizeBox.x, self.y, self.maximized and "[]" or "[]", theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.closeBox.x, self.y, " X", theme.get("titleFg"), theme.get("titleBg"))
 
   if self.app and self.app.draw then
     local target = window.create(term.current(), self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
@@ -3227,16 +3445,15 @@ function Window:handle(event)
       self:clamp()
       return true
     end
-    if button == 1 and y == self.y and x >= self.x + self.w - 1 then
+    self:updateControls()
+    if button == 1 and self:boxHit(self.closeBox, x, y) then
       self.closed = true
       return true
-    elseif button == 1 and y == self.y and x >= self.x + self.w - 6 and x < self.x + self.w - 3 then
+    elseif button == 1 and self:boxHit(self.minimizeBox, x, y) then
       self.minimized = true
       return true
-    elseif button == 1 and y == self.y and x >= self.x + self.w - 3 and x < self.x + self.w - 1 then
-      local sw, sh = term.getSize()
-      self.x, self.y = 1, 1
-      self.w, self.h = sw, math.max(5, sh - 1)
+    elseif button == 1 and self:boxHit(self.maximizeBox, x, y) then
+      self:toggleMaximize()
       return true
     elseif button == 1 and self:titleContains(x, y) then
       if event.monitorTouch then
@@ -3317,16 +3534,18 @@ function WindowManager:draw()
 
   local w, h = term.getSize()
   local x = 10
+  local maxRight = math.max(x, w - 8)
   self.taskButtons = {}
   for _, win in ipairs(self.windows) do
     if not win.closed then
       local label = "[" .. win.title .. "]"
-      local width = math.min(#label, 14)
+      local width = math.min(#label, 14, maxRight - x)
+      if width < 4 then break end
       local bg = win.minimized and theme.get("buttonBg") or theme.get("accent")
       renderer.writeAt(x, h, renderer.crop(label, width), theme.get("taskbarFg"), bg)
       table.insert(self.taskButtons, { x = x, w = width, win = win })
       x = x + width + 1
-      if x > w - 10 then break end
+      if x > maxRight then break end
     end
   end
 end
@@ -3342,6 +3561,7 @@ function WindowManager:handle(event)
           return true
         end
       end
+      return false
     end
     local active = self.windows[#self.windows]
     if active and active.movePending then
@@ -3380,5 +3600,5 @@ end
 
 if not fs.exists("home/user/desktop") then fs.makeDir("home/user/desktop") end
 if not fs.exists("home/user/.trash") then fs.makeDir("home/user/.trash") end
-print("MintCraft OS 0.6.2 installed.")
+print("MintCraft OS 0.6.3 installed.")
 print("Run reboot() to start MintCraft OS.")

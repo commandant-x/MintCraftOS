@@ -11,6 +11,7 @@ print("")
 print("Commands:")
 print("  shell  - open CraftOS shell")
 print("  logs   - show last system log lines")
+print("  crash  - show last crash log")
 print("  reboot - reboot computer")
 print("  exit   - return to caller")
 print("")
@@ -28,6 +29,12 @@ while true do
       shell.run("type", "/var/logs/system.log")
     else
       print("No logs found.")
+    end
+  elseif cmd == "crash" then
+    if fs.exists("/var/logs/last_crash.log") then
+      shell.run("type", "/var/logs/last_crash.log")
+    else
+      print("No crash log found.")
     end
   elseif cmd == "reboot" then
     os.reboot()

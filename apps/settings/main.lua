@@ -3,11 +3,12 @@ local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
 local ui = require("system.gui.components")
+local keyboard = require("system.gui.keyboard")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { page = "system", scroll = 1 }
+  local app = { page = "system", scroll = 1, mode = nil, input = "", keyboard = {} }
 
   local pages = {
     { id = "system", label = "System" },
@@ -67,6 +68,7 @@ function M.run(ctx)
       renderer.writeAt(1, 5, "MintCraft: " .. tostring(config.load("/system/config/system.cfg", {}).version or "?"), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
       renderer.writeAt(1, 8, "CraftOS over CC:Tweaked", colors.gray, colors.lightGray)
+      renderer.button(1, 10, 16, "Set label", false)
     elseif self.page == "display" then
       local d = deviced.getDisplay()
       renderer.writeAt(1, 3, "Target: " .. tostring(d.target), colors.black, colors.lightGray)
@@ -101,11 +103,11 @@ function M.run(ctx)
       renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
     elseif self.page == "apps" then
       local rows = ctx.apps.list()
-      renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY", w), colors.black, colors.gray)
+      renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)
       for i = 1, math.min(#rows, h - 4) do
         local item = rows[self.scroll + i - 1]
         if item then
-          renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category, w), colors.black, colors.lightGray)
+          renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category .. "   " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
         end
       end
     elseif self.page == "dev" then
@@ -117,10 +119,30 @@ function M.run(ctx)
       renderer.button(16, 7, 14, "Dark", theme.currentId == "dark")
       renderer.button(1, 9, 14, "Open Editor", false)
     end
+    if self.mode == "label" then
+      self.keyboard.x = 1
+      self.keyboard.y = math.max(1, h - keyboard.height() + 1)
+      self.keyboard.hint = "Label: " .. self.input
+      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+    end
     renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
   end
 
+  app.keyboard.onText = function(ch) app.input = app.input .. ch end
+  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
+  app.keyboard.onEnter = function()
+    if app.mode == "label" and os.setComputerLabel then os.setComputerLabel(app.input) end
+    app.mode = nil
+    app.input = ""
+  end
+
   function app:handle(event)
+    if self.mode == "label" then
+      if event.name == "char" then self.input = self.input .. event.args[1] return true end
+      if event.name == "key" and event.args[1] == keys.backspace then self.input = self.input:sub(1, -2) return true end
+      if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
+      if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+    end
     if event.name == "mouse_scroll" and self.page == "apps" then
       self.scroll = math.max(1, self.scroll + event.args[1])
       return true
@@ -147,6 +169,10 @@ function M.run(ctx)
       return true
     elseif self.page == "display" and y == 9 and x <= 18 then
       deviced.refreshDisplay()
+      return true
+    elseif self.page == "system" and y == 10 and x <= 16 then
+      self.mode = "label"
+      self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
       return true
     elseif self.page == "dev" and y == 9 and x <= 14 then
       ctx.apps.launch("editor")

@@ -54,6 +54,18 @@ local function trashPath(path)
   return candidate
 end
 
+local protected = {
+  ["/system"] = true,
+  ["/apps"] = true,
+  ["/boot.lua"] = true,
+  ["/startup.lua"] = true,
+}
+
+local function isProtected(path)
+  if protected[path] then return true end
+  return path:match("^/system/") or path:match("^/apps/")
+end
+
 local function extOf(path)
   return (path:match("%.([^%.]+)$") or ""):lower()
 end
@@ -82,6 +94,7 @@ function M.run(ctx)
     { label = "New dir", id = "new_dir" },
     { label = "Rename", id = "rename" },
     { label = "Delete", id = "delete" },
+    { label = "Restore", id = "restore" },
     { label = "Refresh", id = "refresh" },
   }
   local toolbar = {}
@@ -164,7 +177,23 @@ function M.run(ctx)
     elseif action == "delete" then
       if app.selected then
         local full = selectedPath()
-        app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+        if isProtected(full) then
+          ctx.notifications:push("error", "Files", "Protected path", 3)
+        else
+          app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+        end
+      end
+    elseif action == "restore" then
+      if app.selected and app.path == "/home/user/.trash" then
+        local from = selectedPath()
+        local to = fs.combine("/home/user", app.selected:gsub("%.%d+$", ""))
+        if fs.exists(from) and not fs.exists(to) then
+          fs.move(from, to)
+          ctx.notifications:push("success", "Files", "Restored to /home/user", 3)
+          app.selected = nil
+        else
+          ctx.notifications:push("warn", "Files", "Cannot restore", 3)
+        end
       end
     elseif action == "refresh" then
       app.scroll = 1

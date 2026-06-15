@@ -38,16 +38,18 @@ function WindowManager:draw()
 
   local w, h = term.getSize()
   local x = 10
+  local maxRight = math.max(x, w - 8)
   self.taskButtons = {}
   for _, win in ipairs(self.windows) do
     if not win.closed then
       local label = "[" .. win.title .. "]"
-      local width = math.min(#label, 14)
+      local width = math.min(#label, 14, maxRight - x)
+      if width < 4 then break end
       local bg = win.minimized and theme.get("buttonBg") or theme.get("accent")
       renderer.writeAt(x, h, renderer.crop(label, width), theme.get("taskbarFg"), bg)
       table.insert(self.taskButtons, { x = x, w = width, win = win })
       x = x + width + 1
-      if x > w - 10 then break end
+      if x > maxRight then break end
     end
   end
 end
@@ -63,6 +65,7 @@ function WindowManager:handle(event)
           return true
         end
       end
+      return false
     end
     local active = self.windows[#self.windows]
     if active and active.movePending then

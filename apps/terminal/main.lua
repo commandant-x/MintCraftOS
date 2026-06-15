@@ -1,12 +1,37 @@
 local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 local keyboard = require("system.gui.keyboard")
+local ui = require("system.gui.components")
+local autocomplete = require("system.dev.autocomplete")
 
 local M = {}
 
 local function append(app, line)
   table.insert(app.lines, line)
   if #app.lines > 200 then table.remove(app.lines, 1) end
+end
+
+local help = {
+  ls = "ls [dir] - list directory",
+  cd = "cd <dir> - change directory",
+  pwd = "pwd - print current directory",
+  mkdir = "mkdir <dir> - create directory",
+  cp = "cp <src> <dst> - copy file or directory",
+  mv = "mv <src> <dst> - move or rename",
+  rm = "rm <path> - delete after yes confirmation",
+  trash = "trash - open user trash in Files",
+  restore = "restore <name> - restore from /home/user/.trash",
+  cat = "cat <file> - show file",
+  type = "type <file> - alias of cat",
+  edit = "edit <file> - open Editor",
+  open = "open <path> - open Files or Editor",
+  ps = "ps - list processes",
+  kill = "kill <pid> - kill after yes confirmation",
+  logs = "logs - show recent logs",
+}
+
+local function trashPath(name)
+  return fs.combine("/home/user/.trash", name)
 end
 
 local function runCommand(app, ctx, input)
@@ -79,7 +104,17 @@ local function runCommand(app, ctx, input)
   elseif cmd == "open" then
     local path = rest ~= "" and fs.combine(app.cwd, rest) or app.cwd
     if fs.isDir(path) then ctx.apps.launch("files", { path = path }) else ctx.apps.launch("editor", { path = path }) end
-  elseif cmd == "cat" then
+  elseif cmd == "trash" then
+    ctx.apps.launch("files", { path = "/home/user/.trash" })
+  elseif cmd == "restore" then
+    if rest == "" then
+      append(app, "Usage: restore <name>")
+    else
+      local from = trashPath(rest)
+      local to = fs.combine(app.cwd, rest)
+      if fs.exists(from) and not fs.exists(to) then fs.move(from, to) append(app, "restored") else append(app, "Cannot restore") end
+    end
+  elseif cmd == "cat" or cmd == "type" then
     local path = fs.combine(app.cwd, rest)
     if fs.exists(path) then
       local h = fs.open(path, "r")
@@ -111,7 +146,12 @@ local function runCommand(app, ctx, input)
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "help" then
-    append(app, "Commands: ls cd pwd mkdir cp mv rm cat edit open clear ps kill logs files settings devices reboot help")
+    if rest ~= "" and help[rest] then
+      append(app, help[rest])
+    else
+      append(app, "Commands: " .. table.concat(autocomplete.commands(), " "))
+      append(app, "Use help <cmd> for details.")
+    end
   else
     append(app, "Unknown command: " .. cmd)
   end
@@ -125,49 +165,35 @@ function M.run(ctx)
     caps = false,
     shift = false,
     suggestion = nil,
+    history = {},
+    historyIndex = nil,
     keyboard = {},
   }
 
-  local commands = { "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "cat", "edit", "open", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
-
   local quick = {
-    { label = "ls", text = "ls" },
-    { label = "cd home", text = "cd /home/user" },
-    { label = "files", text = "files" },
-    { label = "ps", text = "ps" },
-    { label = "logs", text = "logs" },
-    { label = "clear", text = "clear" },
+    { id = "ls", label = "ls", text = "ls" },
+    { id = "home", label = "cd home", text = "cd /home/user" },
+    { id = "files", label = "files", text = "files" },
+    { id = "ps", label = "ps", text = "ps" },
+    { id = "logs", label = "logs", text = "logs" },
+    { id = "clear", label = "clear", text = "clear" },
   }
 
   local function currentWord()
-    return app.input:match("([%w_%-/%.]+)$") or ""
+    return autocomplete.prefix(app.input, #app.input + 1, "([%w_%-/%.]+)$")
   end
 
   local function updateSuggestion()
     local prefix = currentWord()
-    app.suggestion = nil
-    if prefix == "" then return end
-    for _, cmd in ipairs(commands) do
-      if cmd:sub(1, #prefix) == prefix then app.suggestion = cmd return end
-    end
-    local dir = app.cwd
-    local part = prefix
-    if prefix:find("/") then
-      dir = fs.getDir(fs.combine(app.cwd, prefix))
-      part = fs.getName(prefix)
-    end
-    if fs.exists(dir) and fs.isDir(dir) then
-      for _, name in ipairs(fs.list(dir)) do
-        if name:sub(1, #part) == part then app.suggestion = name return end
-      end
-    end
+    app.suggestion = autocomplete.suggest({ mode = "terminal", prefix = prefix, cwd = app.cwd })
   end
 
   local function acceptSuggestion()
     updateSuggestion()
     if not app.suggestion then return false end
     local prefix = currentWord()
-    app.input = app.input:sub(1, #app.input - #prefix) .. app.suggestion
+    local text = autocomplete.apply(app.input, #app.input + 1, app.suggestion, prefix)
+    app.input = text
     app.suggestion = nil
     return true
   end
@@ -175,6 +201,7 @@ function M.run(ctx)
   local function submit()
     local input = app.input
     app.input = ""
+    if input ~= "" then table.insert(app.history, input) app.historyIndex = nil end
     runCommand(app, ctx, input)
   end
 
@@ -203,13 +230,7 @@ function M.run(ctx)
     updateSuggestion()
     local top = math.max(3, h - keyboard.height())
     local logHeight = math.max(1, top - 3)
-    local cursor = 1
-    for _, item in ipairs(quick) do
-      local label = " " .. item.label .. " "
-      renderer.writeAt(cursor, 1, renderer.crop(label, #label), colors.white, colors.gray)
-      cursor = cursor + #label + 1
-      if cursor > w then break end
-    end
+    self.quickBoxes = ui.toolbar(1, 1, w, quick)
 
     local start = math.max(1, #self.lines - logHeight + 1)
     local y = 2
@@ -219,12 +240,12 @@ function M.run(ctx)
       if y >= top - 1 then break end
     end
     local prompt = self.cwd .. "> " .. self.input
-    if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion .. "]" end
+    if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion.label .. "]" end
     renderer.writeAt(1, top - 1, renderer.crop(prompt, w), colors.white, colors.gray)
 
     self.keyboard.x = 1
     self.keyboard.y = top
-    self.keyboard.hint = self.suggestion and ("Tab: " .. self.suggestion) or ""
+    self.keyboard.hint = self.suggestion and ("Tab: " .. self.suggestion.label) or ""
     keyboard.draw(1, top, w, self.keyboard)
   end
 
@@ -246,9 +267,27 @@ function M.run(ctx)
       elseif key == keys.tab then
         acceptSuggestion()
         return true
+      elseif key == keys.up then
+        if #self.history > 0 then
+          self.historyIndex = self.historyIndex and math.max(1, self.historyIndex - 1) or #self.history
+          self.input = self.history[self.historyIndex] or self.input
+        end
+        return true
+      elseif key == keys.down then
+        if self.historyIndex then
+          self.historyIndex = self.historyIndex + 1
+          if self.historyIndex > #self.history then self.historyIndex = nil self.input = "" else self.input = self.history[self.historyIndex] end
+        end
+        return true
       end
     elseif event.name == "mouse_click" and event.monitorTouch then
       local _, x, y = table.unpack(event.args)
+      local quickId = ui.toolbarHit(self.quickBoxes, x, y)
+      if quickId then
+        for _, item in ipairs(quick) do
+          if item.id == quickId then app.input = item.text submit() return true end
+        end
+      end
       if hitQuick(x, y) then return true end
       if keyboard.handle(event, self.keyboard) then return true end
     end

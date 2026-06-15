@@ -89,10 +89,12 @@ function Scheduler:list()
       pid = process.pid,
       name = process.name,
       state = process.state,
+      appId = process.meta and process.meta.appId or nil,
       filter = process.filter,
       error = process.error,
       permissions = process.permissions,
       windowId = process.window and process.window.id or nil,
+      startedAt = process.startedAt,
     })
   end
   table.sort(rows, function(a, b) return a.pid < b.pid end)
