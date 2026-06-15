@@ -4,6 +4,13 @@ local M = {
   devices = {},
   redirected = false,
   nativeTerm = nil,
+  display = {
+    target = "computer",
+    scale = nil,
+    width = 0,
+    height = 0,
+    monitorSide = nil,
+  },
 }
 
 function M.scan()
@@ -22,7 +29,7 @@ end
 
 function M.useMonitor()
   if not peripheral or not peripheral.find then return false end
-  local monitor = peripheral.find("monitor")
+  local monitor, side = peripheral.find("monitor")
   if not monitor then return false end
 
   if monitor.setTextScale then monitor.setTextScale(0.5) end
@@ -32,12 +39,34 @@ function M.useMonitor()
   M.nativeTerm = term.current()
   term.redirect(monitor)
   M.redirected = true
-  log.info("deviced", "using attached monitor as display")
+  local w, h = term.getSize()
+  M.display = {
+    target = "monitor",
+    scale = 0.5,
+    width = w,
+    height = h,
+    monitorSide = side or "unknown",
+  }
+  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale 0.5")
   return true
 end
 
 function M.isRedirected()
   return M.redirected
+end
+
+function M.getDisplay()
+  if not M.redirected then
+    local w, h = term.getSize()
+    M.display = {
+      target = "computer",
+      scale = nil,
+      width = w,
+      height = h,
+      monitorSide = nil,
+    }
+  end
+  return M.display
 end
 
 function M.start(ctx)
@@ -59,6 +88,7 @@ function M.stop()
   if M.redirected and M.nativeTerm then
     term.redirect(M.nativeTerm)
     M.redirected = false
+    M.getDisplay()
   end
 end
 

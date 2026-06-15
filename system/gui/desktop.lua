@@ -8,6 +8,7 @@ local M = {
   menuOpen = false,
   contextMenu = nil,
   lastMonitorTap = nil,
+  icons = {},
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -33,6 +34,7 @@ local function drawIcons()
     end
   end
 
+  M.icons = icons
   for _, icon in ipairs(icons) do
     renderer.writeAt(icon.x, icon.y, "[ ]", colors.white, theme.get("desktopBg"))
     renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
@@ -186,10 +188,13 @@ function M.handle(event)
     end
   end
 
-  if button == 1 and x >= 2 and x <= 11 then
-    if y >= 2 and y <= 3 then launch("terminal") return true end
-    if y >= 5 and y <= 6 then launch("files") return true end
-    if y >= 8 and y <= 9 then launch("settings") return true end
+  if button == 1 then
+    for _, icon in ipairs(M.icons or {}) do
+      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 1 then
+        launch(icon.app)
+        return true
+      end
+    end
   end
 
   return false

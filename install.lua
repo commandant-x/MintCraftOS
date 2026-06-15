@@ -1,4 +1,4 @@
--- MintCraft OS V0.4 installer for CC:Tweaked
+-- MintCraft OS V0.5 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".settings"] = [[{
@@ -8,7 +8,7 @@ local files = {
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.4.0",
+  version = "0.5.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -23,17 +23,18 @@ function M.run(ctx)
 
   function app:draw(w, h)
     renderer.writeAt(1, 1, renderer.crop("[Rescan] [Use monitor]", w), colors.white, colors.gray)
-    local tw, th = term.getSize()
-    renderer.writeAt(1, 2, renderer.crop("Display: " .. tostring(tw) .. "x" .. tostring(th), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(deviced.isRedirected()), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 5, renderer.crop("DEVICE          TYPE", w), colors.black, colors.lightGray)
+    local display = deviced.getDisplay()
+    renderer.writeAt(1, 2, renderer.crop("Target: " .. tostring(display.target) .. " " .. tostring(display.width) .. "x" .. tostring(display.height), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(display.monitorSide or "none") .. " scale " .. tostring(display.scale or "-"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Recommended: 4x3 blocks min, scale 0.5", w), colors.gray, colors.lightGray)
+    renderer.writeAt(1, 6, renderer.crop("DEVICE          TYPE", w), colors.black, colors.lightGray)
     local rows = deviced.list()
     if #rows == 0 then
-      renderer.writeAt(1, 7, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 8, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
     end
-    for i = 1, math.min(#rows, h - 5) do
+    for i = 1, math.min(#rows, h - 6) do
       local d = rows[i]
-      renderer.writeAt(1, i + 5, renderer.crop(d.name .. "          " .. tostring(d.type), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, i + 6, renderer.crop(d.name .. "          " .. tostring(d.type), w), colors.black, colors.lightGray)
     end
   end
 
@@ -57,7 +58,7 @@ function M.run(ctx)
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Devices", w = math.min(52, sw - 4), h = math.min(16, sh - 3), x = 4, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Devices", w = math.min(60, sw - 4), h = math.min(18, sh - 3), x = 4, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -66,7 +67,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.4.0",
+  version = "0.5.0",
   main = "apps.files.main",
   permissions = { "filesystem.read" },
 }
@@ -118,7 +119,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.4.0",
+  version = "0.5.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -153,7 +154,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.4.0",
+  version = "0.5.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -188,7 +189,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.4.0",
+  version = "0.5.0",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -234,7 +235,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.4.0",
+  version = "0.5.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -269,7 +270,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.4.0",
+  version = "0.5.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -523,7 +524,7 @@ end
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.4 base:
+This repository currently contains the V0.5 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -531,7 +532,7 @@ This repository currently contains the V0.4 base:
 - event bus
 - terminal renderer, themes and window manager
 - desktop, taskbar, start menu, right-click context menu and notifications
-- monitor auto-display through `deviced`
+- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
 - minimal Terminal, Files, Settings, Task Manager, Services, Devices and Logs apps
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
@@ -692,10 +693,16 @@ end
 return M
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.4.0",
+  version = "0.5.0",
   theme = "mint",
   debug = true,
   safeMode = false,
+  display = {
+    preferMonitor = true,
+    monitorTextScale = 0.5,
+    minMonitorBlocksWide = 4,
+    minMonitorBlocksHigh = 3,
+  },
 }
 ]],
   ["system/gui/desktop.lua"] = [[local renderer = require("system.gui.renderer")
@@ -708,6 +715,7 @@ local M = {
   menuOpen = false,
   contextMenu = nil,
   lastMonitorTap = nil,
+  icons = {},
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -733,6 +741,7 @@ local function drawIcons()
     end
   end
 
+  M.icons = icons
   for _, icon in ipairs(icons) do
     renderer.writeAt(icon.x, icon.y, "[ ]", colors.white, theme.get("desktopBg"))
     renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
@@ -886,10 +895,13 @@ function M.handle(event)
     end
   end
 
-  if button == 1 and x >= 2 and x <= 11 then
-    if y >= 2 and y <= 3 then launch("terminal") return true end
-    if y >= 5 and y <= 6 then launch("files") return true end
-    if y >= 8 and y <= 9 then launch("settings") return true end
+  if button == 1 then
+    for _, icon in ipairs(M.icons or {}) do
+      if x >= icon.x and x <= icon.x + 10 and y >= icon.y and y <= icon.y + 1 then
+        launch(icon.app)
+        return true
+      end
+    end
   end
 
   return false
@@ -1373,6 +1385,13 @@ local M = {
   devices = {},
   redirected = false,
   nativeTerm = nil,
+  display = {
+    target = "computer",
+    scale = nil,
+    width = 0,
+    height = 0,
+    monitorSide = nil,
+  },
 }
 
 function M.scan()
@@ -1391,7 +1410,7 @@ end
 
 function M.useMonitor()
   if not peripheral or not peripheral.find then return false end
-  local monitor = peripheral.find("monitor")
+  local monitor, side = peripheral.find("monitor")
   if not monitor then return false end
 
   if monitor.setTextScale then monitor.setTextScale(0.5) end
@@ -1401,12 +1420,34 @@ function M.useMonitor()
   M.nativeTerm = term.current()
   term.redirect(monitor)
   M.redirected = true
-  log.info("deviced", "using attached monitor as display")
+  local w, h = term.getSize()
+  M.display = {
+    target = "monitor",
+    scale = 0.5,
+    width = w,
+    height = h,
+    monitorSide = side or "unknown",
+  }
+  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale 0.5")
   return true
 end
 
 function M.isRedirected()
   return M.redirected
+end
+
+function M.getDisplay()
+  if not M.redirected then
+    local w, h = term.getSize()
+    M.display = {
+      target = "computer",
+      scale = nil,
+      width = w,
+      height = h,
+      monitorSide = nil,
+    }
+  end
+  return M.display
 end
 
 function M.start(ctx)
@@ -1428,6 +1469,7 @@ function M.stop()
   if M.redirected and M.nativeTerm then
     term.redirect(M.nativeTerm)
     M.redirected = false
+    M.getDisplay()
   end
 end
 
@@ -1784,7 +1826,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.4.0
+  ["VERSION"] = [[0.5.0
 ]],
 }
 
@@ -1795,7 +1837,7 @@ end
 
 term.clear()
 term.setCursorPos(1, 1)
-print("MintCraft OS V0.4 installer")
+print("MintCraft OS V0.5 installer")
 print("Writing files...")
 
 for path, content in pairs(files) do
