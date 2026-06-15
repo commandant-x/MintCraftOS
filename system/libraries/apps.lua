@@ -1,0 +1,51 @@
+local log = require("system.libraries.log")
+
+local M = {
+  registry = {},
+  ctx = nil,
+}
+
+function M.setContext(ctx)
+  M.ctx = ctx
+end
+
+function M.register(id, name, module)
+  M.registry[id] = { id = id, name = name, module = module }
+end
+
+function M.list()
+  local rows = {}
+  for _, app in pairs(M.registry) do table.insert(rows, app) end
+  table.sort(rows, function(a, b) return a.name < b.name end)
+  return rows
+end
+
+function M.launch(id, args)
+  local app = M.registry[id]
+  if not app then return false, "Unknown app: " .. tostring(id) end
+  if not M.ctx then return false, "App context not ready" end
+
+  local ok, mod = pcall(require, app.module)
+  if not ok then
+    log.error("apps", tostring(mod))
+    return false, tostring(mod)
+  end
+
+  local scheduler = M.ctx.scheduler
+  local pid
+  pid = scheduler:spawn(app.name, function(startEvent)
+    local procCtx = scheduler:makeContext(pid)
+    procCtx.appId = id
+    procCtx.args = args or {}
+    procCtx.windowManager = M.ctx.wm
+    procCtx.notifications = M.ctx.notifications
+    procCtx.apps = M
+    procCtx.system = M.ctx
+    mod.run(procCtx, startEvent)
+  end, { appId = id })
+  scheduler:start(pid)
+
+  return true, pid
+end
+
+return M

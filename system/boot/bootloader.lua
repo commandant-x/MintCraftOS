@@ -1,0 +1,58 @@
+local splash = require("system.boot.splash")
+local log = require("system.libraries.log")
+local config = require("system.libraries.config")
+
+local M = {}
+
+local REQUIRED_DIRS = {
+  "/system",
+  "/system/boot",
+  "/system/config",
+  "/system/gui",
+  "/system/kernel",
+  "/system/libraries",
+  "/system/services",
+  "/system/wm",
+  "/apps",
+  "/home",
+  "/home/user",
+  "/home/user/config",
+  "/home/user/desktop",
+  "/home/user/documents",
+  "/home/user/downloads",
+  "/home/user/.trash",
+  "/var",
+  "/var/cache",
+  "/var/logs",
+  "/var/tmp",
+  "/packages",
+}
+
+local function ensureDirs()
+  for _, path in ipairs(REQUIRED_DIRS) do
+    if not fs.exists(path) then
+      fs.makeDir(path)
+    end
+  end
+end
+
+local function ensureDefaults()
+  config.ensure("/system/config/system.cfg", {
+    version = "0.4.0",
+    theme = "mint",
+    debug = true,
+    safeMode = false,
+  })
+end
+
+function M.start()
+  ensureDirs()
+  log.info("boot", "bootloader started")
+  ensureDefaults()
+  splash.draw("MintCraft OS", "Version 0.4")
+
+  local kernel = require("system.kernel.kernel")
+  kernel.start()
+end
+
+return M

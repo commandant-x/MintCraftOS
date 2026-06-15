@@ -1,0 +1,90 @@
+local theme = require("system.gui.theme")
+local renderer = require("system.gui.renderer")
+
+local Window = {}
+Window.__index = Window
+
+function Window.new(opts)
+  local w, h = term.getSize()
+  return setmetatable({
+    id = opts.id,
+    title = opts.title or "Window",
+    x = opts.x or 6,
+    y = opts.y or 3,
+    w = opts.w or math.min(38, w - 8),
+    h = opts.h or math.min(12, h - 5),
+    minimized = false,
+    closed = false,
+    dragging = false,
+    app = opts.app,
+  }, Window)
+end
+
+function Window:contains(x, y)
+  return x >= self.x and x < self.x + self.w and y >= self.y and y < self.y + self.h
+end
+
+function Window:titleContains(x, y)
+  return y == self.y and x >= self.x and x < self.x + self.w
+end
+
+function Window:draw()
+  if self.closed or self.minimized then return end
+  renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
+  renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
+  renderer.writeAt(self.x, self.y, renderer.crop(" " .. self.title, self.w - 6), theme.get("titleFg"), theme.get("titleBg"))
+  renderer.writeAt(self.x + self.w - 5, self.y, " _ X ", theme.get("titleFg"), theme.get("titleBg"))
+
+  if self.app and self.app.draw then
+    local target = window.create(term.current(), self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
+    local previous = term.redirect(target)
+    term.setBackgroundColor(theme.get("windowBg"))
+    term.setTextColor(theme.get("windowFg"))
+    term.clear()
+    local ok, err = pcall(self.app.draw, self.app, self.w - 2, self.h - 2)
+    term.redirect(previous)
+    if ok then
+      target.setVisible(true)
+    else
+      renderer.writeAt(self.x + 1, self.y + 1, "Draw error: " .. tostring(err), theme.get("error"), theme.get("windowBg"))
+    end
+  end
+end
+
+function Window:handle(event)
+  if self.closed or self.minimized then return false end
+  if event.name == "mouse_click" then
+    local button, x, y = table.unpack(event.args)
+    if button == 1 and y == self.y and x >= self.x + self.w - 2 then
+      self.closed = true
+      return true
+    elseif button == 1 and y == self.y and x >= self.x + self.w - 5 then
+      self.minimized = true
+      return true
+    elseif button == 1 and self:titleContains(x, y) then
+      self.dragging = { dx = x - self.x, dy = y - self.y }
+      return true
+    end
+  elseif event.name == "mouse_drag" and self.dragging then
+    local _, x, y = table.unpack(event.args)
+    self.x = math.max(1, x - self.dragging.dx)
+    self.y = math.max(1, y - self.dragging.dy)
+    return true
+  elseif event.name == "mouse_up" then
+    self.dragging = false
+  end
+
+  if self.app and self.app.handle then
+    local localEvent = event
+    if event.name:match("^mouse_") then
+      local args = { table.unpack(event.args) }
+      args[2] = args[2] - self.x
+      args[3] = args[3] - self.y
+      localEvent = { name = event.name, args = args, raw = event.raw }
+    end
+    return self.app:handle(localEvent, self)
+  end
+  return false
+end
+
+return Window
