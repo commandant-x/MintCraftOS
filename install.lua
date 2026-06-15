@@ -735,7 +735,7 @@ function M.handle(event)
     end
     M.contextMenu = nil
     return true
-  }
+  end
 
   if y == h and x <= 8 then
     M.menuOpen = not M.menuOpen
