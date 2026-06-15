@@ -17,3 +17,17 @@ Install the repository contents at the root of a CC:Tweaked computer, then reboo
 ```lua
 shell.run("/boot.lua")
 ```
+
+## Install From GitHub
+
+On a CC:Tweaked computer with HTTP enabled:
+
+```lua
+wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
+```
+
+Then reboot:
+
+```lua
+reboot
+```
