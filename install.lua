@@ -73,6 +73,7 @@ return M
 }
 ]],
   ["apps/editor/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
 
 local M = {}
 
@@ -92,6 +93,7 @@ local words = {
   "if", "in", "local", "nil", "not", "or", "repeat", "return", "then",
   "true", "until", "while", "pairs", "ipairs", "pcall", "print", "require",
   "table.insert", "string.sub", "term.setCursorPos", "fs.open", "fs.exists",
+  "os.pullEvent", "peripheral.find", "rednet.open", "http.get", "window.create",
 }
 
 local function splitLines(text)
@@ -136,6 +138,41 @@ local function suggestion(prefix)
   return nil
 end
 
+local function collectModules()
+  local roots = { "/system", "/apps" }
+  local rows = {}
+  local function walk(path)
+    if not fs.exists(path) then return end
+    for _, name in ipairs(fs.list(path)) do
+      local full = fs.combine(path, name)
+      if fs.isDir(full) then
+        walk(full)
+      elseif name:match("%.lua$") then
+        local mod = full:gsub("^/", ""):gsub("%.lua$", ""):gsub("/", ".")
+        table.insert(rows, mod)
+      end
+    end
+  end
+  for _, root in ipairs(roots) do walk(root) end
+  table.sort(rows)
+  return rows
+end
+
+local function collectLocalWords(lines)
+  local found = {}
+  for _, line in ipairs(lines) do
+    local name = line:match("^%s*local%s+function%s+([%w_]+)")
+    if name then found[name] = true end
+    name = line:match("^%s*function%s+([%w_%.]+)")
+    if name then found[name] = true end
+    for localName in line:gmatch("local%s+([%w_]+)") do found[localName] = true end
+  end
+  local rows = {}
+  for name in pairs(found) do table.insert(rows, name) end
+  table.sort(rows)
+  return rows
+end
+
 local function insertText(app, text)
   local line = app.lines[app.cy]
   local before = line:sub(1, app.cx - 1)
@@ -172,12 +209,7 @@ function M.run(ctx)
     status = "Editor ready",
     caps = false,
     shift = false,
-  }
-
-  local keyboard = {
-    "azertyuiop",
-    "qsdfghjklm",
-    "wxcvbn",
+    keyboard = {},
   }
 
   local function visibleHeight(h)
@@ -188,6 +220,19 @@ function M.run(ctx)
     local line = app.lines[app.cy]
     local prefix = currentPrefix(line, app.cx)
     local label, text = suggestion(prefix)
+    if not text then
+      for _, word in ipairs(collectLocalWords(app.lines)) do
+        if word:sub(1, #prefix) == prefix and word ~= prefix then
+          label, text = word, word
+          break
+        end
+      end
+    end
+    if not text then
+      for _, mod in ipairs(collectModules()) do
+        if mod:sub(1, #prefix) == prefix then label, text = mod, mod break end
+      end
+    end
     if not text then return false end
     app.lines[app.cy] = line:sub(1, app.cx - #prefix - 1) .. line:sub(app.cx)
     app.cx = app.cx - #prefix
@@ -196,59 +241,22 @@ function M.run(ctx)
     return true
   end
 
-  local function drawKeyboard(w, h)
-    local top = h - 4
-    for row, chars in ipairs(keyboard) do
-      local line = ""
-      for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
-      renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
+  app.keyboard.onText = function(ch) insertText(app, ch) end
+  app.keyboard.onBackspace = function()
+    local line = app.lines[app.cy]
+    if app.cx > 1 then
+      app.lines[app.cy] = line:sub(1, app.cx - 2) .. line:sub(app.cx)
+      app.cx = app.cx - 1
     end
-    renderer.writeAt(1, h, renderer.crop("[maj] [ctrl] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
   end
-
-  local function hitKeyboard(x, y, h)
-    local top = h - 4
-    local row = y - top + 1
-    if row >= 1 and row <= #keyboard then
-      local chars = keyboard[row]
-      local index = math.floor((x + 1) / 2)
-      local ch = chars:sub(index, index)
-      if ch ~= "" then
-        if app.caps or app.shift then ch = ch:upper() end
-        app.shift = false
-        insertText(app, ch)
-        return true
-      end
-    elseif y == h then
-      if x >= 1 and x <= 5 then app.caps = not app.caps return true end
-      if x >= 8 and x <= 13 then app.status = "Ctrl armed" return true end
-      if x >= 16 and x <= 21 then return applySuggestion() end
-      if x >= 24 and x <= 31 then insertText(app, " ") return true end
-      if x >= 34 and x <= 40 then
-        local line = app.lines[app.cy]
-        if app.cx > 1 then
-          app.lines[app.cy] = line:sub(1, app.cx - 2) .. line:sub(app.cx)
-          app.cx = app.cx - 1
-        end
-        return true
-      elseif x >= 43 and x <= 50 then
-        local line = app.lines[app.cy]
-        local rest = line:sub(app.cx)
-        app.lines[app.cy] = line:sub(1, app.cx - 1)
-        table.insert(app.lines, app.cy + 1, rest)
-        app.cy = app.cy + 1
-        app.cx = 1
-        return true
-      end
-    end
-    return false
-  end
+  app.keyboard.onEnter = function() insertText(app, "\n") end
+  app.keyboard.onTab = applySuggestion
 
   function app:draw(w, h)
     local prefix = currentPrefix(self.lines[self.cy] or "", self.cx)
     local sug = suggestion(prefix)
     renderer.writeAt(1, 1, renderer.crop("[Save] [Compile] " .. self.path, w), colors.white, colors.gray)
-    local maxLines = visibleHeight(h)
+    local maxLines = math.max(4, h - keyboard.height() - 3)
     if self.cy < self.scroll then self.scroll = self.cy end
     if self.cy >= self.scroll + maxLines then self.scroll = self.cy - maxLines + 1 end
     for row = 1, maxLines do
@@ -258,8 +266,19 @@ function M.run(ctx)
       renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), colors.black, colors.lightGray)
     end
     renderer.writeAt(1, h - 5, renderer.crop(self.status, w), colors.white, colors.gray)
-    if sug then renderer.writeAt(1, h - 6, renderer.crop("Tab: " .. sug, w), colors.black, colors.orange) end
-    drawKeyboard(w, h)
+    local locals = collectLocalWords(self.lines)
+    if not sug then
+      local prefix2 = currentPrefix(self.lines[self.cy] or "", self.cx)
+      for _, word in ipairs(locals) do if word:sub(1, #prefix2) == prefix2 and word ~= prefix2 then sug = word break end end
+      if not sug then
+        for _, mod in ipairs(collectModules()) do if mod:sub(1, #prefix2) == prefix2 then sug = mod break end end
+      end
+    end
+    if sug then renderer.writeAt(1, h - keyboard.height(), renderer.crop("Tab: " .. sug, w), colors.black, colors.orange) end
+    self.keyboard.x = 1
+    self.keyboard.y = h - keyboard.height() + 1
+    self.keyboard.hint = sug and ("Tab: " .. sug) or ""
+    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
   end
 
   function app:handle(event)
@@ -290,7 +309,7 @@ function M.run(ctx)
       elseif y == 1 and x >= 8 and x <= 16 then
         compile(self)
         return true
-      elseif event.monitorTouch and hitKeyboard(x, y, self.lastH or 18) then
+      elseif event.monitorTouch and keyboard.handle(event, self.keyboard) then
         return true
       else
         local vh = visibleHeight(self.lastH or 18)
@@ -306,7 +325,6 @@ function M.run(ctx)
 
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Editor", w = math.min(78, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
-  function app:drawWithHeight(w, h) self.lastH = h self:draw(w, h) end
   local originalDraw = app.draw
   app.draw = function(self, w, h) self.lastH = h return originalDraw(self, w, h) end
   while not win.closed do ctx.pullEvent() end
@@ -323,44 +341,253 @@ return M
 }
 ]],
   ["apps/files/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+local config = require("system.libraries.config")
 
 local M = {}
 
+local function sortedList(path)
+  local rows = {}
+  if fs.exists(path) and fs.isDir(path) then
+    for _, name in ipairs(fs.list(path)) do
+      table.insert(rows, name)
+    end
+  end
+  table.sort(rows, function(a, b)
+    local ad = fs.isDir(fs.combine(path, a))
+    local bd = fs.isDir(fs.combine(path, b))
+    if ad ~= bd then return ad end
+    return a:lower() < b:lower()
+  end)
+  return rows
+end
+
+local function parent(path)
+  local dir = fs.getDir(path)
+  if dir == "" then return "/" end
+  return dir
+end
+
+local function basename(path)
+  return fs.getName(path)
+end
+
+local function uniquePath(dir, prefix, ext)
+  local i = 1
+  local path
+  repeat
+    path = fs.combine(dir, prefix .. tostring(i) .. ext)
+    i = i + 1
+  until not fs.exists(path)
+  return path
+end
+
+local function extOf(path)
+  return (path:match("%.([^%.]+)$") or ""):lower()
+end
+
+local function mimeApp(path)
+  local db = config.load("/system/config/mime.db", {})
+  return db[extOf(path)]
+end
+
 function M.run(ctx)
-  local app = { path = ctx.args.path or "/home/user" }
+  local app = {
+    path = ctx.args.path or "/home/user",
+    selected = nil,
+    scroll = 1,
+    mode = nil,
+    input = "",
+    confirm = nil,
+    keyboard = {},
+  }
+
+  local actions = {
+    { label = "Back", id = "back" },
+    { label = "Home", id = "home" },
+    { label = "Up", id = "up" },
+    { label = "New file", id = "new_file" },
+    { label = "New dir", id = "new_dir" },
+    { label = "Rename", id = "rename" },
+    { label = "Delete", id = "delete" },
+    { label = "Refresh", id = "refresh" },
+  }
+
+  local function setMode(mode, default)
+    app.mode = mode
+    app.input = default or ""
+    app.keyboard.hint = mode and (mode .. ": " .. app.input) or ""
+  end
+
+  local function selectedPath()
+    if not app.selected then return nil end
+    return fs.combine(app.path, app.selected)
+  end
+
+  local function openFile(path)
+    if fs.isDir(path) then
+      app.path = path
+      app.selected = nil
+      app.scroll = 1
+      return
+    end
+    local target = mimeApp(path)
+    if target then
+      ctx.apps.launch(target, { path = path })
+    else
+      ctx.notifications:push("warn", "Files", "No app for ." .. extOf(path), 3)
+    end
+  end
+
+  local function submitInput()
+    if app.mode == "new_file" then
+      local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_file_", ".txt"))
+      local path = fs.combine(app.path, name)
+      local h = fs.open(path, "w")
+      if h then h.write("") h.close() end
+      app.selected = name
+    elseif app.mode == "new_dir" then
+      local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_folder_", ""))
+      fs.makeDir(fs.combine(app.path, name))
+      app.selected = name
+    elseif app.mode == "rename" and app.selected then
+      local old = fs.combine(app.path, app.selected)
+      local new = fs.combine(app.path, app.input)
+      if app.input ~= "" and not fs.exists(new) then
+        fs.move(old, new)
+        app.selected = app.input
+      else
+        ctx.notifications:push("warn", "Files", "Invalid rename target", 3)
+      end
+    end
+    setMode(nil)
+  end
+
+  local function toolbarHit(x)
+    local cursor = 1
+    for _, action in ipairs(actions) do
+      local width = #action.label + 2
+      if x >= cursor and x < cursor + width then return action.id end
+      cursor = cursor + width + 1
+    end
+    return nil
+  end
+
+  local function perform(action)
+    if action == "back" or action == "up" then
+      app.path = parent(app.path)
+      app.selected = nil
+      app.scroll = 1
+    elseif action == "home" then
+      app.path = "/home/user"
+      app.selected = nil
+      app.scroll = 1
+    elseif action == "new_file" then
+      setMode("new_file", basename(uniquePath(app.path, "new_file_", ".txt")))
+    elseif action == "new_dir" then
+      setMode("new_dir", basename(uniquePath(app.path, "new_folder_", "")))
+    elseif action == "rename" then
+      if app.selected then setMode("rename", app.selected) end
+    elseif action == "delete" then
+      if app.selected then app.confirm = "delete" end
+    elseif action == "refresh" then
+      app.scroll = 1
+    end
+  end
+
+  app.keyboard.onText = function(ch)
+    app.input = app.input .. ch
+    app.keyboard.hint = tostring(app.mode or "input") .. ": " .. app.input
+  end
+  app.keyboard.onBackspace = function()
+    app.input = app.input:sub(1, -2)
+    app.keyboard.hint = tostring(app.mode or "input") .. ": " .. app.input
+  end
+  app.keyboard.onEnter = submitInput
+  app.keyboard.onTab = submitInput
 
   function app:draw(w, h)
-    renderer.writeAt(1, 1, renderer.crop("Path: " .. self.path, w), colors.black, colors.lightGray)
-    local files = {}
-    if fs.exists(self.path) and fs.isDir(self.path) then files = fs.list(self.path) end
-    for i = 1, math.min(#files, h - 2) do
-      local name = files[i]
-      local full = fs.combine(self.path, name)
-      local prefix = fs.isDir(full) and "[D] " or "    "
-      renderer.writeAt(1, i + 1, renderer.crop(prefix .. name, w), colors.black, colors.lightGray)
+    local cursor = 1
+    for _, action in ipairs(actions) do
+      local label = " " .. action.label .. " "
+      renderer.writeAt(cursor, 1, renderer.crop(label, #label), colors.white, colors.gray)
+      cursor = cursor + #label + 1
+      if cursor > w then break end
+    end
+    renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), colors.black, colors.lightGray)
+    local files = sortedList(self.path)
+    local kbH = self.mode and keyboard.height() or 0
+    local listTop = 3
+    local listH = math.max(1, h - listTop - kbH)
+    for i = 1, listH do
+      local index = self.scroll + i - 1
+      local name = files[index]
+      if name then
+        local full = fs.combine(self.path, name)
+        local prefix = fs.isDir(full) and "[D] " or "[F] "
+        local bg = name == self.selected and colors.cyan or colors.lightGray
+        renderer.writeAt(1, listTop + i - 1, renderer.crop(prefix .. name, w), colors.black, bg)
+      end
+    end
+    if self.confirm == "delete" then
+      renderer.writeAt(1, h, renderer.crop("Confirm delete " .. tostring(self.selected) .. "? [Delete] again / any other tap cancels", w), colors.white, colors.red)
+    elseif self.mode then
+      self.keyboard.x = 1
+      self.keyboard.y = h - keyboard.height() + 1
+      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+      renderer.writeAt(1, self.keyboard.y - 1, renderer.crop(tostring(self.mode) .. ": " .. self.input, w), colors.white, colors.gray)
     end
   end
 
   function app:handle(event)
-    if event.name == "mouse_click" then
-      local _, _, y = table.unpack(event.args)
-      local files = fs.list(self.path)
-      local name = files[y - 1]
-      if name then
-        local full = fs.combine(self.path, name)
-        if fs.isDir(full) then self.path = full end
+    if event.name == "key" then
+      local key = event.args[1]
+      if self.mode then
+        if key == keys.backspace then
+          self.input = self.input:sub(1, -2)
+          self.keyboard.hint = tostring(self.mode) .. ": " .. self.input
+          return true
+        elseif key == keys.enter or key == keys.tab then
+          submitInput()
+          return true
+        end
       end
+      if key == keys.backspace then perform("back") return true end
+      if key == keys.enter and self.selected then openFile(selectedPath()) return true end
+    elseif event.name == "char" and self.mode then
+      self.input = self.input .. event.args[1]
       return true
-    elseif event.name == "key" and event.args[1] == keys.backspace then
-      self.path = fs.getDir(self.path)
-      if self.path == "" then self.path = "/" end
+    elseif event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if self.mode and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+      local action = y == 1 and toolbarHit(x) or nil
+      if self.confirm then
+        if action == "delete" and self.selected then
+          fs.delete(fs.combine(self.path, self.selected))
+          self.selected = nil
+        end
+        self.confirm = nil
+        return true
+      end
+      if action then perform(action) return true end
+      if y >= 3 then
+        local files = sortedList(self.path)
+        local name = files[self.scroll + y - 3]
+        if name then
+          if self.selected == name then openFile(fs.combine(self.path, name)) else self.selected = name end
+          return true
+        end
+      end
+    elseif event.name == "mouse_scroll" then
+      local dir = event.args[1]
+      self.scroll = math.max(1, self.scroll + dir)
       return true
     end
     return false
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Files", w = math.min(58, sw - 4), h = math.min(18, sh - 3), x = 6, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Files", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 6, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -612,6 +839,7 @@ return M
 ]],
   ["apps/terminal/main.lua"] = [[local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
+local keyboard = require("system.gui.keyboard")
 
 local M = {}
 
@@ -679,6 +907,7 @@ function M.run(ctx)
     caps = false,
     shift = false,
     suggestion = nil,
+    keyboard = {},
   }
 
   local commands = { "ls", "cd", "cat", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
@@ -690,13 +919,6 @@ function M.run(ctx)
     { label = "ps", text = "ps" },
     { label = "logs", text = "logs" },
     { label = "clear", text = "clear" },
-  }
-
-  local keysRows = {
-    "1234567890",
-    "azertyuiop",
-    "qsdfghjklm",
-    "wxcvbn",
   }
 
   local function currentWord()
@@ -732,10 +954,6 @@ function M.run(ctx)
     return true
   end
 
-  local function keyboardTop(h)
-    return math.max(3, h - 6)
-  end
-
   local function submit()
     local input = app.input
     app.input = ""
@@ -757,48 +975,15 @@ function M.run(ctx)
     return false
   end
 
-  local function hitKeyboard(x, y, h)
-    local top = keyboardTop(h)
-    local row = y - top + 1
-    if row >= 1 and row <= #keysRows then
-      local chars = keysRows[row]
-      local index = math.floor((x + 1) / 2)
-      local ch = chars:sub(index, index)
-      if ch ~= "" then
-        if app.caps or app.shift then ch = ch:upper() end
-        app.shift = false
-        app.input = app.input .. ch
-        updateSuggestion()
-        return true
-      end
-    elseif y == top + 4 then
-      if x >= 1 and x <= 5 then
-        app.caps = not app.caps
-        return true
-      elseif x >= 7 and x <= 12 then
-        app.shift = true
-        return true
-      elseif x >= 14 and x <= 19 then
-        return acceptSuggestion()
-      elseif x >= 21 and x <= 28 then
-        app.input = app.input .. " "
-        return true
-      elseif x >= 30 and x <= 37 then
-        app.input = string.sub(app.input, 1, -2)
-        updateSuggestion()
-        return true
-      elseif x >= 39 and x <= 47 then
-        submit()
-        return true
-      end
-    end
-    return false
-  end
+  app.keyboard.onText = function(ch) app.input = app.input .. ch updateSuggestion() end
+  app.keyboard.onBackspace = function() app.input = string.sub(app.input, 1, -2) updateSuggestion() end
+  app.keyboard.onEnter = submit
+  app.keyboard.onTab = acceptSuggestion
 
   function app:draw(w, h)
     self.lastH = h
     updateSuggestion()
-    local top = keyboardTop(h)
+    local top = math.max(3, h - keyboard.height())
     local logHeight = math.max(1, top - 3)
     local cursor = 1
     for _, item in ipairs(quick) do
@@ -819,12 +1004,10 @@ function M.run(ctx)
     if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion .. "]" end
     renderer.writeAt(1, top - 1, renderer.crop(prompt, w), colors.white, colors.gray)
 
-    for row, chars in ipairs(keysRows) do
-      local line = ""
-      for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
-      renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
-    end
-    renderer.writeAt(1, top + 4, renderer.crop("[maj] [shift] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
+    self.keyboard.x = 1
+    self.keyboard.y = top
+    self.keyboard.hint = self.suggestion and ("Tab: " .. self.suggestion) or ""
+    keyboard.draw(1, top, w, self.keyboard)
   end
 
   function app:handle(event)
@@ -848,9 +1031,8 @@ function M.run(ctx)
       end
     elseif event.name == "mouse_click" and event.monitorTouch then
       local _, x, y = table.unpack(event.args)
-      local h = self.lastH or 12
       if hitQuick(x, y) then return true end
-      if hitKeyboard(x, y, h) then return true end
+      if keyboard.handle(event, self.keyboard) then return true end
     end
     return false
   end
@@ -1087,6 +1269,14 @@ end
 
 return M
 ]],
+  ["system/config/mime.db"] = [[{
+  txt = "editor",
+  md = "editor",
+  cfg = "editor",
+  db = "editor",
+  lua = "editor",
+}
+]],
   ["system/config/system.cfg"] = [[{
   version = "0.6.0",
   theme = "mint",
@@ -1102,6 +1292,7 @@ return M
 ]],
   ["system/gui/desktop.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
+local keyboard = require("system.gui.keyboard")
 
 local M = {
   apps = nil,
@@ -1113,6 +1304,7 @@ local M = {
   icons = {},
   search = "",
   searchFocused = false,
+  keyboard = {},
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -1181,6 +1373,15 @@ local function drawTaskbar()
   renderer.writeAt(w - #time, h, time, theme.get("taskbarFg"), theme.get("taskbarBg"))
 end
 
+local function drawSearchKeyboard()
+  if not M.searchFocused then return end
+  local w, h = term.getSize()
+  M.keyboard.x = 1
+  M.keyboard.y = math.max(1, h - keyboard.height())
+  M.keyboard.hint = "Search: " .. M.search
+  keyboard.draw(1, M.keyboard.y, w, M.keyboard)
+end
+
 local function drawMenu()
   if not M.menuOpen or not M.apps then return end
   local _, h = term.getSize()
@@ -1212,6 +1413,7 @@ function M.draw()
   drawTaskbar()
   drawMenu()
   drawContextMenu()
+  drawSearchKeyboard()
 end
 
 local function launch(appId)
@@ -1270,6 +1472,32 @@ local function openContextMenu(x, y)
   }
 end
 
+M.keyboard.onText = function(ch)
+  M.search = M.search .. ch
+  M.menuOpen = true
+end
+
+M.keyboard.onBackspace = function()
+  M.search = M.search:sub(1, -2)
+  M.menuOpen = true
+end
+
+M.keyboard.onEnter = function()
+  local appList = M.apps and M.apps.list() or {}
+  local query = M.search:lower()
+  for _, app in ipairs(appList) do
+    if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+      M.searchFocused = false
+      M.search = ""
+      M.menuOpen = false
+      launch(app.id)
+      return
+    end
+  end
+end
+
+M.keyboard.onTab = M.keyboard.onEnter
+
 function M.handle(event)
   if event.name == "char" and M.searchFocused then
     M.search = M.search .. event.args[1]
@@ -1299,6 +1527,10 @@ function M.handle(event)
   if event.name ~= "mouse_click" then return false end
   local button, x, y = table.unpack(event.args)
   local w, h = term.getSize()
+
+  if M.searchFocused and event.monitorTouch and keyboard.handle(event, M.keyboard) then
+    return true
+  end
 
   if M.contextMenu then
     local menu = M.contextMenu
@@ -1361,6 +1593,89 @@ function M.handle(event)
     end
   end
 
+  return false
+end
+
+return M
+]],
+  ["system/gui/keyboard.lua"] = [[local renderer = require("system.gui.renderer")
+
+local M = {}
+
+local rows = {
+  "1234567890",
+  "azertyuiop",
+  "qsdfghjklm",
+  "wxcvbn",
+}
+
+local function ensure(state)
+  state.caps = state.caps or false
+  state.shift = state.shift or false
+  return state
+end
+
+function M.height()
+  return 6
+end
+
+function M.draw(x, y, w, state)
+  state = ensure(state or {})
+  for row, chars in ipairs(rows) do
+    local line = ""
+    for i = 1, #chars do
+      local ch = chars:sub(i, i)
+      if state.caps or state.shift then ch = ch:upper() end
+      line = line .. ch .. " "
+    end
+    renderer.writeAt(x, y + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
+  end
+  local flags = (state.caps and "CAPS " or "") .. (state.ctrl and "CTRL " or "")
+  renderer.writeAt(x, y + 4, renderer.crop("[maj] [shift] [ctrl] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
+  renderer.writeAt(x, y + 5, renderer.crop(flags .. (state.hint or ""), w), colors.black, colors.orange)
+end
+
+function M.handle(event, state)
+  state = ensure(state or {})
+  if event.name ~= "mouse_click" then return false end
+  local _, x, y = table.unpack(event.args)
+  local relY = y - (state.y or 1) + 1
+  local relX = x - (state.x or 1) + 1
+
+  if relY >= 1 and relY <= #rows then
+    local chars = rows[relY]
+    local index = math.floor((relX + 1) / 2)
+    local ch = chars:sub(index, index)
+    if ch ~= "" then
+      if state.caps or state.shift then ch = ch:upper() end
+      state.shift = false
+      if state.onText then state.onText(ch) end
+      return true
+    end
+  elseif relY == 5 then
+    if relX >= 1 and relX <= 5 then
+      state.caps = not state.caps
+      return true
+    elseif relX >= 7 and relX <= 13 then
+      state.shift = true
+      return true
+    elseif relX >= 15 and relX <= 20 then
+      state.ctrl = not state.ctrl
+      return true
+    elseif relX >= 22 and relX <= 27 then
+      if state.onTab then state.onTab() end
+      return true
+    elseif relX >= 29 and relX <= 36 then
+      if state.onText then state.onText(" ") end
+      return true
+    elseif relX >= 38 and relX <= 45 then
+      if state.onBackspace then state.onBackspace() end
+      return true
+    elseif relX >= 47 and relX <= 55 then
+      if state.onEnter then state.onEnter() end
+      return true
+    end
+  end
   return false
 end
 

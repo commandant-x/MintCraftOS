@@ -1,5 +1,6 @@
 local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
+local keyboard = require("system.gui.keyboard")
 
 local M = {
   apps = nil,
@@ -11,6 +12,7 @@ local M = {
   icons = {},
   search = "",
   searchFocused = false,
+  keyboard = {},
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -79,6 +81,15 @@ local function drawTaskbar()
   renderer.writeAt(w - #time, h, time, theme.get("taskbarFg"), theme.get("taskbarBg"))
 end
 
+local function drawSearchKeyboard()
+  if not M.searchFocused then return end
+  local w, h = term.getSize()
+  M.keyboard.x = 1
+  M.keyboard.y = math.max(1, h - keyboard.height())
+  M.keyboard.hint = "Search: " .. M.search
+  keyboard.draw(1, M.keyboard.y, w, M.keyboard)
+end
+
 local function drawMenu()
   if not M.menuOpen or not M.apps then return end
   local _, h = term.getSize()
@@ -110,6 +121,7 @@ function M.draw()
   drawTaskbar()
   drawMenu()
   drawContextMenu()
+  drawSearchKeyboard()
 end
 
 local function launch(appId)
@@ -168,6 +180,32 @@ local function openContextMenu(x, y)
   }
 end
 
+M.keyboard.onText = function(ch)
+  M.search = M.search .. ch
+  M.menuOpen = true
+end
+
+M.keyboard.onBackspace = function()
+  M.search = M.search:sub(1, -2)
+  M.menuOpen = true
+end
+
+M.keyboard.onEnter = function()
+  local appList = M.apps and M.apps.list() or {}
+  local query = M.search:lower()
+  for _, app in ipairs(appList) do
+    if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+      M.searchFocused = false
+      M.search = ""
+      M.menuOpen = false
+      launch(app.id)
+      return
+    end
+  end
+end
+
+M.keyboard.onTab = M.keyboard.onEnter
+
 function M.handle(event)
   if event.name == "char" and M.searchFocused then
     M.search = M.search .. event.args[1]
@@ -197,6 +235,10 @@ function M.handle(event)
   if event.name ~= "mouse_click" then return false end
   local button, x, y = table.unpack(event.args)
   local w, h = term.getSize()
+
+  if M.searchFocused and event.monitorTouch and keyboard.handle(event, M.keyboard) then
+    return true
+  end
 
   if M.contextMenu then
     local menu = M.contextMenu

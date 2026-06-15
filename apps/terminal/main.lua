@@ -1,5 +1,6 @@
 local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
+local keyboard = require("system.gui.keyboard")
 
 local M = {}
 
@@ -67,6 +68,7 @@ function M.run(ctx)
     caps = false,
     shift = false,
     suggestion = nil,
+    keyboard = {},
   }
 
   local commands = { "ls", "cd", "cat", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
@@ -78,13 +80,6 @@ function M.run(ctx)
     { label = "ps", text = "ps" },
     { label = "logs", text = "logs" },
     { label = "clear", text = "clear" },
-  }
-
-  local keysRows = {
-    "1234567890",
-    "azertyuiop",
-    "qsdfghjklm",
-    "wxcvbn",
   }
 
   local function currentWord()
@@ -120,10 +115,6 @@ function M.run(ctx)
     return true
   end
 
-  local function keyboardTop(h)
-    return math.max(3, h - 6)
-  end
-
   local function submit()
     local input = app.input
     app.input = ""
@@ -145,48 +136,15 @@ function M.run(ctx)
     return false
   end
 
-  local function hitKeyboard(x, y, h)
-    local top = keyboardTop(h)
-    local row = y - top + 1
-    if row >= 1 and row <= #keysRows then
-      local chars = keysRows[row]
-      local index = math.floor((x + 1) / 2)
-      local ch = chars:sub(index, index)
-      if ch ~= "" then
-        if app.caps or app.shift then ch = ch:upper() end
-        app.shift = false
-        app.input = app.input .. ch
-        updateSuggestion()
-        return true
-      end
-    elseif y == top + 4 then
-      if x >= 1 and x <= 5 then
-        app.caps = not app.caps
-        return true
-      elseif x >= 7 and x <= 12 then
-        app.shift = true
-        return true
-      elseif x >= 14 and x <= 19 then
-        return acceptSuggestion()
-      elseif x >= 21 and x <= 28 then
-        app.input = app.input .. " "
-        return true
-      elseif x >= 30 and x <= 37 then
-        app.input = string.sub(app.input, 1, -2)
-        updateSuggestion()
-        return true
-      elseif x >= 39 and x <= 47 then
-        submit()
-        return true
-      end
-    end
-    return false
-  end
+  app.keyboard.onText = function(ch) app.input = app.input .. ch updateSuggestion() end
+  app.keyboard.onBackspace = function() app.input = string.sub(app.input, 1, -2) updateSuggestion() end
+  app.keyboard.onEnter = submit
+  app.keyboard.onTab = acceptSuggestion
 
   function app:draw(w, h)
     self.lastH = h
     updateSuggestion()
-    local top = keyboardTop(h)
+    local top = math.max(3, h - keyboard.height())
     local logHeight = math.max(1, top - 3)
     local cursor = 1
     for _, item in ipairs(quick) do
@@ -207,12 +165,10 @@ function M.run(ctx)
     if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion .. "]" end
     renderer.writeAt(1, top - 1, renderer.crop(prompt, w), colors.white, colors.gray)
 
-    for row, chars in ipairs(keysRows) do
-      local line = ""
-      for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
-      renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
-    end
-    renderer.writeAt(1, top + 4, renderer.crop("[maj] [shift] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
+    self.keyboard.x = 1
+    self.keyboard.y = top
+    self.keyboard.hint = self.suggestion and ("Tab: " .. self.suggestion) or ""
+    keyboard.draw(1, top, w, self.keyboard)
   end
 
   function app:handle(event)
@@ -236,9 +192,8 @@ function M.run(ctx)
       end
     elseif event.name == "mouse_click" and event.monitorTouch then
       local _, x, y = table.unpack(event.args)
-      local h = self.lastH or 12
       if hitQuick(x, y) then return true end
-      if hitKeyboard(x, y, h) then return true end
+      if keyboard.handle(event, self.keyboard) then return true end
     end
     return false
   end

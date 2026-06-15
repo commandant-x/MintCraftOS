@@ -1,0 +1,7 @@
+{
+  txt = "editor",
+  md = "editor",
+  cfg = "editor",
+  db = "editor",
+  lua = "editor",
+}

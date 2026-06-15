@@ -12,6 +12,8 @@ This repository currently contains the V0.6 base:
 - desktop, taskbar, start menu, right-click context menu and notifications
 - monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
 - custom ASCII app icons, searchable start menu and AZERTY touch keyboard
+- complete touch-first Files app with toolbar, open, create, rename and delete confirmation
+- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
 - Editor app with Lua compile check and Tab autocomplete/snippets
 - richer Settings pages for system, display, network and developer information
 - minimal Terminal, Files, Settings, Task Manager, Services, Devices and Logs apps
