@@ -9,6 +9,8 @@ local M = {
   contextMenu = nil,
   lastMonitorTap = nil,
   icons = {},
+  search = "",
+  searchFocused = false,
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -18,15 +20,23 @@ function M.setNotifications(notifications) M.notifications = notifications end
 local function drawIcons()
   local _, h = term.getSize()
   local labels = {
-    { label = "Terminal", app = "terminal" },
-    { label = "Files", app = "files" },
-    { label = "Settings", app = "settings" },
-    { label = "Devices", app = "devices" },
+    { app = "terminal" },
+    { app = "files" },
+    { app = "editor" },
+    { app = "settings" },
+    { app = "devices" },
   }
   local icons = {}
   local x, y = 2, 2
   for _, item in ipairs(labels) do
-    table.insert(icons, { x = x, y = y, label = item.label, app = item.app })
+    local meta = M.apps and M.apps.get(item.app) or nil
+    table.insert(icons, {
+      x = x,
+      y = y,
+      label = meta and meta.name or item.app,
+      icon = meta and meta.icon or "[]",
+      app = item.app,
+    })
     y = y + 3
     if y > h - 5 then
       y = 2
@@ -36,7 +46,7 @@ local function drawIcons()
 
   M.icons = icons
   for _, icon in ipairs(icons) do
-    renderer.writeAt(icon.x, icon.y, "[ ]", colors.white, theme.get("desktopBg"))
+    renderer.writeAt(icon.x, icon.y, "[" .. renderer.crop(icon.icon, 2) .. "]", colors.white, theme.get("desktopBg"))
     renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
   end
 end
@@ -61,6 +71,10 @@ local function drawTaskbar()
   local w, h = term.getSize()
   renderer.fill(1, h, w, 1, theme.get("taskbarBg"))
   renderer.button(1, h, 8, "Menu", M.menuOpen)
+  local searchW = math.min(24, math.max(10, w - 26))
+  local searchBg = M.searchFocused and colors.white or colors.lightGray
+  local searchFg = colors.black
+  renderer.writeAt(10, h, renderer.crop("?" .. M.search, searchW), searchFg, searchBg)
   local time = textutils.formatTime(os.time(), true)
   renderer.writeAt(w - #time, h, time, theme.get("taskbarFg"), theme.get("taskbarBg"))
 end
@@ -69,12 +83,22 @@ local function drawMenu()
   if not M.menuOpen or not M.apps then return end
   local _, h = term.getSize()
   local appList = M.apps.list()
+  if M.search ~= "" then
+    local filtered = {}
+    local query = M.search:lower()
+    for _, app in ipairs(appList) do
+      if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+        table.insert(filtered, app)
+      end
+    end
+    appList = filtered
+  end
   local height = math.min(#appList + 2, h - 2)
   renderer.fill(1, h - height, 24, height, colors.lightGray)
   renderer.writeAt(2, h - height, "MintCraft OS", colors.black, colors.lightGray)
   for i, app in ipairs(appList) do
     if i <= height - 1 then
-      renderer.writeAt(2, h - height + i, tostring(i) .. ". " .. renderer.crop(app.name, 18), colors.black, colors.lightGray)
+      renderer.writeAt(2, h - height + i, renderer.crop(app.icon .. " " .. app.name, 21), colors.black, colors.lightGray)
     end
   end
 end
@@ -131,6 +155,12 @@ local function openContextMenu(x, y)
       { label = "New file", action = createTextFile },
       { label = "New folder", action = createFolder },
       { label = "Open Files", action = function() launch("files") end },
+      { label = "New Lua file", action = function()
+        local path = nextFreePath("/home/user/desktop/new_script_", ".lua")
+        local h = fs.open(path, "w")
+        if h then h.write("print(\"hello\")\n") h.close() end
+        launch("editor", { path = path })
+      end },
       { label = "Terminal", action = function() launch("terminal") end },
       { label = "Settings", action = function() launch("settings") end },
       { label = "Devices", action = function() launch("devices") end },
@@ -139,6 +169,31 @@ local function openContextMenu(x, y)
 end
 
 function M.handle(event)
+  if event.name == "char" and M.searchFocused then
+    M.search = M.search .. event.args[1]
+    M.menuOpen = true
+    return true
+  elseif event.name == "key" and M.searchFocused then
+    local key = event.args[1]
+    if key == keys.backspace then
+      M.search = string.sub(M.search, 1, -2)
+      return true
+    elseif key == keys.enter then
+      local appList = M.apps and M.apps.list() or {}
+      local query = M.search:lower()
+      for _, app in ipairs(appList) do
+        if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+          M.searchFocused = false
+          M.search = ""
+          M.menuOpen = false
+          launch(app.id)
+          return true
+        end
+      end
+    end
+    return true
+  end
+
   if event.name ~= "mouse_click" then return false end
   local button, x, y = table.unpack(event.args)
   local w, h = term.getSize()
@@ -158,6 +213,13 @@ function M.handle(event)
 
   if y == h and x <= 8 then
     M.menuOpen = not M.menuOpen
+    M.searchFocused = false
+    return true
+  end
+
+  if y == h and x >= 10 and x <= 33 then
+    M.searchFocused = true
+    M.menuOpen = true
     return true
   end
 

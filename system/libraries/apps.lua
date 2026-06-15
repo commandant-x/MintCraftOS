@@ -9,8 +9,19 @@ function M.setContext(ctx)
   M.ctx = ctx
 end
 
-function M.register(id, name, module)
-  M.registry[id] = { id = id, name = name, module = module }
+function M.register(id, name, module, meta)
+  meta = meta or {}
+  M.registry[id] = {
+    id = id,
+    name = name,
+    module = module,
+    icon = meta.icon or "[]",
+    category = meta.category or "System",
+  }
+end
+
+function M.get(id)
+  return M.registry[id]
 end
 
 function M.list()

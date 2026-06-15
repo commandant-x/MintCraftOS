@@ -1,4 +1,4 @@
--- MintCraft OS V0.5 installer for CC:Tweaked
+-- MintCraft OS V0.6 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".settings"] = [[{
@@ -8,7 +8,7 @@ local files = {
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.5.0",
+  version = "0.6.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -64,10 +64,260 @@ end
 
 return M
 ]],
+  ["apps/editor/app.cfg"] = [[{
+  id = "editor",
+  name = "Editor",
+  version = "0.6.0",
+  main = "apps.editor.main",
+  permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
+}
+]],
+  ["apps/editor/main.lua"] = [[local renderer = require("system.gui.renderer")
+
+local M = {}
+
+local snippets = {
+  ["for"] = "for i = 1, n do\n  \nend",
+  ["if"] = "if condition then\n  \nend",
+  ["function"] = "function name(args)\n  \nend",
+  ["local"] = "local name = value",
+  ["while"] = "while condition do\n  \nend",
+  ["repeat"] = "repeat\n  \n until condition",
+  ["print"] = "print(\"\")",
+  ["require"] = "local mod = require(\"module\")",
+}
+
+local words = {
+  "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
+  "if", "in", "local", "nil", "not", "or", "repeat", "return", "then",
+  "true", "until", "while", "pairs", "ipairs", "pcall", "print", "require",
+  "table.insert", "string.sub", "term.setCursorPos", "fs.open", "fs.exists",
+}
+
+local function splitLines(text)
+  local lines = {}
+  text = text or ""
+  for line in (text .. "\n"):gmatch("(.-)\n") do table.insert(lines, line) end
+  if #lines == 0 then table.insert(lines, "") end
+  return lines
+end
+
+local function readFile(path)
+  if path and fs.exists(path) then
+    local h = fs.open(path, "r")
+    local text = h.readAll() or ""
+    h.close()
+    return splitLines(text)
+  end
+  return { "-- MintCraft Lua file", "" }
+end
+
+local function writeFile(path, lines)
+  local h = fs.open(path, "w")
+  if not h then return false end
+  h.write(table.concat(lines, "\n"))
+  h.close()
+  return true
+end
+
+local function currentPrefix(line, col)
+  local left = line:sub(1, col - 1)
+  return left:match("([%w_%.]+)$") or ""
+end
+
+local function suggestion(prefix)
+  if prefix == "" then return nil end
+  for key in pairs(snippets) do
+    if key:sub(1, #prefix) == prefix then return key, snippets[key] end
+  end
+  for _, word in ipairs(words) do
+    if word:sub(1, #prefix) == prefix then return word, word end
+  end
+  return nil
+end
+
+local function insertText(app, text)
+  local line = app.lines[app.cy]
+  local before = line:sub(1, app.cx - 1)
+  local after = line:sub(app.cx)
+  local insertLines = splitLines(text)
+  if #insertLines == 1 then
+    app.lines[app.cy] = before .. insertLines[1] .. after
+    app.cx = app.cx + #insertLines[1]
+  else
+    app.lines[app.cy] = before .. insertLines[1]
+    for i = 2, #insertLines do
+      table.insert(app.lines, app.cy + i - 1, insertLines[i])
+    end
+    app.cy = app.cy + #insertLines - 1
+    app.cx = #insertLines[#insertLines] + 1
+    app.lines[app.cy] = app.lines[app.cy] .. after
+  end
+end
+
+local function compile(app)
+  local tmp = "/var/tmp/editor_compile.lua"
+  writeFile(tmp, app.lines)
+  local fn, err = loadfile(tmp)
+  if fn then app.status = "Compile OK" else app.status = tostring(err) end
+end
+
+function M.run(ctx)
+  local app = {
+    path = ctx.args.path or "/home/user/documents/untitled.lua",
+    lines = readFile(ctx.args.path),
+    cx = 1,
+    cy = 1,
+    scroll = 1,
+    status = "Editor ready",
+    caps = false,
+    shift = false,
+  }
+
+  local keyboard = {
+    "azertyuiop",
+    "qsdfghjklm",
+    "wxcvbn",
+  }
+
+  local function visibleHeight(h)
+    return math.max(4, h - 8)
+  end
+
+  local function applySuggestion()
+    local line = app.lines[app.cy]
+    local prefix = currentPrefix(line, app.cx)
+    local label, text = suggestion(prefix)
+    if not text then return false end
+    app.lines[app.cy] = line:sub(1, app.cx - #prefix - 1) .. line:sub(app.cx)
+    app.cx = app.cx - #prefix
+    insertText(app, text)
+    app.status = "Inserted " .. label
+    return true
+  end
+
+  local function drawKeyboard(w, h)
+    local top = h - 4
+    for row, chars in ipairs(keyboard) do
+      local line = ""
+      for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
+      renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
+    end
+    renderer.writeAt(1, h, renderer.crop("[maj] [ctrl] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
+  end
+
+  local function hitKeyboard(x, y, h)
+    local top = h - 4
+    local row = y - top + 1
+    if row >= 1 and row <= #keyboard then
+      local chars = keyboard[row]
+      local index = math.floor((x + 1) / 2)
+      local ch = chars:sub(index, index)
+      if ch ~= "" then
+        if app.caps or app.shift then ch = ch:upper() end
+        app.shift = false
+        insertText(app, ch)
+        return true
+      end
+    elseif y == h then
+      if x >= 1 and x <= 5 then app.caps = not app.caps return true end
+      if x >= 8 and x <= 13 then app.status = "Ctrl armed" return true end
+      if x >= 16 and x <= 21 then return applySuggestion() end
+      if x >= 24 and x <= 31 then insertText(app, " ") return true end
+      if x >= 34 and x <= 40 then
+        local line = app.lines[app.cy]
+        if app.cx > 1 then
+          app.lines[app.cy] = line:sub(1, app.cx - 2) .. line:sub(app.cx)
+          app.cx = app.cx - 1
+        end
+        return true
+      elseif x >= 43 and x <= 50 then
+        local line = app.lines[app.cy]
+        local rest = line:sub(app.cx)
+        app.lines[app.cy] = line:sub(1, app.cx - 1)
+        table.insert(app.lines, app.cy + 1, rest)
+        app.cy = app.cy + 1
+        app.cx = 1
+        return true
+      end
+    end
+    return false
+  end
+
+  function app:draw(w, h)
+    local prefix = currentPrefix(self.lines[self.cy] or "", self.cx)
+    local sug = suggestion(prefix)
+    renderer.writeAt(1, 1, renderer.crop("[Save] [Compile] " .. self.path, w), colors.white, colors.gray)
+    local maxLines = visibleHeight(h)
+    if self.cy < self.scroll then self.scroll = self.cy end
+    if self.cy >= self.scroll + maxLines then self.scroll = self.cy - maxLines + 1 end
+    for row = 1, maxLines do
+      local lineNo = self.scroll + row - 1
+      local text = self.lines[lineNo] or ""
+      local marker = lineNo == self.cy and ">" or " "
+      renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), colors.black, colors.lightGray)
+    end
+    renderer.writeAt(1, h - 5, renderer.crop(self.status, w), colors.white, colors.gray)
+    if sug then renderer.writeAt(1, h - 6, renderer.crop("Tab: " .. sug, w), colors.black, colors.orange) end
+    drawKeyboard(w, h)
+  end
+
+  function app:handle(event)
+    if event.name == "char" then
+      insertText(self, event.args[1])
+      return true
+    elseif event.name == "key" then
+      local key = event.args[1]
+      if key == keys.tab then return applySuggestion()
+      elseif key == keys.enter then insertText(self, "\n") return true
+      elseif key == keys.backspace then
+        local line = self.lines[self.cy]
+        if self.cx > 1 then
+          self.lines[self.cy] = line:sub(1, self.cx - 2) .. line:sub(self.cx)
+          self.cx = self.cx - 1
+        end
+        return true
+      elseif key == keys.up then self.cy = math.max(1, self.cy - 1) return true
+      elseif key == keys.down then self.cy = math.min(#self.lines, self.cy + 1) return true
+      elseif key == keys.left then self.cx = math.max(1, self.cx - 1) return true
+      elseif key == keys.right then self.cx = self.cx + 1 return true
+      end
+    elseif event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if y == 1 and x <= 6 then
+        if writeFile(self.path, self.lines) then self.status = "Saved" else self.status = "Save failed" end
+        return true
+      elseif y == 1 and x >= 8 and x <= 16 then
+        compile(self)
+        return true
+      elseif event.monitorTouch and hitKeyboard(x, y, self.lastH or 18) then
+        return true
+      else
+        local vh = visibleHeight(self.lastH or 18)
+        if y >= 2 and y < 2 + vh then
+          self.cy = math.min(#self.lines, self.scroll + y - 2)
+          self.cx = #(self.lines[self.cy] or "") + 1
+          return true
+        end
+      end
+    end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Editor", w = math.min(78, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
+  function app:drawWithHeight(w, h) self.lastH = h self:draw(w, h) end
+  local originalDraw = app.draw
+  app.draw = function(self, w, h) self.lastH = h return originalDraw(self, w, h) end
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.5.0",
+  version = "0.6.0",
   main = "apps.files.main",
   permissions = { "filesystem.read" },
 }
@@ -119,7 +369,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.5.0",
+  version = "0.6.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -154,7 +404,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.5.0",
+  version = "0.6.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -189,44 +439,129 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.5.0",
+  version = "0.6.0",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
 ]],
   ["apps/settings/main.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
+local config = require("system.libraries.config")
+local deviced = require("system.services.deviced")
 
 local M = {}
 
 function M.run(ctx)
-  local app = {}
+  local app = { page = "system" }
+
+  local pages = { "system", "display", "network", "dev", "theme" }
+
+  local function computerId()
+    if os.getComputerID then return os.getComputerID() end
+    if os.computerID then return os.computerID() end
+    return 0
+  end
+
+  local function pseudoIp()
+    local id = computerId()
+    return "10.0." .. tostring(math.floor(id / 256) % 256) .. "." .. tostring(id % 256)
+  end
+
+  local function monitorGrade(display)
+    local cells = (display.width or 0) * (display.height or 0)
+    if display.target ~= "monitor" then return "computer" end
+    if cells >= 4500 then return "A"
+    elseif cells >= 2500 then return "B"
+    elseif cells >= 1200 then return "C"
+    else return "D"
+    end
+  end
+
+  local function httpStatus()
+    return http and "available" or "missing"
+  end
+
+  local function rednetStatus()
+    if not peripheral or not peripheral.find then return "no peripheral API" end
+    local modem = peripheral.find("modem")
+    if not modem then return "no modem" end
+    return "modem ready"
+  end
 
   function app:draw(w, h)
-    renderer.writeAt(1, 1, "Settings", colors.black, colors.lightGray)
-    renderer.writeAt(1, 3, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
-    renderer.button(1, 5, 14, "Mint", theme.currentId == "mint")
-    renderer.button(16, 5, 14, "Dark", theme.currentId == "dark")
-    renderer.writeAt(1, h, "Click a theme to apply", colors.gray, colors.lightGray)
+    local x = 1
+    for _, page in ipairs(pages) do
+      renderer.button(x, 1, #page + 2, page, self.page == page)
+      x = x + #page + 3
+    end
+
+    if self.page == "system" then
+      renderer.writeAt(1, 3, "Computer ID: " .. tostring(computerId()), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Label: " .. tostring(os.getComputerLabel and (os.getComputerLabel() or "-") or "-"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "MintCraft: " .. tostring(config.load("/system/config/system.cfg", {}).version or "?"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
+    elseif self.page == "display" then
+      local d = deviced.getDisplay()
+      renderer.writeAt(1, 3, "Target: " .. tostring(d.target), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Resolution: " .. tostring(d.width) .. "x" .. tostring(d.height), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Monitor side: " .. tostring(d.monitorSide or "-"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, "Scale: " .. tostring(d.scale or "-"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, "Monitor grade: " .. monitorGrade(d), colors.black, colors.lightGray)
+      renderer.button(1, 9, 18, "Refresh display", false)
+    elseif self.page == "network" then
+      renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, "Real IP is not exposed by CC:Tweaked.", colors.gray, colors.lightGray)
+      renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
+    elseif self.page == "dev" then
+      renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
+      renderer.button(1, 7, 14, "Open Editor", false)
+    elseif self.page == "theme" then
+      renderer.writeAt(1, 3, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
+      renderer.button(1, 5, 14, "Mint", theme.currentId == "mint")
+      renderer.button(16, 5, 14, "Dark", theme.currentId == "dark")
+    end
+    renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
   end
 
   function app:handle(event)
     if event.name ~= "mouse_click" then return false end
     local _, x, y = table.unpack(event.args)
-    if y == 5 and x <= 14 then
+    if y == 1 then
+      local cursor = 1
+      for _, page in ipairs(pages) do
+        local width = #page + 2
+        if x >= cursor and x < cursor + width then
+          self.page = page
+          return true
+        end
+        cursor = cursor + width + 1
+      end
+    end
+
+    if self.page == "theme" and y == 5 and x <= 14 then
       theme.set("mint")
       ctx.notifications:push("success", "Settings", "Mint theme applied", 3)
       return true
-    elseif y == 5 and x >= 16 and x <= 29 then
+    elseif self.page == "theme" and y == 5 and x >= 16 and x <= 29 then
       theme.set("dark")
       ctx.notifications:push("success", "Settings", "Dark theme applied", 3)
+      return true
+    elseif self.page == "display" and y == 9 and x <= 18 then
+      deviced.refreshDisplay()
+      return true
+    elseif self.page == "dev" and y == 7 and x <= 14 then
+      ctx.apps.launch("editor")
       return true
     end
     return false
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Settings", w = math.min(46, sw - 4), h = math.min(12, sh - 3), x = 8, y = 4, app = app })
+  local win = ctx.windowManager:create({ title = "Settings", w = math.min(72, sw - 4), h = math.min(18, sh - 3), x = 8, y = 4, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -235,7 +570,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.5.0",
+  version = "0.6.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -270,7 +605,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.5.0",
+  version = "0.6.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -341,7 +676,12 @@ function M.run(ctx)
     lines = { "MintCraft Terminal", "Type help for commands." },
     input = "",
     cwd = "/home/user",
+    caps = false,
+    shift = false,
+    suggestion = nil,
   }
+
+  local commands = { "ls", "cd", "cat", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
 
   local quick = {
     { label = "ls", text = "ls" },
@@ -354,10 +694,43 @@ function M.run(ctx)
 
   local keysRows = {
     "1234567890",
-    "qwertyuiop",
-    "asdfghjkl",
-    "zxcvbnm",
+    "azertyuiop",
+    "qsdfghjklm",
+    "wxcvbn",
   }
+
+  local function currentWord()
+    return app.input:match("([%w_%-/%.]+)$") or ""
+  end
+
+  local function updateSuggestion()
+    local prefix = currentWord()
+    app.suggestion = nil
+    if prefix == "" then return end
+    for _, cmd in ipairs(commands) do
+      if cmd:sub(1, #prefix) == prefix then app.suggestion = cmd return end
+    end
+    local dir = app.cwd
+    local part = prefix
+    if prefix:find("/") then
+      dir = fs.getDir(fs.combine(app.cwd, prefix))
+      part = fs.getName(prefix)
+    end
+    if fs.exists(dir) and fs.isDir(dir) then
+      for _, name in ipairs(fs.list(dir)) do
+        if name:sub(1, #part) == part then app.suggestion = name return end
+      end
+    end
+  end
+
+  local function acceptSuggestion()
+    updateSuggestion()
+    if not app.suggestion then return false end
+    local prefix = currentWord()
+    app.input = app.input:sub(1, #app.input - #prefix) .. app.suggestion
+    app.suggestion = nil
+    return true
+  end
 
   local function keyboardTop(h)
     return math.max(3, h - 6)
@@ -392,17 +765,29 @@ function M.run(ctx)
       local index = math.floor((x + 1) / 2)
       local ch = chars:sub(index, index)
       if ch ~= "" then
+        if app.caps or app.shift then ch = ch:upper() end
+        app.shift = false
         app.input = app.input .. ch
+        updateSuggestion()
         return true
       end
     elseif y == top + 4 then
-      if x >= 1 and x <= 8 then
+      if x >= 1 and x <= 5 then
+        app.caps = not app.caps
+        return true
+      elseif x >= 7 and x <= 12 then
+        app.shift = true
+        return true
+      elseif x >= 14 and x <= 19 then
+        return acceptSuggestion()
+      elseif x >= 21 and x <= 28 then
         app.input = app.input .. " "
         return true
-      elseif x >= 10 and x <= 17 then
+      elseif x >= 30 and x <= 37 then
         app.input = string.sub(app.input, 1, -2)
+        updateSuggestion()
         return true
-      elseif x >= 19 and x <= 27 then
+      elseif x >= 39 and x <= 47 then
         submit()
         return true
       end
@@ -412,6 +797,7 @@ function M.run(ctx)
 
   function app:draw(w, h)
     self.lastH = h
+    updateSuggestion()
     local top = keyboardTop(h)
     local logHeight = math.max(1, top - 3)
     local cursor = 1
@@ -429,14 +815,16 @@ function M.run(ctx)
       y = y + 1
       if y >= top - 1 then break end
     end
-    renderer.writeAt(1, top - 1, renderer.crop(self.cwd .. "> " .. self.input, w), colors.white, colors.gray)
+    local prompt = self.cwd .. "> " .. self.input
+    if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion .. "]" end
+    renderer.writeAt(1, top - 1, renderer.crop(prompt, w), colors.white, colors.gray)
 
     for row, chars in ipairs(keysRows) do
       local line = ""
       for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
       renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
     end
-    renderer.writeAt(1, top + 4, renderer.crop("[space] [back] [enter]", w), colors.white, colors.gray)
+    renderer.writeAt(1, top + 4, renderer.crop("[maj] [shift] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
   end
 
   function app:handle(event)
@@ -452,6 +840,10 @@ function M.run(ctx)
         return true
       elseif key == keys.backspace then
         self.input = string.sub(self.input, 1, -2)
+        updateSuggestion()
+        return true
+      elseif key == keys.tab then
+        acceptSuggestion()
         return true
       end
     elseif event.name == "mouse_click" and event.monitorTouch then
@@ -524,7 +916,7 @@ end
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.5 base:
+This repository currently contains the V0.6 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -533,6 +925,9 @@ This repository currently contains the V0.5 base:
 - terminal renderer, themes and window manager
 - desktop, taskbar, start menu, right-click context menu and notifications
 - monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
+- custom ASCII app icons, searchable start menu and AZERTY touch keyboard
+- Editor app with Lua compile check and Tab autocomplete/snippets
+- richer Settings pages for system, display, network and developer information
 - minimal Terminal, Files, Settings, Task Manager, Services, Devices and Logs apps
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
@@ -693,7 +1088,7 @@ end
 return M
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.5.0",
+  version = "0.6.0",
   theme = "mint",
   debug = true,
   safeMode = false,
@@ -716,6 +1111,8 @@ local M = {
   contextMenu = nil,
   lastMonitorTap = nil,
   icons = {},
+  search = "",
+  searchFocused = false,
 }
 
 function M.setApps(apps) M.apps = apps end
@@ -725,15 +1122,23 @@ function M.setNotifications(notifications) M.notifications = notifications end
 local function drawIcons()
   local _, h = term.getSize()
   local labels = {
-    { label = "Terminal", app = "terminal" },
-    { label = "Files", app = "files" },
-    { label = "Settings", app = "settings" },
-    { label = "Devices", app = "devices" },
+    { app = "terminal" },
+    { app = "files" },
+    { app = "editor" },
+    { app = "settings" },
+    { app = "devices" },
   }
   local icons = {}
   local x, y = 2, 2
   for _, item in ipairs(labels) do
-    table.insert(icons, { x = x, y = y, label = item.label, app = item.app })
+    local meta = M.apps and M.apps.get(item.app) or nil
+    table.insert(icons, {
+      x = x,
+      y = y,
+      label = meta and meta.name or item.app,
+      icon = meta and meta.icon or "[]",
+      app = item.app,
+    })
     y = y + 3
     if y > h - 5 then
       y = 2
@@ -743,7 +1148,7 @@ local function drawIcons()
 
   M.icons = icons
   for _, icon in ipairs(icons) do
-    renderer.writeAt(icon.x, icon.y, "[ ]", colors.white, theme.get("desktopBg"))
+    renderer.writeAt(icon.x, icon.y, "[" .. renderer.crop(icon.icon, 2) .. "]", colors.white, theme.get("desktopBg"))
     renderer.writeAt(icon.x, icon.y + 1, renderer.crop(icon.label, 10), colors.white, theme.get("desktopBg"))
   end
 end
@@ -768,6 +1173,10 @@ local function drawTaskbar()
   local w, h = term.getSize()
   renderer.fill(1, h, w, 1, theme.get("taskbarBg"))
   renderer.button(1, h, 8, "Menu", M.menuOpen)
+  local searchW = math.min(24, math.max(10, w - 26))
+  local searchBg = M.searchFocused and colors.white or colors.lightGray
+  local searchFg = colors.black
+  renderer.writeAt(10, h, renderer.crop("?" .. M.search, searchW), searchFg, searchBg)
   local time = textutils.formatTime(os.time(), true)
   renderer.writeAt(w - #time, h, time, theme.get("taskbarFg"), theme.get("taskbarBg"))
 end
@@ -776,12 +1185,22 @@ local function drawMenu()
   if not M.menuOpen or not M.apps then return end
   local _, h = term.getSize()
   local appList = M.apps.list()
+  if M.search ~= "" then
+    local filtered = {}
+    local query = M.search:lower()
+    for _, app in ipairs(appList) do
+      if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+        table.insert(filtered, app)
+      end
+    end
+    appList = filtered
+  end
   local height = math.min(#appList + 2, h - 2)
   renderer.fill(1, h - height, 24, height, colors.lightGray)
   renderer.writeAt(2, h - height, "MintCraft OS", colors.black, colors.lightGray)
   for i, app in ipairs(appList) do
     if i <= height - 1 then
-      renderer.writeAt(2, h - height + i, tostring(i) .. ". " .. renderer.crop(app.name, 18), colors.black, colors.lightGray)
+      renderer.writeAt(2, h - height + i, renderer.crop(app.icon .. " " .. app.name, 21), colors.black, colors.lightGray)
     end
   end
 end
@@ -838,6 +1257,12 @@ local function openContextMenu(x, y)
       { label = "New file", action = createTextFile },
       { label = "New folder", action = createFolder },
       { label = "Open Files", action = function() launch("files") end },
+      { label = "New Lua file", action = function()
+        local path = nextFreePath("/home/user/desktop/new_script_", ".lua")
+        local h = fs.open(path, "w")
+        if h then h.write("print(\"hello\")\n") h.close() end
+        launch("editor", { path = path })
+      end },
       { label = "Terminal", action = function() launch("terminal") end },
       { label = "Settings", action = function() launch("settings") end },
       { label = "Devices", action = function() launch("devices") end },
@@ -846,6 +1271,31 @@ local function openContextMenu(x, y)
 end
 
 function M.handle(event)
+  if event.name == "char" and M.searchFocused then
+    M.search = M.search .. event.args[1]
+    M.menuOpen = true
+    return true
+  elseif event.name == "key" and M.searchFocused then
+    local key = event.args[1]
+    if key == keys.backspace then
+      M.search = string.sub(M.search, 1, -2)
+      return true
+    elseif key == keys.enter then
+      local appList = M.apps and M.apps.list() or {}
+      local query = M.search:lower()
+      for _, app in ipairs(appList) do
+        if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
+          M.searchFocused = false
+          M.search = ""
+          M.menuOpen = false
+          launch(app.id)
+          return true
+        end
+      end
+    end
+    return true
+  end
+
   if event.name ~= "mouse_click" then return false end
   local button, x, y = table.unpack(event.args)
   local w, h = term.getSize()
@@ -865,6 +1315,13 @@ function M.handle(event)
 
   if y == h and x <= 8 then
     M.menuOpen = not M.menuOpen
+    M.searchFocused = false
+    return true
+  end
+
+  if y == h and x >= 10 and x <= 33 then
+    M.searchFocused = true
+    M.menuOpen = true
     return true
   end
 
@@ -1082,13 +1539,14 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main")
-  apps.register("files", "Files", "apps.files.main")
-  apps.register("settings", "Settings", "apps.settings.main")
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main")
-  apps.register("logs", "Logs", "apps.logs.main")
-  apps.register("services", "Services", "apps.services.main")
-  apps.register("devices", "Devices", "apps.devices.main")
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", category = "System" })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", category = "Files" })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", category = "System" })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", category = "System" })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", category = "System" })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", category = "System" })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", category = "Hardware" })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", category = "Dev" })
 
   desktop.setApps(apps)
   desktop.setWindowManager(ctx.wm)
@@ -1264,8 +1722,19 @@ function M.setContext(ctx)
   M.ctx = ctx
 end
 
-function M.register(id, name, module)
-  M.registry[id] = { id = id, name = name, module = module }
+function M.register(id, name, module, meta)
+  meta = meta or {}
+  M.registry[id] = {
+    id = id,
+    name = name,
+    module = module,
+    icon = meta.icon or "[]",
+    category = meta.category or "System",
+  }
+end
+
+function M.get(id)
+  return M.registry[id]
 end
 
 function M.list()
@@ -1848,7 +2317,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.5.0
+  ["VERSION"] = [[0.6.0
 ]],
 }
 
@@ -1859,7 +2328,7 @@ end
 
 term.clear()
 term.setCursorPos(1, 1)
-print("MintCraft OS V0.5 installer")
+print("MintCraft OS V0.6 installer")
 print("Writing files...")
 
 for path, content in pairs(files) do

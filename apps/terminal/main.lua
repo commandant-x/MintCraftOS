@@ -64,7 +64,12 @@ function M.run(ctx)
     lines = { "MintCraft Terminal", "Type help for commands." },
     input = "",
     cwd = "/home/user",
+    caps = false,
+    shift = false,
+    suggestion = nil,
   }
+
+  local commands = { "ls", "cd", "cat", "clear", "ps", "kill", "logs", "files", "settings", "devices", "reboot", "help" }
 
   local quick = {
     { label = "ls", text = "ls" },
@@ -77,10 +82,43 @@ function M.run(ctx)
 
   local keysRows = {
     "1234567890",
-    "qwertyuiop",
-    "asdfghjkl",
-    "zxcvbnm",
+    "azertyuiop",
+    "qsdfghjklm",
+    "wxcvbn",
   }
+
+  local function currentWord()
+    return app.input:match("([%w_%-/%.]+)$") or ""
+  end
+
+  local function updateSuggestion()
+    local prefix = currentWord()
+    app.suggestion = nil
+    if prefix == "" then return end
+    for _, cmd in ipairs(commands) do
+      if cmd:sub(1, #prefix) == prefix then app.suggestion = cmd return end
+    end
+    local dir = app.cwd
+    local part = prefix
+    if prefix:find("/") then
+      dir = fs.getDir(fs.combine(app.cwd, prefix))
+      part = fs.getName(prefix)
+    end
+    if fs.exists(dir) and fs.isDir(dir) then
+      for _, name in ipairs(fs.list(dir)) do
+        if name:sub(1, #part) == part then app.suggestion = name return end
+      end
+    end
+  end
+
+  local function acceptSuggestion()
+    updateSuggestion()
+    if not app.suggestion then return false end
+    local prefix = currentWord()
+    app.input = app.input:sub(1, #app.input - #prefix) .. app.suggestion
+    app.suggestion = nil
+    return true
+  end
 
   local function keyboardTop(h)
     return math.max(3, h - 6)
@@ -115,17 +153,29 @@ function M.run(ctx)
       local index = math.floor((x + 1) / 2)
       local ch = chars:sub(index, index)
       if ch ~= "" then
+        if app.caps or app.shift then ch = ch:upper() end
+        app.shift = false
         app.input = app.input .. ch
+        updateSuggestion()
         return true
       end
     elseif y == top + 4 then
-      if x >= 1 and x <= 8 then
+      if x >= 1 and x <= 5 then
+        app.caps = not app.caps
+        return true
+      elseif x >= 7 and x <= 12 then
+        app.shift = true
+        return true
+      elseif x >= 14 and x <= 19 then
+        return acceptSuggestion()
+      elseif x >= 21 and x <= 28 then
         app.input = app.input .. " "
         return true
-      elseif x >= 10 and x <= 17 then
+      elseif x >= 30 and x <= 37 then
         app.input = string.sub(app.input, 1, -2)
+        updateSuggestion()
         return true
-      elseif x >= 19 and x <= 27 then
+      elseif x >= 39 and x <= 47 then
         submit()
         return true
       end
@@ -135,6 +185,7 @@ function M.run(ctx)
 
   function app:draw(w, h)
     self.lastH = h
+    updateSuggestion()
     local top = keyboardTop(h)
     local logHeight = math.max(1, top - 3)
     local cursor = 1
@@ -152,14 +203,16 @@ function M.run(ctx)
       y = y + 1
       if y >= top - 1 then break end
     end
-    renderer.writeAt(1, top - 1, renderer.crop(self.cwd .. "> " .. self.input, w), colors.white, colors.gray)
+    local prompt = self.cwd .. "> " .. self.input
+    if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion .. "]" end
+    renderer.writeAt(1, top - 1, renderer.crop(prompt, w), colors.white, colors.gray)
 
     for row, chars in ipairs(keysRows) do
       local line = ""
       for i = 1, #chars do line = line .. chars:sub(i, i) .. " " end
       renderer.writeAt(1, top + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
     end
-    renderer.writeAt(1, top + 4, renderer.crop("[space] [back] [enter]", w), colors.white, colors.gray)
+    renderer.writeAt(1, top + 4, renderer.crop("[maj] [shift] [tab] [space] [back] [enter]", w), colors.white, colors.gray)
   end
 
   function app:handle(event)
@@ -175,6 +228,10 @@ function M.run(ctx)
         return true
       elseif key == keys.backspace then
         self.input = string.sub(self.input, 1, -2)
+        updateSuggestion()
+        return true
+      elseif key == keys.tab then
+        acceptSuggestion()
         return true
       end
     elseif event.name == "mouse_click" and event.monitorTouch then
