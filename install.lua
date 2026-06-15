@@ -1,19 +1,19 @@
-﻿-- MintCraft OS V0.4 installer for CC:Tweaked
+-- MintCraft OS V0.4 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
-  [[=[.settings]=]] = [=[{
+  [".settings"] = [[{
   ["shell.allow_startup"] = true,
 }
-]=],
-  [[=[apps/files/app.cfg]=]] = [=[{
+]],
+  ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
   version = "0.4.0",
   main = "apps.files.main",
   permissions = { "filesystem.read" },
 }
-]=],
-  [[=[apps/files/main.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["apps/files/main.lua"] = [[local renderer = require("system.gui.renderer")
 
 local M = {}
 
@@ -55,16 +55,16 @@ function M.run(ctx)
 end
 
 return M
-]=],
-  [[=[apps/logs/app.cfg]=]] = [=[{
+]],
+  ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
   version = "0.4.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
-]=],
-  [[=[apps/logs/main.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["apps/logs/main.lua"] = [[local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 
 local M = {}
@@ -89,16 +89,16 @@ function M.run(ctx)
 end
 
 return M
-]=],
-  [[=[apps/services/app.cfg]=]] = [=[{
+]],
+  ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
   version = "0.4.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
-]=],
-  [[=[apps/services/main.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["apps/services/main.lua"] = [[local renderer = require("system.gui.renderer")
 
 local M = {}
 
@@ -123,16 +123,16 @@ function M.run(ctx)
 end
 
 return M
-]=],
-  [[=[apps/settings/app.cfg]=]] = [=[{
+]],
+  ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
   version = "0.4.0",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
-]=],
-  [[=[apps/settings/main.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["apps/settings/main.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 
 local M = {}
@@ -168,16 +168,16 @@ function M.run(ctx)
 end
 
 return M
-]=],
-  [[=[apps/taskmanager/app.cfg]=]] = [=[{
+]],
+  ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
   version = "0.4.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
-]=],
-  [[=[apps/taskmanager/main.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["apps/taskmanager/main.lua"] = [[local renderer = require("system.gui.renderer")
 
 local M = {}
 
@@ -202,16 +202,16 @@ function M.run(ctx)
 end
 
 return M
-]=],
-  [[=[apps/terminal/app.cfg]=]] = [=[{
+]],
+  ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
   version = "0.4.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
-]=],
-  [[=[apps/terminal/main.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["apps/terminal/main.lua"] = [[local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 
 local M = {}
@@ -308,8 +308,8 @@ function M.run(ctx)
 end
 
 return M
-]=],
-  [[=[boot.lua]=]] = [=[local ok, err = pcall(function()
+]],
+  ["boot.lua"] = [[local ok, err = pcall(function()
   local bootloader = require("system.boot.bootloader")
   bootloader.start()
 end)
@@ -331,12 +331,12 @@ if not ok then
     end
   end
 end
-]=],
-  [[=[packages/installed.db]=]] = [=[{}
-]=],
-  [[=[packages/sources.db]=]] = [=[{}
-]=],
-  [[=[README.md]=]] = [=[# MintCraft OS
+]],
+  ["packages/installed.db"] = [[{}
+]],
+  ["packages/sources.db"] = [[{}
+]],
+  ["README.md"] = [[# MintCraft OS
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
@@ -369,8 +369,8 @@ Then reboot:
 ```lua
 reboot
 ```
-]=],
-  [[=[startup.lua]=]] = [=[local candidates = {
+]],
+  ["startup.lua"] = [[local candidates = {
   "/boot.lua",
   "boot.lua",
 }
@@ -389,8 +389,8 @@ for _, path in ipairs(candidates) do
 end
 
 error(lastErr or "MintCraft OS boot.lua not found", 0)
-]=],
-  [[=[system/boot/bootloader.lua]=]] = [=[local splash = require("system.boot.splash")
+]],
+  ["system/boot/bootloader.lua"] = [[local splash = require("system.boot.splash")
 local log = require("system.libraries.log")
 local config = require("system.libraries.config")
 
@@ -448,8 +448,8 @@ function M.start()
 end
 
 return M
-]=],
-  [[=[system/boot/recovery.lua]=]] = [=[local reason = ...
+]],
+  ["system/boot/recovery.lua"] = [[local reason = ...
 
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.yellow)
@@ -488,8 +488,8 @@ while true do
     print("Unknown command: " .. cmd)
   end
 end
-]=],
-  [[=[system/boot/splash.lua]=]] = [=[local M = {}
+]],
+  ["system/boot/splash.lua"] = [[local M = {}
 
 function M.draw(title, subtitle)
   term.setBackgroundColor(colors.green)
@@ -506,15 +506,15 @@ function M.draw(title, subtitle)
 end
 
 return M
-]=],
-  [[=[system/config/system.cfg]=]] = [=[{
+]],
+  ["system/config/system.cfg"] = [[{
   version = "0.4.0",
   theme = "mint",
   debug = true,
   safeMode = false,
 }
-]=],
-  [[=[system/gui/desktop.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["system/gui/desktop.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 
 local M = {
@@ -611,8 +611,8 @@ function M.handle(event)
 end
 
 return M
-]=],
-  [[=[system/gui/renderer.lua]=]] = [=[local theme = require("system.gui.theme")
+]],
+  ["system/gui/renderer.lua"] = [[local theme = require("system.gui.theme")
 
 local M = {}
 
@@ -650,8 +650,8 @@ function M.button(x, y, w, label, active)
 end
 
 return M
-]=],
-  [[=[system/gui/theme.lua]=]] = [=[local config = require("system.libraries.config")
+]],
+  ["system/gui/theme.lua"] = [[local config = require("system.libraries.config")
 
 local M = {}
 
@@ -712,8 +712,8 @@ function M.get(name)
 end
 
 return M
-]=],
-  [[=[system/kernel/event_bus.lua]=]] = [=[local log = require("system.libraries.log")
+]],
+  ["system/kernel/event_bus.lua"] = [[local log = require("system.libraries.log")
 
 local EventBus = {}
 EventBus.__index = EventBus
@@ -753,8 +753,8 @@ function EventBus:emit(name, ...)
 end
 
 return EventBus
-]=],
-  [[=[system/kernel/kernel.lua]=]] = [=[local EventBus = require("system.kernel.event_bus")
+]],
+  ["system/kernel/kernel.lua"] = [[local EventBus = require("system.kernel.event_bus")
 local Scheduler = require("system.kernel.scheduler")
 local log = require("system.libraries.log")
 local apps = require("system.libraries.apps")
@@ -832,8 +832,8 @@ function M.start()
 end
 
 return M
-]=],
-  [[=[system/kernel/scheduler.lua]=]] = [=[local log = require("system.libraries.log")
+]],
+  ["system/kernel/scheduler.lua"] = [[local log = require("system.libraries.log")
 
 local Scheduler = {}
 Scheduler.__index = Scheduler
@@ -940,8 +940,8 @@ function Scheduler:makeContext(pid)
 end
 
 return Scheduler
-]=],
-  [[=[system/libraries/apps.lua]=]] = [=[local log = require("system.libraries.log")
+]],
+  ["system/libraries/apps.lua"] = [[local log = require("system.libraries.log")
 
 local M = {
   registry = {},
@@ -992,8 +992,8 @@ function M.launch(id, args)
 end
 
 return M
-]=],
-  [[=[system/libraries/config.lua]=]] = [=[local M = {}
+]],
+  ["system/libraries/config.lua"] = [[local M = {}
 
 function M.load(path, fallback)
   if not fs.exists(path) then return fallback end
@@ -1024,8 +1024,8 @@ function M.ensure(path, value)
 end
 
 return M
-]=],
-  [[=[system/libraries/log.lua]=]] = [=[local M = {}
+]],
+  ["system/libraries/log.lua"] = [[local M = {}
 
 local LOG_PATH = "/var/logs/system.log"
 
@@ -1069,8 +1069,8 @@ function M.tail(limit)
 end
 
 return M
-]=],
-  [[=[system/services/logd.lua]=]] = [=[local log = require("system.libraries.log")
+]],
+  ["system/services/logd.lua"] = [[local log = require("system.libraries.log")
 
 local M = {}
 
@@ -1083,8 +1083,8 @@ function M.stop()
 end
 
 return M
-]=],
-  [[=[system/services/notifd.lua]=]] = [=[local renderer = require("system.gui.renderer")
+]],
+  ["system/services/notifd.lua"] = [[local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 
 local Notifd = {}
@@ -1132,8 +1132,8 @@ function Notifd:draw()
 end
 
 return Notifd
-]=],
-  [[=[system/services/service_manager.lua]=]] = [=[local log = require("system.libraries.log")
+]],
+  ["system/services/service_manager.lua"] = [[local log = require("system.libraries.log")
 
 local ServiceManager = {}
 ServiceManager.__index = ServiceManager
@@ -1211,8 +1211,8 @@ function ServiceManager:list()
 end
 
 return ServiceManager
-]=],
-  [[=[system/wm/window.lua]=]] = [=[local theme = require("system.gui.theme")
+]],
+  ["system/wm/window.lua"] = [[local theme = require("system.gui.theme")
 local renderer = require("system.gui.renderer")
 
 local Window = {}
@@ -1302,8 +1302,8 @@ function Window:handle(event)
 end
 
 return Window
-]=],
-  [[=[system/wm/window_manager.lua]=]] = [=[local Window = require("system.wm.window")
+]],
+  ["system/wm/window_manager.lua"] = [[local Window = require("system.wm.window")
 local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 
@@ -1375,9 +1375,9 @@ function WindowManager:handle(event)
 end
 
 return WindowManager
-]=],
-  [[=[VERSION]=]] = [=[0.4.0
-]=],
+]],
+  ["VERSION"] = [[0.4.0
+]],
 }
 
 local function ensureDir(path)
