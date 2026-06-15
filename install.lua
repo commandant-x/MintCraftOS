@@ -1,4 +1,4 @@
--- MintCraft OS V0.8.1 installer for CC:Tweaked
+-- MintCraft OS V0.8.2 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -183,7 +183,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -242,7 +242,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -424,7 +424,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -729,7 +729,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -806,7 +806,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -814,42 +814,17 @@ return M
   ["apps/messenger/main.lua"] = [[local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
+local messaged = require("system.services.messaged")
 
 local M = {}
-
-local protocol = "mintcraft.chat"
-
-local function computerId()
-  if os.getComputerID then return os.getComputerID() end
-  if os.computerID then return os.computerID() end
-  return 0
-end
-
-local function openModem()
-  if not peripheral or not peripheral.find or not rednet then return false, "no rednet" end
-  local side
-  for _, name in ipairs(peripheral.getNames and peripheral.getNames() or {}) do
-    if peripheral.getType(name) == "modem" then side = name break end
-  end
-  if not side then return false, "no modem" end
-  if not rednet.isOpen(side) then rednet.open(side) end
-  return true, side
-end
-
-local function label()
-  if os.getComputerLabel then
-    local current = os.getComputerLabel()
-    if current and current ~= "" then return current end
-  end
-  return "MintCraft-" .. tostring(computerId())
-end
 
 function M.run(ctx)
   local app = {
     input = "",
-    status = "Opening modem...",
+    status = "Connecting public chat...",
     scroll = 1,
     messages = {},
+    seen = 0,
     keyboard = {},
   }
 
@@ -865,25 +840,30 @@ function M.run(ctx)
   end
 
   local function rescan()
-    local ok, msg = openModem()
-    app.status = ok and ("Modem " .. tostring(msg) .. " ready") or tostring(msg)
+    local ok, msg = messaged.open()
+    app.status = ok and ("Public chat ready on " .. tostring(msg)) or tostring(msg)
     return ok
+  end
+
+  local function syncInbox()
+    local inbox = messaged.list()
+    while app.seen < #inbox do
+      app.seen = app.seen + 1
+      local packet = inbox[app.seen]
+      push(tostring(packet.from or packet.id or "?") .. ": " .. tostring(packet.text or ""))
+    end
+    if app.status == "Connecting public chat..." or app.status == "Opening modem..." then
+      app.status = messaged.statusText()
+    end
   end
 
   local function send()
     if app.input == "" then return end
-    if not rescan() then return end
-    local packet = {
-      type = "message",
-      from = label(),
-      id = computerId(),
-      text = app.input,
-      time = os.time and os.time() or 0,
-    }
-    rednet.broadcast(textutils.serialize(packet), protocol)
+    local ok, msg = messaged.send(app.input)
+    if not ok then app.status = tostring(msg) return end
     push("me: " .. app.input)
     app.input = ""
-    app.status = "Sent"
+    app.status = tostring(msg)
   end
 
   app.keyboard.onText = function(ch) app.input = app.input .. ch end
@@ -891,6 +871,7 @@ function M.run(ctx)
   app.keyboard.onEnter = send
 
   function app:draw(w, h)
+    syncInbox()
     self.toolbar = ui.toolbar(1, 1, w, actions)
     renderer.writeAt(1, 2, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
     local kbH = keyboard.height()
@@ -908,17 +889,8 @@ function M.run(ctx)
   end
 
   function app:handle(event)
-    if event.name == "rednet_message" then
-      local sender, data, proto = table.unpack(event.args)
-      if proto == protocol then
-        local packet = type(data) == "string" and textutils.unserialize(data) or data
-        if type(packet) == "table" and packet.type == "message" then
-          push(tostring(packet.from or sender) .. ": " .. tostring(packet.text or ""))
-          self.status = "Received from " .. tostring(sender)
-          return true
-        end
-      end
-    elseif event.name == "mouse_scroll" then
+    syncInbox()
+    if event.name == "mouse_scroll" then
       self.scroll = math.max(1, self.scroll + event.args[1])
       return true
     elseif event.name == "char" then
@@ -939,6 +911,7 @@ function M.run(ctx)
     return false
   end
 
+  messaged.start(ctx.system)
   rescan()
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Messenger", w = math.min(70, sw - 4), h = math.min(22, sh - 3), x = 7, y = 4, app = app })
@@ -950,7 +923,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1029,7 +1002,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -1258,7 +1231,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1353,7 +1326,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1467,7 +1440,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.8.1",
+  version = "0.8.2",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -1790,7 +1763,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.8.1",
+  version = "0.8.2",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2054,7 +2027,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.8.1 base:
+This repository currently contains the V0.8.2 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -2163,7 +2136,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.8.1",
+    version = "0.8.2",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -2175,8 +2148,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.8.1" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.8.1"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.8.2" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.8.2"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2258,7 +2231,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.8.1",
+  version = "0.8.2",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -3106,18 +3079,18 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.8.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.8.1", permissions = { "network.http" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.8.1", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.8.1", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.8.1", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.8.1", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.8.1", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.8.1", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.8.1", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.8.1", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.8.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.8.1", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.8.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.8.2", permissions = { "network.http" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.8.2", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.8.2", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.8.2", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.8.2", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.8.2", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.8.2", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.8.2", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.8.2", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.8.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.8.2", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -3144,6 +3117,7 @@ function M.start()
   ctx.packages = packageManager
   ctx.services:register("logd", "system.services.logd", true)
   ctx.services:register("networkd", "system.services.networkd", true)
+  ctx.services:register("messaged", "system.services.messaged", true)
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
@@ -3324,7 +3298,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.8.1",
+    version = meta.version or "0.8.2",
     permissions = meta.permissions or {},
   }
 end
@@ -3838,6 +3812,121 @@ end
 
 function M.stop()
   log.info("logd", "log service stopped")
+end
+
+return M
+]],
+  ["system/services/messaged.lua"] = [[local log = require("system.libraries.log")
+
+local M = {
+  protocol = "mintcraft.chat",
+  inbox = {},
+  status = "not started",
+  side = nil,
+  ctx = nil,
+  listener = nil,
+}
+
+local function computerId()
+  if os.getComputerID then return os.getComputerID() end
+  if os.computerID then return os.computerID() end
+  return 0
+end
+
+local function label()
+  if os.getComputerLabel then
+    local current = os.getComputerLabel()
+    if current and current ~= "" then return current end
+  end
+  return "MintCraft-" .. tostring(computerId())
+end
+
+local function parse(data, sender)
+  local packet = type(data) == "string" and textutils.unserialize(data) or data
+  if type(packet) == "table" and packet.type == "message" then return packet end
+  if type(data) == "string" and data ~= "" then
+    return {
+      type = "message",
+      from = "Computer " .. tostring(sender),
+      id = sender,
+      text = data,
+      time = os.time and os.time() or 0,
+    }
+  end
+  return nil
+end
+
+local function push(packet)
+  table.insert(M.inbox, packet)
+  if #M.inbox > 100 then table.remove(M.inbox, 1) end
+end
+
+function M.open()
+  if not peripheral or not peripheral.getNames or not rednet then
+    M.status = "no rednet"
+    return false, M.status
+  end
+
+  for _, name in ipairs(peripheral.getNames()) do
+    if peripheral.getType(name) == "modem" then
+      if not rednet.isOpen(name) then rednet.open(name) end
+      M.side = name
+      M.status = "public chat ready on " .. tostring(name)
+      return true, name
+    end
+  end
+
+  M.status = "no modem"
+  M.side = nil
+  return false, M.status
+end
+
+function M.statusText()
+  return M.status
+end
+
+function M.list()
+  return M.inbox
+end
+
+function M.send(text)
+  text = tostring(text or "")
+  if text == "" then return false, "empty message" end
+  local ok, err = M.open()
+  if not ok then return false, err end
+  local packet = {
+    type = "message",
+    from = label(),
+    id = computerId(),
+    text = text,
+    time = os.time and os.time() or 0,
+  }
+  rednet.broadcast(textutils.serialize(packet), M.protocol)
+  return true, "sent"
+end
+
+function M.start(ctx)
+  M.ctx = ctx
+  M.open()
+  if ctx and ctx.eventBus and not M.listener then
+    M.listener = ctx.eventBus:on("rednet_message", function(sender, data, proto)
+      if proto ~= nil and proto ~= M.protocol and proto ~= "mintcraft.public" then return end
+      local packet = parse(data, sender)
+      if not packet then return end
+      if tonumber(packet.id) == computerId() and tonumber(sender) == computerId() then return end
+      push(packet)
+      M.status = "received from " .. tostring(sender)
+      log.info("messaged", "message from " .. tostring(sender))
+    end)
+  end
+  log.info("messaged", M.status)
+end
+
+function M.stop()
+  if M.ctx and M.ctx.eventBus and M.listener then
+    M.ctx.eventBus:off(M.listener)
+  end
+  M.listener = nil
 end
 
 return M
@@ -4478,7 +4567,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.8.1
+  ["VERSION"] = [[0.8.2
 ]],
 }
 
@@ -4500,5 +4589,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.8.1 installed.")
+print("MintCraft OS 0.8.2 installed.")
 print("Run reboot to start MintCraft OS.")

@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.8.1 base:
+This repository currently contains the V0.8.2 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs

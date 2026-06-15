@@ -1,42 +1,17 @@
 local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
+local messaged = require("system.services.messaged")
 
 local M = {}
-
-local protocol = "mintcraft.chat"
-
-local function computerId()
-  if os.getComputerID then return os.getComputerID() end
-  if os.computerID then return os.computerID() end
-  return 0
-end
-
-local function openModem()
-  if not peripheral or not peripheral.find or not rednet then return false, "no rednet" end
-  local side
-  for _, name in ipairs(peripheral.getNames and peripheral.getNames() or {}) do
-    if peripheral.getType(name) == "modem" then side = name break end
-  end
-  if not side then return false, "no modem" end
-  if not rednet.isOpen(side) then rednet.open(side) end
-  return true, side
-end
-
-local function label()
-  if os.getComputerLabel then
-    local current = os.getComputerLabel()
-    if current and current ~= "" then return current end
-  end
-  return "MintCraft-" .. tostring(computerId())
-end
 
 function M.run(ctx)
   local app = {
     input = "",
-    status = "Opening modem...",
+    status = "Connecting public chat...",
     scroll = 1,
     messages = {},
+    seen = 0,
     keyboard = {},
   }
 
@@ -52,25 +27,30 @@ function M.run(ctx)
   end
 
   local function rescan()
-    local ok, msg = openModem()
-    app.status = ok and ("Modem " .. tostring(msg) .. " ready") or tostring(msg)
+    local ok, msg = messaged.open()
+    app.status = ok and ("Public chat ready on " .. tostring(msg)) or tostring(msg)
     return ok
+  end
+
+  local function syncInbox()
+    local inbox = messaged.list()
+    while app.seen < #inbox do
+      app.seen = app.seen + 1
+      local packet = inbox[app.seen]
+      push(tostring(packet.from or packet.id or "?") .. ": " .. tostring(packet.text or ""))
+    end
+    if app.status == "Connecting public chat..." or app.status == "Opening modem..." then
+      app.status = messaged.statusText()
+    end
   end
 
   local function send()
     if app.input == "" then return end
-    if not rescan() then return end
-    local packet = {
-      type = "message",
-      from = label(),
-      id = computerId(),
-      text = app.input,
-      time = os.time and os.time() or 0,
-    }
-    rednet.broadcast(textutils.serialize(packet), protocol)
+    local ok, msg = messaged.send(app.input)
+    if not ok then app.status = tostring(msg) return end
     push("me: " .. app.input)
     app.input = ""
-    app.status = "Sent"
+    app.status = tostring(msg)
   end
 
   app.keyboard.onText = function(ch) app.input = app.input .. ch end
@@ -78,6 +58,7 @@ function M.run(ctx)
   app.keyboard.onEnter = send
 
   function app:draw(w, h)
+    syncInbox()
     self.toolbar = ui.toolbar(1, 1, w, actions)
     renderer.writeAt(1, 2, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
     local kbH = keyboard.height()
@@ -95,17 +76,8 @@ function M.run(ctx)
   end
 
   function app:handle(event)
-    if event.name == "rednet_message" then
-      local sender, data, proto = table.unpack(event.args)
-      if proto == protocol then
-        local packet = type(data) == "string" and textutils.unserialize(data) or data
-        if type(packet) == "table" and packet.type == "message" then
-          push(tostring(packet.from or sender) .. ": " .. tostring(packet.text or ""))
-          self.status = "Received from " .. tostring(sender)
-          return true
-        end
-      end
-    elseif event.name == "mouse_scroll" then
+    syncInbox()
+    if event.name == "mouse_scroll" then
       self.scroll = math.max(1, self.scroll + event.args[1])
       return true
     elseif event.name == "char" then
@@ -126,6 +98,7 @@ function M.run(ctx)
     return false
   end
 
+  messaged.start(ctx.system)
   rescan()
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Messenger", w = math.min(70, sw - 4), h = math.min(22, sh - 3), x = 7, y = 4, app = app })
