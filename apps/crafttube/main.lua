@@ -9,6 +9,17 @@ local M = {}
 local cfgPath = "/system/config/crafttube.cfg"
 local dataPath = "/home/user/config/crafttube.db"
 
+local defaultCfg = {
+  provider = "invidious",
+  proxy = "https://inv.thepixora.com",
+  searchPath = "/api/v1/search?type=video&q=",
+  detailsPath = "/api/v1/videos/",
+  fallbackProxies = {
+    "https://yt.chocolatemoo53.com",
+    "https://invidious.f5.si",
+  },
+}
+
 local function urlEncode(text)
   text = tostring(text or "")
   text = text:gsub("\n", "\r\n")
@@ -19,11 +30,11 @@ local function urlEncode(text)
 end
 
 local function loadCfg()
-  return config.load(cfgPath, {
-    proxy = "",
-    searchPath = "/search?q=",
-    detailsPath = "/video?id=",
-  })
+  local cfg = config.load(cfgPath, {})
+  for key, value in pairs(defaultCfg) do
+    if cfg[key] == nil or cfg[key] == "" then cfg[key] = value end
+  end
+  return cfg
 end
 
 local function saveCfg(cfg)
@@ -46,12 +57,19 @@ local function normalizeVideo(raw)
   local title = raw.title or raw.name or (raw.snippet and raw.snippet.title)
   if not id and raw.url then id = tostring(raw.url):match("[?&]v=([%w%-_]+)") or tostring(raw.url):match("youtu%.be/([%w%-_]+)") end
   if not title or title == "" then title = id or "Untitled" end
+  local duration = raw.duration or raw.length or raw.lengthText
+  if not duration and raw.lengthSeconds then
+    local seconds = tonumber(raw.lengthSeconds) or 0
+    duration = string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
+  end
   return {
     id = tostring(id or title),
     title = tostring(title),
     channel = tostring(raw.channel or raw.channelTitle or raw.author or (raw.snippet and raw.snippet.channelTitle) or "-"),
     description = tostring(raw.description or (raw.snippet and raw.snippet.description) or ""),
-    duration = tostring(raw.duration or raw.length or raw.lengthText or "-"),
+    duration = tostring(duration or "-"),
+    views = tostring(raw.viewCountText or raw.views or raw.viewCount or "-"),
+    published = tostring(raw.publishedText or raw.published or ""),
     url = tostring(raw.url or ("https://www.youtube.com/watch?v=" .. tostring(id or ""))),
   }
 end
@@ -139,23 +157,37 @@ function M.run(ctx)
     app.status = status or tostring(#app.rows) .. " results"
   end
 
+  local function searchWithProxy(proxy)
+    local url = proxy .. app.cfg.searchPath .. urlEncode(app.input)
+    local allowed, denied = ctx.security.require("network.http", url)
+    if not allowed then return nil, denied end
+    local response, err = httpClient.json(url)
+    if not response then return nil, err end
+    return listFromJson(response.json)
+  end
+
   local function search()
     app.mode = "search"
     if app.input == "" then app.status = "Enter search text" return end
     if not app.cfg.proxy or app.cfg.proxy == "" then
-      app.status = "No proxy. Set Proxy to https://host/api"
-      return
+      app.cfg.proxy = defaultCfg.proxy
+      saveCfg(app.cfg)
     end
-    local url = app.cfg.proxy .. app.cfg.searchPath .. urlEncode(app.input)
+    local proxies = { app.cfg.proxy }
+    for _, proxy in ipairs(app.cfg.fallbackProxies or {}) do table.insert(proxies, proxy) end
     app.status = "Searching..."
-    local allowed, denied = ctx.security.require("network.http", url)
-    if not allowed then app.status = denied return end
-    local response, err = httpClient.json(url)
-    if not response then
-      app.status = tostring(err)
-      return
+    local lastErr
+    for _, proxy in ipairs(proxies) do
+      local rows, err = searchWithProxy(proxy)
+      if rows and #rows > 0 then
+        app.cfg.proxy = proxy
+        saveCfg(app.cfg)
+        showRows(rows, "Search complete via " .. proxy)
+        return
+      end
+      lastErr = err or "no results"
     end
-    showRows(listFromJson(response.json), "Search complete")
+    app.status = tostring(lastErr or "no results")
   end
 
   local function toggleFavorite()
@@ -170,9 +202,10 @@ function M.run(ctx)
     local video = selectedVideo()
     if not video then app.status = "No video selected" return end
     if app.cfg.proxy and app.cfg.proxy ~= "" and app.cfg.detailsPath and app.cfg.detailsPath ~= "" then
-      local allowed = ctx.security.require("network.http", app.cfg.proxy)
+      local detailsUrl = app.cfg.proxy .. app.cfg.detailsPath .. urlEncode(video.id)
+      local allowed = ctx.security.require("network.http", detailsUrl)
       if not allowed then return end
-      local response = httpClient.json(app.cfg.proxy .. app.cfg.detailsPath .. urlEncode(video.id))
+      local response = httpClient.json(detailsUrl)
       if response and response.json then
         local detail = normalizeVideo(response.json.video or response.json.item or response.json)
         if detail then
@@ -189,6 +222,8 @@ function M.run(ctx)
   local function saveProxy()
     if app.input ~= "" then
       app.cfg.proxy = app.input:gsub("/+$", "")
+      app.cfg.searchPath = app.cfg.searchPath or defaultCfg.searchPath
+      app.cfg.detailsPath = app.cfg.detailsPath or defaultCfg.detailsPath
       saveCfg(app.cfg)
       app.status = "Proxy saved"
     end
@@ -216,7 +251,7 @@ function M.run(ctx)
       if item then
         local bg = item.id == self.selected and colors.cyan or colors.lightGray
         renderer.writeAt(1, y, renderer.crop("[" .. tostring(self.scroll + i - 1) .. "] " .. item.title, w), colors.black, bg)
-        renderer.writeAt(1, y + 1, renderer.crop("    " .. item.channel .. "   " .. item.duration, w), colors.gray, colors.lightGray)
+        renderer.writeAt(1, y + 1, renderer.crop("    " .. item.channel .. "   " .. item.duration .. "   " .. item.views, w), colors.gray, colors.lightGray)
         renderer.writeAt(1, y + 2, renderer.crop("    " .. item.url, w), colors.gray, colors.lightGray)
       else
         renderer.writeAt(1, y, renderer.crop("No result. Set a proxy, then search.", w), colors.gray, colors.lightGray)
@@ -225,13 +260,13 @@ function M.run(ctx)
     local detailY = 4 + visible * cardH
     if selected then
       renderer.writeAt(1, detailY, renderer.crop("Selected: " .. selected.title, w), colors.white, colors.gray)
-      renderer.writeAt(1, detailY + 1, renderer.crop(selected.channel .. "  " .. selected.duration .. "  ID " .. selected.id, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, detailY + 1, renderer.crop(selected.channel .. "  " .. selected.duration .. "  " .. selected.views .. "  " .. selected.published, w), colors.black, colors.lightGray)
       local lines = splitLines(selected.description, w)
       renderer.writeAt(1, detailY + 2, renderer.crop(lines[1] or "", w), colors.gray, colors.lightGray)
     else
       renderer.writeAt(1, detailY, renderer.crop("CraftTube is the YouTube app for MintCraft OS.", w), colors.white, colors.gray)
       renderer.writeAt(1, detailY + 1, renderer.crop("It needs a proxy/API because CC:Tweaked cannot run YouTube web UI.", w), colors.gray, colors.lightGray)
-      renderer.writeAt(1, detailY + 2, renderer.crop("JSON: { items = { { id,title,channel,description,duration } } }", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, detailY + 2, renderer.crop("Default API: " .. tostring(self.cfg.proxy), w), colors.gray, colors.lightGray)
     end
     self.keyboard.x = 1
     self.keyboard.y = h - kbH + 1

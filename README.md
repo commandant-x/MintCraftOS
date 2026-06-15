@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.10.0 base:
+This repository currently contains the V0.10.1 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -23,6 +23,7 @@ This repository currently contains the V0.10.0 base:
 - Services, Logs and Task Manager apps with touch controls
 - HTTP/WebSocket network wrappers, `networkd` service and text Browser app
 - CraftTube native metadata client using a configurable proxy/API with card-style results, favorites and history
+- CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - simulated security service with declared app permissions and logged denials for sensitive actions
