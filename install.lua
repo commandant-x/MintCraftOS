@@ -1,87 +1,16 @@
--- MintCraft OS V0.7.0 installer for CC:Tweaked
+-- MintCraft OS V0.8.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
+  [".gitignore"] = [[.tools/
+]],
   [".settings"] = [[{
   ["shell.allow_startup"] = true,
 }
 ]],
-  ["LICENSE"] = [[MIT License
-
-Copyright (c) 2026 commandant-x
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-]],
-  ["README.md"] = [[# MintCraft OS
-
-MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
-
-This repository currently contains the V0.7.0 base:
-
-- bootloader, splash, recovery and panic handling
-- persistent logs
-- cooperative scheduler and process table
-- event bus
-- terminal renderer, themes and window manager
-- desktop, taskbar, start menu, right-click context menu and stacked notifications
-- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
-- larger `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
-- shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
-- complete touch-first Files app with toolbar, open, create, rename and delete confirmation
-- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
-- Editor app with Lua compile check and Tab autocomplete/snippets
-- richer Settings pages for system, display, network and developer information
-- GitHub Update app and boot-time update check through the `updated` service
-- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
-- Terminal with file commands, process commands and touch autocomplete
-- touch-first Files with trash support for user files
-- Settings pages for system, display, desktop, network, storage, apps and developer information
-- Services, Logs and Task Manager apps with touch controls
-- HTTP/WebSocket network wrappers, `networkd` service and text Browser app
-
-Not included yet: Store, CraftTube, users/permissions enforcement, audio and update rollback.
-
-Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
-
-```lua
-shell.run("/boot.lua")
-```
-
-## Install From GitHub
-
-On a CC:Tweaked computer with HTTP enabled:
-
-```lua
-wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
-```
-
-Then reboot:
-
-```lua
-reboot
-```
-]],
-  ["VERSION"] = [[0.7.0
-]],
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -196,7 +125,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -255,7 +184,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -437,7 +366,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -742,7 +671,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -819,7 +748,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -898,7 +827,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.settings.main",
   permissions = { "system.config" },
 }
@@ -923,6 +852,7 @@ function M.run(ctx)
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
     { id = "apps", label = "Apps" },
+    { id = "packages", label = "Packages" },
     { id = "dev", label = "Dev" },
   }
 
@@ -1020,6 +950,14 @@ function M.run(ctx)
           renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category .. "   " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
         end
       end
+    elseif self.page == "packages" then
+      local rows = ctx.system.packages.installed()
+      renderer.writeAt(1, 3, renderer.crop("PACKAGE          VERSION", w), colors.black, colors.gray)
+      if #rows == 0 then renderer.writeAt(1, 4, "No package installed", colors.gray, colors.lightGray) end
+      for i = 1, math.min(#rows, h - 4) do
+        local item = rows[self.scroll + i - 1]
+        if item then renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. item.version, w), colors.black, colors.lightGray) end
+      end
     elseif self.page == "dev" then
       renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
@@ -1053,7 +991,7 @@ function M.run(ctx)
       if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
       if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
     end
-    if event.name == "mouse_scroll" and self.page == "apps" then
+    if event.name == "mouse_scroll" and (self.page == "apps" or self.page == "packages") then
       self.scroll = math.max(1, self.scroll + event.args[1])
       return true
     end
@@ -1101,10 +1039,105 @@ end
 
 return M
 ]],
+  ["apps/store/app.cfg"] = [[{
+  id = "store",
+  name = "Store",
+  version = "0.8.0",
+  main = "apps.store.main",
+  permissions = { "packages.install", "filesystem.write" },
+}
+]],
+  ["apps/store/main.lua"] = [[local renderer = require("system.gui.renderer")
+local ui = require("system.gui.components")
+local packages = require("system.package.package_manager")
+
+local M = {}
+
+function M.run(ctx)
+  packages.setContext(ctx.system)
+  local app = {
+    selected = nil,
+    scroll = 1,
+    message = "Select a package",
+  }
+
+  local actions = {
+    { id = "install", label = "Install" },
+    { id = "remove", label = "Remove" },
+    { id = "refresh", label = "Refresh" },
+  }
+
+  local function rows()
+    local installed = {}
+    for _, pkg in ipairs(packages.installed()) do installed[pkg.id] = true end
+    local out = {}
+    for _, pkg in ipairs(packages.available()) do
+      pkg.installed = installed[pkg.id] or false
+      table.insert(out, pkg)
+    end
+    return out
+  end
+
+  function app:draw(w, h)
+    self.toolbar = ui.toolbar(1, 1, w, actions)
+    renderer.writeAt(1, 2, renderer.crop("PACKAGE        VERSION   STATE", w), colors.black, colors.gray)
+    local list = rows()
+    for i = 1, math.min(#list, h - 6) do
+      local pkg = list[self.scroll + i - 1]
+      if pkg then
+        local bg = pkg.id == self.selected and colors.cyan or colors.lightGray
+        local state = pkg.installed and "installed" or "available"
+        renderer.writeAt(1, i + 2, renderer.crop(pkg.name .. "        " .. pkg.version .. "   " .. state, w), colors.black, bg)
+      end
+    end
+    local selected
+    for _, pkg in ipairs(list) do if pkg.id == self.selected then selected = pkg end end
+    if selected then
+      renderer.writeAt(1, h - 2, renderer.crop(selected.description or "", w), colors.gray, colors.lightGray)
+    end
+    renderer.writeAt(1, h, renderer.crop(self.message, w), colors.gray, colors.lightGray)
+  end
+
+  function app:handle(event)
+    if event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    end
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    local action = ui.toolbarHit(self.toolbar, x, y)
+    if action == "install" and self.selected then
+      local ok, msg = packages.install(self.selected)
+      self.message = tostring(msg)
+      if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Store", tostring(msg), 4) end
+      return true
+    elseif action == "remove" and self.selected then
+      local ok, msg = packages.remove(self.selected)
+      self.message = tostring(msg)
+      if ctx.notifications then ctx.notifications:push(ok and "success" or "warn", "Store", tostring(msg), 4) end
+      return true
+    elseif action then
+      self.message = "Refreshed"
+      return true
+    end
+    if y >= 3 then
+      local pkg = rows()[self.scroll + y - 3]
+      if pkg then self.selected = pkg.id return true end
+    end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Store", w = math.min(70, sw - 4), h = math.min(18, sh - 3), x = 6, y = 4, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1218,7 +1251,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.7.0",
+  version = "0.8.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "process.list", "process.kill", "system.reboot" },
 }
@@ -1254,6 +1287,8 @@ local help = {
   kill = "kill <pid> - kill after yes confirmation",
   logs = "logs - show recent logs",
   browser = "browser [url] - open text browser",
+  store = "store - open package store",
+  install = "install <pkg> - install package",
 }
 
 local function trashPath(name)
@@ -1365,6 +1400,10 @@ local function runCommand(app, ctx, input)
     for _, line in ipairs(log.tail(10)) do append(app, line) end
   elseif cmd == "browser" then
     ctx.apps.launch("browser", { url = rest })
+  elseif cmd == "store" then
+    ctx.apps.launch("store")
+  elseif cmd == "install" then
+    if rest == "" then append(app, "Usage: install <package>") else local ok, msg = ctx.system.packages.install(rest) append(app, tostring(msg)) end
   elseif cmd == "files" then
     ctx.apps.launch("files")
   elseif cmd == "settings" then
@@ -1532,7 +1571,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.7.0",
+  version = "0.8.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -1653,9 +1692,192 @@ if not ok then
   end
 end
 ]],
+  ["LICENSE"] = [[MIT License
+
+Copyright (c) 2026 commandant-x
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+]],
   ["packages/installed.db"] = [[{}
 ]],
-  ["packages/sources.db"] = [[{}
+  ["packages/sources.db"] = [=[{
+  packages = {
+    {
+      id = "notes",
+      name = "Notes",
+      version = "1.0.0",
+      description = "Simple local note editor for MintCraft OS.",
+      permissions = { "filesystem.read", "filesystem.write" },
+      app = {
+        id = "notes",
+        name = "Notes",
+        module = "apps.notes.main",
+        icon = "NO",
+        iconPath = "/system/themes/icons/notes.nfp",
+        category = "Productivity",
+        permissions = { "filesystem.read", "filesystem.write" },
+      },
+      files = {
+        ["apps/notes/app.cfg"] = [[{
+  id = "notes",
+  name = "Notes",
+  version = "1.0.0",
+  main = "apps.notes.main",
+  permissions = { "filesystem.read", "filesystem.write" },
+}
+]],
+        ["apps/notes/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+
+local M = {}
+
+local function readNote(path)
+  if fs.exists(path) then
+    local h = fs.open(path, "r")
+    local text = h.readAll() or ""
+    h.close()
+    return text
+  end
+  return ""
+end
+
+local function writeNote(path, text)
+  local dir = fs.getDir(path)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  local h = fs.open(path, "w")
+  if not h then return false end
+  h.write(text)
+  h.close()
+  return true
+end
+
+function M.run(ctx)
+  local app = {
+    path = "/home/user/documents/note.txt",
+    text = readNote("/home/user/documents/note.txt"),
+    status = "Notes ready",
+    keyboard = {},
+  }
+
+  app.keyboard.onText = function(ch) app.text = app.text .. ch end
+  app.keyboard.onBackspace = function() app.text = app.text:sub(1, -2) end
+  app.keyboard.onEnter = function() app.text = app.text .. "\n" end
+
+  function app:draw(w, h)
+    renderer.writeAt(1, 1, renderer.crop("[Save] " .. self.path, w), colors.white, colors.gray)
+    local lines = {}
+    for line in (self.text .. "\n"):gmatch("(.-)\n") do table.insert(lines, line) end
+    local max = math.max(1, h - keyboard.height() - 3)
+    for i = 1, max do
+      renderer.writeAt(1, i + 1, renderer.crop(lines[i] or "", w), colors.black, colors.lightGray)
+    end
+    renderer.writeAt(1, h - keyboard.height(), renderer.crop(self.status, w), colors.white, colors.gray)
+    self.keyboard.x = 1
+    self.keyboard.y = h - keyboard.height() + 1
+    self.keyboard.hint = "Notes"
+    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+  end
+
+  function app:handle(event)
+    if event.name == "char" then self.text = self.text .. event.args[1] return true end
+    if event.name == "key" then
+      local key = event.args[1]
+      if key == keys.backspace then self.text = self.text:sub(1, -2) return true end
+      if key == keys.enter then self.text = self.text .. "\n" return true end
+    end
+    if event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if y == 1 and x <= 6 then
+        self.status = writeNote(self.path, self.text) and "Saved" or "Save failed"
+        return true
+      end
+      if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+    end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Notes", w = math.min(62, sw - 4), h = math.min(20, sh - 3), x = 8, y = 4, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
+        ["system/themes/icons/notes.nfp"] = [[eeeeeee
+efffffe
+efeeeef
+efffffe
+efeefee
+eeeeeee
+]],
+      },
+    },
+  },
+}
+]=],
+  ["README.md"] = [[# MintCraft OS
+
+MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
+
+This repository currently contains the V0.8.0 base:
+
+- bootloader, splash, recovery and panic handling
+- persistent logs
+- cooperative scheduler and process table
+- event bus
+- terminal renderer, themes and window manager
+- desktop, taskbar, start menu, right-click context menu and stacked notifications
+- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
+- larger `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
+- shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
+- complete touch-first Files app with toolbar, open, create, rename, trash and delete confirmation
+- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
+- Editor app with Lua compile check and Tab autocomplete/snippets
+- richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
+- GitHub Update app and boot-time update check through the `updated` service
+- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
+- Terminal with file commands, process commands and touch autocomplete
+- Services, Logs and Task Manager apps with touch controls
+- HTTP/WebSocket network wrappers, `networkd` service and text Browser app
+- Store and local package manager with installable package manifests
+
+Not included yet: CraftTube, users/permissions enforcement, audio and update rollback.
+
+Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
+
+```lua
+shell.run("/boot.lua")
+```
+
+## Install From GitHub
+
+On a CC:Tweaked computer with HTTP enabled:
+
+```lua
+wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
+```
+
+Then reboot:
+
+```lua
+reboot
+```
 ]],
   ["startup.lua"] = [[local candidates = {
   "/boot.lua",
@@ -1692,6 +1914,7 @@ local REQUIRED_DIRS = {
   "/system/kernel",
   "/system/libraries",
   "/system/network",
+  "/system/package",
   "/system/services",
   "/system/themes",
   "/system/wm",
@@ -1720,7 +1943,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.7.0",
+    version = "0.8.0",
     theme = "mint",
     debug = true,
     safeMode = false,
@@ -1731,8 +1954,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.7.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.7.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.8.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.8.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -1814,7 +2037,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.7.0",
+  version = "0.8.0",
   theme = "mint",
   debug = true,
   safeMode = false,
@@ -1851,7 +2074,7 @@ local ccWords = {
 
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
-  "edit", "open", "clear", "ps", "kill", "logs", "browser", "files", "settings", "devices",
+  "edit", "open", "clear", "ps", "kill", "logs", "browser", "store", "install", "files", "settings", "devices",
   "reboot", "help",
 }
 
@@ -2079,6 +2302,7 @@ local function drawIcons()
     { app = "settings" },
     { app = "devices" },
     { app = "taskmanager" },
+    { app = "store" },
     { app = "update" },
   }
   local icons = {}
@@ -2633,6 +2857,7 @@ local desktop = require("system.gui.desktop")
 local WindowManager = require("system.wm.window_manager")
 local ServiceManager = require("system.services.service_manager")
 local notifd = require("system.services.notifd")
+local packageManager = require("system.package.package_manager")
 
 local M = {}
 
@@ -2655,16 +2880,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.7.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.7.0", permissions = { "network.http" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.7.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.7.0", permissions = { "system.config" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.7.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.7.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.7.0", permissions = { "services.list", "services.control" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.7.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.7.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.7.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.8.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "system.reboot" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.8.0", permissions = { "network.http" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.8.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.8.0", permissions = { "system.config" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.8.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.8.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.8.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.8.0", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.8.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.8.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.8.0", permissions = { "network.http", "system.update" } })
+  packageManager.setContext(ctx)
+  packageManager.registerInstalledApps()
 
   desktop.setApps(apps)
   desktop.setWindowManager(ctx.wm)
@@ -2686,6 +2914,7 @@ function M.start()
 
   ctx.apps = apps
   ctx.apps.setContext(ctx)
+  ctx.packages = packageManager
   ctx.services:register("logd", "system.services.logd", true)
   ctx.services:register("networkd", "system.services.networkd", true)
   ctx.services:register("deviced", "system.services.deviced", true)
@@ -2868,7 +3097,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.7.0",
+    version = meta.version or "0.8.0",
     permissions = meta.permissions or {},
   }
 end
@@ -3076,6 +3305,155 @@ function M.connect(url, headers)
   local ok, socket = pcall(http.websocket, url, headers)
   if not ok then return nil, tostring(socket) end
   return socket
+end
+
+return M
+]],
+  ["system/package/manifest.lua"] = [[local M = {}
+
+function M.validate(pkg)
+  if type(pkg) ~= "table" then return false, "manifest must be a table" end
+  if type(pkg.id) ~= "string" or pkg.id == "" then return false, "missing id" end
+  if type(pkg.name) ~= "string" or pkg.name == "" then return false, "missing name" end
+  if type(pkg.version) ~= "string" or pkg.version == "" then return false, "missing version" end
+  if type(pkg.files) ~= "table" then return false, "missing files" end
+  for path, content in pairs(pkg.files) do
+    if type(path) ~= "string" or path == "" then return false, "invalid file path" end
+    if path:match("^/") then return false, "absolute file path not allowed: " .. path end
+    if path:match("%.%.") then return false, "parent path not allowed: " .. path end
+    if type(content) ~= "string" then return false, "invalid file content: " .. path end
+  end
+  return true
+end
+
+return M
+]],
+  ["system/package/package_manager.lua"] = [[local config = require("system.libraries.config")
+local manifest = require("system.package.manifest")
+local log = require("system.libraries.log")
+
+local M = {
+  installedPath = "/packages/installed.db",
+  sourcesPath = "/packages/sources.db",
+  ctx = nil,
+}
+
+local function ensure()
+  if not fs.exists("/packages") then fs.makeDir("/packages") end
+end
+
+local function readInstalled()
+  ensure()
+  return config.load(M.installedPath, {})
+end
+
+local function writeInstalled(data)
+  ensure()
+  return config.save(M.installedPath, data)
+end
+
+local function readSources()
+  ensure()
+  return config.load(M.sourcesPath, {})
+end
+
+local function writeFile(path, content)
+  local dir = fs.getDir(path)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  local handle = fs.open(path, "w")
+  if not handle then return false, "cannot write " .. path end
+  handle.write(content)
+  handle.close()
+  return true
+end
+
+local function removeFile(path)
+  if fs.exists(path) then fs.delete(path) end
+end
+
+function M.setContext(ctx)
+  M.ctx = ctx
+end
+
+function M.available()
+  local rows = {}
+  for _, pkg in ipairs(readSources().packages or {}) do
+    table.insert(rows, pkg)
+  end
+  table.sort(rows, function(a, b) return a.name < b.name end)
+  return rows
+end
+
+function M.installed()
+  local rows = {}
+  for _, pkg in pairs(readInstalled()) do table.insert(rows, pkg) end
+  table.sort(rows, function(a, b) return a.name < b.name end)
+  return rows
+end
+
+function M.find(id)
+  for _, pkg in ipairs(M.available()) do
+    if pkg.id == id then return pkg end
+  end
+  return nil
+end
+
+function M.isInstalled(id)
+  return readInstalled()[id] ~= nil
+end
+
+function M.registerInstalledApps()
+  if not M.ctx or not M.ctx.apps then return end
+  for _, pkg in pairs(readInstalled()) do
+    if pkg.app then
+      M.ctx.apps.register(pkg.app.id or pkg.id, pkg.app.name or pkg.name, pkg.app.module, {
+        icon = pkg.app.icon or "PK",
+        iconPath = pkg.app.iconPath,
+        category = pkg.app.category or "Installed",
+        version = pkg.version,
+        permissions = pkg.app.permissions or pkg.permissions or {},
+      })
+    end
+  end
+end
+
+function M.install(id)
+  local pkg = M.find(id)
+  if not pkg then return false, "package not found" end
+  local ok, err = manifest.validate(pkg)
+  if not ok then return false, err end
+
+  for path, content in pairs(pkg.files) do
+    local written, writeErr = writeFile("/" .. path, content)
+    if not written then return false, writeErr end
+  end
+
+  local installed = readInstalled()
+  installed[pkg.id] = {
+    id = pkg.id,
+    name = pkg.name,
+    version = pkg.version,
+    description = pkg.description,
+    app = pkg.app,
+    permissions = pkg.permissions,
+    files = pkg.files,
+    installedAt = os.clock(),
+  }
+  writeInstalled(installed)
+  M.registerInstalledApps()
+  log.info("package", "installed " .. pkg.id .. " " .. pkg.version)
+  return true, "installed"
+end
+
+function M.remove(id)
+  local installed = readInstalled()
+  local pkg = installed[id]
+  if not pkg then return false, "package not installed" end
+  for path in pairs(pkg.files or {}) do removeFile("/" .. path) end
+  installed[id] = nil
+  writeInstalled(installed)
+  log.warn("package", "removed " .. id)
+  return true, "removed, reboot recommended"
 end
 
 return M
@@ -3563,6 +3941,13 @@ bbbbbbb
 7fffff7
 77f7f77
 ]],
+  ["system/themes/icons/store.nfp"] = [[9999999
+9fffff9
+9f999f9
+9fffff9
+9f9f9f9
+9999999
+]],
   ["system/themes/icons/taskmanager.nfp"] = [[5555555
 5f0f0f5
 5fffff5
@@ -3839,22 +4224,27 @@ end
 
 return WindowManager
 ]],
+  ["VERSION"] = [[0.8.0
+]],
 }
 
-local function writeFile(path, content)
+local function ensureDir(path)
   local dir = fs.getDir(path)
-  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-  local handle = fs.open(path, "w")
-  if not handle then error("Cannot write " .. path) end
-  handle.write(content)
-  handle.close()
+  if dir ~= "" and not fs.exists(dir) then
+    fs.makeDir(dir)
+  end
 end
 
 for path, content in pairs(files) do
-  writeFile(path, content)
+  ensureDir(path)
+  local handle = fs.open(path, "w")
+  if not handle then
+    error("Cannot write " .. path)
+  end
+  handle.write(content)
+  handle.close()
+  print("wrote " .. path)
 end
 
-if not fs.exists("home/user/desktop") then fs.makeDir("home/user/desktop") end
-if not fs.exists("home/user/.trash") then fs.makeDir("home/user/.trash") end
-print("MintCraft OS 0.7.0 installed.")
-print("Run reboot() to start MintCraft OS.")
+print("MintCraft OS 0.8.0 installed.")
+print("Run reboot to start MintCraft OS.")

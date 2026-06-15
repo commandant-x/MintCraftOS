@@ -31,6 +31,7 @@ local function drawIcons()
     { app = "settings" },
     { app = "devices" },
     { app = "taskmanager" },
+    { app = "store" },
     { app = "update" },
   }
   local icons = {}

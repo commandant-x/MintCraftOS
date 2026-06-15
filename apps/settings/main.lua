@@ -18,6 +18,7 @@ function M.run(ctx)
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
     { id = "apps", label = "Apps" },
+    { id = "packages", label = "Packages" },
     { id = "dev", label = "Dev" },
   }
 
@@ -115,6 +116,14 @@ function M.run(ctx)
           renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category .. "   " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
         end
       end
+    elseif self.page == "packages" then
+      local rows = ctx.system.packages.installed()
+      renderer.writeAt(1, 3, renderer.crop("PACKAGE          VERSION", w), colors.black, colors.gray)
+      if #rows == 0 then renderer.writeAt(1, 4, "No package installed", colors.gray, colors.lightGray) end
+      for i = 1, math.min(#rows, h - 4) do
+        local item = rows[self.scroll + i - 1]
+        if item then renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. item.version, w), colors.black, colors.lightGray) end
+      end
     elseif self.page == "dev" then
       renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
@@ -148,7 +157,7 @@ function M.run(ctx)
       if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
       if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
     end
-    if event.name == "mouse_scroll" and self.page == "apps" then
+    if event.name == "mouse_scroll" and (self.page == "apps" or self.page == "packages") then
       self.scroll = math.max(1, self.scroll + event.args[1])
       return true
     end

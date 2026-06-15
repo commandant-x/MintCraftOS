@@ -1,1 +1,114 @@
-{}
+{
+  packages = {
+    {
+      id = "notes",
+      name = "Notes",
+      version = "1.0.0",
+      description = "Simple local note editor for MintCraft OS.",
+      permissions = { "filesystem.read", "filesystem.write" },
+      app = {
+        id = "notes",
+        name = "Notes",
+        module = "apps.notes.main",
+        icon = "NO",
+        iconPath = "/system/themes/icons/notes.nfp",
+        category = "Productivity",
+        permissions = { "filesystem.read", "filesystem.write" },
+      },
+      files = {
+        ["apps/notes/app.cfg"] = [[{
+  id = "notes",
+  name = "Notes",
+  version = "1.0.0",
+  main = "apps.notes.main",
+  permissions = { "filesystem.read", "filesystem.write" },
+}
+]],
+        ["apps/notes/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+
+local M = {}
+
+local function readNote(path)
+  if fs.exists(path) then
+    local h = fs.open(path, "r")
+    local text = h.readAll() or ""
+    h.close()
+    return text
+  end
+  return ""
+end
+
+local function writeNote(path, text)
+  local dir = fs.getDir(path)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  local h = fs.open(path, "w")
+  if not h then return false end
+  h.write(text)
+  h.close()
+  return true
+end
+
+function M.run(ctx)
+  local app = {
+    path = "/home/user/documents/note.txt",
+    text = readNote("/home/user/documents/note.txt"),
+    status = "Notes ready",
+    keyboard = {},
+  }
+
+  app.keyboard.onText = function(ch) app.text = app.text .. ch end
+  app.keyboard.onBackspace = function() app.text = app.text:sub(1, -2) end
+  app.keyboard.onEnter = function() app.text = app.text .. "\n" end
+
+  function app:draw(w, h)
+    renderer.writeAt(1, 1, renderer.crop("[Save] " .. self.path, w), colors.white, colors.gray)
+    local lines = {}
+    for line in (self.text .. "\n"):gmatch("(.-)\n") do table.insert(lines, line) end
+    local max = math.max(1, h - keyboard.height() - 3)
+    for i = 1, max do
+      renderer.writeAt(1, i + 1, renderer.crop(lines[i] or "", w), colors.black, colors.lightGray)
+    end
+    renderer.writeAt(1, h - keyboard.height(), renderer.crop(self.status, w), colors.white, colors.gray)
+    self.keyboard.x = 1
+    self.keyboard.y = h - keyboard.height() + 1
+    self.keyboard.hint = "Notes"
+    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+  end
+
+  function app:handle(event)
+    if event.name == "char" then self.text = self.text .. event.args[1] return true end
+    if event.name == "key" then
+      local key = event.args[1]
+      if key == keys.backspace then self.text = self.text:sub(1, -2) return true end
+      if key == keys.enter then self.text = self.text .. "\n" return true end
+    end
+    if event.name == "mouse_click" then
+      local _, x, y = table.unpack(event.args)
+      if y == 1 and x <= 6 then
+        self.status = writeNote(self.path, self.text) and "Saved" or "Save failed"
+        return true
+      end
+      if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+    end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Notes", w = math.min(62, sw - 4), h = math.min(20, sh - 3), x = 8, y = 4, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
+        ["system/themes/icons/notes.nfp"] = [[eeeeeee
+efffffe
+efeeeef
+efffffe
+efeefee
+eeeeeee
+]],
+      },
+    },
+  },
+}
