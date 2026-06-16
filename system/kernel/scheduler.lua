@@ -60,6 +60,19 @@ function Scheduler:resume(process, event)
   end
 end
 
+function Scheduler:crash(pid, err)
+  local process = self.processes[pid]
+  if not process or process.state == "crashed" then return false, "No such process" end
+  process.state = "crashed"
+  process.error = tostring(err)
+  log.error("process", process.name .. ": " .. tostring(err))
+  if process.window then process.window.closed = true end
+  if self.ctx and self.ctx.notifications then
+    self.ctx.notifications:push("error", "App crashed", process.name, 5)
+  end
+  return true
+end
+
 function Scheduler:dispatch(event)
   for _, process in pairs(self.processes) do
     if process.state == "ready" and eventMatches(process.filter, event) then

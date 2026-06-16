@@ -28,7 +28,15 @@ function Window.new(opts)
     previousBounds = nil,
     app = opts.app,
     ownerPid = opts.ownerPid,
+    onError = opts.onError,
   }, Window)
+end
+
+function Window:crash(err)
+  self.closed = true
+  if self.onError then
+    pcall(self.onError, err)
+  end
 end
 
 function Window:clamp()
@@ -99,7 +107,7 @@ function Window:draw()
     if ok then
       target.setVisible(true)
     else
-      renderer.writeAt(self.x + 1, self.y + 1, "Draw error: " .. tostring(err), theme.get("error"), theme.get("windowBg"))
+      self:crash("draw: " .. tostring(err))
     end
   end
 end
@@ -157,7 +165,12 @@ function Window:handle(event)
         monitorSide = event.monitorSide,
       }
     end
-    return self.app:handle(localEvent, self)
+    local ok, handled = pcall(self.app.handle, self.app, localEvent, self)
+    if not ok then
+      self:crash("handle: " .. tostring(handled))
+      return true
+    end
+    return handled
   end
   return false
 end

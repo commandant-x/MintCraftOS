@@ -57,4 +57,8 @@ function M.use(side)
   return speaker.use(side)
 end
 
+function M.playDfPWM(path, side)
+  return speaker.playDfPWM(path, side)
+end
+
 return M

@@ -19,7 +19,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.13.0",
+    version = meta.version or "0.14.0",
     permissions = meta.permissions or {},
   }
 end
@@ -64,6 +64,9 @@ function M.launch(id, args)
     procCtx.windowManager = {
       create = function(_, opts)
         opts.ownerPid = pid
+        opts.onError = function(err)
+          scheduler:crash(pid, err)
+        end
         local win = M.ctx.wm:create(opts)
         scheduler:attachWindow(pid, win)
         return win

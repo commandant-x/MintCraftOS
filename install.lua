@@ -1,4 +1,4 @@
--- MintCraft OS V0.13.0 installer for CC:Tweaked
+-- MintCraft OS V0.14.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -18,205 +18,549 @@ local files = {
   ["apps/browser/main.lua"] = [[local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
+local config = require("system.libraries.config")
+local log = require("system.libraries.log")
 local httpClient = require("system.network.http_client")
 
 local M = {}
 
+local ROOT = "/home/user/config/browser"
+local CACHE = "/var/cache/browser"
+local HISTORY = ROOT .. "/history.json"
+local BOOKMARKS = ROOT .. "/bookmarks.json"
+local SETTINGS = ROOT .. "/settings.db"
+local DOWNLOADS = ROOT .. "/downloads.json"
+
+local REDIRECTS = { [301] = true, [302] = true, [307] = true, [308] = true }
+
+local function ensureDirs()
+  for _, path in ipairs({ ROOT, CACHE, "/home/user/downloads" }) do
+    if not fs.exists(path) then fs.makeDir(path) end
+  end
+end
+
+local function now()
+  if os.date then return os.date("%Y-%m-%dT%H:%M:%S") end
+  return tostring(os.clock())
+end
+
+local function readFile(path)
+  if not fs.exists(path) then return nil end
+  local handle = fs.open(path, "r")
+  if not handle then return nil end
+  local data = handle.readAll()
+  handle.close()
+  return data
+end
+
+local function writeFile(path, data)
+  local dir = fs.getDir(path)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  local handle = fs.open(path, "w")
+  if not handle then return false end
+  handle.write(data)
+  handle.close()
+  return true
+end
+
+local function loadData(path, fallback)
+  local data = readFile(path)
+  if not data then return fallback end
+  if textutils.unserializeJSON then
+    local ok, value = pcall(textutils.unserializeJSON, data)
+    if ok and value ~= nil then return value end
+  end
+  local ok, value = pcall(textutils.unserialize, data)
+  if ok and value ~= nil then return value end
+  return fallback
+end
+
+local function saveData(path, value)
+  if textutils.serializeJSON then
+    local ok, data = pcall(textutils.serializeJSON, value)
+    if ok and data then return writeFile(path, data) end
+  end
+  return writeFile(path, textutils.serialize(value))
+end
+
+local function urlDecode(text)
+  return tostring(text or ""):gsub("+", " "):gsub("%%(%x%x)", function(hex)
+    return string.char(tonumber(hex, 16))
+  end)
+end
+
+local function urlEncode(text)
+  text = tostring(text or "")
+  return text:gsub("([^%w%-%_%.%~ ])", function(ch)
+    return string.format("%%%02X", string.byte(ch))
+  end):gsub(" ", "+")
+end
+
 local function isYouTube(url)
   url = tostring(url or ""):lower()
-  return url:find("youtube%.com", 1, true) or url:find("youtu%.be", 1, true)
+  return url:find("youtube%.com", 1, true) or url:find("youtu%.be", 1, true) or url:find("m%.youtube%.com", 1, true)
 end
 
 local function youtubeQuery(url)
   url = tostring(url or "")
-  local q = url:match("[?&]search_query=([^&]+)") or url:match("[?&]q=([^&]+)")
-  if not q then return "" end
-  q = q:gsub("+", " "):gsub("%%(%x%x)", function(hex)
-    return string.char(tonumber(hex, 16))
-  end)
-  return q
+  local id = url:match("[?&]v=([%w%-_]+)") or url:match("youtu%.be/([%w%-_]+)")
+  if id then return id end
+  return urlDecode(url:match("[?&]search_query=([^&]+)") or url:match("[?&]q=([^&]+)") or "")
+end
+
+local function normalizeAddress(input, search)
+  input = tostring(input or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if input == "" then return "mint://home" end
+  if input:match("^mint://") or input:match("^https?://") then return input end
+  if input:match("^[%w%-_%.]+%.[%a][%a]+[/]?.*$") then return "https://" .. input end
+  return (search or "https://duckduckgo.com/html/?q=") .. urlEncode(input)
+end
+
+local function hostOf(url)
+  return tostring(url or ""):match("^https?://([^/%?#]+)") or ""
+end
+
+local function baseOf(url)
+  local proto, host, path = tostring(url or ""):match("^(https?://)([^/]+)(.-)$")
+  if not proto then return url end
+  path = path:gsub("[^/]*$", "")
+  return proto .. host .. path
+end
+
+local function resolveUrl(base, href)
+  href = tostring(href or "")
+  if href:match("^https?://") or href:match("^mint://") then return href end
+  if href:sub(1, 2) == "//" then return "https:" .. href end
+  local protoHost = tostring(base or ""):match("^(https?://[^/]+)")
+  if href:sub(1, 1) == "/" then return (protoHost or "") .. href end
+  return baseOf(base) .. href
 end
 
 local function entity(text)
   text = tostring(text or "")
-  local named = {
-    amp = "&", lt = "<", gt = ">", quot = "\"", apos = "'",
-    nbsp = " ", copy = "(c)", reg = "(r)",
-  }
+  local named = { amp = "&", lt = "<", gt = ">", quot = "\"", apos = "'", nbsp = " " }
   text = text:gsub("&#(%d+);", function(n)
     n = tonumber(n)
     if n and n >= 32 and n <= 126 then return string.char(n) end
     return " "
   end)
-  text = text:gsub("&([%a]+);", function(name) return named[name] or " " end)
-  return text
+  return text:gsub("&([%a]+);", function(name) return named[name] or " " end)
 end
 
 local function clean(text)
-  return entity(text):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  return entity(text):gsub("<[^>]+>", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
-local function htmlToText(html, url)
+local function wrap(text, width, prefix)
+  local lines = {}
+  width = math.max(10, width or 60)
+  prefix = prefix or ""
+  local line = prefix
+  for word in tostring(text or ""):gmatch("%S+") do
+    if #line + #word + 1 > width then
+      table.insert(lines, line)
+      line = prefix .. word
+    else
+      line = line == prefix and (line .. word) or (line .. " " .. word)
+    end
+  end
+  if line ~= prefix or #lines == 0 then table.insert(lines, line) end
+  return lines
+end
+
+local function parseHtml(html, url, width)
   html = tostring(html or "")
-  local rows = {}
-  local lowerUrl = tostring(url or ""):lower()
-
-  if isYouTube(lowerUrl) then
-    table.insert(rows, "YouTube: video decode is not available inside CC:Tweaked.")
-    table.insert(rows, "MintCraft Browser can show text metadata only.")
-    table.insert(rows, "")
-  end
-
-  html = html:gsub("<script.-</script>", " "):gsub("<style.-</style>", " ")
-  html = html:gsub("<!%-%-.-%-%->", " ")
-
   local title = clean(html:match("<title[^>]*>(.-)</title>"))
-  if title ~= "" then
-    table.insert(rows, "# " .. title)
-    table.insert(rows, "")
-  end
+  if title == "" then title = url end
+  local links = {}
+  local lines = {}
 
-  html = html:gsub("<[hH]([1-6])[^>]*>", "\n# "):gsub("</[hH][1-6]>", "\n")
+  html = html:gsub("<script.-</script>", " "):gsub("<style.-</style>", " "):gsub("<!%-%-.-%-%->", " ")
+  html = html:gsub("<a[^>]-href=[\"']([^\"']+)[\"'][^>]*>(.-)</a>", function(href, label)
+    local n = #links + 1
+    local text = clean(label)
+    if text == "" then text = href end
+    table.insert(links, { index = n, text = text, url = resolveUrl(url, href) })
+    return " [" .. tostring(n) .. "] " .. text .. " "
+  end)
+
+  html = html:gsub("<[hH]1[^>]*>", "\n# "):gsub("</[hH]1>", "\n")
+  html = html:gsub("<[hH]2[^>]*>", "\n## "):gsub("</[hH]2>", "\n")
+  html = html:gsub("<[hH]3[^>]*>", "\n### "):gsub("</[hH]3>", "\n")
   html = html:gsub("<[pP][^>]*>", "\n"):gsub("</[pP]>", "\n")
   html = html:gsub("<br%s*/?>", "\n"):gsub("<br>", "\n")
   html = html:gsub("<li[^>]*>", "\n- "):gsub("</li>", "\n")
-  html = html:gsub("<a[^>]-href=[\"']([^\"']+)[\"'][^>]*>(.-)</a>", function(href, label)
-    label = clean(label)
-    if label == "" then label = href end
-    return label .. " <" .. href .. ">"
-  end)
+  html = html:gsub("<tr[^>]*>", "\n"):gsub("</tr>", "\n")
+  html = html:gsub("<t[dh][^>]*>", " | "):gsub("</t[dh]>", " ")
+  html = html:gsub("<pre[^>]*>", "\n``` "):gsub("</pre>", " ```\n")
+  html = html:gsub("<blockquote[^>]*>", "\n> "):gsub("</blockquote>", "\n")
+  html = html:gsub("<hr[^>]*>", "\n----------------\n")
   html = html:gsub("<[^>]+>", " ")
 
-  for line in html:gmatch("[^\r\n]+") do
-    line = clean(line)
-    if line ~= "" and line ~= title then table.insert(rows, line) end
+  if title ~= "" then
+    table.insert(lines, "# " .. title)
+    table.insert(lines, "")
   end
-  if #rows == 0 then table.insert(rows, "(no readable text)") end
-  return table.concat(rows, "\n")
+  for raw in html:gmatch("[^\r\n]+") do
+    local line = clean(raw)
+    if line ~= "" and line ~= title then
+      for _, item in ipairs(wrap(line, width)) do table.insert(lines, item) end
+    end
+  end
+  if #lines == 0 then table.insert(lines, "(empty page)") end
+  return { title = title, lines = lines, links = links, status = 200 }
 end
 
-local function splitLines(text, width)
-  local rows = {}
-  width = math.max(8, width or 40)
-  for raw in tostring(text or ""):gmatch("[^\r\n]+") do
-    local line = raw:gsub("%s+", " ")
-    while #line > width do
-      table.insert(rows, line:sub(1, width))
-      line = line:sub(width + 1)
-    end
-    table.insert(rows, line)
-  end
-  if #rows == 0 then table.insert(rows, "") end
-  return rows
+local function cacheKey(url)
+  return tostring(url or ""):gsub("[^%w%-_%.]", "_"):sub(1, 80)
+end
+
+local function filenameFromUrl(url)
+  local name = tostring(url or ""):match("/([^/%?#]+)[%?#]?$") or "download.txt"
+  name = name:gsub("[^%w%._%-]", "_")
+  if name == "" then name = "download.txt" end
+  return name
+end
+
+local function defaultSettings()
+  return {
+    home = "mint://home",
+    search = "https://duckduckgo.com/html/?q=",
+    showBookmarks = true,
+    cookies = true,
+    cache = true,
+    maxRedirects = 5,
+    userAgent = "MintCraft Browser/1.0",
+    downloadDir = "/home/user/downloads",
+    autoCraftTube = false,
+  }
+end
+
+local function newTab(url)
+  return {
+    id = tostring(os.clock()) .. "-" .. tostring(math.random(1000, 9999)),
+    title = "New Tab",
+    url = url or "mint://home",
+    history = {},
+    historyIndex = 0,
+    scroll = 1,
+    page = nil,
+    loading = false,
+    private = false,
+  }
 end
 
 function M.run(ctx)
+  ensureDirs()
+  local settings = config.load(SETTINGS, defaultSettings())
+  for k, v in pairs(defaultSettings()) do if settings[k] == nil then settings[k] = v end end
+
   local app = {
-    url = (ctx.args and ctx.args.url and ctx.args.url ~= "") and ctx.args.url or "https://example.com",
-    mode = "url",
+    tabs = { newTab((ctx.args and ctx.args.url and ctx.args.url ~= "") and ctx.args.url or settings.home) },
+    active = 1,
+    address = "",
+    focusAddress = false,
     status = "Ready",
-    lines = { "Enter a URL and tap Go." },
-    scroll = 1,
     keyboard = {},
+    history = loadData(HISTORY, {}),
+    bookmarks = loadData(BOOKMARKS, {
+      { title = "GitHub", url = "https://github.com" },
+      { title = "YouTube", url = "https://youtube.com" },
+      { title = "Docs", url = "https://tweaked.cc" },
+    }),
+    downloads = loadData(DOWNLOADS, {}),
+    linkBoxes = {},
   }
 
-  local actions = {
-    { id = "go", label = "Go" },
-    { id = "crafttube", label = "CraftTube" },
-    { id = "url", label = "URL" },
-    { id = "clear", label = "Clear" },
-  }
+  local function tab() return app.tabs[app.active] end
 
-  local function load()
-    if isYouTube(app.url) then
-      app.status = "Use CraftTube for YouTube"
-      app.lines = {
-        "YouTube is not a normal web page for CC:Tweaked.",
-        "",
-        "MintCraft Browser cannot run YouTube's JavaScript UI,",
-        "decode video, render thumbnails, or play HTML5 streams.",
-        "",
-        "Use CraftTube instead:",
-        "- search through a configured proxy/API",
-        "- open metadata cards",
-        "- keep favorites and history",
-        "- future video/audio playback through a dedicated proxy",
-        "",
-        "Tap CraftTube in the toolbar.",
+  local function saveAll()
+    saveData(HISTORY, app.history)
+    saveData(BOOKMARKS, app.bookmarks)
+    saveData(DOWNLOADS, app.downloads)
+    config.save(SETTINGS, settings)
+  end
+
+  local function errorPage(title, message)
+    return { title = title, lines = { "# " .. title, "", message, "", "[Reload]  [Home]" }, links = {}, status = 0, error = true }
+  end
+
+  local function homePage()
+    local lines = {
+      "# MintCraft Browser",
+      "",
+      "Search or enter address in the bar above.",
+      "",
+      "Quick links:",
+    }
+    for i, b in ipairs(app.bookmarks) do table.insert(lines, "[" .. i .. "] " .. b.title .. "  " .. b.url) end
+    table.insert(lines, "")
+    table.insert(lines, "Recent:")
+    for i = 1, math.min(5, #app.history) do table.insert(lines, "- " .. app.history[i].title .. "  " .. app.history[i].url) end
+    table.insert(lines, "")
+    table.insert(lines, "Downloads:")
+    for i = 1, math.min(3, #app.downloads) do table.insert(lines, "- " .. app.downloads[i].filename .. "  " .. app.downloads[i].status) end
+    return { title = "New Tab", lines = lines, links = {}, status = 200 }
+  end
+
+  local function addHistory(t, page)
+    if t.private or not page then return end
+    table.insert(app.history, 1, { url = t.url, title = page.title or t.url, timestamp = now(), status = page.status or 0 })
+    while #app.history > 80 do table.remove(app.history) end
+    saveData(HISTORY, app.history)
+  end
+
+  local function headersFor(url, previous)
+    return {
+      ["User-Agent"] = settings.userAgent,
+      ["Accept"] = "text/html,application/json,text/plain,*/*",
+      ["Accept-Language"] = "fr-FR,fr;q=0.9,en;q=0.8",
+      ["Referer"] = previous or "",
+    }
+  end
+
+  local function loadUrl(url, addToHistory)
+    local t = tab()
+    url = normalizeAddress(url, settings.search)
+    if isYouTube(url) then
+      t.url = url
+      t.title = "YouTube"
+      t.page = {
+        title = "Open in CraftTube",
+        lines = {
+          "# YouTube detected",
+          "",
+          "MintCraft Browser follows the PDF target: no JavaScript or HTML5 video engine.",
+          "Use CraftTube for YouTube metadata and DFPWM proxy playback.",
+          "",
+          "[1] Open in CraftTube",
+        },
+        links = { { index = 1, text = "Open in CraftTube", url = "mint://crafttube?q=" .. youtubeQuery(url) } },
+        status = 200,
       }
-      app.scroll = 1
+      app.status = "YouTube routed to CraftTube"
       return
     end
-    app.status = "Loading..."
-    local allowed, denied = ctx.security.require("network.http", app.url)
-    if not allowed then
-      app.status = denied
-      app.lines = { denied }
+    if url == "mint://home" then
+      t.url = url
+      t.page = homePage()
+      t.title = t.page.title
       return
     end
-    local response, err = httpClient.get(app.url)
-    if response then
-      app.status = tostring(response.code) .. " " .. tostring(response.size) .. " bytes"
-      app.lines = splitLines(htmlToText(response.body, response.url), app.lastW or 48)
-      app.scroll = 1
-    else
-      app.status = tostring(err)
-      app.lines = { "Network error:", tostring(err) }
+    if url == "mint://history" then
+      local lines = { "# History", "" }
+      for i, h in ipairs(app.history) do table.insert(lines, "[" .. i .. "] " .. h.title .. "  " .. h.url) end
+      t.url = url
+      t.page = { title = "History", lines = lines, links = {}, status = 200 }
+      t.title = "History"
+      return
+    end
+
+    local allowed, denied = ctx.security.require("network.http", url)
+    if not allowed then t.page = errorPage("Network blocked", denied) t.title = "Error" return end
+
+    local previous = t.url
+    local current = url
+    local response, err
+    for redirects = 0, settings.maxRedirects do
+      app.status = "Loading " .. current
+      local cachePath = CACHE .. "/" .. cacheKey(current) .. ".html"
+      if settings.cache and fs.exists(cachePath) then
+        response = { url = current, code = 200, body = readFile(cachePath) or "", headers = {}, size = fs.getSize(cachePath) }
+      else
+        response, err = httpClient.get(current, { headers = headersFor(current, previous) })
+      end
+      if not response then
+        t.page = errorPage("Network error", tostring(err))
+        t.title = "Error"
+        log.warn("browser", tostring(err))
+        return
+      end
+      local location = response.headers and (response.headers.Location or response.headers.location)
+      if REDIRECTS[response.code] and location then
+        current = resolveUrl(current, location)
+      else
+        break
+      end
+      if redirects == settings.maxRedirects then
+        t.page = errorPage("Too many redirects", current)
+        t.title = "Error"
+        return
+      end
+    end
+
+    if settings.cache and response and response.code == 200 then
+      writeFile(CACHE .. "/" .. cacheKey(current) .. ".html", response.body)
+    end
+    local page = parseHtml(response.body, response.url or current, app.lastW or 60)
+    page.status = response.code
+    t.url = response.url or current
+    t.page = page
+    t.title = page.title
+    t.scroll = 1
+    app.status = tostring(response.code) .. " " .. tostring(response.size) .. " bytes"
+    if addToHistory ~= false then
+      while #t.history > t.historyIndex do table.remove(t.history) end
+      table.insert(t.history, t.url)
+      t.historyIndex = #t.history
+      addHistory(t, page)
     end
   end
 
-  app.keyboard.onText = function(ch)
-    if app.mode == "url" then app.url = app.url .. ch end
+  local function submitAddress()
+    loadUrl(app.address ~= "" and app.address or tab().url, true)
+    app.focusAddress = false
   end
-  app.keyboard.onBackspace = function()
-    if app.mode == "url" then app.url = app.url:sub(1, -2) end
+
+  local function goHistory(delta)
+    local t = tab()
+    local nextIndex = t.historyIndex + delta
+    if nextIndex >= 1 and nextIndex <= #t.history then
+      t.historyIndex = nextIndex
+      loadUrl(t.history[t.historyIndex], false)
+    end
   end
-  app.keyboard.onEnter = load
+
+  local function addBookmark()
+    local t = tab()
+    table.insert(app.bookmarks, { title = t.title or t.url, url = t.url, folder = "Bar", createdAt = now() })
+    saveData(BOOKMARKS, app.bookmarks)
+    app.status = "Bookmark added"
+  end
+
+  local function download(url)
+    url = url or tab().url
+    local allowed, denied = ctx.security.require("network.http", url)
+    if not allowed then app.status = denied return end
+    local response, err = httpClient.get(url, { headers = headersFor(url, tab().url) })
+    if not response then app.status = tostring(err) return end
+    local filename = filenameFromUrl(url)
+    local path = fs.combine(settings.downloadDir, filename)
+    writeFile(path, response.body)
+    table.insert(app.downloads, 1, { url = url, filename = filename, path = path, status = "done", received = response.size, startedAt = now() })
+    saveData(DOWNLOADS, app.downloads)
+    app.status = "Downloaded " .. filename
+  end
+
+  local function openLink(link)
+    if not link then return end
+    if tostring(link.url):match("^mint://crafttube") then
+      ctx.apps.launch("crafttube", { query = youtubeQuery(tab().url) })
+    else
+      loadUrl(link.url, true)
+    end
+  end
+
+  app.keyboard.onText = function(ch) app.address = app.address .. ch end
+  app.keyboard.onBackspace = function() app.address = app.address:sub(1, -2) end
+  app.keyboard.onEnter = submitAddress
 
   function app:draw(w, h)
     self.lastW = w
-    self.toolbar = ui.toolbar(1, 1, w, actions)
-    ui.input(1, 2, w, "URL", self.url, self.mode == "url")
-    renderer.writeAt(1, 3, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
-    local kbH = self.mode == "url" and keyboard.height() or 0
-    local listH = math.max(1, h - 4 - kbH)
-    for i = 1, listH do
-      local line = self.lines[self.scroll + i - 1] or ""
-      renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, colors.lightGray)
+    local t = tab()
+    self.linkBoxes = {}
+    renderer.fill(1, 1, w, 1, colors.gray)
+    local x = 1
+    for i, item in ipairs(self.tabs) do
+      local label = (i == self.active and "[" or " ") .. renderer.crop(item.title or "Tab", 10):gsub("%s+$", "") .. (i == self.active and "]" or " ")
+      renderer.writeAt(x, 1, renderer.crop(label, math.min(12, w - x + 1)), colors.white, i == self.active and colors.blue or colors.gray)
+      item.tabX, item.tabW = x, math.min(12, #label)
+      x = x + item.tabW + 1
+      if x > w - 3 then break end
     end
-    if self.mode == "url" then
+    renderer.writeAt(math.max(1, w - 2), 1, "+", colors.black, colors.lime)
+
+    renderer.fill(1, 2, w, 1, colors.lightGray)
+    renderer.writeAt(1, 2, "<", colors.black, colors.lightGray)
+    renderer.writeAt(3, 2, ">", colors.black, colors.lightGray)
+    renderer.writeAt(5, 2, "R", colors.black, colors.lightGray)
+    renderer.writeAt(7, 2, "H", colors.black, colors.lightGray)
+    renderer.writeAt(9, 2, "*", colors.black, colors.lightGray)
+    renderer.writeAt(11, 2, "D", colors.black, colors.lightGray)
+    local addr = self.focusAddress and self.address or t.url
+    renderer.writeAt(14, 2, renderer.crop(addr, math.max(1, w - 13)), colors.black, colors.white)
+
+    local y = 3
+    if settings.showBookmarks then
+      renderer.fill(1, y, w, 1, colors.gray)
+      local bx = 1
+      for i, b in ipairs(self.bookmarks) do
+        local label = renderer.crop(b.title, 10):gsub("%s+$", "")
+        renderer.writeAt(bx, y, "[" .. label .. "]", colors.white, colors.gray)
+        b.x, b.y, b.w = bx, y, #label + 2
+        bx = bx + b.w + 1
+        if bx > w - 8 then break end
+      end
+      y = y + 1
+    end
+
+    local page = t.page or homePage()
+    local kbH = self.focusAddress and keyboard.height() or 0
+    local pageH = math.max(1, h - y - 1 - kbH)
+    for i = 1, pageH do
+      local lineIndex = t.scroll + i - 1
+      local line = page.lines[lineIndex] or ""
+      local fg = line:match("^#") and colors.blue or colors.black
+      if line:match("%[%d+%]") then fg = colors.blue end
+      renderer.writeAt(1, y + i - 1, renderer.crop(line, w), fg, colors.lightGray)
+      for _, link in ipairs(page.links or {}) do
+        if line:find("%[" .. tostring(link.index) .. "%]", 1, false) then
+          table.insert(self.linkBoxes, { x = 1, y = y + i - 1, w = w, link = link })
+        end
+      end
+    end
+    renderer.writeAt(1, h - kbH, renderer.crop("Status: " .. self.status, w), colors.white, colors.gray)
+    if self.focusAddress then
       self.keyboard.x = 1
-      self.keyboard.y = h - keyboard.height() + 1
-      self.keyboard.hint = "URL"
+      self.keyboard.y = h - kbH + 1
+      self.keyboard.hint = "Address/Search"
       keyboard.draw(1, self.keyboard.y, w, self.keyboard)
     end
   end
 
   function app:handle(event)
+    local t = tab()
     if event.name == "mouse_scroll" then
-      self.scroll = math.max(1, self.scroll + event.args[1])
+      t.scroll = math.max(1, t.scroll + event.args[1])
       return true
-    elseif event.name == "char" and self.mode == "url" then
-      self.url = self.url .. event.args[1]
+    elseif event.name == "char" and self.focusAddress then
+      self.address = self.address .. event.args[1]
       return true
-    elseif event.name == "key" and self.mode == "url" then
+    elseif event.name == "key" and self.focusAddress then
       local key = event.args[1]
-      if key == keys.backspace then self.url = self.url:sub(1, -2) return true end
-      if key == keys.enter then load() return true end
+      if key == keys.backspace then self.address = self.address:sub(1, -2) return true end
+      if key == keys.enter then submitAddress() return true end
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
-      if self.mode == "url" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
-      local action = ui.toolbarHit(self.toolbar, x, y)
-      if action == "go" then load() return true end
-      if action == "crafttube" then ctx.apps.launch("crafttube", { query = youtubeQuery(self.url) }) return true end
-      if action == "url" then self.mode = "url" return true end
-      if action == "clear" then self.lines = { "" } self.status = "Cleared" return true end
+      if self.focusAddress and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+      if y == 1 then
+        if x >= self.lastW - 2 then table.insert(self.tabs, newTab(settings.home)) self.active = #self.tabs loadUrl(settings.home, false) return true end
+        for i, item in ipairs(self.tabs) do
+          if item.tabX and x >= item.tabX and x < item.tabX + item.tabW then self.active = i return true end
+        end
+      elseif y == 2 then
+        if x == 1 then goHistory(-1) return true end
+        if x == 3 then goHistory(1) return true end
+        if x == 5 then loadUrl(t.url, false) return true end
+        if x == 7 then loadUrl(settings.home, true) return true end
+        if x == 9 then addBookmark() return true end
+        if x == 11 then download(t.url) return true end
+        if x >= 14 then self.focusAddress = true self.address = t.url return true end
+      elseif settings.showBookmarks and y == 3 then
+        for _, b in ipairs(self.bookmarks) do
+          if b.x and x >= b.x and x < b.x + b.w then loadUrl(b.url, true) return true end
+        end
+      end
+      for _, box in ipairs(self.linkBoxes or {}) do
+        if y == box.y and x >= box.x and x < box.x + box.w then openLink(box.link) return true end
+      end
     end
     return false
   end
 
+  loadUrl(tab().url, false)
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Browser", w = math.min(78, sw - 4), h = math.min(24, sh - 3), x = 5, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Browser", w = math.min(82, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -225,7 +569,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -235,6 +579,7 @@ local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local config = require("system.libraries.config")
 local httpClient = require("system.network.http_client")
+local audiod = require("system.services.audiod")
 
 local M = {}
 
@@ -246,6 +591,8 @@ local defaultCfg = {
   proxy = "https://inv.thepixora.com",
   searchPath = "/api/v1/search?type=video&q=",
   detailsPath = "/api/v1/videos/",
+  audioProxy = "",
+  audioPath = "/crafttube/audio?id=",
   fallbackProxies = {
     "https://yt.chocolatemoo53.com",
     "https://invidious.f5.si",
@@ -363,7 +710,9 @@ function M.run(ctx)
 
   local actions = {
     { id = "search", label = "Search" },
+    { id = "play", label = "Play" },
     { id = "proxy", label = "Proxy" },
+    { id = "audio", label = "Audio" },
     { id = "fav", label = "Fav" },
     { id = "history", label = "History" },
     { id = "details", label = "Details" },
@@ -451,27 +800,57 @@ function M.run(ctx)
     app.status = "Opened details"
   end
 
+  local function playSelected()
+    local video = selectedVideo()
+    if not video then app.status = "No video selected" return end
+    if not app.cfg.audioProxy or app.cfg.audioProxy == "" then
+      app.status = "Audio needs a DFPWM proxy in Audio mode"
+      return
+    end
+    local base = app.cfg.audioProxy:gsub("/+$", "")
+    local audioPath = app.cfg.audioPath or defaultCfg.audioPath
+    local url = base .. audioPath .. urlEncode(video.id)
+    local allowed, denied = ctx.security.require("network.http", url)
+    if not allowed then app.status = denied return end
+    app.status = "Downloading DFPWM audio..."
+    local response, err = httpClient.get(url, { binary = true })
+    if not response then app.status = tostring(err) return end
+    if not fs.exists("/var/tmp") then fs.makeDir("/var/tmp") end
+    local path = "/var/tmp/crafttube_audio.dfpwm"
+    local handle = fs.open(path, "wb")
+    if not handle then app.status = "Cannot write audio temp file" return end
+    handle.write(response.body)
+    handle.close()
+    local ok, playErr = audiod.playDfPWM(path)
+    app.status = ok and ("Playing " .. video.title) or tostring(playErr)
+  end
+
   local function saveProxy()
     if app.input ~= "" then
-      app.cfg.proxy = app.input:gsub("/+$", "")
-      app.cfg.searchPath = app.cfg.searchPath or defaultCfg.searchPath
-      app.cfg.detailsPath = app.cfg.detailsPath or defaultCfg.detailsPath
+      if app.mode == "audio" then
+        app.cfg.audioProxy = app.input:gsub("/+$", "")
+        app.cfg.audioPath = app.cfg.audioPath or defaultCfg.audioPath
+      else
+        app.cfg.proxy = app.input:gsub("/+$", "")
+        app.cfg.searchPath = app.cfg.searchPath or defaultCfg.searchPath
+        app.cfg.detailsPath = app.cfg.detailsPath or defaultCfg.detailsPath
+      end
       saveCfg(app.cfg)
-      app.status = "Proxy saved"
+      app.status = app.mode == "audio" and "Audio proxy saved" or "Proxy saved"
     end
   end
 
   app.keyboard.onText = function(ch) app.input = app.input .. ch end
   app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
   app.keyboard.onEnter = function()
-    if app.mode == "proxy" then saveProxy() else search() end
+    if app.mode == "proxy" or app.mode == "audio" then saveProxy() else search() end
   end
 
   function app:draw(w, h)
     self.toolbar = ui.toolbar(1, 1, w, actions)
     local kbH = keyboard.height()
     local selected = selectedVideo()
-    local inputLabel = self.mode == "proxy" and "Proxy" or "Search"
+    local inputLabel = self.mode == "proxy" and "Proxy" or (self.mode == "audio" and "Audio proxy" or "Search")
     ui.input(1, 2, w, inputLabel, self.input, true)
     renderer.writeAt(1, 3, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
     local cardH = 3
@@ -495,6 +874,7 @@ function M.run(ctx)
       renderer.writeAt(1, detailY + 1, renderer.crop(selected.channel .. "  " .. selected.duration .. "  " .. selected.views .. "  " .. selected.published, w), colors.black, colors.lightGray)
       local lines = splitLines(selected.description, w)
       renderer.writeAt(1, detailY + 2, renderer.crop(lines[1] or "", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, detailY + 3, renderer.crop("Play requires DFPWM proxy: " .. tostring(self.cfg.audioProxy or "-"), w), colors.gray, colors.lightGray)
     else
       renderer.writeAt(1, detailY, renderer.crop("CraftTube is the YouTube app for MintCraft OS.", w), colors.white, colors.gray)
       renderer.writeAt(1, detailY + 1, renderer.crop("It needs a proxy/API because CC:Tweaked cannot run YouTube web UI.", w), colors.gray, colors.lightGray)
@@ -502,7 +882,7 @@ function M.run(ctx)
     end
     self.keyboard.x = 1
     self.keyboard.y = h - kbH + 1
-    self.keyboard.hint = self.mode == "proxy" and "Proxy URL" or "Search"
+    self.keyboard.hint = self.mode == "proxy" and "Proxy URL" or (self.mode == "audio" and "DFPWM audio proxy URL" or "Search")
     keyboard.draw(1, self.keyboard.y, w, self.keyboard)
   end
 
@@ -522,7 +902,9 @@ function M.run(ctx)
       if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
       local action = ui.toolbarHit(self.toolbar, x, y)
       if action == "search" then self.mode = "search" search() return true end
+      if action == "play" then playSelected() return true end
       if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
+      if action == "audio" then self.mode = "audio" self.input = self.cfg.audioProxy or "" return true end
       if action == "fav" then toggleFavorite() return true end
       if action == "history" then showRows(self.data.history, "History") return true end
       if action == "details" then
@@ -531,7 +913,7 @@ function M.run(ctx)
         return true
       end
       if y >= 4 then
-        local item = self.rows[self.scroll + y - 4]
+        local item = self.rows[self.scroll + math.floor((y - 4) / 3)]
         if item then self.selected = item.id openVideo() return true end
       end
     end
@@ -549,7 +931,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -608,7 +990,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -790,7 +1172,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1095,7 +1477,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1172,7 +1554,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1289,7 +1671,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1368,7 +1750,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -1711,7 +2093,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -1820,7 +2202,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -1934,7 +2316,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.13.0",
+  version = "0.14.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -2314,7 +2696,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.13.0",
+  version = "0.14.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2598,7 +2980,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.13.0 base:
+This repository currently contains the V0.14.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -2618,15 +3000,18 @@ This repository currently contains the V0.13.0 base:
 - Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
 - Terminal with file commands, process commands and touch autocomplete
 - Services, Logs and Task Manager apps with touch controls
-- HTTP/WebSocket network wrappers, `networkd` service and text Browser app
+- HTTP/WebSocket network wrappers, `networkd` service and Chrome-like text/color Browser app
+- Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
 - CraftTube native metadata client using a configurable proxy/API with card-style results, favorites and history
 - CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
+- CraftTube Play supports DFPWM audio through a configurable audio proxy; raw YouTube/Invidious audio is not decoded locally
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
+- app crash isolation for process, window draw and input errors, with log entry and notification
 
-Not included yet: encrypted password storage and per-file ACLs.
+Not included yet: JavaScript/HTML5 video playback, encrypted password storage and per-file ACLs.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 
@@ -2716,7 +3101,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.13.0",
+    version = "0.14.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -2742,8 +3127,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.13.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.13.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.14.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -2871,6 +3256,8 @@ return M
   proxy = "https://inv.thepixora.com",
   searchPath = "/api/v1/search?type=video&q=",
   detailsPath = "/api/v1/videos/",
+  audioProxy = "",
+  audioPath = "/crafttube/audio?id=",
   fallbackProxies = {
     "https://yt.chocolatemoo53.com",
     "https://invidious.f5.si",
@@ -2894,7 +3281,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.13.0",
+  version = "0.14.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -3919,19 +4306,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.13.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.13.0", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.13.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.13.0", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.13.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.13.0", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.13.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.13.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.13.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.13.0", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.13.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.13.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.13.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.0", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.0", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -4060,6 +4447,19 @@ function Scheduler:resume(process, event)
   end
 end
 
+function Scheduler:crash(pid, err)
+  local process = self.processes[pid]
+  if not process or process.state == "crashed" then return false, "No such process" end
+  process.state = "crashed"
+  process.error = tostring(err)
+  log.error("process", process.name .. ": " .. tostring(err))
+  if process.window then process.window.closed = true end
+  if self.ctx and self.ctx.notifications then
+    self.ctx.notifications:push("error", "App crashed", process.name, 5)
+  end
+  return true
+end
+
 function Scheduler:dispatch(event)
   for _, process in pairs(self.processes) do
     if process.state == "ready" and eventMatches(process.filter, event) then
@@ -4144,7 +4544,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.13.0",
+    version = meta.version or "0.14.0",
     permissions = meta.permissions or {},
   }
 end
@@ -4189,6 +4589,9 @@ function M.launch(id, args)
     procCtx.windowManager = {
       create = function(_, opts)
         opts.ownerPid = pid
+        opts.onError = function(err)
+          scheduler:crash(pid, err)
+        end
         local win = M.ctx.wm:create(opts)
         scheduler:attachWindow(pid, win)
         return win
@@ -4308,15 +4711,20 @@ function M.check()
   return M.lastStatus
 end
 
-function M.get(url, opts)
+local function request(method, url, opts)
   opts = opts or {}
   url = trim(url)
   if url == "" then return nil, "empty URL" end
   if not url:match("^https?://") then url = "https://" .. url end
   if not M.available() then return nil, "HTTP API disabled" end
 
-  log.info("http", "GET " .. url)
-  local ok, handle = pcall(http.get, url, opts.headers)
+  log.info("http", tostring(method or "GET") .. " " .. url)
+  local ok, handle
+  if method == "POST" and http.post then
+    ok, handle = pcall(http.post, url, opts.body or "", opts.headers)
+  else
+    ok, handle = pcall(http.get, url, opts.headers)
+  end
   if not ok then
     log.error("http", tostring(handle))
     return nil, tostring(handle)
@@ -4328,13 +4736,25 @@ function M.get(url, opts)
 
   local body = handle.readAll() or ""
   local code = handle.getResponseCode and handle.getResponseCode() or 200
+  local headers = handle.getResponseHeaders and handle.getResponseHeaders() or {}
   handle.close()
   return {
     url = url,
     code = code,
+    headers = headers,
     body = body,
     size = #body,
   }
+end
+
+function M.get(url, opts)
+  return request("GET", url, opts)
+end
+
+function M.post(url, body, opts)
+  opts = opts or {}
+  opts.body = body or ""
+  return request("POST", url, opts)
 end
 
 function M.json(url, opts)
@@ -4810,6 +5230,10 @@ end
 
 function M.use(side)
   return speaker.use(side)
+end
+
+function M.playDfPWM(path, side)
+  return speaker.playDfPWM(path, side)
 end
 
 return M
@@ -5684,7 +6108,15 @@ function Window.new(opts)
     previousBounds = nil,
     app = opts.app,
     ownerPid = opts.ownerPid,
+    onError = opts.onError,
   }, Window)
+end
+
+function Window:crash(err)
+  self.closed = true
+  if self.onError then
+    pcall(self.onError, err)
+  end
 end
 
 function Window:clamp()
@@ -5755,7 +6187,7 @@ function Window:draw()
     if ok then
       target.setVisible(true)
     else
-      renderer.writeAt(self.x + 1, self.y + 1, "Draw error: " .. tostring(err), theme.get("error"), theme.get("windowBg"))
+      self:crash("draw: " .. tostring(err))
     end
   end
 end
@@ -5813,7 +6245,12 @@ function Window:handle(event)
         monitorSide = event.monitorSide,
       }
     end
-    return self.app:handle(localEvent, self)
+    local ok, handled = pcall(self.app.handle, self.app, localEvent, self)
+    if not ok then
+      self:crash("handle: " .. tostring(handled))
+      return true
+    end
+    return handled
   end
   return false
 end
@@ -5909,7 +6346,7 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.13.0
+  ["VERSION"] = [[0.14.0
 ]],
 }
 
@@ -5931,5 +6368,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.13.0 installed.")
+print("MintCraft OS 0.14.0 installed.")
 print("Run reboot to start MintCraft OS.")

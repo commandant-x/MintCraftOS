@@ -3,6 +3,7 @@ local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local config = require("system.libraries.config")
 local httpClient = require("system.network.http_client")
+local audiod = require("system.services.audiod")
 
 local M = {}
 
@@ -14,6 +15,8 @@ local defaultCfg = {
   proxy = "https://inv.thepixora.com",
   searchPath = "/api/v1/search?type=video&q=",
   detailsPath = "/api/v1/videos/",
+  audioProxy = "",
+  audioPath = "/crafttube/audio?id=",
   fallbackProxies = {
     "https://yt.chocolatemoo53.com",
     "https://invidious.f5.si",
@@ -131,7 +134,9 @@ function M.run(ctx)
 
   local actions = {
     { id = "search", label = "Search" },
+    { id = "play", label = "Play" },
     { id = "proxy", label = "Proxy" },
+    { id = "audio", label = "Audio" },
     { id = "fav", label = "Fav" },
     { id = "history", label = "History" },
     { id = "details", label = "Details" },
@@ -219,27 +224,57 @@ function M.run(ctx)
     app.status = "Opened details"
   end
 
+  local function playSelected()
+    local video = selectedVideo()
+    if not video then app.status = "No video selected" return end
+    if not app.cfg.audioProxy or app.cfg.audioProxy == "" then
+      app.status = "Audio needs a DFPWM proxy in Audio mode"
+      return
+    end
+    local base = app.cfg.audioProxy:gsub("/+$", "")
+    local audioPath = app.cfg.audioPath or defaultCfg.audioPath
+    local url = base .. audioPath .. urlEncode(video.id)
+    local allowed, denied = ctx.security.require("network.http", url)
+    if not allowed then app.status = denied return end
+    app.status = "Downloading DFPWM audio..."
+    local response, err = httpClient.get(url, { binary = true })
+    if not response then app.status = tostring(err) return end
+    if not fs.exists("/var/tmp") then fs.makeDir("/var/tmp") end
+    local path = "/var/tmp/crafttube_audio.dfpwm"
+    local handle = fs.open(path, "wb")
+    if not handle then app.status = "Cannot write audio temp file" return end
+    handle.write(response.body)
+    handle.close()
+    local ok, playErr = audiod.playDfPWM(path)
+    app.status = ok and ("Playing " .. video.title) or tostring(playErr)
+  end
+
   local function saveProxy()
     if app.input ~= "" then
-      app.cfg.proxy = app.input:gsub("/+$", "")
-      app.cfg.searchPath = app.cfg.searchPath or defaultCfg.searchPath
-      app.cfg.detailsPath = app.cfg.detailsPath or defaultCfg.detailsPath
+      if app.mode == "audio" then
+        app.cfg.audioProxy = app.input:gsub("/+$", "")
+        app.cfg.audioPath = app.cfg.audioPath or defaultCfg.audioPath
+      else
+        app.cfg.proxy = app.input:gsub("/+$", "")
+        app.cfg.searchPath = app.cfg.searchPath or defaultCfg.searchPath
+        app.cfg.detailsPath = app.cfg.detailsPath or defaultCfg.detailsPath
+      end
       saveCfg(app.cfg)
-      app.status = "Proxy saved"
+      app.status = app.mode == "audio" and "Audio proxy saved" or "Proxy saved"
     end
   end
 
   app.keyboard.onText = function(ch) app.input = app.input .. ch end
   app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
   app.keyboard.onEnter = function()
-    if app.mode == "proxy" then saveProxy() else search() end
+    if app.mode == "proxy" or app.mode == "audio" then saveProxy() else search() end
   end
 
   function app:draw(w, h)
     self.toolbar = ui.toolbar(1, 1, w, actions)
     local kbH = keyboard.height()
     local selected = selectedVideo()
-    local inputLabel = self.mode == "proxy" and "Proxy" or "Search"
+    local inputLabel = self.mode == "proxy" and "Proxy" or (self.mode == "audio" and "Audio proxy" or "Search")
     ui.input(1, 2, w, inputLabel, self.input, true)
     renderer.writeAt(1, 3, renderer.crop("Status: " .. self.status, w), colors.black, colors.lightGray)
     local cardH = 3
@@ -263,6 +298,7 @@ function M.run(ctx)
       renderer.writeAt(1, detailY + 1, renderer.crop(selected.channel .. "  " .. selected.duration .. "  " .. selected.views .. "  " .. selected.published, w), colors.black, colors.lightGray)
       local lines = splitLines(selected.description, w)
       renderer.writeAt(1, detailY + 2, renderer.crop(lines[1] or "", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, detailY + 3, renderer.crop("Play requires DFPWM proxy: " .. tostring(self.cfg.audioProxy or "-"), w), colors.gray, colors.lightGray)
     else
       renderer.writeAt(1, detailY, renderer.crop("CraftTube is the YouTube app for MintCraft OS.", w), colors.white, colors.gray)
       renderer.writeAt(1, detailY + 1, renderer.crop("It needs a proxy/API because CC:Tweaked cannot run YouTube web UI.", w), colors.gray, colors.lightGray)
@@ -270,7 +306,7 @@ function M.run(ctx)
     end
     self.keyboard.x = 1
     self.keyboard.y = h - kbH + 1
-    self.keyboard.hint = self.mode == "proxy" and "Proxy URL" or "Search"
+    self.keyboard.hint = self.mode == "proxy" and "Proxy URL" or (self.mode == "audio" and "DFPWM audio proxy URL" or "Search")
     keyboard.draw(1, self.keyboard.y, w, self.keyboard)
   end
 
@@ -290,7 +326,9 @@ function M.run(ctx)
       if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
       local action = ui.toolbarHit(self.toolbar, x, y)
       if action == "search" then self.mode = "search" search() return true end
+      if action == "play" then playSelected() return true end
       if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
+      if action == "audio" then self.mode = "audio" self.input = self.cfg.audioProxy or "" return true end
       if action == "fav" then toggleFavorite() return true end
       if action == "history" then showRows(self.data.history, "History") return true end
       if action == "details" then
@@ -299,7 +337,7 @@ function M.run(ctx)
         return true
       end
       if y >= 4 then
-        local item = self.rows[self.scroll + y - 4]
+        local item = self.rows[self.scroll + math.floor((y - 4) / 3)]
         if item then self.selected = item.id openVideo() return true end
       end
     end

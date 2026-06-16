@@ -23,15 +23,20 @@ function M.check()
   return M.lastStatus
 end
 
-function M.get(url, opts)
+local function request(method, url, opts)
   opts = opts or {}
   url = trim(url)
   if url == "" then return nil, "empty URL" end
   if not url:match("^https?://") then url = "https://" .. url end
   if not M.available() then return nil, "HTTP API disabled" end
 
-  log.info("http", "GET " .. url)
-  local ok, handle = pcall(http.get, url, opts.headers)
+  log.info("http", tostring(method or "GET") .. " " .. url)
+  local ok, handle
+  if method == "POST" and http.post then
+    ok, handle = pcall(http.post, url, opts.body or "", opts.headers)
+  else
+    ok, handle = pcall(http.get, url, opts.headers)
+  end
   if not ok then
     log.error("http", tostring(handle))
     return nil, tostring(handle)
@@ -43,13 +48,25 @@ function M.get(url, opts)
 
   local body = handle.readAll() or ""
   local code = handle.getResponseCode and handle.getResponseCode() or 200
+  local headers = handle.getResponseHeaders and handle.getResponseHeaders() or {}
   handle.close()
   return {
     url = url,
     code = code,
+    headers = headers,
     body = body,
     size = #body,
   }
+end
+
+function M.get(url, opts)
+  return request("GET", url, opts)
+end
+
+function M.post(url, body, opts)
+  opts = opts or {}
+  opts.body = body or ""
+  return request("POST", url, opts)
 end
 
 function M.json(url, opts)
