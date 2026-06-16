@@ -13,14 +13,21 @@ local M = {
 }
 
 local function api(name)
-  return rawget(_G, name)
+  local value = rawget(_G, name)
+  if value ~= nil then return value end
+  local ok, mod = pcall(require, name)
+  if ok then return mod end
+  return nil
 end
 
 local function call(target, method, ...)
   if not target or type(target[method]) ~= "function" then
     return nil, method .. " unavailable"
   end
-  local ok, value = pcall(target[method], ...)
+  local fn = target[method]
+  local ok, value = pcall(fn, ...)
+  if ok then return value, nil end
+  ok, value = pcall(fn, target, ...)
   if ok then return value, nil end
   return nil, tostring(value)
 end
@@ -43,21 +50,33 @@ local function detect()
 end
 
 local function readSublevel(sub)
-  local out = {}
-  out.inSublevel = call(sub, "isInPlotGrid") == true
-  if not out.inSublevel then return out end
-  out.uuid = call(sub, "getUniqueId")
-  out.name = call(sub, "getName")
-  out.logicalPose = vec(call(sub, "getLogicalPose"))
-  out.lastPose = vec(call(sub, "getLastPose"))
-  out.velocity = vec(call(sub, "getVelocity"))
-  out.linearVelocity = vec(call(sub, "getLinearVelocity"))
-  out.angularVelocity = vec(call(sub, "getAngularVelocity"))
-  out.centerOfMass = vec(call(sub, "getCenterOfMass"))
-  out.mass = call(sub, "getMass")
-  out.inverseMass = call(sub, "getInverseMass")
-  out.inertiaTensor = vec(call(sub, "getInertiaTensor"))
-  out.inverseInertiaTensor = vec(call(sub, "getInverseInertiaTensor"))
+  local out = { errors = {} }
+  local grid, gridErr = call(sub, "isInPlotGrid")
+  local yard, yardErr = call(sub, "isInPlotYard")
+  out.plotGrid = grid
+  out.plotYard = yard
+  if gridErr then out.errors.isInPlotGrid = gridErr end
+  if yardErr then out.errors.isInPlotYard = yardErr end
+
+  local function get(field, method, transform)
+    local value, err = call(sub, method)
+    if err then out.errors[method] = err else out[field] = transform and transform(value) or value end
+  end
+
+  get("uuid", "getUniqueId")
+  get("name", "getName")
+  get("logicalPose", "getLogicalPose", vec)
+  get("lastPose", "getLastPose", vec)
+  get("velocity", "getVelocity", vec)
+  get("linearVelocity", "getLinearVelocity", vec)
+  get("angularVelocity", "getAngularVelocity", vec)
+  get("centerOfMass", "getCenterOfMass", vec)
+  get("mass", "getMass")
+  get("inverseMass", "getInverseMass")
+  get("inertiaTensor", "getInertiaTensor", vec)
+  get("inverseInertiaTensor", "getInverseInertiaTensor", vec)
+
+  out.inSublevel = grid == true or yard == true or out.logicalPose ~= nil or out.uuid ~= nil or out.name ~= nil
   return out
 end
 
@@ -80,7 +99,12 @@ function M.status()
 end
 
 function M.snapshot()
-  local sub, aero, names = detect()
+  local okDetect, sub, aero, names = pcall(detect)
+  if not okDetect then
+    M.lastStatus = { available = false, inSublevel = false, error = tostring(sub), apiNames = {} }
+    M.lastSnapshot = { ok = false, status = "CC:Sable detection failed", error = tostring(sub) }
+    return M.lastSnapshot
+  end
   local available = sub ~= nil or aero ~= nil
   local result = {
     ok = false,
@@ -99,15 +123,26 @@ function M.snapshot()
 
   local subData = nil
   if sub then
-    subData = readSublevel(sub)
-    result.sublevel = subData
+    local okSub, data = pcall(readSublevel, sub)
+    if okSub then
+      subData = data
+      result.sublevel = subData
+    else
+      result.error = tostring(data)
+      log.warn("sabled", "sublevel read failed: " .. tostring(data))
+    end
   end
-  result.aero = readAero(aero, subData)
+  local okAero, aeroData = pcall(readAero, aero, subData)
+  if okAero then
+    result.aero = aeroData
+  else
+    log.warn("sabled", "aero read failed: " .. tostring(aeroData))
+  end
 
   local inSublevel = subData and subData.inSublevel == true
   result.ok = true
-  result.status = inSublevel and "sublevel telemetry ready" or "not on sublevel"
-  M.lastStatus = { available = true, inSublevel = inSublevel, error = nil, apiNames = names }
+  result.status = inSublevel and "sublevel telemetry ready" or (sub and "sublevel API ready, no pose" or "not on sublevel")
+  M.lastStatus = { available = true, inSublevel = inSublevel, error = result.error, apiNames = names or {} }
   M.lastSnapshot = result
 
   if M.ctx and M.ctx.notifications then

@@ -105,7 +105,13 @@ function M.run(ctx)
       app.snapshot = { ok = false, status = tostring(denied), error = tostring(denied) }
       return app.snapshot
     end
-    app.snapshot = sabled.snapshot()
+    local ok, snap = pcall(sabled.snapshot)
+    if ok and snap then
+      app.snapshot = snap
+    else
+      app.snapshot = { ok = false, status = "sabled error", error = tostring(snap) }
+      log.warn("navigation", "sabled error: " .. tostring(snap))
+    end
     return app.snapshot
   end
 
@@ -161,7 +167,10 @@ function M.run(ctx)
 
   local function drawFlight(w, h)
     local snap = app.snapshot or refresh()
-    local st = sabled.status()
+    local okStatus, st = pcall(sabled.status)
+    if not okStatus or not st then
+      st = { available = false, inSublevel = false, apiNames = {}, error = tostring(st) }
+    end
     renderer.writeAt(1, 3, renderer.crop("CC:Sable: " .. tostring(st.available and "available" or "missing") .. "  APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 4, renderer.crop("Sublevel: " .. tostring(st.inSublevel and "ready" or "not on sublevel") .. "  Status: " .. tostring(snap.status or snap.error or "-"), w), colors.black, colors.lightGray)
     if not st.available or not snap.sublevel or not snap.sublevel.inSublevel then
@@ -175,6 +184,7 @@ function M.run(ctx)
     local rows = {
       "Name: " .. scalar(sub.name),
       "UUID: " .. scalar(sub.uuid),
+      "Flags: grid=" .. tostring(sub.plotGrid) .. " yard=" .. tostring(sub.plotYard),
       "Logical: " .. poseLine(sub.logicalPose),
       "Last: " .. poseLine(sub.lastPose),
       "Velocity: " .. vec(sub.velocity),
@@ -302,7 +312,6 @@ function M.run(ctx)
     return false
   end
 
-  refresh()
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Navigation", w = math.min(76, sw - 4), h = math.min(22, sh - 3), x = 5, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end

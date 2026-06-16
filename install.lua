@@ -1,4 +1,4 @@
--- MintCraft OS V0.15.0 installer for CC:Tweaked
+-- MintCraft OS V0.15.1 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -33,7 +33,7 @@ SOFTWARE.
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.15.0 base:
+This repository currently contains the V0.15.1 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -109,12 +109,12 @@ CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another 
 - `BRW-007`: browser cache issue.
 - `BRW-008`: download/write failure.
 ]],
-  ["VERSION"] = [[0.15.0
+  ["VERSION"] = [[0.15.1
 ]],
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -790,7 +790,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1152,7 +1152,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -1218,7 +1218,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1400,7 +1400,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1705,7 +1705,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1782,7 +1782,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1899,7 +1899,7 @@ return M
   ["apps/navigation/app.cfg"] = [[{
   id = "navigation",
   name = "Navigation",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.navigation.main",
   permissions = { "sable.read", "redstone.output", "navigation.assist" },
 }
@@ -2011,7 +2011,13 @@ function M.run(ctx)
       app.snapshot = { ok = false, status = tostring(denied), error = tostring(denied) }
       return app.snapshot
     end
-    app.snapshot = sabled.snapshot()
+    local ok, snap = pcall(sabled.snapshot)
+    if ok and snap then
+      app.snapshot = snap
+    else
+      app.snapshot = { ok = false, status = "sabled error", error = tostring(snap) }
+      log.warn("navigation", "sabled error: " .. tostring(snap))
+    end
     return app.snapshot
   end
 
@@ -2067,7 +2073,10 @@ function M.run(ctx)
 
   local function drawFlight(w, h)
     local snap = app.snapshot or refresh()
-    local st = sabled.status()
+    local okStatus, st = pcall(sabled.status)
+    if not okStatus or not st then
+      st = { available = false, inSublevel = false, apiNames = {}, error = tostring(st) }
+    end
     renderer.writeAt(1, 3, renderer.crop("CC:Sable: " .. tostring(st.available and "available" or "missing") .. "  APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 4, renderer.crop("Sublevel: " .. tostring(st.inSublevel and "ready" or "not on sublevel") .. "  Status: " .. tostring(snap.status or snap.error or "-"), w), colors.black, colors.lightGray)
     if not st.available or not snap.sublevel or not snap.sublevel.inSublevel then
@@ -2081,6 +2090,7 @@ function M.run(ctx)
     local rows = {
       "Name: " .. scalar(sub.name),
       "UUID: " .. scalar(sub.uuid),
+      "Flags: grid=" .. tostring(sub.plotGrid) .. " yard=" .. tostring(sub.plotYard),
       "Logical: " .. poseLine(sub.logicalPose),
       "Last: " .. poseLine(sub.lastPose),
       "Velocity: " .. vec(sub.velocity),
@@ -2208,7 +2218,6 @@ function M.run(ctx)
     return false
   end
 
-  refresh()
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Navigation", w = math.min(76, sw - 4), h = math.min(22, sh - 3), x = 5, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
@@ -2219,7 +2228,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2298,7 +2307,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2658,7 +2667,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -2771,7 +2780,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -2885,7 +2894,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.15.0",
+  version = "0.15.1",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3268,7 +3277,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.15.0",
+  version = "0.15.1",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -3733,7 +3742,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.15.0",
+    version = "0.15.1",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -3759,8 +3768,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.15.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.15.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.15.1" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.15.1"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -3925,7 +3934,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.15.0",
+  version = "0.15.1",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -4949,20 +4958,20 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.15.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.15.0", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.15.0", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.15.0", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.15.0", permissions = { "sable.read", "redstone.output", "navigation.assist" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.15.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.15.0", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.15.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.15.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.15.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.15.0", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.15.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.15.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.15.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.15.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.15.1", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.15.1", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.15.1", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.15.1", permissions = { "sable.read", "redstone.output", "navigation.assist" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.15.1", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.15.1", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.15.1", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.15.1", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.15.1", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.15.1", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.15.1", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.15.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.15.1", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -5189,7 +5198,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.15.0",
+    version = meta.version or "0.15.1",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -6277,14 +6286,21 @@ local M = {
 }
 
 local function api(name)
-  return rawget(_G, name)
+  local value = rawget(_G, name)
+  if value ~= nil then return value end
+  local ok, mod = pcall(require, name)
+  if ok then return mod end
+  return nil
 end
 
 local function call(target, method, ...)
   if not target or type(target[method]) ~= "function" then
     return nil, method .. " unavailable"
   end
-  local ok, value = pcall(target[method], ...)
+  local fn = target[method]
+  local ok, value = pcall(fn, ...)
+  if ok then return value, nil end
+  ok, value = pcall(fn, target, ...)
   if ok then return value, nil end
   return nil, tostring(value)
 end
@@ -6307,21 +6323,33 @@ local function detect()
 end
 
 local function readSublevel(sub)
-  local out = {}
-  out.inSublevel = call(sub, "isInPlotGrid") == true
-  if not out.inSublevel then return out end
-  out.uuid = call(sub, "getUniqueId")
-  out.name = call(sub, "getName")
-  out.logicalPose = vec(call(sub, "getLogicalPose"))
-  out.lastPose = vec(call(sub, "getLastPose"))
-  out.velocity = vec(call(sub, "getVelocity"))
-  out.linearVelocity = vec(call(sub, "getLinearVelocity"))
-  out.angularVelocity = vec(call(sub, "getAngularVelocity"))
-  out.centerOfMass = vec(call(sub, "getCenterOfMass"))
-  out.mass = call(sub, "getMass")
-  out.inverseMass = call(sub, "getInverseMass")
-  out.inertiaTensor = vec(call(sub, "getInertiaTensor"))
-  out.inverseInertiaTensor = vec(call(sub, "getInverseInertiaTensor"))
+  local out = { errors = {} }
+  local grid, gridErr = call(sub, "isInPlotGrid")
+  local yard, yardErr = call(sub, "isInPlotYard")
+  out.plotGrid = grid
+  out.plotYard = yard
+  if gridErr then out.errors.isInPlotGrid = gridErr end
+  if yardErr then out.errors.isInPlotYard = yardErr end
+
+  local function get(field, method, transform)
+    local value, err = call(sub, method)
+    if err then out.errors[method] = err else out[field] = transform and transform(value) or value end
+  end
+
+  get("uuid", "getUniqueId")
+  get("name", "getName")
+  get("logicalPose", "getLogicalPose", vec)
+  get("lastPose", "getLastPose", vec)
+  get("velocity", "getVelocity", vec)
+  get("linearVelocity", "getLinearVelocity", vec)
+  get("angularVelocity", "getAngularVelocity", vec)
+  get("centerOfMass", "getCenterOfMass", vec)
+  get("mass", "getMass")
+  get("inverseMass", "getInverseMass")
+  get("inertiaTensor", "getInertiaTensor", vec)
+  get("inverseInertiaTensor", "getInverseInertiaTensor", vec)
+
+  out.inSublevel = grid == true or yard == true or out.logicalPose ~= nil or out.uuid ~= nil or out.name ~= nil
   return out
 end
 
@@ -6344,7 +6372,12 @@ function M.status()
 end
 
 function M.snapshot()
-  local sub, aero, names = detect()
+  local okDetect, sub, aero, names = pcall(detect)
+  if not okDetect then
+    M.lastStatus = { available = false, inSublevel = false, error = tostring(sub), apiNames = {} }
+    M.lastSnapshot = { ok = false, status = "CC:Sable detection failed", error = tostring(sub) }
+    return M.lastSnapshot
+  end
   local available = sub ~= nil or aero ~= nil
   local result = {
     ok = false,
@@ -6363,15 +6396,26 @@ function M.snapshot()
 
   local subData = nil
   if sub then
-    subData = readSublevel(sub)
-    result.sublevel = subData
+    local okSub, data = pcall(readSublevel, sub)
+    if okSub then
+      subData = data
+      result.sublevel = subData
+    else
+      result.error = tostring(data)
+      log.warn("sabled", "sublevel read failed: " .. tostring(data))
+    end
   end
-  result.aero = readAero(aero, subData)
+  local okAero, aeroData = pcall(readAero, aero, subData)
+  if okAero then
+    result.aero = aeroData
+  else
+    log.warn("sabled", "aero read failed: " .. tostring(aeroData))
+  end
 
   local inSublevel = subData and subData.inSublevel == true
   result.ok = true
-  result.status = inSublevel and "sublevel telemetry ready" or "not on sublevel"
-  M.lastStatus = { available = true, inSublevel = inSublevel, error = nil, apiNames = names }
+  result.status = inSublevel and "sublevel telemetry ready" or (sub and "sublevel API ready, no pose" or "not on sublevel")
+  M.lastStatus = { available = true, inSublevel = inSublevel, error = result.error, apiNames = names or {} }
   M.lastSnapshot = result
 
   if M.ctx and M.ctx.notifications then
@@ -7460,5 +7504,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.15.0 installed.")
+print("MintCraft OS 0.15.1 installed.")
 print("Run reboot to start MintCraft OS.")
