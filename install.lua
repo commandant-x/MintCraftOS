@@ -1,125 +1,25 @@
--- MintCraft OS V0.15.1 installer for CC:Tweaked
+-- MintCraft OS V0.16.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
-  [".gitignore"] = [[.tools/
-]],
-  [".settings"] = [[{
+  [".gitignore"] = [===[
+.tools/
+]===],
+  [".settings"] = [===[
+{
   ["shell.allow_startup"] = true,
 }
-]],
-  ["LICENSE"] = [[MIT License
-
-Copyright (c) 2026 commandant-x
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-]],
-  ["README.md"] = [[# MintCraft OS
-
-MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
-
-This repository currently contains the V0.15.1 base:
-
-- bootloader, splash, recovery and panic handling
-- persistent logs
-- cooperative scheduler and process table
-- event bus
-- terminal renderer, themes and window manager
-- desktop, taskbar, start menu, right-click context menu and stacked notifications
-- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
-- larger `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
-- shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
-- complete touch-first Files app with toolbar, open, create, rename, trash and delete confirmation
-- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
-- Editor integrated through Files for text/Lua files, with Lua compile check and Tab autocomplete/snippets
-- richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
-- GitHub Update app and boot-time update check through the `updated` service
-- update rollback snapshot restored from Update or Recovery
-- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
-- Terminal with file commands, process commands and touch autocomplete
-- Services, Logs and Task Manager apps with touch controls
-- HTTP/WebSocket network wrappers, `networkd` service and Chrome-like text/color Browser app
-- Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
-- CraftTube integrated from Browser for YouTube URLs/searches, using a configurable proxy/API with card-style results, favorites and history
-- CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
-- CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
-- Store and local package manager with bundled example packages
-- Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
-- Navigation app for CC:Sable telemetry with confirmed Redstone Assist pulses
-- user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
-- speaker audio driver and `audiod` service with Settings controls and notification/test tones
-- app crash isolation for process, window draw and input errors, with log entry and notification
-
-Not included yet: JavaScript/HTML5 video playback, encrypted password storage and per-file ACLs.
-
-Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
-
-```lua
-shell.run("/boot.lua")
-```
-
-## Install From GitHub
-
-On a CC:Tweaked computer with HTTP enabled:
-
-```lua
-wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
-```
-
-Then reboot:
-
-```lua
-reboot
-```
-
-## CraftTube Audio
-
-On your PC, install `yt-dlp` and `ffmpeg`, then run:
-
-```powershell
-cd tools\crafttube-dfpwm-proxy
-npm start
-```
-
-CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.
-
-## Browser Error Codes
-
-- `BRW-001`: HTTP API disabled in CC:Tweaked.
-- `BRW-002`: network/TLS/DNS/request failure.
-- `BRW-003`: MintCraft permission denied.
-- `BRW-004`: too many redirects.
-- `BRW-005`: invalid URL.
-- `BRW-006`: YouTube routed to CraftTube.
-- `BRW-007`: browser cache issue.
-- `BRW-008`: download/write failure.
-]],
-  ["VERSION"] = [[0.15.1
-]],
-  ["apps/browser/app.cfg"] = [[{
+]===],
+  ["apps/browser/app.cfg"] = [===[
+{
   id = "browser",
   name = "Browser",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
-]],
-  ["apps/browser/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/browser/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local config = require("system.libraries.config")
@@ -786,16 +686,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/crafttube/app.cfg"] = [[{
+]===],
+  ["apps/crafttube/app.cfg"] = [===[
+{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
-]],
-  ["apps/crafttube/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/crafttube/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local config = require("system.libraries.config")
@@ -1148,18 +1050,21 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/devices/app.cfg"] = [[{
+]===],
+  ["apps/devices/app.cfg"] = [===[
+{
   id = "devices",
   name = "Devices",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
-]],
-  ["apps/devices/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/devices/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local deviced = require("system.services.deviced")
 local sabled = require("system.services.sabled")
+local avionicsd = require("system.services.avionicsd")
 
 local M = {}
 
@@ -1170,22 +1075,29 @@ function M.run(ctx)
     renderer.writeAt(1, 1, renderer.crop("[Rescan] [Use monitor]", w), colors.white, colors.gray)
     local display = deviced.getDisplay()
     local sable = sabled.status()
+    local avionics = avionicsd.status()
+    local counts = avionics.counts or {}
     renderer.writeAt(1, 2, renderer.crop("Target: " .. tostring(display.target) .. " " .. tostring(display.width) .. "x" .. tostring(display.height), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(display.monitorSide or "none") .. " scale " .. tostring(display.scale or "-"), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 4, renderer.crop("Sable: " .. tostring(sable.available and "available" or "missing") .. "  Sublevel: " .. tostring(sable.inSublevel and "ready" or "none"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(sable.apiNames or {}, ",") .. "  Recommended: 4x3 monitor scale 0.5", w), colors.gray, colors.lightGray)
-    renderer.writeAt(1, 7, renderer.crop("DEVICE          TYPE          ROLE", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("Avionics: " .. tostring(avionics.available and "ready" or "missing") .. " alt=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " prop=" .. tostring(counts.propeller or 0) .. " throttle=" .. tostring(counts.throttle or 0), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 6, renderer.crop("APIs: " .. table.concat(sable.apiNames or {}, ",") .. "  Recommended: 4x3 monitor scale 0.5", w), colors.gray, colors.lightGray)
+    renderer.writeAt(1, 8, renderer.crop("DEVICE          TYPE          ROLE", w), colors.black, colors.lightGray)
     local rows = deviced.list()
     if #rows == 0 then
-      renderer.writeAt(1, 9, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 10, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
     end
-    for i = 1, math.min(#rows, h - 7) do
+    for i = 1, math.min(#rows, h - 8) do
       local d = rows[i]
       local role = tostring(d.type) == "modem" and "rednet"
         or tostring(d.type) == "monitor" and "display"
+        or tostring(d.type):lower():find("altitude", 1, true) and "avionics"
+        or tostring(d.type):lower():find("gimbal", 1, true) and "avionics"
+        or tostring(d.type):lower():find("propeller", 1, true) and "avionics"
+        or tostring(d.type):lower():find("throttle", 1, true) and "avionics"
         or tostring(d.type):find("redstone", 1, true) and "assist"
         or "-"
-      renderer.writeAt(1, i + 7, renderer.crop(d.name .. "          " .. tostring(d.type) .. "          " .. role, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, i + 8, renderer.crop(d.name .. "          " .. tostring(d.type) .. "          " .. role, w), colors.black, colors.lightGray)
     end
   end
 
@@ -1214,16 +1126,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/editor/app.cfg"] = [[{
+]===],
+  ["apps/editor/app.cfg"] = [===[
+{
   id = "editor",
   name = "Editor",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
-]],
-  ["apps/editor/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/editor/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local autocomplete = require("system.dev.autocomplete")
 
@@ -1396,16 +1310,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/files/app.cfg"] = [[{
+]===],
+  ["apps/files/app.cfg"] = [===[
+{
   id = "files",
   name = "Files",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
-]],
-  ["apps/files/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/files/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local config = require("system.libraries.config")
 local ui = require("system.gui.components")
@@ -1701,16 +1617,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/logs/app.cfg"] = [[{
+]===],
+  ["apps/logs/app.cfg"] = [===[
+{
   id = "logs",
   name = "Logs",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
-]],
-  ["apps/logs/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/logs/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 local ui = require("system.gui.components")
 
@@ -1778,16 +1696,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/messenger/app.cfg"] = [[{
+]===],
+  ["apps/messenger/app.cfg"] = [===[
+{
   id = "messenger",
   name = "Messenger",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
-]],
-  ["apps/messenger/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/messenger/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local messaged = require("system.services.messaged")
@@ -1895,30 +1815,103 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/navigation/app.cfg"] = [[{
+]===],
+  ["apps/navigation/app.cfg"] = [===[
+{
   id = "navigation",
   name = "Navigation",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.navigation.main",
-  permissions = { "sable.read", "redstone.output", "navigation.assist" },
+  permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" },
 }
-]],
-  ["apps/navigation/main.lua"] = [=[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/navigation/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
 local config = require("system.libraries.config")
 local log = require("system.libraries.log")
 local keyboard = require("system.gui.keyboard")
 local sabled = require("system.services.sabled")
+local avionicsd = require("system.services.avionicsd")
 
 local M = {}
 
 local CFG = "/system/config/navigation.cfg"
 local SIDES = { "left", "right", "front", "back", "top", "bottom" }
 
+local function aircraftDefaults()
+  return {
+    name = "Quad Heavy",
+    massKg = 126093,
+    declaredWeightNewton = 1400000,
+    gravityMultiplier = 11,
+    seaLevelY = 60,
+    altitudeLevels = {
+      { level = 0, y = 289 },
+      { level = 1, y = 282 },
+      { level = 2, y = 278 },
+      { level = 3, y = 270 },
+      { level = 4, y = 248 },
+      { level = 5, y = 224 },
+      { level = 6, y = 198 },
+      { level = 7, y = 178 },
+      { level = 8, y = 134 },
+      { level = 9, y = 96 },
+      { level = 10, y = 60 },
+    },
+    rearThrustVacuum = {
+      [15] = 0,
+      [14] = 38896,
+      [13] = 77792,
+      [12] = 116688,
+      [11] = 155584,
+      [10] = 194480,
+      [9] = 233376,
+      [8] = 272272,
+      [7] = 311168,
+      [6] = 350065,
+      [5] = 388961,
+      [4] = 427857,
+      [3] = 466753,
+      [2] = 505650,
+      [1] = 544545,
+      [0] = 622637,
+    },
+    densityCalibration = {
+      level = 6,
+      density = 0.6906,
+      vacuumForce = 622637,
+      measuredForce = 1822183,
+    },
+    commands = {
+      { id = "forward", name = "Forward", frequency = "2x green concrete powder", role = "rear thrust forward" },
+      { id = "reverse", name = "Reverse", frequency = "2x red concrete powder", role = "rear thrust reverse" },
+      { id = "yawRight", name = "Yaw Right", frequency = "2x yellow concrete powder", role = "2 push / 2 pull right yaw" },
+      { id = "yawLeft", name = "Yaw Left", frequency = "2x blue concrete powder", role = "2 push / 2 pull left yaw" },
+      { id = "strafeRight", name = "Strafe Right", frequency = "2x pink concrete powder", role = "weak lateral right" },
+      { id = "strafeLeft", name = "Strafe Left", frequency = "2x magenta concrete powder", role = "weak lateral left" },
+      { id = "correctionUp", name = "Correction Up", frequency = "2x white concrete powder", role = "vertical trim up" },
+      { id = "correctionDown", name = "Correction Down", frequency = "2x black concrete powder", role = "vertical trim down" },
+      { id = "rollRight", name = "Roll Right", frequency = "2x orange concrete powder", role = "roll correction right" },
+      { id = "rollLeft", name = "Roll Left", frequency = "2x light blue concrete powder", role = "roll correction left" },
+      { id = "diagPrimary", name = "Diag Primary", frequency = "2x lime concrete powder", role = "loss motor 1/3, keep 2/4 stable" },
+      { id = "diagSecondary", name = "Diag Secondary", frequency = "2x purple concrete powder", role = "loss motor 2/4, keep 1/3 stable" },
+    },
+    modes = {
+      { name = "Turn left spot", detail = "blue only: yaw around center; add roll/diagonal correction if rear thrust tilts" },
+      { name = "Turn right spot", detail = "yellow only: yaw around center; add roll/diagonal correction if rear thrust tilts" },
+      { name = "Advance + left", detail = "green + blue, advanced: keep outside rear motors, cut motors in turn direction" },
+      { name = "Advance + right", detail = "green + yellow, advanced: keep outside rear motors, cut motors in turn direction" },
+      { name = "Reverse + left", detail = "red + blue, advanced reverse yaw trim" },
+      { name = "Reverse + right", detail = "red + yellow, advanced reverse yaw trim" },
+    },
+  }
+end
+
 local function defaults()
   return {
     refreshSeconds = 1,
+    aircraft = aircraftDefaults(),
     redstoneProfiles = {
       { name = "Brake", side = "back", pulseSeconds = 0.5, description = "short braking pulse" },
       { name = "Lift", side = "top", pulseSeconds = 0.5, description = "short lift pulse" },
@@ -1930,11 +1923,29 @@ local function defaults()
   }
 end
 
+local function mergeList(existing, def)
+  if type(existing) ~= "table" or #existing == 0 then return def end
+  return existing
+end
+
+local function mergeAircraft(cfg, def)
+  cfg.aircraft = cfg.aircraft or {}
+  for key, value in pairs(def.aircraft) do
+    if cfg.aircraft[key] == nil then cfg.aircraft[key] = value end
+  end
+  cfg.aircraft.commands = mergeList(cfg.aircraft.commands, def.aircraft.commands)
+  cfg.aircraft.modes = mergeList(cfg.aircraft.modes, def.aircraft.modes)
+  cfg.aircraft.altitudeLevels = mergeList(cfg.aircraft.altitudeLevels, def.aircraft.altitudeLevels)
+  cfg.aircraft.rearThrustVacuum = cfg.aircraft.rearThrustVacuum or def.aircraft.rearThrustVacuum
+  cfg.aircraft.densityCalibration = cfg.aircraft.densityCalibration or def.aircraft.densityCalibration
+end
+
 local function loadCfg()
   local cfg = config.load(CFG, {})
   local def = defaults()
   if type(cfg.redstoneProfiles) ~= "table" then cfg.redstoneProfiles = def.redstoneProfiles end
   cfg.refreshSeconds = tonumber(cfg.refreshSeconds) or def.refreshSeconds
+  mergeAircraft(cfg, def)
   return cfg
 end
 
@@ -1948,14 +1959,37 @@ local function scalar(v)
   return tostring(v)
 end
 
+local function integer(v)
+  v = tonumber(v)
+  if not v then return "-" end
+  local s = tostring(math.floor(v + 0.5))
+  local out = ""
+  while #s > 3 do
+    out = " " .. s:sub(-3) .. out
+    s = s:sub(1, -4)
+  end
+  return s .. out
+end
+
+local function percent(v)
+  v = tonumber(v)
+  if not v then return "-" end
+  return string.format("%.2f%%", v * 100)
+end
+
+local function clamp(v, min, max)
+  v = tonumber(v) or 0
+  if v < min then return min end
+  if v > max then return max end
+  return v
+end
+
 local function vec(v)
   if type(v) ~= "table" then return scalar(v) end
   local x = v.x or v[1] or v.X
   local y = v.y or v[2] or v.Y
   local z = v.z or v[3] or v.Z
-  if x or y or z then
-    return scalar(x or 0) .. ", " .. scalar(y or 0) .. ", " .. scalar(z or 0)
-  end
+  if x or y or z then return scalar(x or 0) .. ", " .. scalar(y or 0) .. ", " .. scalar(z or 0) end
   local count = 0
   for _ in pairs(v) do count = count + 1 end
   return "table(" .. tostring(count) .. ")"
@@ -1971,6 +2005,41 @@ local function validSide(side)
   return false
 end
 
+local function firstData(snap, key)
+  local rows = snap and snap[key]
+  local first = rows and rows[1]
+  return first and first.data or nil
+end
+
+local function densityGain(profile)
+  local cal = profile.densityCalibration or {}
+  local d = tonumber(cal.density) or 0
+  local vacuum = tonumber(cal.vacuumForce) or 0
+  local measured = tonumber(cal.measuredForce) or 0
+  if d <= 0 or vacuum <= 0 or measured <= 0 then return 0 end
+  return ((measured / vacuum) - 1) / d
+end
+
+local function adjustedThrust(profile, state, density)
+  local vacuum = tonumber((profile.rearThrustVacuum or {})[state]) or 0
+  return vacuum * (1 + clamp(density, 0, 1) * densityGain(profile))
+end
+
+local function nearestAltitudeLevel(profile, height)
+  height = tonumber(height)
+  if not height then return nil end
+  local best = nil
+  local bestDist = nil
+  for _, row in ipairs(profile.altitudeLevels or {}) do
+    local dist = math.abs((tonumber(row.y) or 0) - height)
+    if not bestDist or dist < bestDist then
+      best = row
+      bestDist = dist
+    end
+  end
+  return best
+end
+
 function M.run(ctx)
   local cfg = loadCfg()
   local app = {
@@ -1983,11 +2052,14 @@ function M.run(ctx)
     timers = {},
     message = "Navigation ready",
     snapshot = nil,
+    avionics = nil,
   }
 
   local tabs = {
     { id = "flight", label = "Flight" },
-    { id = "environment", label = "Environment" },
+    { id = "avionics", label = "Avion" },
+    { id = "quad", label = "Quad" },
+    { id = "forces", label = "Force" },
     { id = "assist", label = "Assist" },
     { id = "config", label = "Config" },
   }
@@ -2005,7 +2077,7 @@ function M.run(ctx)
     { id = "desc", label = "Desc" },
   }
 
-  local function refresh()
+  local function refreshSable()
     local allowed, denied = ctx.security.require("sable.read", "navigation")
     if not allowed then
       app.snapshot = { ok = false, status = tostring(denied), error = tostring(denied) }
@@ -2019,6 +2091,22 @@ function M.run(ctx)
       log.warn("navigation", "sabled error: " .. tostring(snap))
     end
     return app.snapshot
+  end
+
+  local function refreshAvionics()
+    local allowed, denied = ctx.security.require("avionics.read", "navigation")
+    if not allowed then
+      app.avionics = { ok = false, available = false, status = tostring(denied), error = tostring(denied), counts = {} }
+      return app.avionics
+    end
+    local ok, snap = pcall(avionicsd.snapshot)
+    if ok and snap then
+      app.avionics = snap
+    else
+      app.avionics = { ok = false, available = false, status = "avionicsd error", error = tostring(snap), counts = {} }
+      log.warn("navigation", "avionicsd error: " .. tostring(snap))
+    end
+    return app.avionics
   end
 
   local function selectedProfile()
@@ -2072,41 +2160,108 @@ function M.run(ctx)
   app.keyboard.onEnter = applyEdit
 
   local function drawFlight(w, h)
-    local snap = app.snapshot or refresh()
+    local snap = app.snapshot or refreshSable()
+    local av = app.avionics or refreshAvionics()
     local okStatus, st = pcall(sabled.status)
-    if not okStatus or not st then
-      st = { available = false, inSublevel = false, apiNames = {}, error = tostring(st) }
-    end
-    renderer.writeAt(1, 3, renderer.crop("CC:Sable: " .. tostring(st.available and "available" or "missing") .. "  APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Sublevel: " .. tostring(st.inSublevel and "ready" or "not on sublevel") .. "  Status: " .. tostring(snap.status or snap.error or "-"), w), colors.black, colors.lightGray)
-    if not st.available or not snap.sublevel or not snap.sublevel.inSublevel then
-      renderer.writeAt(1, 6, renderer.crop("Diagnostic: install CC:Sable and place this computer on a Sable sublevel.", w), colors.gray, colors.lightGray)
-      renderer.writeAt(1, 7, renderer.crop("Open Devices/Logs if the API should be present but is not detected.", w), colors.gray, colors.lightGray)
+    if not okStatus or not st then st = { available = false, inSublevel = false, apiNames = {}, error = tostring(st) } end
+    renderer.writeAt(1, 3, renderer.crop("CC:Sable: " .. tostring(st.available and "available" or "missing") .. "  Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Avionics: " .. tostring(av.available and "ready" or "missing") .. "  Alt:" .. tostring((av.counts or {}).altitude or 0) .. " Gimbal:" .. tostring((av.counts or {}).gimbal or 0) .. " Prop:" .. tostring((av.counts or {}).propeller or 0), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("Aircraft: " .. tostring(cfg.aircraft.name) .. "  Mass " .. integer(cfg.aircraft.massKg) .. " kg  declared weight " .. integer(cfg.aircraft.declaredWeightNewton) .. " N", w), colors.black, colors.lightGray)
+    if not st.available and not av.available then
+      renderer.writeAt(1, 7, renderer.crop("Install CC:Sable or Create: Avionics peripherals. Navigation stays read-only until data exists.", w), colors.gray, colors.lightGray)
       renderer.button(1, 9, 12, "Devices", false)
       renderer.button(15, 9, 10, "Logs", false)
       return
     end
     local sub = snap.sublevel
+    if sub and sub.inSublevel then
+      local rows = {
+        "Name: " .. scalar(sub.name),
+        "UUID: " .. scalar(sub.uuid),
+        "Flags: grid=" .. tostring(sub.plotGrid) .. " yard=" .. tostring(sub.plotYard),
+        "Logical: " .. poseLine(sub.logicalPose),
+        "Velocity: " .. vec(sub.velocity),
+        "Angular: " .. vec(sub.angularVelocity),
+        "Mass: " .. scalar(sub.mass) .. "  Center: " .. vec(sub.centerOfMass),
+      }
+      for i = 1, math.min(#rows, h - 7) do renderer.writeAt(1, i + 6, renderer.crop(rows[i], w), colors.black, colors.lightGray) end
+    else
+      renderer.writeAt(1, 7, renderer.crop("Sable pose unavailable. Use Avion/Force tabs for Create: Avionics sensors.", w), colors.gray, colors.lightGray)
+    end
+  end
+
+  local function drawAvionics(w, h)
+    local av = app.avionics or refreshAvionics()
+    local counts = av.counts or {}
+    renderer.writeAt(1, 3, renderer.crop("Status: " .. tostring(av.status or av.error or "-"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Peripherals  altitude=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " nav=" .. tostring(counts.nav or 0) .. " prop=" .. tostring(counts.propeller or 0) .. " throttle=" .. tostring(counts.throttle or 0), w), colors.black, colors.lightGray)
+
+    local alt = firstData(av, "altitude") or {}
+    local gim = firstData(av, "gimbal") or {}
+    local nav = firstData(av, "nav") or {}
+    local prop = firstData(av, "propeller") or {}
     local rows = {
-      "Name: " .. scalar(sub.name),
-      "UUID: " .. scalar(sub.uuid),
-      "Flags: grid=" .. tostring(sub.plotGrid) .. " yard=" .. tostring(sub.plotYard),
-      "Logical: " .. poseLine(sub.logicalPose),
-      "Last: " .. poseLine(sub.lastPose),
-      "Velocity: " .. vec(sub.velocity),
-      "Linear: " .. vec(sub.linearVelocity),
-      "Angular: " .. vec(sub.angularVelocity),
-      "Mass: " .. scalar(sub.mass) .. "  inverse " .. scalar(sub.inverseMass),
-      "Center: " .. vec(sub.centerOfMass),
-      "Inertia: " .. vec(sub.inertiaTensor),
+      "Altitude height: " .. scalar(alt.height) .. "  pressure: " .. scalar(alt.airPressure) .. "  vertical speed: " .. scalar(alt.verticalSpeed),
+      "Gimbal angles: " .. vec(gim.angles),
+      "Angular rates: " .. vec(gim.angularRates),
+      "Gravity: " .. vec(gim.gravity),
+      "Linear accel: " .. vec(gim.linearAcceleration),
+      "Heading: " .. scalar(nav.heading) .. "  target bearing: " .. scalar(nav.targetBearing) .. "  distance: " .. scalar(nav.targetDistance),
+      "Prop sample thrust: " .. scalar(prop.thrust) .. "  airflow: " .. scalar(prop.airflow) .. "  active: " .. tostring(prop.active),
+      "Prop speed: " .. scalar(prop.speed or prop.rotationSpeed) .. "  axis: " .. vec(prop.axis),
     }
-    for i = 1, math.min(#rows, h - 3) do
-      renderer.writeAt(1, i + 5, renderer.crop(rows[i], w), colors.black, colors.lightGray)
+    for i = 1, math.min(#rows, h - 6) do renderer.writeAt(1, i + 5, renderer.crop(rows[i], w), colors.black, colors.lightGray) end
+
+    local y = 14
+    if y < h then renderer.writeAt(1, y, renderer.crop("Detected Avionics devices:", w), colors.black, colors.gray) end
+    for i = 1, math.min(#(av.devices or {}), math.max(0, h - y)) do
+      local d = av.devices[i]
+      renderer.writeAt(1, y + i, renderer.crop(tostring(d.name) .. "  " .. table.concat(d.types or {}, ","), w), colors.black, colors.lightGray)
+    end
+  end
+
+  local function drawQuad(w, h)
+    renderer.writeAt(1, 3, renderer.crop("Quad profile: 4 vertical props + 4 rear props + weak lateral strafe", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Corrections are frequency plans only; no automatic actuation in this version.", w), colors.gray, colors.lightGray)
+    local y = 6
+    for i, cmd in ipairs(cfg.aircraft.commands or {}) do
+      if y + i - 1 >= h then break end
+      local line = tostring(cmd.name) .. " = " .. tostring(cmd.frequency) .. "  " .. tostring(cmd.role)
+      renderer.writeAt(1, y + i - 1, renderer.crop(line, w), colors.black, colors.lightGray)
+    end
+    local modeY = y + #(cfg.aircraft.commands or {}) + 1
+    if modeY < h then renderer.writeAt(1, modeY, renderer.crop("Suggested modes:", w), colors.black, colors.gray) end
+    for i, mode in ipairs(cfg.aircraft.modes or {}) do
+      if modeY + i >= h then break end
+      renderer.writeAt(1, modeY + i, renderer.crop(tostring(mode.name) .. ": " .. tostring(mode.detail), w), colors.black, colors.lightGray)
+    end
+  end
+
+  local function drawForces(w, h)
+    local av = app.avionics or refreshAvionics()
+    local alt = firstData(av, "altitude") or {}
+    local profile = cfg.aircraft
+    local density = tonumber(alt.airPressure) or (profile.densityCalibration and profile.densityCalibration.density) or 0
+    density = clamp(density, 0, 1)
+    local height = tonumber(alt.height)
+    local nearest = nearestAltitudeLevel(profile, height)
+    local gain = densityGain(profile)
+    renderer.writeAt(1, 3, renderer.crop("Air density: " .. percent(density) .. "  gain factor: " .. scalar(gain) .. "  height: " .. scalar(height), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Nearest hover level: " .. tostring(nearest and nearest.level or "-") .. " at Y=" .. tostring(nearest and nearest.y or "-"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("Declared stationary thrust/weight: " .. integer(profile.declaredWeightNewton) .. " N", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 7, renderer.crop("Rear prop thrust table, corrected by current/calibrated air density:", w), colors.black, colors.gray)
+    renderer.writeAt(1, 8, renderer.crop("STATE  VACUUM N       ADJUSTED N", w), colors.black, colors.lightGray)
+    for state = 0, 15 do
+      local row = 9 + state
+      if row > h then break end
+      local vacuum = (profile.rearThrustVacuum or {})[state] or 0
+      local adjusted = adjustedThrust(profile, state, density)
+      renderer.writeAt(1, row, renderer.crop(string.format("%2d     %10s     %10s", state, integer(vacuum), integer(adjusted)), w), colors.black, colors.lightGray)
     end
   end
 
   local function drawEnvironment(w, h)
-    local snap = app.snapshot or refresh()
+    local snap = app.snapshot or refreshSable()
     local aero = snap.aero or {}
     local rows = {
       "Gravity: " .. vec(aero.gravity),
@@ -2116,9 +2271,7 @@ function M.run(ctx)
       "Raw: " .. vec(aero.raw),
       "Default: " .. vec(aero.default),
     }
-    for i = 1, math.min(#rows, h - 2) do
-      renderer.writeAt(1, i + 2, renderer.crop(rows[i], w), colors.black, colors.lightGray)
-    end
+    for i = 1, math.min(#rows, h - 2) do renderer.writeAt(1, i + 2, renderer.crop(rows[i], w), colors.black, colors.lightGray) end
   end
 
   local function drawAssist(w, h)
@@ -2142,13 +2295,14 @@ function M.run(ctx)
   local function drawConfig(w, h)
     app.toolbar = ui.toolbar(1, 2, w, editActions)
     local profile = selectedProfile()
-    renderer.writeAt(1, 4, renderer.crop("Selected profile: " .. tostring(profile and profile.name or "-"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Selected redstone profile: " .. tostring(profile and profile.name or "-"), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 5, renderer.crop("Side options: left right front back top bottom", w), colors.gray, colors.lightGray)
+    renderer.writeAt(1, 6, renderer.crop("Aircraft profile is stored in /system/config/navigation.cfg", w), colors.gray, colors.lightGray)
     if profile then
-      renderer.writeAt(1, 7, renderer.crop("Name: " .. tostring(profile.name), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, renderer.crop("Side: " .. tostring(profile.side), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 9, renderer.crop("Duration: " .. scalar(profile.pulseSeconds), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 10, renderer.crop("Desc: " .. tostring(profile.description or ""), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 8, renderer.crop("Name: " .. tostring(profile.name), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 9, renderer.crop("Side: " .. tostring(profile.side), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 10, renderer.crop("Duration: " .. scalar(profile.pulseSeconds), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 11, renderer.crop("Desc: " .. tostring(profile.description or ""), w), colors.black, colors.lightGray)
     end
     if app.inputMode then
       renderer.writeAt(1, h - keyboard.height(), renderer.crop(app.inputMode .. ": " .. app.input, w), colors.white, colors.gray)
@@ -2159,9 +2313,13 @@ function M.run(ctx)
   end
 
   function app:draw(w, h)
-    refresh()
+    refreshSable()
+    refreshAvionics()
     self.tabs = ui.tabs(1, 1, w, tabs, self.page)
     if self.page == "flight" then drawFlight(w, h)
+    elseif self.page == "avionics" then drawAvionics(w, h)
+    elseif self.page == "quad" then drawQuad(w, h)
+    elseif self.page == "forces" then drawForces(w, h)
     elseif self.page == "environment" then drawEnvironment(w, h)
     elseif self.page == "assist" then drawAssist(w, h)
     elseif self.page == "config" then drawConfig(w, h)
@@ -2219,21 +2377,23 @@ function M.run(ctx)
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Navigation", w = math.min(76, sw - 4), h = math.min(22, sh - 3), x = 5, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Navigation", w = math.min(86, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
 return M
-]=],
-  ["apps/services/app.cfg"] = [[{
+]===],
+  ["apps/services/app.cfg"] = [===[
+{
   id = "services",
   name = "Services",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
-]],
-  ["apps/services/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/services/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
 
 local M = {}
@@ -2303,16 +2463,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/settings/app.cfg"] = [[{
+]===],
+  ["apps/settings/app.cfg"] = [===[
+{
   id = "settings",
   name = "Settings",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
-]],
-  ["apps/settings/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/settings/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
 local deviced = require("system.services.deviced")
@@ -2320,6 +2482,7 @@ local networkd = require("system.services.networkd")
 local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
 local sabled = require("system.services.sabled")
+local avionicsd = require("system.services.avionicsd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -2407,14 +2570,24 @@ function M.run(ctx)
       renderer.button(28, 12, 8, "2.0", d.scale == 2)
     elseif self.page == "nav" then
       local st = sabled.status()
+      local av = avionicsd.status()
+      local counts = av.counts or {}
       local nav = config.load("/system/config/navigation.cfg", {})
+      local aircraft = nav.aircraft or {}
       renderer.writeAt(1, 3, "CC:Sable: " .. tostring(st.available and "available" or "missing"), colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), colors.black, colors.lightGray)
       renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Redstone profiles:", colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, renderer.crop("Avionics: " .. tostring(av.available and "ready" or "missing") .. " alt=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " prop=" .. tostring(counts.propeller or 0), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("Aircraft: " .. tostring(aircraft.name or "-") .. " mass=" .. tostring(aircraft.massKg or "-") .. "kg weight=" .. tostring(aircraft.declaredWeightNewton or "-") .. "N", w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 9, "Frequencies:", colors.black, colors.lightGray)
+      for i, command in ipairs(aircraft.commands or {}) do
+        if i > 5 or i > h - 15 then break end
+        renderer.writeAt(1, 9 + i, renderer.crop(tostring(command.name) .. " -> " .. tostring(command.frequency), w), colors.black, colors.lightGray)
+      end
+      renderer.writeAt(1, 15, "Redstone profiles:", colors.black, colors.lightGray)
       for i, profile in ipairs(nav.redstoneProfiles or {}) do
-        if i > h - 9 then break end
-        renderer.writeAt(1, 7 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
+        if i > h - 17 then break end
+        renderer.writeAt(1, 15 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
       end
       renderer.button(1, h - 2, 18, "Open Navigation", false)
     elseif self.page == "desktop" then
@@ -2663,16 +2836,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/store/app.cfg"] = [[{
+]===],
+  ["apps/store/app.cfg"] = [===[
+{
   id = "store",
   name = "Store",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
-]],
-  ["apps/store/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/store/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
 local packages = require("system.package.package_manager")
 
@@ -2776,16 +2951,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/taskmanager/app.cfg"] = [[{
+]===],
+  ["apps/taskmanager/app.cfg"] = [===[
+{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
-]],
-  ["apps/taskmanager/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/taskmanager/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
 
 local M = {}
@@ -2890,16 +3067,18 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/terminal/app.cfg"] = [[{
+]===],
+  ["apps/terminal/app.cfg"] = [===[
+{
   id = "terminal",
   name = "Terminal",
-  version = "0.15.1",
+  version = "0.16.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
-]],
-  ["apps/terminal/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/terminal/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
@@ -3273,14 +3452,16 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["apps/update/app.cfg"] = [[{
+]===],
+  ["apps/update/app.cfg"] = [===[
+{
   id = "update",
   name = "Update",
-  version = "0.15.1",
+  version = "0.16.0",
 }
-]],
-  ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["apps/update/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local updated = require("system.services.updated")
 
 local M = {}
@@ -3364,8 +3545,9 @@ function M.run(ctx)
 end
 
 return M
-]],
-  ["boot.lua"] = [[if not table.unpack and unpack then table.unpack = unpack end
+]===],
+  ["boot.lua"] = [===[
+if not table.unpack and unpack then table.unpack = unpack end
 
 if not require then
   local loaded = {}
@@ -3417,10 +3599,35 @@ if not ok then
     end
   end
 end
-]],
-  ["packages/installed.db"] = [[{}
-]],
-  ["packages/sources.db"] = [=[{
+]===],
+  ["LICENSE"] = [===[
+MIT License
+
+Copyright (c) 2026 commandant-x
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+]===],
+  ["packages/installed.db"] = [===[
+{}
+]===],
+  ["packages/sources.db"] = [===[
+{
   packages = {
     {
       id = "notes",
@@ -3673,8 +3880,90 @@ return M
     },
   },
 }
-]=],
-  ["startup.lua"] = [[local candidates = {
+]===],
+  ["README.md"] = [===[
+# MintCraft OS
+
+MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
+
+This repository currently contains the V0.16.0 base:
+
+- bootloader, splash, recovery and panic handling
+- persistent logs
+- cooperative scheduler and process table
+- event bus
+- terminal renderer, themes and window manager
+- desktop, taskbar, start menu, right-click context menu and stacked notifications
+- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
+- larger `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
+- shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
+- complete touch-first Files app with toolbar, open, create, rename, trash and delete confirmation
+- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
+- Editor integrated through Files for text/Lua files, with Lua compile check and Tab autocomplete/snippets
+- richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
+- GitHub Update app and boot-time update check through the `updated` service
+- update rollback snapshot restored from Update or Recovery
+- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
+- Terminal with file commands, process commands and touch autocomplete
+- Services, Logs and Task Manager apps with touch controls
+- HTTP/WebSocket network wrappers, `networkd` service and Chrome-like text/color Browser app
+- Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
+- CraftTube integrated from Browser for YouTube URLs/searches, using a configurable proxy/API with card-style results, favorites and history
+- CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
+- CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
+- Store and local package manager with bundled example packages
+- Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
+- Navigation app for CC:Sable telemetry, Create: Avionics sensor diagnostics, quadcopter force tables and confirmed Redstone Assist pulses
+- user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
+- speaker audio driver and `audiod` service with Settings controls and notification/test tones
+- app crash isolation for process, window draw and input errors, with log entry and notification
+
+Not included yet: JavaScript/HTML5 video playback, encrypted password storage and per-file ACLs.
+
+Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
+
+```lua
+shell.run("/boot.lua")
+```
+
+## Install From GitHub
+
+On a CC:Tweaked computer with HTTP enabled:
+
+```lua
+wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
+```
+
+Then reboot:
+
+```lua
+reboot
+```
+
+## CraftTube Audio
+
+On your PC, install `yt-dlp` and `ffmpeg`, then run:
+
+```powershell
+cd tools\crafttube-dfpwm-proxy
+npm start
+```
+
+CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.
+
+## Browser Error Codes
+
+- `BRW-001`: HTTP API disabled in CC:Tweaked.
+- `BRW-002`: network/TLS/DNS/request failure.
+- `BRW-003`: MintCraft permission denied.
+- `BRW-004`: too many redirects.
+- `BRW-005`: invalid URL.
+- `BRW-006`: YouTube routed to CraftTube.
+- `BRW-007`: browser cache issue.
+- `BRW-008`: download/write failure.
+]===],
+  ["startup.lua"] = [===[
+local candidates = {
   "/boot.lua",
   "boot.lua",
 }
@@ -3693,8 +3982,9 @@ for _, path in ipairs(candidates) do
 end
 
 error(lastErr or "MintCraft OS boot.lua not found", 0)
-]],
-  ["system/boot/bootloader.lua"] = [[local splash = require("system.boot.splash")
+]===],
+  ["system/boot/bootloader.lua"] = [===[
+local splash = require("system.boot.splash")
 local log = require("system.libraries.log")
 local config = require("system.libraries.config")
 
@@ -3742,7 +4032,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.15.1",
+    version = "0.16.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -3768,16 +4058,17 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.15.1" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.15.1"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.16.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.16.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
 end
 
 return M
-]],
-  ["system/boot/recovery.lua"] = [[local reason = ...
+]===],
+  ["system/boot/recovery.lua"] = [===[
+local reason = ...
 
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.yellow)
@@ -3865,8 +4156,9 @@ while true do
     print("Unknown command: " .. cmd)
   end
 end
-]],
-  ["system/boot/splash.lua"] = [[local M = {}
+]===],
+  ["system/boot/splash.lua"] = [===[
+local M = {}
 
 function M.draw(title, subtitle)
   term.setBackgroundColor(colors.green)
@@ -3883,16 +4175,18 @@ function M.draw(title, subtitle)
 end
 
 return M
-]],
-  ["system/config/audio.cfg"] = [[{
+]===],
+  ["system/config/audio.cfg"] = [===[
+{
   enabled = true,
   volume = 1,
   notificationVolume = 0.6,
   defaultSide = nil,
   notifyOnSystemReady = true,
 }
-]],
-  ["system/config/crafttube.cfg"] = [[{
+]===],
+  ["system/config/crafttube.cfg"] = [===[
+{
   provider = "invidious",
   proxy = "https://inv.thepixora.com",
   searchPath = "/api/v1/search?type=video&q=",
@@ -3904,17 +4198,85 @@ return M
     "https://invidious.f5.si",
   },
 }
-]],
-  ["system/config/mime.db"] = [[{
+]===],
+  ["system/config/mime.db"] = [===[
+{
   txt = "editor",
   md = "editor",
   cfg = "editor",
   db = "editor",
   lua = "editor",
 }
-]],
-  ["system/config/navigation.cfg"] = [[{
+]===],
+  ["system/config/navigation.cfg"] = [===[
+{
   refreshSeconds = 1,
+  aircraft = {
+    name = "Quad Heavy",
+    massKg = 126093,
+    declaredWeightNewton = 1400000,
+    gravityMultiplier = 11,
+    seaLevelY = 60,
+    altitudeLevels = {
+      { level = 0, y = 289 },
+      { level = 1, y = 282 },
+      { level = 2, y = 278 },
+      { level = 3, y = 270 },
+      { level = 4, y = 248 },
+      { level = 5, y = 224 },
+      { level = 6, y = 198 },
+      { level = 7, y = 178 },
+      { level = 8, y = 134 },
+      { level = 9, y = 96 },
+      { level = 10, y = 60 },
+    },
+    rearThrustVacuum = {
+      [15] = 0,
+      [14] = 38896,
+      [13] = 77792,
+      [12] = 116688,
+      [11] = 155584,
+      [10] = 194480,
+      [9] = 233376,
+      [8] = 272272,
+      [7] = 311168,
+      [6] = 350065,
+      [5] = 388961,
+      [4] = 427857,
+      [3] = 466753,
+      [2] = 505650,
+      [1] = 544545,
+      [0] = 622637,
+    },
+    densityCalibration = {
+      level = 6,
+      density = 0.6906,
+      vacuumForce = 622637,
+      measuredForce = 1822183,
+    },
+    commands = {
+      { id = "forward", name = "Forward", frequency = "2x green concrete powder", role = "rear thrust forward" },
+      { id = "reverse", name = "Reverse", frequency = "2x red concrete powder", role = "rear thrust reverse" },
+      { id = "yawRight", name = "Yaw Right", frequency = "2x yellow concrete powder", role = "2 push / 2 pull right yaw" },
+      { id = "yawLeft", name = "Yaw Left", frequency = "2x blue concrete powder", role = "2 push / 2 pull left yaw" },
+      { id = "strafeRight", name = "Strafe Right", frequency = "2x pink concrete powder", role = "weak lateral right" },
+      { id = "strafeLeft", name = "Strafe Left", frequency = "2x magenta concrete powder", role = "weak lateral left" },
+      { id = "correctionUp", name = "Correction Up", frequency = "2x white concrete powder", role = "vertical trim up" },
+      { id = "correctionDown", name = "Correction Down", frequency = "2x black concrete powder", role = "vertical trim down" },
+      { id = "rollRight", name = "Roll Right", frequency = "2x orange concrete powder", role = "roll correction right" },
+      { id = "rollLeft", name = "Roll Left", frequency = "2x light blue concrete powder", role = "roll correction left" },
+      { id = "diagPrimary", name = "Diag Primary", frequency = "2x lime concrete powder", role = "loss motor 1/3, keep 2/4 stable" },
+      { id = "diagSecondary", name = "Diag Secondary", frequency = "2x purple concrete powder", role = "loss motor 2/4, keep 1/3 stable" },
+    },
+    modes = {
+      { name = "Turn left spot", detail = "blue only: yaw around center; add roll/diagonal correction if rear thrust tilts" },
+      { name = "Turn right spot", detail = "yellow only: yaw around center; add roll/diagonal correction if rear thrust tilts" },
+      { name = "Advance + left", detail = "green + blue, advanced: keep outside rear motors, cut motors in turn direction" },
+      { name = "Advance + right", detail = "green + yellow, advanced: keep outside rear motors, cut motors in turn direction" },
+      { name = "Reverse + left", detail = "red + blue, advanced reverse yaw trim" },
+      { name = "Reverse + right", detail = "red + yellow, advanced reverse yaw trim" },
+    },
+  },
   redstoneProfiles = {
     { name = "Brake", side = "back", pulseSeconds = 0.5, description = "short braking pulse" },
     { name = "Lift", side = "top", pulseSeconds = 0.5, description = "short lift pulse" },
@@ -3924,17 +4286,19 @@ return M
     { name = "Reverse", side = "bottom", pulseSeconds = 0.5, description = "short reverse pulse" },
   },
 }
-]],
-  ["system/config/security.cfg"] = [[{
+]===],
+  ["system/config/security.cfg"] = [===[
+{
   enabled = true,
   mode = "users",
   currentUser = "admin",
   logDenied = true,
   logSensitive = true,
 }
-]],
-  ["system/config/system.cfg"] = [[{
-  version = "0.15.1",
+]===],
+  ["system/config/system.cfg"] = [===[
+{
+  version = "0.16.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -3946,16 +4310,18 @@ return M
     minMonitorBlocksHigh = 3,
   },
 }
-]],
-  ["system/config/update.cfg"] = [[{
+]===],
+  ["system/config/update.cfg"] = [===[
+{
   repo = "commandant-x/MintCraftOS",
   branch = "main",
   autoCheck = true,
   autoApply = false,
   lastStatus = "never checked",
 }
-]],
-  ["system/dev/autocomplete.lua"] = [[local M = {}
+]===],
+  ["system/dev/autocomplete.lua"] = [===[
+local M = {}
 
 local luaWords = {
   "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
@@ -4093,8 +4459,9 @@ function M.commands()
 end
 
 return M
-]],
-  ["system/drivers/speaker.lua"] = [[local config = require("system.libraries.config")
+]===],
+  ["system/drivers/speaker.lua"] = [===[
+local config = require("system.libraries.config")
 local log = require("system.libraries.log")
 
 local M = {
@@ -4267,8 +4634,9 @@ end
 M.scan()
 
 return M
-]],
-  ["system/gui/components.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["system/gui/components.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 
 local M = {}
@@ -4341,8 +4709,9 @@ function M.dialog(x, y, w, title, message, confirmLabel)
 end
 
 return M
-]],
-  ["system/gui/desktop.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["system/gui/desktop.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local keyboard = require("system.gui.keyboard")
 local iconRenderer = require("system.gui.icon")
@@ -4671,8 +5040,9 @@ function M.handle(event)
 end
 
 return M
-]],
-  ["system/gui/icon.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["system/gui/icon.lua"] = [===[
+local renderer = require("system.gui.renderer")
 
 local M = {}
 
@@ -4694,8 +5064,9 @@ function M.draw(path, x, y, fallbackLabel, bg)
 end
 
 return M
-]],
-  ["system/gui/keyboard.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["system/gui/keyboard.lua"] = [===[
+local renderer = require("system.gui.renderer")
 
 local M = {}
 
@@ -4782,8 +5153,9 @@ function M.handle(event, state)
 end
 
 return M
-]],
-  ["system/gui/renderer.lua"] = [[local theme = require("system.gui.theme")
+]===],
+  ["system/gui/renderer.lua"] = [===[
+local theme = require("system.gui.theme")
 
 local M = {}
 
@@ -4821,8 +5193,9 @@ function M.button(x, y, w, label, active)
 end
 
 return M
-]],
-  ["system/gui/theme.lua"] = [[local config = require("system.libraries.config")
+]===],
+  ["system/gui/theme.lua"] = [===[
+local config = require("system.libraries.config")
 
 local M = {}
 
@@ -4883,8 +5256,9 @@ function M.get(name)
 end
 
 return M
-]],
-  ["system/kernel/event_bus.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/kernel/event_bus.lua"] = [===[
+local log = require("system.libraries.log")
 
 local EventBus = {}
 EventBus.__index = EventBus
@@ -4924,8 +5298,9 @@ function EventBus:emit(name, ...)
 end
 
 return EventBus
-]],
-  ["system/kernel/kernel.lua"] = [[local EventBus = require("system.kernel.event_bus")
+]===],
+  ["system/kernel/kernel.lua"] = [===[
+local EventBus = require("system.kernel.event_bus")
 local Scheduler = require("system.kernel.scheduler")
 local log = require("system.libraries.log")
 local apps = require("system.libraries.apps")
@@ -4958,20 +5333,20 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.15.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.15.1", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.15.1", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.15.1", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.15.1", permissions = { "sable.read", "redstone.output", "navigation.assist" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.15.1", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.15.1", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.15.1", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.15.1", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.15.1", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.15.1", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.15.1", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.15.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.15.1", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.16.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.16.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.16.0", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.16.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.16.0", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.16.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.16.0", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.16.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.16.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.16.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.16.0", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.16.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.16.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.16.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -5004,6 +5379,7 @@ function M.start()
   ctx.services:register("audiod", "system.services.audiod", true)
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("sabled", "system.services.sabled", true)
+  ctx.services:register("avionicsd", "system.services.avionicsd", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
   ctx.services:startAutostart()
@@ -5038,8 +5414,9 @@ function M.start()
 end
 
 return M
-]],
-  ["system/kernel/scheduler.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/kernel/scheduler.lua"] = [===[
+local log = require("system.libraries.log")
 
 local Scheduler = {}
 Scheduler.__index = Scheduler
@@ -5176,8 +5553,9 @@ function Scheduler:makeContext(pid)
 end
 
 return Scheduler
-]],
-  ["system/libraries/apps.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/libraries/apps.lua"] = [===[
+local log = require("system.libraries.log")
 local permissions = require("system.security.permissions")
 
 local M = {
@@ -5198,7 +5576,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.15.1",
+    version = meta.version or "0.16.0",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -5265,8 +5643,9 @@ function M.launch(id, args)
 end
 
 return M
-]],
-  ["system/libraries/config.lua"] = [[local M = {}
+]===],
+  ["system/libraries/config.lua"] = [===[
+local M = {}
 
 function M.load(path, fallback)
   if not fs.exists(path) then return fallback end
@@ -5297,8 +5676,9 @@ function M.ensure(path, value)
 end
 
 return M
-]],
-  ["system/libraries/log.lua"] = [[local M = {}
+]===],
+  ["system/libraries/log.lua"] = [===[
+local M = {}
 
 local LOG_PATH = "/var/logs/system.log"
 
@@ -5342,8 +5722,9 @@ function M.tail(limit)
 end
 
 return M
-]],
-  ["system/network/http_client.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/network/http_client.lua"] = [===[
+local log = require("system.libraries.log")
 
 local M = {
   lastStatus = {
@@ -5439,8 +5820,9 @@ function M.json(url, opts)
 end
 
 return M
-]],
-  ["system/network/websocket.lua"] = [[local M = {}
+]===],
+  ["system/network/websocket.lua"] = [===[
+local M = {}
 
 function M.available()
   return http ~= nil and type(http.websocket) == "function"
@@ -5455,8 +5837,9 @@ function M.connect(url, headers)
 end
 
 return M
-]],
-  ["system/package/manifest.lua"] = [[local M = {}
+]===],
+  ["system/package/manifest.lua"] = [===[
+local M = {}
 
 function M.validate(pkg)
   if type(pkg) ~= "table" then return false, "manifest must be a table" end
@@ -5474,8 +5857,9 @@ function M.validate(pkg)
 end
 
 return M
-]],
-  ["system/package/package_manager.lua"] = [[local config = require("system.libraries.config")
+]===],
+  ["system/package/package_manager.lua"] = [===[
+local config = require("system.libraries.config")
 local manifest = require("system.package.manifest")
 local log = require("system.libraries.log")
 
@@ -5604,8 +5988,9 @@ function M.remove(id)
 end
 
 return M
-]],
-  ["system/security/permissions.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/security/permissions.lua"] = [===[
+local log = require("system.libraries.log")
 
 local M = {}
 
@@ -5660,8 +6045,9 @@ function M.audit(actor, action, target)
 end
 
 return M
-]],
-  ["system/security/users.lua"] = [[local config = require("system.libraries.config")
+]===],
+  ["system/security/users.lua"] = [===[
+local config = require("system.libraries.config")
 
 local M = {
   path = "/system/security/users.db",
@@ -5705,6 +6091,7 @@ local function defaults()
           "logs.read",
           "devices.list",
           "sable.read",
+          "avionics.read",
         },
       },
     },
@@ -5718,6 +6105,7 @@ local function defaults()
         "logs.read",
         "devices.list",
         "sable.read",
+        "avionics.read",
       },
     },
   }
@@ -5845,8 +6233,9 @@ function M.isLocked()
 end
 
 return M
-]],
-  ["system/services/audiod.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/services/audiod.lua"] = [===[
+local log = require("system.libraries.log")
 local speaker = require("system.drivers.speaker")
 
 local M = {
@@ -5910,8 +6299,241 @@ function M.playDfPWM(path, side)
 end
 
 return M
-]],
-  ["system/services/deviced.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/services/avionicsd.lua"] = [===[
+local log = require("system.libraries.log")
+
+local M = {
+  ctx = nil,
+  lastStatus = { available = false, counts = {}, error = "not started" },
+  lastSnapshot = nil,
+}
+
+local TYPES = {
+  altitude = { "altitude_sensor", "altitudesensor" },
+  gimbal = { "gimbal_sensor", "gimbalsensor" },
+  nav = { "navigation_table", "navigationtable" },
+  propeller = { "propeller", "propeller_bearing", "propellerbearing" },
+  throttle = { "throttle_lever", "throttlelever" },
+  analog = { "analog_transmission", "analogtransmission" },
+}
+
+local function norm(value)
+  return tostring(value or ""):lower():gsub("[^%w_]", "_")
+end
+
+local function hasToken(value, tokens)
+  value = norm(value)
+  for _, token in ipairs(tokens) do
+    if value == token or value:find(token, 1, true) then return true end
+  end
+  return false
+end
+
+local function call(target, method, ...)
+  if not target or type(target[method]) ~= "function" then return nil, method .. " unavailable" end
+  local fn = target[method]
+  local ok, value = pcall(fn, ...)
+  if ok then return value, nil end
+  ok, value = pcall(fn, target, ...)
+  if ok then return value, nil end
+  return nil, tostring(value)
+end
+
+local function copy(value)
+  if type(value) ~= "table" then return value end
+  local out = {}
+  for k, v in pairs(value) do out[k] = v end
+  return out
+end
+
+local function getTypes(name)
+  if not peripheral or not peripheral.getType then return {} end
+  local ok, a, b, c = pcall(peripheral.getType, name)
+  if not ok then return {} end
+  local out = {}
+  for _, item in ipairs({ a, b, c }) do
+    if item then table.insert(out, tostring(item)) end
+  end
+  return out
+end
+
+local function classify(types)
+  local roles = {}
+  for _, t in ipairs(types or {}) do
+    for role, tokens in pairs(TYPES) do
+      if hasToken(t, tokens) then roles[role] = true end
+    end
+  end
+  return roles
+end
+
+local function scan()
+  local devices = {}
+  local counts = {
+    altitude = 0,
+    gimbal = 0,
+    nav = 0,
+    propeller = 0,
+    throttle = 0,
+    analog = 0,
+    other = 0,
+  }
+  if not peripheral or not peripheral.getNames or not peripheral.wrap then
+    return devices, counts, "peripheral API unavailable"
+  end
+
+  local okNames, names = pcall(peripheral.getNames)
+  if not okNames then return devices, counts, tostring(names) end
+
+  for _, name in ipairs(names or {}) do
+    local types = getTypes(name)
+    local roles = classify(types)
+    local matched = false
+    for role in pairs(counts) do
+      if role ~= "other" and roles[role] then
+        counts[role] = counts[role] + 1
+        matched = true
+      end
+    end
+    if matched then
+      local okWrap, wrapped = pcall(peripheral.wrap, name)
+      table.insert(devices, {
+        name = name,
+        types = types,
+        roles = roles,
+        device = okWrap and wrapped or nil,
+        error = okWrap and nil or tostring(wrapped),
+      })
+    elseif #types > 0 then
+      for _, t in ipairs(types) do
+        if norm(t):find("avion", 1, true) or norm(t):find("create", 1, true) then
+          counts.other = counts.other + 1
+          table.insert(devices, { name = name, types = types, roles = { other = true } })
+          break
+        end
+      end
+    end
+  end
+  return devices, counts, nil
+end
+
+local function readAltitude(device)
+  local out = {}
+  out.height = call(device, "getHeight")
+  out.airPressure = call(device, "getAirPressure")
+  out.verticalSpeed = call(device, "getVerticalSpeed")
+  return out
+end
+
+local function readGimbal(device)
+  local out = {}
+  out.angles = copy(call(device, "getAngles"))
+  out.angularRates = copy(call(device, "getAngularRates"))
+  out.gravity = copy(call(device, "getGravity"))
+  out.linearAcceleration = copy(call(device, "getLinearAcceleration"))
+  return out
+end
+
+local function readNavigationTable(device)
+  local out = {}
+  out.heading = call(device, "getHeading")
+  out.targetBearing = call(device, "getTargetBearing")
+  out.targetDistance = call(device, "getTargetDistance")
+  out.targetHeight = call(device, "getTargetHeight")
+  out.target = copy(call(device, "getTarget"))
+  return out
+end
+
+local function readPropeller(device)
+  local out = {}
+  out.axis = copy(call(device, "getAxis"))
+  out.rotationSpeed = call(device, "getRotationSpeed")
+  out.thrust = call(device, "getThrust")
+  out.airflow = call(device, "getAirflow")
+  out.active = call(device, "isActive")
+  out.speed = call(device, "getSpeed")
+  return out
+end
+
+local function readControl(device)
+  local out = {}
+  out.state = call(device, "getState")
+  out.signal = call(device, "getSignal")
+  return out
+end
+
+local function firstRead(devices, role, reader)
+  local rows = {}
+  for _, item in ipairs(devices) do
+    if item.roles and item.roles[role] and item.device then
+      local ok, data = pcall(reader, item.device)
+      table.insert(rows, {
+        name = item.name,
+        types = item.types,
+        ok = ok,
+        data = ok and data or nil,
+        error = ok and nil or tostring(data),
+      })
+    end
+  end
+  return rows
+end
+
+function M.snapshot()
+  local devices, counts, err = scan()
+  local available = false
+  for role, count in pairs(counts) do
+    if role ~= "other" and count > 0 then available = true end
+  end
+
+  local snap = {
+    ok = err == nil,
+    available = available,
+    status = available and "Create Avionics peripherals ready" or "Create Avionics peripherals missing",
+    counts = counts,
+    devices = devices,
+    altitude = firstRead(devices, "altitude", readAltitude),
+    gimbal = firstRead(devices, "gimbal", readGimbal),
+    nav = firstRead(devices, "nav", readNavigationTable),
+    propeller = firstRead(devices, "propeller", readPropeller),
+    throttle = firstRead(devices, "throttle", readControl),
+    analog = firstRead(devices, "analog", readControl),
+    error = err,
+  }
+  M.lastSnapshot = snap
+  M.lastStatus = {
+    available = available,
+    counts = counts,
+    error = err,
+    status = snap.status,
+  }
+  return snap
+end
+
+function M.status()
+  M.snapshot()
+  return M.lastStatus
+end
+
+function M.list()
+  return (M.snapshot().devices or {})
+end
+
+function M.start(ctx)
+  M.ctx = ctx
+  local snap = M.snapshot()
+  log.info("avionicsd", snap.status)
+end
+
+function M.stop()
+  M.ctx = nil
+end
+
+return M
+]===],
+  ["system/services/deviced.lua"] = [===[
+local log = require("system.libraries.log")
 local config = require("system.libraries.config")
 
 local M = {
@@ -6053,8 +6675,9 @@ function M.list()
 end
 
 return M
-]],
-  ["system/services/logd.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/services/logd.lua"] = [===[
+local log = require("system.libraries.log")
 
 local M = {}
 
@@ -6067,8 +6690,9 @@ function M.stop()
 end
 
 return M
-]],
-  ["system/services/messaged.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/services/messaged.lua"] = [===[
+local log = require("system.libraries.log")
 
 local M = {
   protocol = "mintcraft.chat",
@@ -6182,8 +6806,9 @@ function M.stop()
 end
 
 return M
-]],
-  ["system/services/networkd.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/services/networkd.lua"] = [===[
+local log = require("system.libraries.log")
 local httpClient = require("system.network.http_client")
 local websocket = require("system.network.websocket")
 
@@ -6218,8 +6843,9 @@ function M.getStatus()
 end
 
 return M
-]],
-  ["system/services/notifd.lua"] = [[local renderer = require("system.gui.renderer")
+]===],
+  ["system/services/notifd.lua"] = [===[
+local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 
 local Notifd = {}
@@ -6270,8 +6896,9 @@ function Notifd:draw()
 end
 
 return Notifd
-]],
-  ["system/services/sabled.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/services/sabled.lua"] = [===[
+local log = require("system.libraries.log")
 
 local M = {
   ctx = nil,
@@ -6440,8 +7067,9 @@ function M.stop()
 end
 
 return M
-]],
-  ["system/services/securityd.lua"] = [[local config = require("system.libraries.config")
+]===],
+  ["system/services/securityd.lua"] = [===[
+local config = require("system.libraries.config")
 local log = require("system.libraries.log")
 local users = require("system.security.users")
 
@@ -6537,8 +7165,9 @@ function M.stop()
 end
 
 return M
-]],
-  ["system/services/service_manager.lua"] = [[local log = require("system.libraries.log")
+]===],
+  ["system/services/service_manager.lua"] = [===[
+local log = require("system.libraries.log")
 
 local ServiceManager = {}
 ServiceManager.__index = ServiceManager
@@ -6616,8 +7245,9 @@ function ServiceManager:list()
 end
 
 return ServiceManager
-]],
-  ["system/services/updated.lua"] = [[local config = require("system.libraries.config")
+]===],
+  ["system/services/updated.lua"] = [===[
+local config = require("system.libraries.config")
 
 local M = {
   cfgPath = "/system/config/update.cfg",
@@ -6829,106 +7459,121 @@ function M.start(ctx)
 end
 
 return M
-]],
-  ["system/themes/icons/browser.nfp"] = [[6666666
+]===],
+  ["system/themes/icons/browser.nfp"] = [===[
+6666666
 6fffff6
 6f666f6
 6fffff6
 6f6f6f6
 6666666
-]],
-  ["system/themes/icons/crafttube.nfp"] = [[eeeeeee
+]===],
+  ["system/themes/icons/crafttube.nfp"] = [===[
+eeeeeee
 efffffe
 efffefe
 effffee
 efffefe
 eeeeeee
-]],
-  ["system/themes/icons/devices.nfp"] = [[3333333
+]===],
+  ["system/themes/icons/devices.nfp"] = [===[
+3333333
 3fffff3
 3f333f3
 3fffff3
 3030303
 3333333
-]],
-  ["system/themes/icons/editor.nfp"] = [[ddddddd
+]===],
+  ["system/themes/icons/editor.nfp"] = [===[
+ddddddd
 dfffffd
 df000fd
 dfffffd
 df000fd
 ddddddd
-]],
-  ["system/themes/icons/files.nfp"] = [[4440000
+]===],
+  ["system/themes/icons/files.nfp"] = [===[
+4440000
 4eeee00
 4e44440
 4eeeee0
 4eeeee0
 4444440
-]],
-  ["system/themes/icons/logs.nfp"] = [[1111110
+]===],
+  ["system/themes/icons/logs.nfp"] = [===[
+1111110
 1ffff10
 1f11110
 1ffff10
 1f11110
 1111110
-]],
-  ["system/themes/icons/messenger.nfp"] = [[bbbbbbb
+]===],
+  ["system/themes/icons/messenger.nfp"] = [===[
+bbbbbbb
 bfffbfb
 bfbfbfb
 bfffbfb
 bbbbbbb
 bbbbbfb
-]],
-  ["system/themes/icons/navigation.nfp"] = [[bbbbbbb
+]===],
+  ["system/themes/icons/navigation.nfp"] = [===[
+bbbbbbb
 bfffffb
 bfbbbfb
 bfbfbfb
 bfbbbfb
 bbbbbbb
-]],
-  ["system/themes/icons/services.nfp"] = [[bbbbbbb
+]===],
+  ["system/themes/icons/services.nfp"] = [===[
+bbbbbbb
 bff0ffb
 b0fff0b
 bff0ffb
 b0fff0b
 bbbbbbb
-]],
-  ["system/themes/icons/settings.nfp"] = [[7777777
+]===],
+  ["system/themes/icons/settings.nfp"] = [===[
+7777777
 77f7f77
 7fffff7
 77fff77
 7fffff7
 77f7f77
-]],
-  ["system/themes/icons/store.nfp"] = [[9999999
+]===],
+  ["system/themes/icons/store.nfp"] = [===[
+9999999
 9fffff9
 9f999f9
 9fffff9
 9f9f9f9
 9999999
-]],
-  ["system/themes/icons/taskmanager.nfp"] = [[5555555
+]===],
+  ["system/themes/icons/taskmanager.nfp"] = [===[
+5555555
 5f0f0f5
 5fffff5
 5f0f0f5
 5fffff5
 5555555
-]],
-  ["system/themes/icons/terminal.nfp"] = [[8888888
+]===],
+  ["system/themes/icons/terminal.nfp"] = [===[
+8888888
 8fffff8
 8f000f8
 8f0ff08
 8fffff8
 8888888
-]],
-  ["system/themes/icons/update.nfp"] = [[2222222
+]===],
+  ["system/themes/icons/update.nfp"] = [===[
+2222222
 22fff22
 2ff0ff2
 2200f22
 2ff0ff2
 22fff22
-]],
-  ["system/wm/window.lua"] = [[local theme = require("system.gui.theme")
+]===],
+  ["system/wm/window.lua"] = [===[
+local theme = require("system.gui.theme")
 local renderer = require("system.gui.renderer")
 
 local Window = {}
@@ -7106,8 +7751,9 @@ function Window:handle(event)
 end
 
 return Window
-]],
-  ["system/wm/window_manager.lua"] = [[local Window = require("system.wm.window")
+]===],
+  ["system/wm/window_manager.lua"] = [===[
+local Window = require("system.wm.window")
 local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 
@@ -7195,8 +7841,23 @@ function WindowManager:handle(event)
 end
 
 return WindowManager
-]],
-  ["tools/crafttube-dfpwm-proxy/README.md"] = [[# CraftTube DFPWM Proxy
+]===],
+  ["tools/crafttube-dfpwm-proxy/package.json"] = [===[
+{
+  "name": "mintcraft-crafttube-dfpwm-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local YouTube to DFPWM proxy for MintCraft OS CraftTube.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+]===],
+  ["tools/crafttube-dfpwm-proxy/README.md"] = [===[
+# CraftTube DFPWM Proxy
 
 This local proxy lets MintCraft OS play CraftTube audio on a CC:Tweaked speaker.
 
@@ -7271,21 +7932,9 @@ $env:YT_DLP_BIN="C:\path\to\yt-dlp.exe"
 $env:FFMPEG_BIN="C:\path\to\ffmpeg.exe"
 npm start
 ```
-]],
-  ["tools/crafttube-dfpwm-proxy/package.json"] = [[{
-  "name": "mintcraft-crafttube-dfpwm-proxy",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Local YouTube to DFPWM proxy for MintCraft OS CraftTube.",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
-  }
-}
-]],
-  ["tools/crafttube-dfpwm-proxy/server.js"] = [["use strict";
+]===],
+  ["tools/crafttube-dfpwm-proxy/server.js"] = [===[
+"use strict";
 
 const http = require("node:http");
 const { spawn } = require("node:child_process");
@@ -7456,8 +8105,9 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`CraftTube DFPWM proxy listening on http://${HOST}:${PORT}`);
 });
-]],
-  ["tools/crafttube-dfpwm-proxy/start.ps1"] = [[$ErrorActionPreference = "Stop"
+]===],
+  ["tools/crafttube-dfpwm-proxy/start.ps1"] = [===[
+$ErrorActionPreference = "Stop"
 
 function Test-Command($Name) {
   $cmd = Get-Command $Name -ErrorAction SilentlyContinue
@@ -7483,26 +8133,23 @@ if (-not (Test-Command "yt-dlp")) {
 }
 
 npm start
-]],
+]===],
+  ["VERSION"] = [===[
+0.16.0
+]===],
 }
 
 local function ensureDir(path)
-  local dir = fs.getDir(path)
-  if dir ~= "" and not fs.exists(dir) then
-    fs.makeDir(dir)
-  end
+  if path ~= "" and not fs.exists(path) then fs.makeDir(path) end
 end
 
 for path, content in pairs(files) do
-  ensureDir(path)
-  local handle = fs.open(path, "w")
-  if not handle then
-    error("Cannot write " .. path)
-  end
-  handle.write(content)
-  handle.close()
-  print("wrote " .. path)
+  ensureDir(fs.getDir(path))
+  local h = fs.open(path, "w")
+  if not h then error("Cannot write " .. path) end
+  h.write(content)
+  h.close()
 end
 
-print("MintCraft OS 0.15.1 installed.")
+print("MintCraft OS 0.16.0 installed.")
 print("Run reboot to start MintCraft OS.")

@@ -42,6 +42,7 @@ local function defaults()
           "logs.read",
           "devices.list",
           "sable.read",
+          "avionics.read",
         },
       },
     },
@@ -55,6 +56,7 @@ local function defaults()
         "logs.read",
         "devices.list",
         "sable.read",
+        "avionics.read",
       },
     },
   }

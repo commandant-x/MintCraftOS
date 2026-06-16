@@ -6,6 +6,7 @@ local networkd = require("system.services.networkd")
 local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
 local sabled = require("system.services.sabled")
+local avionicsd = require("system.services.avionicsd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -93,14 +94,24 @@ function M.run(ctx)
       renderer.button(28, 12, 8, "2.0", d.scale == 2)
     elseif self.page == "nav" then
       local st = sabled.status()
+      local av = avionicsd.status()
+      local counts = av.counts or {}
       local nav = config.load("/system/config/navigation.cfg", {})
+      local aircraft = nav.aircraft or {}
       renderer.writeAt(1, 3, "CC:Sable: " .. tostring(st.available and "available" or "missing"), colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), colors.black, colors.lightGray)
       renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Redstone profiles:", colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, renderer.crop("Avionics: " .. tostring(av.available and "ready" or "missing") .. " alt=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " prop=" .. tostring(counts.propeller or 0), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("Aircraft: " .. tostring(aircraft.name or "-") .. " mass=" .. tostring(aircraft.massKg or "-") .. "kg weight=" .. tostring(aircraft.declaredWeightNewton or "-") .. "N", w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 9, "Frequencies:", colors.black, colors.lightGray)
+      for i, command in ipairs(aircraft.commands or {}) do
+        if i > 5 or i > h - 15 then break end
+        renderer.writeAt(1, 9 + i, renderer.crop(tostring(command.name) .. " -> " .. tostring(command.frequency), w), colors.black, colors.lightGray)
+      end
+      renderer.writeAt(1, 15, "Redstone profiles:", colors.black, colors.lightGray)
       for i, profile in ipairs(nav.redstoneProfiles or {}) do
-        if i > h - 9 then break end
-        renderer.writeAt(1, 7 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
+        if i > h - 17 then break end
+        renderer.writeAt(1, 15 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
       end
       renderer.button(1, h - 2, 18, "Open Navigation", false)
     elseif self.page == "desktop" then
