@@ -1,4 +1,4 @@
--- MintCraft OS V0.14.0 installer for CC:Tweaked
+-- MintCraft OS V0.14.1 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -569,7 +569,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -591,7 +591,7 @@ local defaultCfg = {
   proxy = "https://inv.thepixora.com",
   searchPath = "/api/v1/search?type=video&q=",
   detailsPath = "/api/v1/videos/",
-  audioProxy = "",
+  audioProxy = "http://127.0.0.1:8787",
   audioPath = "/crafttube/audio?id=",
   fallbackProxies = {
     "https://yt.chocolatemoo53.com",
@@ -804,7 +804,7 @@ function M.run(ctx)
     local video = selectedVideo()
     if not video then app.status = "No video selected" return end
     if not app.cfg.audioProxy or app.cfg.audioProxy == "" then
-      app.status = "Audio needs a DFPWM proxy in Audio mode"
+      app.status = "Start DFPWM proxy on http://127.0.0.1:8787"
       return
     end
     local base = app.cfg.audioProxy:gsub("/+$", "")
@@ -931,7 +931,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -990,7 +990,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1172,7 +1172,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1477,7 +1477,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1554,7 +1554,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1671,7 +1671,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1750,7 +1750,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2093,7 +2093,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -2202,7 +2202,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -2316,7 +2316,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.14.0",
+  version = "0.14.1",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -2696,7 +2696,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.14.0",
+  version = "0.14.1",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2980,7 +2980,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.14.0 base:
+This repository currently contains the V0.14.1 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -3004,7 +3004,7 @@ This repository currently contains the V0.14.0 base:
 - Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
 - CraftTube native metadata client using a configurable proxy/API with card-style results, favorites and history
 - CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
-- CraftTube Play supports DFPWM audio through a configurable audio proxy; raw YouTube/Invidious audio is not decoded locally
+- CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
@@ -3032,6 +3032,17 @@ Then reboot:
 ```lua
 reboot
 ```
+
+## CraftTube Audio
+
+On your PC, install `yt-dlp` and `ffmpeg`, then run:
+
+```powershell
+cd tools\crafttube-dfpwm-proxy
+npm start
+```
+
+CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.
 ]],
   ["startup.lua"] = [[local candidates = {
   "/boot.lua",
@@ -3101,7 +3112,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.14.0",
+    version = "0.14.1",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -3127,8 +3138,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.14.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.14.1" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.1"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -3256,7 +3267,7 @@ return M
   proxy = "https://inv.thepixora.com",
   searchPath = "/api/v1/search?type=video&q=",
   detailsPath = "/api/v1/videos/",
-  audioProxy = "",
+  audioProxy = "http://127.0.0.1:8787",
   audioPath = "/crafttube/audio?id=",
   fallbackProxies = {
     "https://yt.chocolatemoo53.com",
@@ -3281,7 +3292,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.14.0",
+  version = "0.14.1",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -4306,19 +4317,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.0", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.0", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.0", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.0", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.0", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.1", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.1", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.1", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.1", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.1", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.1", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.1", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.1", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.1", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.1", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.1", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -4544,7 +4555,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.14.0",
+    version = meta.version or "0.14.1",
     permissions = meta.permissions or {},
   }
 end
@@ -6346,7 +6357,295 @@ end
 
 return WindowManager
 ]],
-  ["VERSION"] = [[0.14.0
+  ["tools/crafttube-dfpwm-proxy/package.json"] = [[{
+  "name": "mintcraft-crafttube-dfpwm-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local YouTube to DFPWM proxy for MintCraft OS CraftTube.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+]],
+  ["tools/crafttube-dfpwm-proxy/README.md"] = [[# CraftTube DFPWM Proxy
+
+This local proxy lets MintCraft OS play CraftTube audio on a CC:Tweaked speaker.
+
+CC:Tweaked cannot decode YouTube audio streams directly. This proxy runs on your PC, uses `yt-dlp` and `ffmpeg` to fetch/convert audio, then returns DFPWM bytes to CraftTube.
+
+## Requirements
+
+- Node.js 18+
+- `yt-dlp` in PATH
+- `ffmpeg` in PATH
+
+Quick checks:
+
+```powershell
+node --version
+yt-dlp --version
+ffmpeg -version
+```
+
+## Start
+
+From this folder:
+
+```powershell
+.\start.ps1
+```
+
+Or directly:
+
+```powershell
+npm start
+```
+
+The default URL is:
+
+```text
+http://127.0.0.1:8787
+```
+
+In Minecraft, open CraftTube, tap `Audio`, enter that URL, press Enter, then select a video and tap `Play`.
+
+If Minecraft runs on another machine/server, replace `127.0.0.1` with the IP address of the PC running this proxy.
+
+## API
+
+Health:
+
+```text
+GET /health
+```
+
+DFPWM audio:
+
+```text
+GET /crafttube/audio?id=<youtube-id-or-url>
+```
+
+Optional:
+
+```text
+GET /crafttube/audio?id=<id>&seconds=180
+```
+
+`seconds` is clamped to 1-600 to avoid huge downloads.
+
+## Custom binaries
+
+If `yt-dlp` or `ffmpeg` are not in PATH, set:
+
+```powershell
+$env:YT_DLP_BIN="C:\path\to\yt-dlp.exe"
+$env:FFMPEG_BIN="C:\path\to\ffmpeg.exe"
+npm start
+```
+]],
+  ["tools/crafttube-dfpwm-proxy/server.js"] = [["use strict";
+
+const http = require("node:http");
+const { spawn } = require("node:child_process");
+
+const PORT = Number(process.env.PORT || 8787);
+const HOST = process.env.HOST || "127.0.0.1";
+const DEFAULT_SECONDS = Number(process.env.MAX_SECONDS || 240);
+const YT_DLP_BIN = process.env.YT_DLP_BIN || "yt-dlp";
+const FFMPEG_BIN = process.env.FFMPEG_BIN || "ffmpeg";
+
+function send(res, code, body, type = "text/plain; charset=utf-8") {
+  const data = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
+  res.writeHead(code, {
+    "Content-Type": type,
+    "Content-Length": data.length,
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "no-store",
+  });
+  res.end(data);
+}
+
+function clampSeconds(value) {
+  const parsed = Number(value || DEFAULT_SECONDS);
+  if (!Number.isFinite(parsed)) return DEFAULT_SECONDS;
+  return Math.max(1, Math.min(600, Math.floor(parsed)));
+}
+
+function youtubeUrl(id) {
+  id = String(id || "").trim();
+  if (!id) return null;
+  if (/^https?:\/\//i.test(id)) return id;
+  if (!/^[A-Za-z0-9_-]{6,}$/.test(id)) return null;
+  return `https://www.youtube.com/watch?v=${id}`;
+}
+
+function collectProcess(proc, inputStream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const errors = [];
+
+    proc.stdout.on("data", chunk => chunks.push(chunk));
+    proc.stderr.on("data", chunk => errors.push(chunk));
+    proc.on("error", reject);
+    proc.on("close", code => {
+      if (code === 0) resolve(Buffer.concat(chunks));
+      else reject(new Error(Buffer.concat(errors).toString("utf8") || `process exited ${code}`));
+    });
+
+    if (inputStream) inputStream.pipe(proc.stdin);
+  });
+}
+
+async function audioToPcm(url, seconds) {
+  const ytdlp = spawn(YT_DLP_BIN, [
+    "--no-playlist",
+    "--quiet",
+    "--no-warnings",
+    "-f",
+    "bestaudio/best",
+    "-o",
+    "-",
+    url,
+  ], { stdio: ["ignore", "pipe", "pipe"] });
+
+  const ffmpeg = spawn(FFMPEG_BIN, [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    "pipe:0",
+    "-t",
+    String(seconds),
+    "-ac",
+    "1",
+    "-ar",
+    "48000",
+    "-f",
+    "s8",
+    "pipe:1",
+  ], { stdio: ["pipe", "pipe", "pipe"] });
+
+  ytdlp.stderr.on("data", chunk => {
+    if (!ffmpeg.killed) ffmpeg.stderr.emit("data", chunk);
+  });
+  ytdlp.stdout.pipe(ffmpeg.stdin);
+
+  const pcm = await collectProcess(ffmpeg);
+  return pcm;
+}
+
+function clampByte(value) {
+  if (value < -128) return -128;
+  if (value > 127) return 127;
+  return value;
+}
+
+function encodeDfpwm(pcm) {
+  let charge = 0;
+  let strength = 2;
+  let previousBit = false;
+  let outByte = 0;
+  let outBits = 0;
+  const out = [];
+
+  for (let i = 0; i < pcm.length; i += 1) {
+    const sample = pcm.readInt8(i);
+    const bit = sample > charge || (sample === charge && charge === 127);
+    const target = bit ? 127 : -128;
+    const nextCharge = clampByte(charge + Math.trunc((strength * (target - charge) + 128) / 256));
+
+    if (nextCharge === charge && nextCharge !== target) {
+      charge += bit ? 1 : -1;
+    } else {
+      charge = nextCharge;
+    }
+
+    const z = bit === previousBit ? 255 : 0;
+    strength += Math.trunc((z - strength + 128) / 256);
+    if (strength < 2) strength = 2;
+    previousBit = bit;
+
+    if (bit) outByte |= (1 << outBits);
+    outBits += 1;
+    if (outBits === 8) {
+      out.push(outByte);
+      outByte = 0;
+      outBits = 0;
+    }
+  }
+
+  if (outBits > 0) out.push(outByte);
+  return Buffer.from(out);
+}
+
+async function handleAudio(req, res, url) {
+  const id = url.searchParams.get("id") || url.searchParams.get("url");
+  const target = youtubeUrl(id);
+  if (!target) {
+    send(res, 400, "Missing or invalid id/url");
+    return;
+  }
+
+  const seconds = clampSeconds(url.searchParams.get("seconds"));
+  console.log(`[audio] ${target} ${seconds}s`);
+  try {
+    const pcm = await audioToPcm(target, seconds);
+    const dfpwm = encodeDfpwm(pcm);
+    send(res, 200, dfpwm, "audio/dfpwm");
+  } catch (err) {
+    console.error(err);
+    send(res, 500, `DFPWM conversion failed: ${err.message}`);
+  }
+}
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
+  if (url.pathname === "/health") {
+    send(res, 200, JSON.stringify({ ok: true, service: "crafttube-dfpwm-proxy" }), "application/json");
+    return;
+  }
+  if (url.pathname === "/crafttube/audio") {
+    handleAudio(req, res, url);
+    return;
+  }
+  send(res, 404, "Not found");
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`CraftTube DFPWM proxy listening on http://${HOST}:${PORT}`);
+});
+]],
+  ["tools/crafttube-dfpwm-proxy/start.ps1"] = [[$ErrorActionPreference = "Stop"
+
+function Test-Command($Name) {
+  $cmd = Get-Command $Name -ErrorAction SilentlyContinue
+  return $null -ne $cmd
+}
+
+if (-not (Test-Command "node")) {
+  Write-Host "Node.js is missing. Install Node.js 18+ first." -ForegroundColor Red
+  exit 1
+}
+
+if (-not (Test-Command "ffmpeg")) {
+  Write-Host "ffmpeg is missing. Install ffmpeg and make sure it is in PATH." -ForegroundColor Red
+  exit 1
+}
+
+if (-not (Test-Command "yt-dlp")) {
+  Write-Host "yt-dlp is missing." -ForegroundColor Yellow
+  Write-Host "Install it with:" -ForegroundColor Yellow
+  Write-Host "  py -m pip install -U yt-dlp" -ForegroundColor Cyan
+  Write-Host "Then restart this script." -ForegroundColor Yellow
+  exit 1
+}
+
+npm start
+]],
+  ["VERSION"] = [[0.14.1
 ]],
 }
 
@@ -6368,5 +6667,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.14.0 installed.")
+print("MintCraft OS 0.14.1 installed.")
 print("Run reboot to start MintCraft OS.")

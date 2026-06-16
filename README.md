@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.14.0 base:
+This repository currently contains the V0.14.1 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -26,7 +26,7 @@ This repository currently contains the V0.14.0 base:
 - Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
 - CraftTube native metadata client using a configurable proxy/API with card-style results, favorites and history
 - CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
-- CraftTube Play supports DFPWM audio through a configurable audio proxy; raw YouTube/Invidious audio is not decoded locally
+- CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
 - Store and local package manager with installable package manifests
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
@@ -54,3 +54,14 @@ Then reboot:
 ```lua
 reboot
 ```
+
+## CraftTube Audio
+
+On your PC, install `yt-dlp` and `ffmpeg`, then run:
+
+```powershell
+cd tools\crafttube-dfpwm-proxy
+npm start
+```
+
+CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.

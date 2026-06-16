@@ -15,7 +15,7 @@ local defaultCfg = {
   proxy = "https://inv.thepixora.com",
   searchPath = "/api/v1/search?type=video&q=",
   detailsPath = "/api/v1/videos/",
-  audioProxy = "",
+  audioProxy = "http://127.0.0.1:8787",
   audioPath = "/crafttube/audio?id=",
   fallbackProxies = {
     "https://yt.chocolatemoo53.com",
@@ -228,7 +228,7 @@ function M.run(ctx)
     local video = selectedVideo()
     if not video then app.status = "No video selected" return end
     if not app.cfg.audioProxy or app.cfg.audioProxy == "" then
-      app.status = "Audio needs a DFPWM proxy in Audio mode"
+      app.status = "Start DFPWM proxy on http://127.0.0.1:8787"
       return
     end
     local base = app.cfg.audioProxy:gsub("/+$", "")

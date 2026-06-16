@@ -1,0 +1,12 @@
+{
+  "name": "mintcraft-crafttube-dfpwm-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local YouTube to DFPWM proxy for MintCraft OS CraftTube.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
