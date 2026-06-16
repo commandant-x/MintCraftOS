@@ -1,4 +1,4 @@
--- MintCraft OS V0.14.3 installer for CC:Tweaked
+-- MintCraft OS V0.15.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -33,7 +33,7 @@ SOFTWARE.
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.14.3 base:
+This repository currently contains the V0.15.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -60,6 +60,7 @@ This repository currently contains the V0.14.3 base:
 - CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
 - Store and local package manager with bundled example packages
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
+- Navigation app for CC:Sable telemetry with confirmed Redstone Assist pulses
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 - app crash isolation for process, window draw and input errors, with log entry and notification
@@ -108,12 +109,12 @@ CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another 
 - `BRW-007`: browser cache issue.
 - `BRW-008`: download/write failure.
 ]],
-  ["VERSION"] = [[0.14.3
+  ["VERSION"] = [[0.15.0
 ]],
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -789,7 +790,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1151,13 +1152,14 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
 ]],
   ["apps/devices/main.lua"] = [[local renderer = require("system.gui.renderer")
 local deviced = require("system.services.deviced")
+local sabled = require("system.services.sabled")
 
 local M = {}
 
@@ -1167,17 +1169,23 @@ function M.run(ctx)
   function app:draw(w, h)
     renderer.writeAt(1, 1, renderer.crop("[Rescan] [Use monitor]", w), colors.white, colors.gray)
     local display = deviced.getDisplay()
+    local sable = sabled.status()
     renderer.writeAt(1, 2, renderer.crop("Target: " .. tostring(display.target) .. " " .. tostring(display.width) .. "x" .. tostring(display.height), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(display.monitorSide or "none") .. " scale " .. tostring(display.scale or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Recommended: 4x3 blocks min, scale 0.5", w), colors.gray, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("DEVICE          TYPE", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Sable: " .. tostring(sable.available and "available" or "missing") .. "  Sublevel: " .. tostring(sable.inSublevel and "ready" or "none"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(sable.apiNames or {}, ",") .. "  Recommended: 4x3 monitor scale 0.5", w), colors.gray, colors.lightGray)
+    renderer.writeAt(1, 7, renderer.crop("DEVICE          TYPE          ROLE", w), colors.black, colors.lightGray)
     local rows = deviced.list()
     if #rows == 0 then
-      renderer.writeAt(1, 8, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 9, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
     end
-    for i = 1, math.min(#rows, h - 6) do
+    for i = 1, math.min(#rows, h - 7) do
       local d = rows[i]
-      renderer.writeAt(1, i + 6, renderer.crop(d.name .. "          " .. tostring(d.type), w), colors.black, colors.lightGray)
+      local role = tostring(d.type) == "modem" and "rednet"
+        or tostring(d.type) == "monitor" and "display"
+        or tostring(d.type):find("redstone", 1, true) and "assist"
+        or "-"
+      renderer.writeAt(1, i + 7, renderer.crop(d.name .. "          " .. tostring(d.type) .. "          " .. role, w), colors.black, colors.lightGray)
     end
   end
 
@@ -1210,7 +1218,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1392,7 +1400,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1697,7 +1705,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1774,7 +1782,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1888,10 +1896,330 @@ end
 
 return M
 ]],
+  ["apps/navigation/app.cfg"] = [[{
+  id = "navigation",
+  name = "Navigation",
+  version = "0.15.0",
+  main = "apps.navigation.main",
+  permissions = { "sable.read", "redstone.output", "navigation.assist" },
+}
+]],
+  ["apps/navigation/main.lua"] = [=[local renderer = require("system.gui.renderer")
+local ui = require("system.gui.components")
+local config = require("system.libraries.config")
+local log = require("system.libraries.log")
+local keyboard = require("system.gui.keyboard")
+local sabled = require("system.services.sabled")
+
+local M = {}
+
+local CFG = "/system/config/navigation.cfg"
+local SIDES = { "left", "right", "front", "back", "top", "bottom" }
+
+local function defaults()
+  return {
+    refreshSeconds = 1,
+    redstoneProfiles = {
+      { name = "Brake", side = "back", pulseSeconds = 0.5, description = "short braking pulse" },
+      { name = "Lift", side = "top", pulseSeconds = 0.5, description = "short lift pulse" },
+      { name = "Yaw Left", side = "left", pulseSeconds = 0.25, description = "short yaw-left pulse" },
+      { name = "Yaw Right", side = "right", pulseSeconds = 0.25, description = "short yaw-right pulse" },
+      { name = "Forward", side = "front", pulseSeconds = 0.5, description = "short forward pulse" },
+      { name = "Reverse", side = "bottom", pulseSeconds = 0.5, description = "short reverse pulse" },
+    },
+  }
+end
+
+local function loadCfg()
+  local cfg = config.load(CFG, {})
+  local def = defaults()
+  if type(cfg.redstoneProfiles) ~= "table" then cfg.redstoneProfiles = def.redstoneProfiles end
+  cfg.refreshSeconds = tonumber(cfg.refreshSeconds) or def.refreshSeconds
+  return cfg
+end
+
+local function saveCfg(cfg)
+  return config.save(CFG, cfg)
+end
+
+local function scalar(v)
+  if v == nil then return "-" end
+  if type(v) == "number" then return string.format("%.3f", v) end
+  return tostring(v)
+end
+
+local function vec(v)
+  if type(v) ~= "table" then return scalar(v) end
+  local x = v.x or v[1] or v.X
+  local y = v.y or v[2] or v.Y
+  local z = v.z or v[3] or v.Z
+  if x or y or z then
+    return scalar(x or 0) .. ", " .. scalar(y or 0) .. ", " .. scalar(z or 0)
+  end
+  local count = 0
+  for _ in pairs(v) do count = count + 1 end
+  return "table(" .. tostring(count) .. ")"
+end
+
+local function poseLine(pose)
+  if type(pose) ~= "table" then return "-" end
+  return "pos " .. vec(pose.position or pose.pos) .. "  rot " .. vec(pose.orientation or pose.rotation or pose.rot)
+end
+
+local function validSide(side)
+  for _, item in ipairs(SIDES) do if item == side then return true end end
+  return false
+end
+
+function M.run(ctx)
+  local cfg = loadCfg()
+  local app = {
+    page = "flight",
+    selected = 1,
+    confirm = nil,
+    inputMode = nil,
+    input = "",
+    keyboard = {},
+    timers = {},
+    message = "Navigation ready",
+    snapshot = nil,
+  }
+
+  local tabs = {
+    { id = "flight", label = "Flight" },
+    { id = "environment", label = "Environment" },
+    { id = "assist", label = "Assist" },
+    { id = "config", label = "Config" },
+  }
+
+  local assistActions = {
+    { id = "pulse", label = "Pulse" },
+    { id = "edit", label = "Edit" },
+    { id = "save", label = "Save" },
+  }
+
+  local editActions = {
+    { id = "name", label = "Name" },
+    { id = "side", label = "Side" },
+    { id = "duration", label = "Duration" },
+    { id = "desc", label = "Desc" },
+  }
+
+  local function refresh()
+    local allowed, denied = ctx.security.require("sable.read", "navigation")
+    if not allowed then
+      app.snapshot = { ok = false, status = tostring(denied), error = tostring(denied) }
+      return app.snapshot
+    end
+    app.snapshot = sabled.snapshot()
+    return app.snapshot
+  end
+
+  local function selectedProfile()
+    return cfg.redstoneProfiles[app.selected]
+  end
+
+  local function requestPulse()
+    local profile = selectedProfile()
+    if not profile then app.message = "No profile selected" return end
+    local allowed, denied = ctx.security.require("navigation.assist", tostring(profile.name))
+    if not allowed then app.message = tostring(denied) return end
+    app.confirm = profile
+    app.message = "Confirm pulse: " .. tostring(profile.name)
+  end
+
+  local function doPulse(profile)
+    local allowed, denied = ctx.security.require("redstone.output", tostring(profile.side))
+    if not allowed then app.message = tostring(denied) return end
+    if not redstone or not redstone.setOutput then app.message = "redstone API unavailable" return end
+    if not validSide(profile.side) then app.message = "invalid side: " .. tostring(profile.side) return end
+    local seconds = math.max(0.1, math.min(10, tonumber(profile.pulseSeconds) or 0.5))
+    redstone.setOutput(profile.side, true)
+    local timer = os.startTimer(seconds)
+    app.timers[timer] = profile.side
+    app.message = "Pulse " .. tostring(profile.name) .. " on " .. tostring(profile.side)
+    log.info("navigation", "pulse " .. tostring(profile.name) .. " side=" .. tostring(profile.side) .. " seconds=" .. tostring(seconds))
+    if ctx.notifications then ctx.notifications:push("success", "Navigation", app.message, 3) end
+  end
+
+  local function startEdit(mode, value)
+    app.inputMode = mode
+    app.input = tostring(value or "")
+    app.keyboard.hint = mode .. ": " .. app.input
+  end
+
+  local function applyEdit()
+    local profile = selectedProfile()
+    if not profile or not app.inputMode then return end
+    if app.inputMode == "name" and app.input ~= "" then profile.name = app.input
+    elseif app.inputMode == "side" and validSide(app.input) then profile.side = app.input
+    elseif app.inputMode == "duration" then profile.pulseSeconds = math.max(0.1, math.min(10, tonumber(app.input) or profile.pulseSeconds or 0.5))
+    elseif app.inputMode == "desc" then profile.description = app.input
+    else app.message = "Invalid value" end
+    app.inputMode = nil
+    app.input = ""
+    saveCfg(cfg)
+  end
+
+  app.keyboard.onText = function(ch) app.input = app.input .. ch end
+  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
+  app.keyboard.onEnter = applyEdit
+
+  local function drawFlight(w, h)
+    local snap = app.snapshot or refresh()
+    local st = sabled.status()
+    renderer.writeAt(1, 3, renderer.crop("CC:Sable: " .. tostring(st.available and "available" or "missing") .. "  APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Sublevel: " .. tostring(st.inSublevel and "ready" or "not on sublevel") .. "  Status: " .. tostring(snap.status or snap.error or "-"), w), colors.black, colors.lightGray)
+    if not st.available or not snap.sublevel or not snap.sublevel.inSublevel then
+      renderer.writeAt(1, 6, renderer.crop("Diagnostic: install CC:Sable and place this computer on a Sable sublevel.", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("Open Devices/Logs if the API should be present but is not detected.", w), colors.gray, colors.lightGray)
+      renderer.button(1, 9, 12, "Devices", false)
+      renderer.button(15, 9, 10, "Logs", false)
+      return
+    end
+    local sub = snap.sublevel
+    local rows = {
+      "Name: " .. scalar(sub.name),
+      "UUID: " .. scalar(sub.uuid),
+      "Logical: " .. poseLine(sub.logicalPose),
+      "Last: " .. poseLine(sub.lastPose),
+      "Velocity: " .. vec(sub.velocity),
+      "Linear: " .. vec(sub.linearVelocity),
+      "Angular: " .. vec(sub.angularVelocity),
+      "Mass: " .. scalar(sub.mass) .. "  inverse " .. scalar(sub.inverseMass),
+      "Center: " .. vec(sub.centerOfMass),
+      "Inertia: " .. vec(sub.inertiaTensor),
+    }
+    for i = 1, math.min(#rows, h - 3) do
+      renderer.writeAt(1, i + 5, renderer.crop(rows[i], w), colors.black, colors.lightGray)
+    end
+  end
+
+  local function drawEnvironment(w, h)
+    local snap = app.snapshot or refresh()
+    local aero = snap.aero or {}
+    local rows = {
+      "Gravity: " .. vec(aero.gravity),
+      "Magnetic north: " .. vec(aero.magneticNorth),
+      "Air pressure: " .. scalar(aero.airPressure),
+      "Universal drag: " .. scalar(aero.universalDrag),
+      "Raw: " .. vec(aero.raw),
+      "Default: " .. vec(aero.default),
+    }
+    for i = 1, math.min(#rows, h - 2) do
+      renderer.writeAt(1, i + 2, renderer.crop(rows[i], w), colors.black, colors.lightGray)
+    end
+  end
+
+  local function drawAssist(w, h)
+    app.toolbar = ui.toolbar(1, 2, w, assistActions)
+    renderer.writeAt(1, 4, renderer.crop("REDSTONE ASSIST - confirmed pulses only", w), colors.black, colors.gray)
+    for i, profile in ipairs(cfg.redstoneProfiles or {}) do
+      local bg = i == app.selected and colors.cyan or colors.lightGray
+      local line = tostring(i) .. " " .. tostring(profile.name) .. "  " .. tostring(profile.side) .. "  " .. scalar(profile.pulseSeconds) .. "s  " .. tostring(profile.description or "")
+      renderer.writeAt(1, i + 4, renderer.crop(line, w), colors.black, bg)
+    end
+    renderer.writeAt(1, h - 1, renderer.crop(app.message, w), colors.white, colors.gray)
+    if app.confirm then
+      local dx = 3
+      local dy = math.max(4, math.floor(h / 2) - 2)
+      local dw = math.min(42, w - 4)
+      app.confirmBox = { x = dx + 1, y = dy + 4, w = math.min(12, dw - 2), h = 1 }
+      ui.dialog(dx, dy, dw, "Confirm Redstone", tostring(app.confirm.name) .. " on " .. tostring(app.confirm.side), "Pulse")
+    end
+  end
+
+  local function drawConfig(w, h)
+    app.toolbar = ui.toolbar(1, 2, w, editActions)
+    local profile = selectedProfile()
+    renderer.writeAt(1, 4, renderer.crop("Selected profile: " .. tostring(profile and profile.name or "-"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("Side options: left right front back top bottom", w), colors.gray, colors.lightGray)
+    if profile then
+      renderer.writeAt(1, 7, renderer.crop("Name: " .. tostring(profile.name), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 8, renderer.crop("Side: " .. tostring(profile.side), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 9, renderer.crop("Duration: " .. scalar(profile.pulseSeconds), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 10, renderer.crop("Desc: " .. tostring(profile.description or ""), w), colors.black, colors.lightGray)
+    end
+    if app.inputMode then
+      renderer.writeAt(1, h - keyboard.height(), renderer.crop(app.inputMode .. ": " .. app.input, w), colors.white, colors.gray)
+      app.keyboard.x = 1
+      app.keyboard.y = h - keyboard.height() + 1
+      keyboard.draw(1, app.keyboard.y, w, app.keyboard)
+    end
+  end
+
+  function app:draw(w, h)
+    refresh()
+    self.tabs = ui.tabs(1, 1, w, tabs, self.page)
+    if self.page == "flight" then drawFlight(w, h)
+    elseif self.page == "environment" then drawEnvironment(w, h)
+    elseif self.page == "assist" then drawAssist(w, h)
+    elseif self.page == "config" then drawConfig(w, h)
+    end
+  end
+
+  function app:handle(event)
+    if event.name == "timer" then
+      local side = self.timers[event.args[1]]
+      if side and redstone and redstone.setOutput then redstone.setOutput(side, false) end
+      self.timers[event.args[1]] = nil
+      return true
+    end
+    if self.inputMode then
+      if event.name == "char" then self.input = self.input .. event.args[1] return true end
+      if event.name == "key" then
+        local key = event.args[1]
+        if key == keys.backspace then self.input = self.input:sub(1, -2) return true end
+        if key == keys.enter then applyEdit() return true end
+      end
+      if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+    end
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    for _, tab in ipairs(self.tabs or {}) do
+      if ui.hit(tab, x, y) then self.page = tab.id self.confirm = nil return true end
+    end
+    if self.confirm then
+      if ui.hit(self.confirmBox, x, y) then doPulse(self.confirm) end
+      self.confirm = nil
+      return true
+    end
+    if self.page == "flight" and y == 9 then
+      if x <= 12 then ctx.apps.launch("devices") return true end
+      if x >= 15 and x <= 24 then ctx.apps.launch("logs") return true end
+    elseif self.page == "assist" then
+      local action = ui.toolbarHit(self.toolbar, x, y)
+      if action == "pulse" then requestPulse() return true end
+      if action == "save" then saveCfg(cfg) self.message = "Saved" return true end
+      if y >= 5 then
+        local idx = y - 4
+        if cfg.redstoneProfiles[idx] then self.selected = idx return true end
+      end
+    elseif self.page == "config" then
+      local action = ui.toolbarHit(self.toolbar, x, y)
+      local profile = selectedProfile()
+      if action and profile then
+        if action == "name" then startEdit("name", profile.name) return true end
+        if action == "side" then startEdit("side", profile.side) return true end
+        if action == "duration" then startEdit("duration", profile.pulseSeconds) return true end
+        if action == "desc" then startEdit("desc", profile.description) return true end
+      end
+    end
+    return false
+  end
+
+  refresh()
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Navigation", w = math.min(76, sw - 4), h = math.min(22, sh - 3), x = 5, y = 3, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]=],
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1970,7 +2298,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -1982,6 +2310,7 @@ local deviced = require("system.services.deviced")
 local networkd = require("system.services.networkd")
 local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
+local sabled = require("system.services.sabled")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -1993,6 +2322,7 @@ function M.run(ctx)
   local pages = {
     { id = "system", label = "System" },
     { id = "display", label = "Display" },
+    { id = "nav", label = "Nav" },
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
@@ -2066,6 +2396,18 @@ function M.run(ctx)
       renderer.button(10, 12, 8, "1.0", d.scale == 1)
       renderer.button(19, 12, 8, "1.5", d.scale == 1.5)
       renderer.button(28, 12, 8, "2.0", d.scale == 2)
+    elseif self.page == "nav" then
+      local st = sabled.status()
+      local nav = config.load("/system/config/navigation.cfg", {})
+      renderer.writeAt(1, 3, "CC:Sable: " .. tostring(st.available and "available" or "missing"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, "Redstone profiles:", colors.black, colors.lightGray)
+      for i, profile in ipairs(nav.redstoneProfiles or {}) do
+        if i > h - 9 then break end
+        renderer.writeAt(1, 7 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
+      end
+      renderer.button(1, h - 2, 18, "Open Navigation", false)
     elseif self.page == "desktop" then
       renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
@@ -2241,6 +2583,9 @@ function M.run(ctx)
       if x >= 10 and x <= 17 then deviced.setScale(1) return true end
       if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
       if x >= 28 and x <= 35 then deviced.setScale(2) return true end
+    elseif self.page == "nav" and y == select(2, term.getSize()) - 2 and x <= 18 then
+      ctx.apps.launch("navigation")
+      return true
     elseif self.page == "sound" and y == 9 and x <= 12 then
       local st = audiod.status()
       audiod.setEnabled(not st.enabled)
@@ -2313,7 +2658,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -2426,7 +2771,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -2540,7 +2885,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.14.3",
+  version = "0.15.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -2579,6 +2924,7 @@ local help = {
   browser = "browser [url] - open text browser",
   crafttube = "crafttube - open native YouTube metadata client",
   messenger = "messenger - open Rednet chat",
+  navigation = "navigation - open Sable navigation control center",
   store = "store - open package store",
   install = "install <pkg> - install package",
   whoami = "whoami - show current security user",
@@ -2718,6 +3064,8 @@ local function runCommand(app, ctx, input)
     ctx.apps.launch("crafttube")
   elseif cmd == "messenger" then
     ctx.apps.launch("messenger")
+  elseif cmd == "navigation" then
+    ctx.apps.launch("navigation")
   elseif cmd == "store" then
     ctx.apps.launch("store")
   elseif cmd == "install" then
@@ -2920,7 +3268,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.14.3",
+  version = "0.15.0",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -3385,7 +3733,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.14.3",
+    version = "0.15.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -3411,8 +3759,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.14.3" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.3"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.15.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.15.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -3556,6 +3904,18 @@ return M
   lua = "editor",
 }
 ]],
+  ["system/config/navigation.cfg"] = [[{
+  refreshSeconds = 1,
+  redstoneProfiles = {
+    { name = "Brake", side = "back", pulseSeconds = 0.5, description = "short braking pulse" },
+    { name = "Lift", side = "top", pulseSeconds = 0.5, description = "short lift pulse" },
+    { name = "Yaw Left", side = "left", pulseSeconds = 0.25, description = "short yaw-left pulse" },
+    { name = "Yaw Right", side = "right", pulseSeconds = 0.25, description = "short yaw-right pulse" },
+    { name = "Forward", side = "front", pulseSeconds = 0.5, description = "short forward pulse" },
+    { name = "Reverse", side = "bottom", pulseSeconds = 0.5, description = "short reverse pulse" },
+  },
+}
+]],
   ["system/config/security.cfg"] = [[{
   enabled = true,
   mode = "users",
@@ -3565,7 +3925,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.14.3",
+  version = "0.15.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -3603,7 +3963,7 @@ local ccWords = {
 
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
-  "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "store", "install", "files", "settings", "devices",
+  "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "navigation", "store", "install", "files", "settings", "devices",
   "whoami", "lock", "unlock", "login", "logout", "passwd",
   "reboot", "help",
 }
@@ -4002,6 +4362,7 @@ local function drawIcons()
     { app = "terminal" },
     { app = "browser" },
     { app = "messenger" },
+    { app = "navigation" },
     { app = "files" },
     { app = "settings" },
     { app = "devices" },
@@ -4159,6 +4520,7 @@ local function openContextMenu(x, y)
         launch("files", { path = "/home/user/desktop" })
       end },
       { label = "Terminal", action = function() launch("terminal") end },
+      { label = "Navigation", action = function() launch("navigation") end },
       { label = "Settings", action = function() launch("settings") end },
       { label = "Devices", action = function() launch("devices") end },
     },
@@ -4587,19 +4949,20 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.3", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.3", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.3", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.3", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.3", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.3", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.3", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.3", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.3", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.3", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.3", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.3", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.3", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.15.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.15.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.15.0", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.15.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.15.0", permissions = { "sable.read", "redstone.output", "navigation.assist" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.15.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.15.0", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.15.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.15.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.15.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.15.0", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.15.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.15.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.15.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -4631,6 +4994,7 @@ function M.start()
   ctx.services:register("messaged", "system.services.messaged", true)
   ctx.services:register("audiod", "system.services.audiod", true)
   ctx.services:register("deviced", "system.services.deviced", true)
+  ctx.services:register("sabled", "system.services.sabled", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
   ctx.services:startAutostart()
@@ -4825,7 +5189,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.14.3",
+    version = meta.version or "0.15.0",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -5331,6 +5695,7 @@ local function defaults()
           "rednet.receive",
           "logs.read",
           "devices.list",
+          "sable.read",
         },
       },
     },
@@ -5343,6 +5708,7 @@ local function defaults()
         "rednet.receive",
         "logs.read",
         "devices.list",
+        "sable.read",
       },
     },
   }
@@ -5896,6 +6262,141 @@ end
 
 return Notifd
 ]],
+  ["system/services/sabled.lua"] = [[local log = require("system.libraries.log")
+
+local M = {
+  ctx = nil,
+  lastStatus = {
+    available = false,
+    inSublevel = false,
+    error = "not started",
+    apiNames = {},
+  },
+  lastSnapshot = nil,
+  warnedLost = false,
+}
+
+local function api(name)
+  return rawget(_G, name)
+end
+
+local function call(target, method, ...)
+  if not target or type(target[method]) ~= "function" then
+    return nil, method .. " unavailable"
+  end
+  local ok, value = pcall(target[method], ...)
+  if ok then return value, nil end
+  return nil, tostring(value)
+end
+
+local function vec(value)
+  if type(value) ~= "table" then return value end
+  local out = {}
+  for k, v in pairs(value) do out[k] = v end
+  return out
+end
+
+local function detect()
+  local sub = api("sublevel")
+  local aero = api("aero") or api("aerodynamics")
+  local names = {}
+  if sub then table.insert(names, "sublevel") end
+  if api("aero") then table.insert(names, "aero") end
+  if api("aerodynamics") then table.insert(names, "aerodynamics") end
+  return sub, aero, names
+end
+
+local function readSublevel(sub)
+  local out = {}
+  out.inSublevel = call(sub, "isInPlotGrid") == true
+  if not out.inSublevel then return out end
+  out.uuid = call(sub, "getUniqueId")
+  out.name = call(sub, "getName")
+  out.logicalPose = vec(call(sub, "getLogicalPose"))
+  out.lastPose = vec(call(sub, "getLastPose"))
+  out.velocity = vec(call(sub, "getVelocity"))
+  out.linearVelocity = vec(call(sub, "getLinearVelocity"))
+  out.angularVelocity = vec(call(sub, "getAngularVelocity"))
+  out.centerOfMass = vec(call(sub, "getCenterOfMass"))
+  out.mass = call(sub, "getMass")
+  out.inverseMass = call(sub, "getInverseMass")
+  out.inertiaTensor = vec(call(sub, "getInertiaTensor"))
+  out.inverseInertiaTensor = vec(call(sub, "getInverseInertiaTensor"))
+  return out
+end
+
+local function readAero(aero, subData)
+  if not aero then return nil end
+  local out = {}
+  out.gravity = vec(call(aero, "getGravity"))
+  out.magneticNorth = vec(call(aero, "getMagneticNorth"))
+  out.universalDrag = call(aero, "getUniversalDrag")
+  out.raw = vec(call(aero, "getRaw"))
+  out.default = vec(call(aero, "getDefault"))
+  local position = subData and subData.logicalPose and (subData.logicalPose.position or subData.logicalPose.pos)
+  if position then out.airPressure = call(aero, "getAirPressure", position) end
+  return out
+end
+
+function M.status()
+  M.snapshot()
+  return M.lastStatus
+end
+
+function M.snapshot()
+  local sub, aero, names = detect()
+  local available = sub ~= nil or aero ~= nil
+  local result = {
+    ok = false,
+    status = "missing CC:Sable APIs",
+    sublevel = nil,
+    aero = nil,
+    error = nil,
+  }
+
+  if not available then
+    M.lastStatus = { available = false, inSublevel = false, error = "CC:Sable APIs not found", apiNames = names }
+    result.error = M.lastStatus.error
+    M.lastSnapshot = result
+    return result
+  end
+
+  local subData = nil
+  if sub then
+    subData = readSublevel(sub)
+    result.sublevel = subData
+  end
+  result.aero = readAero(aero, subData)
+
+  local inSublevel = subData and subData.inSublevel == true
+  result.ok = true
+  result.status = inSublevel and "sublevel telemetry ready" or "not on sublevel"
+  M.lastStatus = { available = true, inSublevel = inSublevel, error = nil, apiNames = names }
+  M.lastSnapshot = result
+
+  if M.ctx and M.ctx.notifications then
+    if M.warnedLost == false and M.lastStatus.available and not inSublevel then
+      M.warnedLost = true
+      M.ctx.notifications:push("warn", "Navigation", "No Sable sublevel detected", 3)
+    elseif inSublevel then
+      M.warnedLost = false
+    end
+  end
+  return result
+end
+
+function M.start(ctx)
+  M.ctx = ctx
+  local snap = M.snapshot()
+  log.info("sabled", snap.status or tostring(snap.error))
+end
+
+function M.stop()
+  M.ctx = nil
+end
+
+return M
+]],
   ["system/services/securityd.lua"] = [[local config = require("system.libraries.config")
 local log = require("system.libraries.log")
 local users = require("system.security.users")
@@ -6333,6 +6834,13 @@ bfbfbfb
 bfffbfb
 bbbbbbb
 bbbbbfb
+]],
+  ["system/themes/icons/navigation.nfp"] = [[bbbbbbb
+bfffffb
+bfbbbfb
+bfbfbfb
+bfbbbfb
+bbbbbbb
 ]],
   ["system/themes/icons/services.nfp"] = [[bbbbbbb
 bff0ffb
@@ -6952,5 +7460,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.14.3 installed.")
+print("MintCraft OS 0.15.0 installed.")
 print("Run reboot to start MintCraft OS.")

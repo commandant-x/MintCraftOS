@@ -27,6 +27,7 @@ local function drawIcons()
     { app = "terminal" },
     { app = "browser" },
     { app = "messenger" },
+    { app = "navigation" },
     { app = "files" },
     { app = "settings" },
     { app = "devices" },
@@ -184,6 +185,7 @@ local function openContextMenu(x, y)
         launch("files", { path = "/home/user/desktop" })
       end },
       { label = "Terminal", action = function() launch("terminal") end },
+      { label = "Navigation", action = function() launch("navigation") end },
       { label = "Settings", action = function() launch("settings") end },
       { label = "Devices", action = function() launch("devices") end },
     },

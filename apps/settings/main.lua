@@ -5,6 +5,7 @@ local deviced = require("system.services.deviced")
 local networkd = require("system.services.networkd")
 local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
+local sabled = require("system.services.sabled")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -16,6 +17,7 @@ function M.run(ctx)
   local pages = {
     { id = "system", label = "System" },
     { id = "display", label = "Display" },
+    { id = "nav", label = "Nav" },
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
@@ -89,6 +91,18 @@ function M.run(ctx)
       renderer.button(10, 12, 8, "1.0", d.scale == 1)
       renderer.button(19, 12, 8, "1.5", d.scale == 1.5)
       renderer.button(28, 12, 8, "2.0", d.scale == 2)
+    elseif self.page == "nav" then
+      local st = sabled.status()
+      local nav = config.load("/system/config/navigation.cfg", {})
+      renderer.writeAt(1, 3, "CC:Sable: " .. tostring(st.available and "available" or "missing"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, "Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, "Redstone profiles:", colors.black, colors.lightGray)
+      for i, profile in ipairs(nav.redstoneProfiles or {}) do
+        if i > h - 9 then break end
+        renderer.writeAt(1, 7 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
+      end
+      renderer.button(1, h - 2, 18, "Open Navigation", false)
     elseif self.page == "desktop" then
       renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
@@ -264,6 +278,9 @@ function M.run(ctx)
       if x >= 10 and x <= 17 then deviced.setScale(1) return true end
       if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
       if x >= 28 and x <= 35 then deviced.setScale(2) return true end
+    elseif self.page == "nav" and y == select(2, term.getSize()) - 2 and x <= 18 then
+      ctx.apps.launch("navigation")
+      return true
     elseif self.page == "sound" and y == 9 and x <= 12 then
       local st = audiod.status()
       audiod.setEnabled(not st.enabled)

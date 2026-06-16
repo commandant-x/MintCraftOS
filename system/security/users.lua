@@ -41,6 +41,7 @@ local function defaults()
           "rednet.receive",
           "logs.read",
           "devices.list",
+          "sable.read",
         },
       },
     },
@@ -53,6 +54,7 @@ local function defaults()
         "rednet.receive",
         "logs.read",
         "devices.list",
+        "sable.read",
       },
     },
   }

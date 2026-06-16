@@ -19,7 +19,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.14.3",
+    version = meta.version or "0.15.0",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }

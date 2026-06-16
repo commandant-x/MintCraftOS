@@ -1,5 +1,6 @@
 local renderer = require("system.gui.renderer")
 local deviced = require("system.services.deviced")
+local sabled = require("system.services.sabled")
 
 local M = {}
 
@@ -9,17 +10,23 @@ function M.run(ctx)
   function app:draw(w, h)
     renderer.writeAt(1, 1, renderer.crop("[Rescan] [Use monitor]", w), colors.white, colors.gray)
     local display = deviced.getDisplay()
+    local sable = sabled.status()
     renderer.writeAt(1, 2, renderer.crop("Target: " .. tostring(display.target) .. " " .. tostring(display.width) .. "x" .. tostring(display.height), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(display.monitorSide or "none") .. " scale " .. tostring(display.scale or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Recommended: 4x3 blocks min, scale 0.5", w), colors.gray, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("DEVICE          TYPE", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Sable: " .. tostring(sable.available and "available" or "missing") .. "  Sublevel: " .. tostring(sable.inSublevel and "ready" or "none"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(sable.apiNames or {}, ",") .. "  Recommended: 4x3 monitor scale 0.5", w), colors.gray, colors.lightGray)
+    renderer.writeAt(1, 7, renderer.crop("DEVICE          TYPE          ROLE", w), colors.black, colors.lightGray)
     local rows = deviced.list()
     if #rows == 0 then
-      renderer.writeAt(1, 8, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 9, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
     end
-    for i = 1, math.min(#rows, h - 6) do
+    for i = 1, math.min(#rows, h - 7) do
       local d = rows[i]
-      renderer.writeAt(1, i + 6, renderer.crop(d.name .. "          " .. tostring(d.type), w), colors.black, colors.lightGray)
+      local role = tostring(d.type) == "modem" and "rednet"
+        or tostring(d.type) == "monitor" and "display"
+        or tostring(d.type):find("redstone", 1, true) and "assist"
+        or "-"
+      renderer.writeAt(1, i + 7, renderer.crop(d.name .. "          " .. tostring(d.type) .. "          " .. role, w), colors.black, colors.lightGray)
     end
   end
 
