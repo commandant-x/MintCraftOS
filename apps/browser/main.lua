@@ -16,6 +16,18 @@ local DOWNLOADS = ROOT .. "/downloads.json"
 
 local REDIRECTS = { [301] = true, [302] = true, [307] = true, [308] = true }
 
+local ERROR_DEFS = {
+  ["BRW-000"] = { title = "Unknown browser error", hint = "The browser received an unexpected failure." },
+  ["BRW-001"] = { title = "HTTP API disabled", hint = "Enable HTTP in CC:Tweaked config, then reboot the world/client." },
+  ["BRW-002"] = { title = "Request failed", hint = "The host rejected the request, TLS failed, DNS failed, or the server is unreachable from Minecraft." },
+  ["BRW-003"] = { title = "Permission denied", hint = "MintCraft security blocked this network action." },
+  ["BRW-004"] = { title = "Too many redirects", hint = "The page redirected too many times. Try Reload or open the final URL manually." },
+  ["BRW-005"] = { title = "Invalid URL", hint = "Enter a full URL, a domain, or a search query." },
+  ["BRW-006"] = { title = "YouTube routed", hint = "Use CraftTube. Browser does not run YouTube JavaScript or HTML5 video." },
+  ["BRW-007"] = { title = "Cache read error", hint = "Clear /var/cache/browser or disable cache in Browser settings." },
+  ["BRW-008"] = { title = "Download failed", hint = "The file could not be downloaded or written to /home/user/downloads." },
+}
+
 local function ensureDirs()
   for _, path in ipairs({ ROOT, CACHE, "/home/user/downloads" }) do
     if not fs.exists(path) then fs.makeDir(path) end
@@ -81,7 +93,10 @@ end
 
 local function isYouTube(url)
   url = tostring(url or ""):lower()
-  return url:find("youtube%.com", 1, true) or url:find("youtu%.be", 1, true) or url:find("m%.youtube%.com", 1, true)
+  return url:find("youtube.com", 1, true)
+    or url:find("youtu.be", 1, true)
+    or url:find("m.youtube.com", 1, true)
+    or url:find("www.youtube.com", 1, true)
 end
 
 local function youtubeQuery(url)
@@ -94,6 +109,7 @@ end
 local function normalizeAddress(input, search)
   input = tostring(input or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if input == "" then return "mint://home" end
+  if isYouTube(input) and not input:match("^https?://") then return "https://" .. input end
   if input:match("^mint://") or input:match("^https?://") then return input end
   if input:match("^[%w%-_%.]+%.[%a][%a]+[/]?.*$") then return "https://" .. input end
   return (search or "https://duckduckgo.com/html/?q=") .. urlEncode(input)
@@ -233,6 +249,18 @@ local function newTab(url)
   }
 end
 
+local function classifyError(err)
+  local text = tostring(err or ""):lower()
+  if text:find("http api disabled", 1, true) then return "BRW-001" end
+  if text:find("permission", 1, true) or text:find("blocked", 1, true) then return "BRW-003" end
+  if text:find("redirect", 1, true) then return "BRW-004" end
+  if text:find("empty url", 1, true) or text:find("invalid", 1, true) then return "BRW-005" end
+  if text:find("cache", 1, true) then return "BRW-007" end
+  if text:find("download", 1, true) or text:find("write", 1, true) then return "BRW-008" end
+  if text:find("request failed", 1, true) or text:find("ssl", 1, true) or text:find("dns", 1, true) or text:find("timed", 1, true) or text:find("closed", 1, true) then return "BRW-002" end
+  return "BRW-000"
+end
+
 function M.run(ctx)
   ensureDirs()
   local settings = config.load(SETTINGS, defaultSettings())
@@ -264,8 +292,37 @@ function M.run(ctx)
     config.save(SETTINGS, settings)
   end
 
-  local function errorPage(title, message)
-    return { title = title, lines = { "# " .. title, "", message, "", "[Reload]  [Home]" }, links = {}, status = 0, error = true }
+  local function errorPage(code, detail, url)
+    code = code or classifyError(detail)
+    local def = ERROR_DEFS[code] or ERROR_DEFS["BRW-000"]
+    local lines = {
+      "# " .. code .. " - " .. def.title,
+      "",
+      "What happened:",
+      tostring(detail or def.title),
+      "",
+      "Meaning:",
+      def.hint,
+      "",
+      "URL:",
+      tostring(url or tab().url or "-"),
+      "",
+      "[1] Reload",
+      "[2] Home",
+      "[3] Open Network Settings",
+    }
+    return {
+      title = code,
+      lines = lines,
+      links = {
+        { index = 1, text = "Reload", url = tostring(url or tab().url or settings.home) },
+        { index = 2, text = "Home", url = settings.home },
+        { index = 3, text = "Settings", url = "mint://settings?network" },
+      },
+      status = 0,
+      error = true,
+      errorCode = code,
+    }
   end
 
   local function homePage()
@@ -276,14 +333,22 @@ function M.run(ctx)
       "",
       "Quick links:",
     }
-    for i, b in ipairs(app.bookmarks) do table.insert(lines, "[" .. i .. "] " .. b.title .. "  " .. b.url) end
+    local links = {}
+    for i, b in ipairs(app.bookmarks) do
+      table.insert(lines, "[" .. i .. "] " .. b.title .. "  " .. b.url)
+      table.insert(links, { index = i, text = b.title, url = b.url })
+    end
     table.insert(lines, "")
     table.insert(lines, "Recent:")
-    for i = 1, math.min(5, #app.history) do table.insert(lines, "- " .. app.history[i].title .. "  " .. app.history[i].url) end
+    for i = 1, math.min(5, #app.history) do
+      local idx = #links + 1
+      table.insert(lines, "[" .. idx .. "] " .. app.history[i].title .. "  " .. app.history[i].url)
+      table.insert(links, { index = idx, text = app.history[i].title, url = app.history[i].url })
+    end
     table.insert(lines, "")
     table.insert(lines, "Downloads:")
     for i = 1, math.min(3, #app.downloads) do table.insert(lines, "- " .. app.downloads[i].filename .. "  " .. app.downloads[i].status) end
-    return { title = "New Tab", lines = lines, links = {}, status = 200 }
+    return { title = "New Tab", lines = lines, links = links, status = 200 }
   end
 
   local function addHistory(t, page)
@@ -309,12 +374,14 @@ function M.run(ctx)
       t.url = url
       t.title = "YouTube"
       t.page = {
-        title = "Open in CraftTube",
+        title = "BRW-006",
         lines = {
-          "# YouTube detected",
+          "# BRW-006 - YouTube routed",
           "",
-          "MintCraft Browser follows the PDF target: no JavaScript or HTML5 video engine.",
-          "Use CraftTube for YouTube metadata and DFPWM proxy playback.",
+          ERROR_DEFS["BRW-006"].hint,
+          "",
+          "Reason:",
+          "YouTube requires JavaScript and media codecs that CC:Tweaked does not provide.",
           "",
           "[1] Open in CraftTube",
         },
@@ -340,7 +407,12 @@ function M.run(ctx)
     end
 
     local allowed, denied = ctx.security.require("network.http", url)
-    if not allowed then t.page = errorPage("Network blocked", denied) t.title = "Error" return end
+    if not allowed then
+      t.page = errorPage("BRW-003", denied, url)
+      t.title = t.page.title
+      app.status = "BRW-003 " .. tostring(denied)
+      return
+    end
 
     local previous = t.url
     local current = url
@@ -354,9 +426,11 @@ function M.run(ctx)
         response, err = httpClient.get(current, { headers = headersFor(current, previous) })
       end
       if not response then
-        t.page = errorPage("Network error", tostring(err))
-        t.title = "Error"
-        log.warn("browser", tostring(err))
+        local code = classifyError(err)
+        t.page = errorPage(code, tostring(err), current)
+        t.title = t.page.title
+        app.status = code .. " " .. tostring(err)
+        log.warn("browser", code .. " " .. tostring(err) .. " url=" .. tostring(current))
         return
       end
       local location = response.headers and (response.headers.Location or response.headers.location)
@@ -366,8 +440,9 @@ function M.run(ctx)
         break
       end
       if redirects == settings.maxRedirects then
-        t.page = errorPage("Too many redirects", current)
-        t.title = "Error"
+        t.page = errorPage("BRW-004", "Redirect limit reached", current)
+        t.title = t.page.title
+        app.status = "BRW-004 redirect limit"
         return
       end
     end
@@ -414,9 +489,9 @@ function M.run(ctx)
   local function download(url)
     url = url or tab().url
     local allowed, denied = ctx.security.require("network.http", url)
-    if not allowed then app.status = denied return end
+    if not allowed then app.status = "BRW-003 " .. tostring(denied) return end
     local response, err = httpClient.get(url, { headers = headersFor(url, tab().url) })
-    if not response then app.status = tostring(err) return end
+    if not response then app.status = classifyError(err) .. " " .. tostring(err) return end
     local filename = filenameFromUrl(url)
     local path = fs.combine(settings.downloadDir, filename)
     writeFile(path, response.body)
@@ -429,6 +504,8 @@ function M.run(ctx)
     if not link then return end
     if tostring(link.url):match("^mint://crafttube") then
       ctx.apps.launch("crafttube", { query = youtubeQuery(tab().url) })
+    elseif tostring(link.url):match("^mint://settings") then
+      ctx.apps.launch("settings")
     else
       loadUrl(link.url, true)
     end

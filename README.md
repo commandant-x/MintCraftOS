@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.14.1 base:
+This repository currently contains the V0.14.2 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -65,3 +65,14 @@ npm start
 ```
 
 CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.
+
+## Browser Error Codes
+
+- `BRW-001`: HTTP API disabled in CC:Tweaked.
+- `BRW-002`: network/TLS/DNS/request failure.
+- `BRW-003`: MintCraft permission denied.
+- `BRW-004`: too many redirects.
+- `BRW-005`: invalid URL.
+- `BRW-006`: YouTube routed to CraftTube.
+- `BRW-007`: browser cache issue.
+- `BRW-008`: download/write failure.

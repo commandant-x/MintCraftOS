@@ -23,12 +23,24 @@ function M.check()
   return M.lastStatus
 end
 
+local function classifyHttpFailure(err)
+  local text = tostring(err or "")
+  local lower = text:lower()
+  if lower:find("http api disabled", 1, true) then return "HTTP_DISABLED: " .. text end
+  if lower:find("ssl", 1, true) or lower:find("certificate", 1, true) or lower:find("handshake", 1, true) then return "TLS_ERROR: " .. text end
+  if lower:find("dns", 1, true) or lower:find("unknown host", 1, true) or lower:find("name", 1, true) then return "DNS_ERROR: " .. text end
+  if lower:find("timeout", 1, true) or lower:find("timed", 1, true) then return "TIMEOUT: " .. text end
+  if lower:find("refused", 1, true) then return "CONNECTION_REFUSED: " .. text end
+  if lower:find("closed", 1, true) or lower:find("reset", 1, true) then return "CONNECTION_CLOSED: " .. text end
+  return text
+end
+
 local function request(method, url, opts)
   opts = opts or {}
   url = trim(url)
   if url == "" then return nil, "empty URL" end
   if not url:match("^https?://") then url = "https://" .. url end
-  if not M.available() then return nil, "HTTP API disabled" end
+  if not M.available() then return nil, "HTTP_DISABLED: HTTP API disabled" end
 
   log.info("http", tostring(method or "GET") .. " " .. url)
   local ok, handle
@@ -38,12 +50,14 @@ local function request(method, url, opts)
     ok, handle = pcall(http.get, url, opts.headers)
   end
   if not ok then
-    log.error("http", tostring(handle))
-    return nil, tostring(handle)
+    local err = classifyHttpFailure(handle)
+    log.error("http", err)
+    return nil, err
   end
   if not handle then
-    log.warn("http", "request failed: " .. url)
-    return nil, "request failed"
+    local err = "REQUEST_FAILED: no response handle for " .. url
+    log.warn("http", err)
+    return nil, err
   end
 
   local body = handle.readAll() or ""

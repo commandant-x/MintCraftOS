@@ -1,4 +1,4 @@
--- MintCraft OS V0.14.1 installer for CC:Tweaked
+-- MintCraft OS V0.14.2 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -10,7 +10,7 @@ local files = {
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -32,6 +32,18 @@ local SETTINGS = ROOT .. "/settings.db"
 local DOWNLOADS = ROOT .. "/downloads.json"
 
 local REDIRECTS = { [301] = true, [302] = true, [307] = true, [308] = true }
+
+local ERROR_DEFS = {
+  ["BRW-000"] = { title = "Unknown browser error", hint = "The browser received an unexpected failure." },
+  ["BRW-001"] = { title = "HTTP API disabled", hint = "Enable HTTP in CC:Tweaked config, then reboot the world/client." },
+  ["BRW-002"] = { title = "Request failed", hint = "The host rejected the request, TLS failed, DNS failed, or the server is unreachable from Minecraft." },
+  ["BRW-003"] = { title = "Permission denied", hint = "MintCraft security blocked this network action." },
+  ["BRW-004"] = { title = "Too many redirects", hint = "The page redirected too many times. Try Reload or open the final URL manually." },
+  ["BRW-005"] = { title = "Invalid URL", hint = "Enter a full URL, a domain, or a search query." },
+  ["BRW-006"] = { title = "YouTube routed", hint = "Use CraftTube. Browser does not run YouTube JavaScript or HTML5 video." },
+  ["BRW-007"] = { title = "Cache read error", hint = "Clear /var/cache/browser or disable cache in Browser settings." },
+  ["BRW-008"] = { title = "Download failed", hint = "The file could not be downloaded or written to /home/user/downloads." },
+}
 
 local function ensureDirs()
   for _, path in ipairs({ ROOT, CACHE, "/home/user/downloads" }) do
@@ -98,7 +110,10 @@ end
 
 local function isYouTube(url)
   url = tostring(url or ""):lower()
-  return url:find("youtube%.com", 1, true) or url:find("youtu%.be", 1, true) or url:find("m%.youtube%.com", 1, true)
+  return url:find("youtube.com", 1, true)
+    or url:find("youtu.be", 1, true)
+    or url:find("m.youtube.com", 1, true)
+    or url:find("www.youtube.com", 1, true)
 end
 
 local function youtubeQuery(url)
@@ -111,6 +126,7 @@ end
 local function normalizeAddress(input, search)
   input = tostring(input or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if input == "" then return "mint://home" end
+  if isYouTube(input) and not input:match("^https?://") then return "https://" .. input end
   if input:match("^mint://") or input:match("^https?://") then return input end
   if input:match("^[%w%-_%.]+%.[%a][%a]+[/]?.*$") then return "https://" .. input end
   return (search or "https://duckduckgo.com/html/?q=") .. urlEncode(input)
@@ -250,6 +266,18 @@ local function newTab(url)
   }
 end
 
+local function classifyError(err)
+  local text = tostring(err or ""):lower()
+  if text:find("http api disabled", 1, true) then return "BRW-001" end
+  if text:find("permission", 1, true) or text:find("blocked", 1, true) then return "BRW-003" end
+  if text:find("redirect", 1, true) then return "BRW-004" end
+  if text:find("empty url", 1, true) or text:find("invalid", 1, true) then return "BRW-005" end
+  if text:find("cache", 1, true) then return "BRW-007" end
+  if text:find("download", 1, true) or text:find("write", 1, true) then return "BRW-008" end
+  if text:find("request failed", 1, true) or text:find("ssl", 1, true) or text:find("dns", 1, true) or text:find("timed", 1, true) or text:find("closed", 1, true) then return "BRW-002" end
+  return "BRW-000"
+end
+
 function M.run(ctx)
   ensureDirs()
   local settings = config.load(SETTINGS, defaultSettings())
@@ -281,8 +309,37 @@ function M.run(ctx)
     config.save(SETTINGS, settings)
   end
 
-  local function errorPage(title, message)
-    return { title = title, lines = { "# " .. title, "", message, "", "[Reload]  [Home]" }, links = {}, status = 0, error = true }
+  local function errorPage(code, detail, url)
+    code = code or classifyError(detail)
+    local def = ERROR_DEFS[code] or ERROR_DEFS["BRW-000"]
+    local lines = {
+      "# " .. code .. " - " .. def.title,
+      "",
+      "What happened:",
+      tostring(detail or def.title),
+      "",
+      "Meaning:",
+      def.hint,
+      "",
+      "URL:",
+      tostring(url or tab().url or "-"),
+      "",
+      "[1] Reload",
+      "[2] Home",
+      "[3] Open Network Settings",
+    }
+    return {
+      title = code,
+      lines = lines,
+      links = {
+        { index = 1, text = "Reload", url = tostring(url or tab().url or settings.home) },
+        { index = 2, text = "Home", url = settings.home },
+        { index = 3, text = "Settings", url = "mint://settings?network" },
+      },
+      status = 0,
+      error = true,
+      errorCode = code,
+    }
   end
 
   local function homePage()
@@ -293,14 +350,22 @@ function M.run(ctx)
       "",
       "Quick links:",
     }
-    for i, b in ipairs(app.bookmarks) do table.insert(lines, "[" .. i .. "] " .. b.title .. "  " .. b.url) end
+    local links = {}
+    for i, b in ipairs(app.bookmarks) do
+      table.insert(lines, "[" .. i .. "] " .. b.title .. "  " .. b.url)
+      table.insert(links, { index = i, text = b.title, url = b.url })
+    end
     table.insert(lines, "")
     table.insert(lines, "Recent:")
-    for i = 1, math.min(5, #app.history) do table.insert(lines, "- " .. app.history[i].title .. "  " .. app.history[i].url) end
+    for i = 1, math.min(5, #app.history) do
+      local idx = #links + 1
+      table.insert(lines, "[" .. idx .. "] " .. app.history[i].title .. "  " .. app.history[i].url)
+      table.insert(links, { index = idx, text = app.history[i].title, url = app.history[i].url })
+    end
     table.insert(lines, "")
     table.insert(lines, "Downloads:")
     for i = 1, math.min(3, #app.downloads) do table.insert(lines, "- " .. app.downloads[i].filename .. "  " .. app.downloads[i].status) end
-    return { title = "New Tab", lines = lines, links = {}, status = 200 }
+    return { title = "New Tab", lines = lines, links = links, status = 200 }
   end
 
   local function addHistory(t, page)
@@ -326,12 +391,14 @@ function M.run(ctx)
       t.url = url
       t.title = "YouTube"
       t.page = {
-        title = "Open in CraftTube",
+        title = "BRW-006",
         lines = {
-          "# YouTube detected",
+          "# BRW-006 - YouTube routed",
           "",
-          "MintCraft Browser follows the PDF target: no JavaScript or HTML5 video engine.",
-          "Use CraftTube for YouTube metadata and DFPWM proxy playback.",
+          ERROR_DEFS["BRW-006"].hint,
+          "",
+          "Reason:",
+          "YouTube requires JavaScript and media codecs that CC:Tweaked does not provide.",
           "",
           "[1] Open in CraftTube",
         },
@@ -357,7 +424,12 @@ function M.run(ctx)
     end
 
     local allowed, denied = ctx.security.require("network.http", url)
-    if not allowed then t.page = errorPage("Network blocked", denied) t.title = "Error" return end
+    if not allowed then
+      t.page = errorPage("BRW-003", denied, url)
+      t.title = t.page.title
+      app.status = "BRW-003 " .. tostring(denied)
+      return
+    end
 
     local previous = t.url
     local current = url
@@ -371,9 +443,11 @@ function M.run(ctx)
         response, err = httpClient.get(current, { headers = headersFor(current, previous) })
       end
       if not response then
-        t.page = errorPage("Network error", tostring(err))
-        t.title = "Error"
-        log.warn("browser", tostring(err))
+        local code = classifyError(err)
+        t.page = errorPage(code, tostring(err), current)
+        t.title = t.page.title
+        app.status = code .. " " .. tostring(err)
+        log.warn("browser", code .. " " .. tostring(err) .. " url=" .. tostring(current))
         return
       end
       local location = response.headers and (response.headers.Location or response.headers.location)
@@ -383,8 +457,9 @@ function M.run(ctx)
         break
       end
       if redirects == settings.maxRedirects then
-        t.page = errorPage("Too many redirects", current)
-        t.title = "Error"
+        t.page = errorPage("BRW-004", "Redirect limit reached", current)
+        t.title = t.page.title
+        app.status = "BRW-004 redirect limit"
         return
       end
     end
@@ -431,9 +506,9 @@ function M.run(ctx)
   local function download(url)
     url = url or tab().url
     local allowed, denied = ctx.security.require("network.http", url)
-    if not allowed then app.status = denied return end
+    if not allowed then app.status = "BRW-003 " .. tostring(denied) return end
     local response, err = httpClient.get(url, { headers = headersFor(url, tab().url) })
-    if not response then app.status = tostring(err) return end
+    if not response then app.status = classifyError(err) .. " " .. tostring(err) return end
     local filename = filenameFromUrl(url)
     local path = fs.combine(settings.downloadDir, filename)
     writeFile(path, response.body)
@@ -446,6 +521,8 @@ function M.run(ctx)
     if not link then return end
     if tostring(link.url):match("^mint://crafttube") then
       ctx.apps.launch("crafttube", { query = youtubeQuery(tab().url) })
+    elseif tostring(link.url):match("^mint://settings") then
+      ctx.apps.launch("settings")
     else
       loadUrl(link.url, true)
     end
@@ -569,7 +646,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -931,7 +1008,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -990,7 +1067,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1172,7 +1249,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1477,7 +1554,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1554,7 +1631,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1671,7 +1748,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1750,7 +1827,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2093,7 +2170,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -2202,7 +2279,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -2316,7 +2393,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.14.1",
+  version = "0.14.2",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -2696,7 +2773,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.14.1",
+  version = "0.14.2",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2980,7 +3057,7 @@ eeeeeee
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.14.1 base:
+This repository currently contains the V0.14.2 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -3043,6 +3120,17 @@ npm start
 ```
 
 CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.
+
+## Browser Error Codes
+
+- `BRW-001`: HTTP API disabled in CC:Tweaked.
+- `BRW-002`: network/TLS/DNS/request failure.
+- `BRW-003`: MintCraft permission denied.
+- `BRW-004`: too many redirects.
+- `BRW-005`: invalid URL.
+- `BRW-006`: YouTube routed to CraftTube.
+- `BRW-007`: browser cache issue.
+- `BRW-008`: download/write failure.
 ]],
   ["startup.lua"] = [[local candidates = {
   "/boot.lua",
@@ -3112,7 +3200,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.14.1",
+    version = "0.14.2",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -3138,8 +3226,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.14.1" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.1"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.14.2" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.2"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -3292,7 +3380,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.14.1",
+  version = "0.14.2",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -4317,19 +4405,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.1", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.1", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.1", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.1", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.1", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.1", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.1", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.1", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.1", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.1", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.1", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.2", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.2", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.2", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.2", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.2", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.2", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.2", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.2", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.2", permissions = { "packages.install", "filesystem.write" } })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.2", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.2", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -4555,7 +4643,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.14.1",
+    version = meta.version or "0.14.2",
     permissions = meta.permissions or {},
   }
 end
@@ -4722,12 +4810,24 @@ function M.check()
   return M.lastStatus
 end
 
+local function classifyHttpFailure(err)
+  local text = tostring(err or "")
+  local lower = text:lower()
+  if lower:find("http api disabled", 1, true) then return "HTTP_DISABLED: " .. text end
+  if lower:find("ssl", 1, true) or lower:find("certificate", 1, true) or lower:find("handshake", 1, true) then return "TLS_ERROR: " .. text end
+  if lower:find("dns", 1, true) or lower:find("unknown host", 1, true) or lower:find("name", 1, true) then return "DNS_ERROR: " .. text end
+  if lower:find("timeout", 1, true) or lower:find("timed", 1, true) then return "TIMEOUT: " .. text end
+  if lower:find("refused", 1, true) then return "CONNECTION_REFUSED: " .. text end
+  if lower:find("closed", 1, true) or lower:find("reset", 1, true) then return "CONNECTION_CLOSED: " .. text end
+  return text
+end
+
 local function request(method, url, opts)
   opts = opts or {}
   url = trim(url)
   if url == "" then return nil, "empty URL" end
   if not url:match("^https?://") then url = "https://" .. url end
-  if not M.available() then return nil, "HTTP API disabled" end
+  if not M.available() then return nil, "HTTP_DISABLED: HTTP API disabled" end
 
   log.info("http", tostring(method or "GET") .. " " .. url)
   local ok, handle
@@ -4737,12 +4837,14 @@ local function request(method, url, opts)
     ok, handle = pcall(http.get, url, opts.headers)
   end
   if not ok then
-    log.error("http", tostring(handle))
-    return nil, tostring(handle)
+    local err = classifyHttpFailure(handle)
+    log.error("http", err)
+    return nil, err
   end
   if not handle then
-    log.warn("http", "request failed: " .. url)
-    return nil, "request failed"
+    local err = "REQUEST_FAILED: no response handle for " .. url
+    log.warn("http", err)
+    return nil, err
   end
 
   local body = handle.readAll() or ""
@@ -6645,7 +6747,7 @@ if (-not (Test-Command "yt-dlp")) {
 
 npm start
 ]],
-  ["VERSION"] = [[0.14.1
+  ["VERSION"] = [[0.14.2
 ]],
 }
 
@@ -6667,5 +6769,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.14.1 installed.")
+print("MintCraft OS 0.14.2 installed.")
 print("Run reboot to start MintCraft OS.")
