@@ -1,4 +1,4 @@
--- MintCraft OS V0.14.2 installer for CC:Tweaked
+-- MintCraft OS V0.14.3 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [[.tools/
@@ -7,10 +7,113 @@ local files = {
   ["shell.allow_startup"] = true,
 }
 ]],
+  ["LICENSE"] = [[MIT License
+
+Copyright (c) 2026 commandant-x
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+]],
+  ["README.md"] = [[# MintCraft OS
+
+MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
+
+This repository currently contains the V0.14.3 base:
+
+- bootloader, splash, recovery and panic handling
+- persistent logs
+- cooperative scheduler and process table
+- event bus
+- terminal renderer, themes and window manager
+- desktop, taskbar, start menu, right-click context menu and stacked notifications
+- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
+- larger `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
+- shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
+- complete touch-first Files app with toolbar, open, create, rename, trash and delete confirmation
+- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
+- Editor integrated through Files for text/Lua files, with Lua compile check and Tab autocomplete/snippets
+- richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
+- GitHub Update app and boot-time update check through the `updated` service
+- update rollback snapshot restored from Update or Recovery
+- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
+- Terminal with file commands, process commands and touch autocomplete
+- Services, Logs and Task Manager apps with touch controls
+- HTTP/WebSocket network wrappers, `networkd` service and Chrome-like text/color Browser app
+- Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
+- CraftTube integrated from Browser for YouTube URLs/searches, using a configurable proxy/API with card-style results, favorites and history
+- CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
+- CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
+- Store and local package manager with bundled example packages
+- Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
+- user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
+- speaker audio driver and `audiod` service with Settings controls and notification/test tones
+- app crash isolation for process, window draw and input errors, with log entry and notification
+
+Not included yet: JavaScript/HTML5 video playback, encrypted password storage and per-file ACLs.
+
+Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
+
+```lua
+shell.run("/boot.lua")
+```
+
+## Install From GitHub
+
+On a CC:Tweaked computer with HTTP enabled:
+
+```lua
+wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
+```
+
+Then reboot:
+
+```lua
+reboot
+```
+
+## CraftTube Audio
+
+On your PC, install `yt-dlp` and `ffmpeg`, then run:
+
+```powershell
+cd tools\crafttube-dfpwm-proxy
+npm start
+```
+
+CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.
+
+## Browser Error Codes
+
+- `BRW-001`: HTTP API disabled in CC:Tweaked.
+- `BRW-002`: network/TLS/DNS/request failure.
+- `BRW-003`: MintCraft permission denied.
+- `BRW-004`: too many redirects.
+- `BRW-005`: invalid URL.
+- `BRW-006`: YouTube routed to CraftTube.
+- `BRW-007`: browser cache issue.
+- `BRW-008`: download/write failure.
+]],
+  ["VERSION"] = [[0.14.3
+]],
   ["apps/browser/app.cfg"] = [[{
   id = "browser",
   name = "Browser",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -121,6 +224,11 @@ local function youtubeQuery(url)
   local id = url:match("[?&]v=([%w%-_]+)") or url:match("youtu%.be/([%w%-_]+)")
   if id then return id end
   return urlDecode(url:match("[?&]search_query=([^&]+)") or url:match("[?&]q=([^&]+)") or "")
+end
+
+local function queryParam(url, name)
+  local encoded = tostring(url or ""):match("[?&]" .. name .. "=([^&]+)")
+  return encoded and urlDecode(encoded) or ""
 end
 
 local function normalizeAddress(input, search)
@@ -293,6 +401,7 @@ function M.run(ctx)
     history = loadData(HISTORY, {}),
     bookmarks = loadData(BOOKMARKS, {
       { title = "GitHub", url = "https://github.com" },
+      { title = "CraftTube", url = "mint://crafttube?q=" },
       { title = "YouTube", url = "https://youtube.com" },
       { title = "Docs", url = "https://tweaked.cc" },
     }),
@@ -384,9 +493,41 @@ function M.run(ctx)
     }
   end
 
+  local function openCraftTube(query)
+    query = tostring(query or "")
+    if query == "" then query = youtubeQuery(tab().url) end
+    if query == "" and app.address ~= "" then query = app.address end
+    local ok, err = ctx.apps.launch("crafttube", { query = query })
+    if ok then
+      app.status = query ~= "" and ("CraftTube search: " .. query) or "CraftTube opened"
+    else
+      app.status = tostring(err)
+    end
+  end
+
   local function loadUrl(url, addToHistory)
     local t = tab()
     url = normalizeAddress(url, settings.search)
+    if url:match("^mint://crafttube") then
+      local query = queryParam(url, "q")
+      t.url = url
+      t.title = "CraftTube"
+      t.page = {
+        title = "CraftTube",
+        lines = {
+          "# CraftTube",
+          "",
+          "YouTube runs inside MintCraft Browser through CraftTube.",
+          "Search and audio playback use the configured CraftTube proxies.",
+          "",
+          "[1] Open CraftTube",
+        },
+        links = { { index = 1, text = "Open CraftTube", url = url } },
+        status = 200,
+      }
+      openCraftTube(query)
+      return
+    end
     if isYouTube(url) then
       t.url = url
       t.title = "YouTube"
@@ -405,7 +546,7 @@ function M.run(ctx)
         links = { { index = 1, text = "Open in CraftTube", url = "mint://crafttube?q=" .. youtubeQuery(url) } },
         status = 200,
       }
-      app.status = "YouTube routed to CraftTube"
+      openCraftTube(youtubeQuery(url))
       return
     end
     if url == "mint://home" then
@@ -520,7 +661,7 @@ function M.run(ctx)
   local function openLink(link)
     if not link then return end
     if tostring(link.url):match("^mint://crafttube") then
-      ctx.apps.launch("crafttube", { query = youtubeQuery(tab().url) })
+      openCraftTube(queryParam(link.url, "q"))
     elseif tostring(link.url):match("^mint://settings") then
       ctx.apps.launch("settings")
     else
@@ -554,8 +695,9 @@ function M.run(ctx)
     renderer.writeAt(7, 2, "H", colors.black, colors.lightGray)
     renderer.writeAt(9, 2, "*", colors.black, colors.lightGray)
     renderer.writeAt(11, 2, "D", colors.black, colors.lightGray)
+    renderer.writeAt(13, 2, "YT", colors.white, colors.red)
     local addr = self.focusAddress and self.address or t.url
-    renderer.writeAt(14, 2, renderer.crop(addr, math.max(1, w - 13)), colors.black, colors.white)
+    renderer.writeAt(16, 2, renderer.crop(addr, math.max(1, w - 15)), colors.black, colors.white)
 
     local y = 3
     if settings.showBookmarks then
@@ -622,7 +764,8 @@ function M.run(ctx)
         if x == 7 then loadUrl(settings.home, true) return true end
         if x == 9 then addBookmark() return true end
         if x == 11 then download(t.url) return true end
-        if x >= 14 then self.focusAddress = true self.address = t.url return true end
+        if x == 13 or x == 14 then openCraftTube(youtubeQuery(t.url)) return true end
+        if x >= 16 then self.focusAddress = true self.address = t.url return true end
       elseif settings.showBookmarks and y == 3 then
         for _, b in ipairs(self.bookmarks) do
           if b.x and x >= b.x and x < b.x + b.w then loadUrl(b.url, true) return true end
@@ -646,7 +789,7 @@ return M
   ["apps/crafttube/app.cfg"] = [[{
   id = "crafttube",
   name = "CraftTube",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1008,7 +1151,7 @@ return M
   ["apps/devices/app.cfg"] = [[{
   id = "devices",
   name = "Devices",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -1067,7 +1210,7 @@ return M
   ["apps/editor/app.cfg"] = [[{
   id = "editor",
   name = "Editor",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1249,7 +1392,7 @@ return M
   ["apps/files/app.cfg"] = [[{
   id = "files",
   name = "Files",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1554,7 +1697,7 @@ return M
   ["apps/logs/app.cfg"] = [[{
   id = "logs",
   name = "Logs",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1631,7 +1774,7 @@ return M
   ["apps/messenger/app.cfg"] = [[{
   id = "messenger",
   name = "Messenger",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1748,7 +1891,7 @@ return M
   ["apps/services/app.cfg"] = [[{
   id = "services",
   name = "Services",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -1827,7 +1970,7 @@ return M
   ["apps/settings/app.cfg"] = [[{
   id = "settings",
   name = "Settings",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2012,10 +2155,10 @@ function M.run(ctx)
         if item then renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. item.version, w), colors.black, colors.lightGray) end
       end
     elseif self.page == "dev" then
-      renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
+      renderer.writeAt(1, 3, "Editor: embedded in Files for text and Lua files", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
-      renderer.button(1, 7, 14, "Open Editor", false)
+      renderer.button(1, 7, 14, "Open Files", false)
     end
     if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
       self.keyboard.x = 1
@@ -2154,7 +2297,7 @@ function M.run(ctx)
       ctx.apps.launch("crafttube")
       return true
     elseif self.page == "dev" and y == 7 and x <= 14 then
-      ctx.apps.launch("editor")
+      ctx.apps.launch("files")
       return true
     end
     return false
@@ -2170,7 +2313,7 @@ return M
   ["apps/store/app.cfg"] = [[{
   id = "store",
   name = "Store",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -2210,6 +2353,10 @@ function M.run(ctx)
     self.toolbar = ui.toolbar(1, 1, w, actions)
     renderer.writeAt(1, 2, renderer.crop("PACKAGE        VERSION   STATE", w), colors.black, colors.gray)
     local list = rows()
+    if #list == 0 then
+      renderer.writeAt(1, 4, renderer.crop("No packages loaded from /packages/sources.db", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 5, renderer.crop("Reinstall or restore the package source file.", w), colors.gray, colors.lightGray)
+    end
     for i = 1, math.min(#list, h - 6) do
       local pkg = list[self.scroll + i - 1]
       if pkg then
@@ -2279,7 +2426,7 @@ return M
   ["apps/taskmanager/app.cfg"] = [[{
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -2393,7 +2540,7 @@ return M
   ["apps/terminal/app.cfg"] = [[{
   id = "terminal",
   name = "Terminal",
-  version = "0.14.2",
+  version = "0.14.3",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -2773,7 +2920,7 @@ return M
   ["apps/update/app.cfg"] = [[{
   id = "update",
   name = "Update",
-  version = "0.14.2",
+  version = "0.14.3",
 }
 ]],
   ["apps/update/main.lua"] = [[local renderer = require("system.gui.renderer")
@@ -2914,28 +3061,6 @@ if not ok then
   end
 end
 ]],
-  ["LICENSE"] = [[MIT License
-
-Copyright (c) 2026 commandant-x
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-]],
   ["packages/installed.db"] = [[{}
 ]],
   ["packages/sources.db"] = [=[{
@@ -3050,88 +3175,148 @@ eeeeeee
 ]],
       },
     },
+    {
+      id = "calculator",
+      name = "Calculator",
+      version = "1.0.0",
+      description = "Small safe calculator for quick arithmetic.",
+      permissions = {},
+      app = {
+        id = "calculator",
+        name = "Calculator",
+        module = "apps.calculator.main",
+        icon = "CA",
+        iconPath = "/system/themes/icons/calculator.nfp",
+        category = "Tools",
+        permissions = {},
+      },
+      files = {
+        ["apps/calculator/app.cfg"] = [[{
+  id = "calculator",
+  name = "Calculator",
+  version = "1.0.0",
+  main = "apps.calculator.main",
+  permissions = {},
+}
+]],
+        ["apps/calculator/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+
+local M = {}
+
+local function safeEval(expr)
+  expr = tostring(expr or "")
+  if expr:find("[^%d%+%-%*/%%%(%)%.%s]") then return nil, "invalid character" end
+  local fn, err = load("return " .. expr, "calculator", "t", {})
+  if not fn then return nil, err end
+  local ok, value = pcall(fn)
+  if not ok then return nil, value end
+  return tostring(value)
+end
+
+function M.run(ctx)
+  local app = { input = "", result = "", keyboard = {} }
+  app.keyboard.onText = function(ch) app.input = app.input .. ch end
+  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
+  app.keyboard.onEnter = function()
+    local value, err = safeEval(app.input)
+    app.result = value or tostring(err)
+  end
+
+  function app:draw(w, h)
+    renderer.writeAt(1, 1, renderer.crop("Calculator", w), colors.white, colors.gray)
+    renderer.writeAt(1, 3, renderer.crop("> " .. self.input, w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("= " .. self.result, w), colors.blue, colors.lightGray)
+    self.keyboard.x = 1
+    self.keyboard.y = h - keyboard.height() + 1
+    self.keyboard.hint = "Expression"
+    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+  end
+
+  function app:handle(event)
+    if event.name == "char" then self.input = self.input .. event.args[1] return true end
+    if event.name == "key" then
+      local key = event.args[1]
+      if key == keys.backspace then self.input = self.input:sub(1, -2) return true end
+      if key == keys.enter then self.keyboard.onEnter() return true end
+    end
+    if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Calculator", w = math.min(46, sw - 4), h = math.min(18, sh - 3), x = 9, y = 4, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
+        ["system/themes/icons/calculator.nfp"] = [[9999999
+9fffff9
+9f999f9
+9fffff9
+9f9f9f9
+9999999
+]],
+      },
+    },
+    {
+      id = "clock",
+      name = "Clock",
+      version = "1.0.0",
+      description = "Simple desktop clock window.",
+      permissions = {},
+      app = {
+        id = "clock",
+        name = "Clock",
+        module = "apps.clock.main",
+        icon = "CL",
+        iconPath = "/system/themes/icons/clock.nfp",
+        category = "Tools",
+        permissions = {},
+      },
+      files = {
+        ["apps/clock/app.cfg"] = [[{
+  id = "clock",
+  name = "Clock",
+  version = "1.0.0",
+  main = "apps.clock.main",
+  permissions = {},
+}
+]],
+        ["apps/clock/main.lua"] = [[local renderer = require("system.gui.renderer")
+
+local M = {}
+
+function M.run(ctx)
+  local app = {}
+  function app:draw(w, h)
+    renderer.writeAt(1, 1, renderer.crop("Clock", w), colors.white, colors.gray)
+    renderer.writeAt(2, 3, textutils.formatTime(os.time(), true), colors.black, colors.lightGray)
+    renderer.writeAt(2, 5, "Tap to refresh", colors.gray, colors.lightGray)
+  end
+  function app:handle(event)
+    return event.name == "mouse_click"
+  end
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Clock", w = math.min(26, sw - 4), h = math.min(8, sh - 3), x = 10, y = 5, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
+        ["system/themes/icons/clock.nfp"] = [[7777777
+7fffff7
+7ff7ff7
+7f777f7
+7fffff7
+7777777
+]],
+      },
+    },
   },
 }
 ]=],
-  ["README.md"] = [[# MintCraft OS
-
-MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
-
-This repository currently contains the V0.14.2 base:
-
-- bootloader, splash, recovery and panic handling
-- persistent logs
-- cooperative scheduler and process table
-- event bus
-- terminal renderer, themes and window manager
-- desktop, taskbar, start menu, right-click context menu and stacked notifications
-- monitor auto-display through `deviced`, tuned for a 4x3 block monitor minimum at text scale 0.5
-- larger `.nfp` app icons with text fallback, searchable start menu and AZERTY touch keyboard
-- shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
-- complete touch-first Files app with toolbar, open, create, rename, trash and delete confirmation
-- shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
-- Editor app with Lua compile check and Tab autocomplete/snippets
-- richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
-- GitHub Update app and boot-time update check through the `updated` service
-- update rollback snapshot restored from Update or Recovery
-- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
-- Terminal with file commands, process commands and touch autocomplete
-- Services, Logs and Task Manager apps with touch controls
-- HTTP/WebSocket network wrappers, `networkd` service and Chrome-like text/color Browser app
-- Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
-- CraftTube native metadata client using a configurable proxy/API with card-style results, favorites and history
-- CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
-- CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
-- Store and local package manager with installable package manifests
-- Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
-- user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
-- speaker audio driver and `audiod` service with Settings controls and notification/test tones
-- app crash isolation for process, window draw and input errors, with log entry and notification
-
-Not included yet: JavaScript/HTML5 video playback, encrypted password storage and per-file ACLs.
-
-Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
-
-```lua
-shell.run("/boot.lua")
-```
-
-## Install From GitHub
-
-On a CC:Tweaked computer with HTTP enabled:
-
-```lua
-wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
-```
-
-Then reboot:
-
-```lua
-reboot
-```
-
-## CraftTube Audio
-
-On your PC, install `yt-dlp` and `ffmpeg`, then run:
-
-```powershell
-cd tools\crafttube-dfpwm-proxy
-npm start
-```
-
-CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another machine, open CraftTube, tap `Audio`, and enter the proxy PC IP instead.
-
-## Browser Error Codes
-
-- `BRW-001`: HTTP API disabled in CC:Tweaked.
-- `BRW-002`: network/TLS/DNS/request failure.
-- `BRW-003`: MintCraft permission denied.
-- `BRW-004`: too many redirects.
-- `BRW-005`: invalid URL.
-- `BRW-006`: YouTube routed to CraftTube.
-- `BRW-007`: browser cache issue.
-- `BRW-008`: download/write failure.
-]],
   ["startup.lua"] = [[local candidates = {
   "/boot.lua",
   "boot.lua",
@@ -3200,7 +3385,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.14.2",
+    version = "0.14.3",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -3226,8 +3411,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.14.2" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.2"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.14.3" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.14.3"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -3380,7 +3565,7 @@ return M
 }
 ]],
   ["system/config/system.cfg"] = [[{
-  version = "0.14.2",
+  version = "0.14.3",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -3816,14 +4001,11 @@ local function drawIcons()
   local labels = {
     { app = "terminal" },
     { app = "browser" },
-    { app = "crafttube" },
     { app = "messenger" },
     { app = "files" },
-    { app = "editor" },
     { app = "settings" },
     { app = "devices" },
     { app = "taskmanager" },
-    { app = "store" },
     { app = "update" },
   }
   local icons = {}
@@ -3974,7 +4156,7 @@ local function openContextMenu(x, y)
         local path = nextFreePath("/home/user/desktop/new_script_", ".lua")
         local h = fs.open(path, "w")
         if h then h.write("print(\"hello\")\n") h.close() end
-        launch("editor", { path = path })
+        launch("files", { path = "/home/user/desktop" })
       end },
       { label = "Terminal", action = function() launch("terminal") end },
       { label = "Settings", action = function() launch("settings") end },
@@ -4405,19 +4587,19 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.2", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.2", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.2", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.2", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.2", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.2", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.2", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.2", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.2", permissions = { "packages.install", "filesystem.write" } })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.2", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" } })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.2", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.14.3", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.14.3", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.14.3", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.14.3", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.14.3", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.14.3", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.14.3", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.14.3", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.14.3", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.14.3", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.14.3", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.14.3", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.14.3", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -4643,8 +4825,9 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.14.2",
+    version = meta.version or "0.14.3",
     permissions = meta.permissions or {},
+    hidden = meta.hidden == true,
   }
 end
 
@@ -4652,9 +4835,11 @@ function M.get(id)
   return M.registry[id]
 end
 
-function M.list()
+function M.list(includeHidden)
   local rows = {}
-  for _, app in pairs(M.registry) do table.insert(rows, app) end
+  for _, app in pairs(M.registry) do
+    if includeHidden or not app.hidden then table.insert(rows, app) end
+  end
   table.sort(rows, function(a, b) return a.name < b.name end)
   return rows
 end
@@ -6459,19 +6644,6 @@ end
 
 return WindowManager
 ]],
-  ["tools/crafttube-dfpwm-proxy/package.json"] = [[{
-  "name": "mintcraft-crafttube-dfpwm-proxy",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Local YouTube to DFPWM proxy for MintCraft OS CraftTube.",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
-  }
-}
-]],
   ["tools/crafttube-dfpwm-proxy/README.md"] = [[# CraftTube DFPWM Proxy
 
 This local proxy lets MintCraft OS play CraftTube audio on a CC:Tweaked speaker.
@@ -6547,6 +6719,19 @@ $env:YT_DLP_BIN="C:\path\to\yt-dlp.exe"
 $env:FFMPEG_BIN="C:\path\to\ffmpeg.exe"
 npm start
 ```
+]],
+  ["tools/crafttube-dfpwm-proxy/package.json"] = [[{
+  "name": "mintcraft-crafttube-dfpwm-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local YouTube to DFPWM proxy for MintCraft OS CraftTube.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
 ]],
   ["tools/crafttube-dfpwm-proxy/server.js"] = [["use strict";
 
@@ -6747,8 +6932,6 @@ if (-not (Test-Command "yt-dlp")) {
 
 npm start
 ]],
-  ["VERSION"] = [[0.14.2
-]],
 }
 
 local function ensureDir(path)
@@ -6769,5 +6952,5 @@ for path, content in pairs(files) do
   print("wrote " .. path)
 end
 
-print("MintCraft OS 0.14.2 installed.")
+print("MintCraft OS 0.14.3 installed.")
 print("Run reboot to start MintCraft OS.")

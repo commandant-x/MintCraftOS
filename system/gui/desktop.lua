@@ -26,14 +26,11 @@ local function drawIcons()
   local labels = {
     { app = "terminal" },
     { app = "browser" },
-    { app = "crafttube" },
     { app = "messenger" },
     { app = "files" },
-    { app = "editor" },
     { app = "settings" },
     { app = "devices" },
     { app = "taskmanager" },
-    { app = "store" },
     { app = "update" },
   }
   local icons = {}
@@ -184,7 +181,7 @@ local function openContextMenu(x, y)
         local path = nextFreePath("/home/user/desktop/new_script_", ".lua")
         local h = fs.open(path, "w")
         if h then h.write("print(\"hello\")\n") h.close() end
-        launch("editor", { path = path })
+        launch("files", { path = "/home/user/desktop" })
       end },
       { label = "Terminal", action = function() launch("terminal") end },
       { label = "Settings", action = function() launch("settings") end },

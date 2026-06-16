@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.14.2 base:
+This repository currently contains the V0.14.3 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -15,7 +15,7 @@ This repository currently contains the V0.14.2 base:
 - shared GUI components for buttons, tabs, toolbars, lists, inputs and dialogs
 - complete touch-first Files app with toolbar, open, create, rename, trash and delete confirmation
 - shared global AZERTY keyboard component reused by desktop search, Files, Terminal and Editor
-- Editor app with Lua compile check and Tab autocomplete/snippets
+- Editor integrated through Files for text/Lua files, with Lua compile check and Tab autocomplete/snippets
 - richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
 - GitHub Update app and boot-time update check through the `updated` service
 - update rollback snapshot restored from Update or Recovery
@@ -24,10 +24,10 @@ This repository currently contains the V0.14.2 base:
 - Services, Logs and Task Manager apps with touch controls
 - HTTP/WebSocket network wrappers, `networkd` service and Chrome-like text/color Browser app
 - Browser tabs, address bar, Back/Forward/Reload/Home, clickable links, bookmarks, history, downloads and HTML cache
-- CraftTube native metadata client using a configurable proxy/API with card-style results, favorites and history
+- CraftTube integrated from Browser for YouTube URLs/searches, using a configurable proxy/API with card-style results, favorites and history
 - CraftTube defaults to the public Invidious API at `https://inv.thepixora.com`, with local fallback instances configurable
 - CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
-- Store and local package manager with installable package manifests
+- Store and local package manager with bundled example packages
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones

@@ -178,10 +178,10 @@ function M.run(ctx)
         if item then renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. item.version, w), colors.black, colors.lightGray) end
       end
     elseif self.page == "dev" then
-      renderer.writeAt(1, 3, "Editor: compile Lua with loadfile()", colors.black, colors.lightGray)
+      renderer.writeAt(1, 3, "Editor: embedded in Files for text and Lua files", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
       renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
-      renderer.button(1, 7, 14, "Open Editor", false)
+      renderer.button(1, 7, 14, "Open Files", false)
     end
     if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
       self.keyboard.x = 1
@@ -320,7 +320,7 @@ function M.run(ctx)
       ctx.apps.launch("crafttube")
       return true
     elseif self.page == "dev" and y == 7 and x <= 14 then
-      ctx.apps.launch("editor")
+      ctx.apps.launch("files")
       return true
     end
     return false

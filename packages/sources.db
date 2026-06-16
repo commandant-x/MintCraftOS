@@ -110,5 +110,144 @@ eeeeeee
 ]],
       },
     },
+    {
+      id = "calculator",
+      name = "Calculator",
+      version = "1.0.0",
+      description = "Small safe calculator for quick arithmetic.",
+      permissions = {},
+      app = {
+        id = "calculator",
+        name = "Calculator",
+        module = "apps.calculator.main",
+        icon = "CA",
+        iconPath = "/system/themes/icons/calculator.nfp",
+        category = "Tools",
+        permissions = {},
+      },
+      files = {
+        ["apps/calculator/app.cfg"] = [[{
+  id = "calculator",
+  name = "Calculator",
+  version = "1.0.0",
+  main = "apps.calculator.main",
+  permissions = {},
+}
+]],
+        ["apps/calculator/main.lua"] = [[local renderer = require("system.gui.renderer")
+local keyboard = require("system.gui.keyboard")
+
+local M = {}
+
+local function safeEval(expr)
+  expr = tostring(expr or "")
+  if expr:find("[^%d%+%-%*/%%%(%)%.%s]") then return nil, "invalid character" end
+  local fn, err = load("return " .. expr, "calculator", "t", {})
+  if not fn then return nil, err end
+  local ok, value = pcall(fn)
+  if not ok then return nil, value end
+  return tostring(value)
+end
+
+function M.run(ctx)
+  local app = { input = "", result = "", keyboard = {} }
+  app.keyboard.onText = function(ch) app.input = app.input .. ch end
+  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
+  app.keyboard.onEnter = function()
+    local value, err = safeEval(app.input)
+    app.result = value or tostring(err)
+  end
+
+  function app:draw(w, h)
+    renderer.writeAt(1, 1, renderer.crop("Calculator", w), colors.white, colors.gray)
+    renderer.writeAt(1, 3, renderer.crop("> " .. self.input, w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("= " .. self.result, w), colors.blue, colors.lightGray)
+    self.keyboard.x = 1
+    self.keyboard.y = h - keyboard.height() + 1
+    self.keyboard.hint = "Expression"
+    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+  end
+
+  function app:handle(event)
+    if event.name == "char" then self.input = self.input .. event.args[1] return true end
+    if event.name == "key" then
+      local key = event.args[1]
+      if key == keys.backspace then self.input = self.input:sub(1, -2) return true end
+      if key == keys.enter then self.keyboard.onEnter() return true end
+    end
+    if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Calculator", w = math.min(46, sw - 4), h = math.min(18, sh - 3), x = 9, y = 4, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
+        ["system/themes/icons/calculator.nfp"] = [[9999999
+9fffff9
+9f999f9
+9fffff9
+9f9f9f9
+9999999
+]],
+      },
+    },
+    {
+      id = "clock",
+      name = "Clock",
+      version = "1.0.0",
+      description = "Simple desktop clock window.",
+      permissions = {},
+      app = {
+        id = "clock",
+        name = "Clock",
+        module = "apps.clock.main",
+        icon = "CL",
+        iconPath = "/system/themes/icons/clock.nfp",
+        category = "Tools",
+        permissions = {},
+      },
+      files = {
+        ["apps/clock/app.cfg"] = [[{
+  id = "clock",
+  name = "Clock",
+  version = "1.0.0",
+  main = "apps.clock.main",
+  permissions = {},
+}
+]],
+        ["apps/clock/main.lua"] = [[local renderer = require("system.gui.renderer")
+
+local M = {}
+
+function M.run(ctx)
+  local app = {}
+  function app:draw(w, h)
+    renderer.writeAt(1, 1, renderer.crop("Clock", w), colors.white, colors.gray)
+    renderer.writeAt(2, 3, textutils.formatTime(os.time(), true), colors.black, colors.lightGray)
+    renderer.writeAt(2, 5, "Tap to refresh", colors.gray, colors.lightGray)
+  end
+  function app:handle(event)
+    return event.name == "mouse_click"
+  end
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Clock", w = math.min(26, sw - 4), h = math.min(8, sh - 3), x = 10, y = 5, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]],
+        ["system/themes/icons/clock.nfp"] = [[7777777
+7fffff7
+7ff7ff7
+7f777f7
+7fffff7
+7777777
+]],
+      },
+    },
   },
 }

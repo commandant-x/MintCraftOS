@@ -19,8 +19,9 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.14.2",
+    version = meta.version or "0.14.3",
     permissions = meta.permissions or {},
+    hidden = meta.hidden == true,
   }
 end
 
@@ -28,9 +29,11 @@ function M.get(id)
   return M.registry[id]
 end
 
-function M.list()
+function M.list(includeHidden)
   local rows = {}
-  for _, app in pairs(M.registry) do table.insert(rows, app) end
+  for _, app in pairs(M.registry) do
+    if includeHidden or not app.hidden then table.insert(rows, app) end
+  end
   table.sort(rows, function(a, b) return a.name < b.name end)
   return rows
 end

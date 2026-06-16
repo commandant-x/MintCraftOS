@@ -33,6 +33,10 @@ function M.run(ctx)
     self.toolbar = ui.toolbar(1, 1, w, actions)
     renderer.writeAt(1, 2, renderer.crop("PACKAGE        VERSION   STATE", w), colors.black, colors.gray)
     local list = rows()
+    if #list == 0 then
+      renderer.writeAt(1, 4, renderer.crop("No packages loaded from /packages/sources.db", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 5, renderer.crop("Reinstall or restore the package source file.", w), colors.gray, colors.lightGray)
+    end
     for i = 1, math.min(#list, h - 6) do
       local pkg = list[self.scroll + i - 1]
       if pkg then

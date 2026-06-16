@@ -106,6 +106,11 @@ local function youtubeQuery(url)
   return urlDecode(url:match("[?&]search_query=([^&]+)") or url:match("[?&]q=([^&]+)") or "")
 end
 
+local function queryParam(url, name)
+  local encoded = tostring(url or ""):match("[?&]" .. name .. "=([^&]+)")
+  return encoded and urlDecode(encoded) or ""
+end
+
 local function normalizeAddress(input, search)
   input = tostring(input or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if input == "" then return "mint://home" end
@@ -276,6 +281,7 @@ function M.run(ctx)
     history = loadData(HISTORY, {}),
     bookmarks = loadData(BOOKMARKS, {
       { title = "GitHub", url = "https://github.com" },
+      { title = "CraftTube", url = "mint://crafttube?q=" },
       { title = "YouTube", url = "https://youtube.com" },
       { title = "Docs", url = "https://tweaked.cc" },
     }),
@@ -367,9 +373,41 @@ function M.run(ctx)
     }
   end
 
+  local function openCraftTube(query)
+    query = tostring(query or "")
+    if query == "" then query = youtubeQuery(tab().url) end
+    if query == "" and app.address ~= "" then query = app.address end
+    local ok, err = ctx.apps.launch("crafttube", { query = query })
+    if ok then
+      app.status = query ~= "" and ("CraftTube search: " .. query) or "CraftTube opened"
+    else
+      app.status = tostring(err)
+    end
+  end
+
   local function loadUrl(url, addToHistory)
     local t = tab()
     url = normalizeAddress(url, settings.search)
+    if url:match("^mint://crafttube") then
+      local query = queryParam(url, "q")
+      t.url = url
+      t.title = "CraftTube"
+      t.page = {
+        title = "CraftTube",
+        lines = {
+          "# CraftTube",
+          "",
+          "YouTube runs inside MintCraft Browser through CraftTube.",
+          "Search and audio playback use the configured CraftTube proxies.",
+          "",
+          "[1] Open CraftTube",
+        },
+        links = { { index = 1, text = "Open CraftTube", url = url } },
+        status = 200,
+      }
+      openCraftTube(query)
+      return
+    end
     if isYouTube(url) then
       t.url = url
       t.title = "YouTube"
@@ -388,7 +426,7 @@ function M.run(ctx)
         links = { { index = 1, text = "Open in CraftTube", url = "mint://crafttube?q=" .. youtubeQuery(url) } },
         status = 200,
       }
-      app.status = "YouTube routed to CraftTube"
+      openCraftTube(youtubeQuery(url))
       return
     end
     if url == "mint://home" then
@@ -503,7 +541,7 @@ function M.run(ctx)
   local function openLink(link)
     if not link then return end
     if tostring(link.url):match("^mint://crafttube") then
-      ctx.apps.launch("crafttube", { query = youtubeQuery(tab().url) })
+      openCraftTube(queryParam(link.url, "q"))
     elseif tostring(link.url):match("^mint://settings") then
       ctx.apps.launch("settings")
     else
@@ -537,8 +575,9 @@ function M.run(ctx)
     renderer.writeAt(7, 2, "H", colors.black, colors.lightGray)
     renderer.writeAt(9, 2, "*", colors.black, colors.lightGray)
     renderer.writeAt(11, 2, "D", colors.black, colors.lightGray)
+    renderer.writeAt(13, 2, "YT", colors.white, colors.red)
     local addr = self.focusAddress and self.address or t.url
-    renderer.writeAt(14, 2, renderer.crop(addr, math.max(1, w - 13)), colors.black, colors.white)
+    renderer.writeAt(16, 2, renderer.crop(addr, math.max(1, w - 15)), colors.black, colors.white)
 
     local y = 3
     if settings.showBookmarks then
@@ -605,7 +644,8 @@ function M.run(ctx)
         if x == 7 then loadUrl(settings.home, true) return true end
         if x == 9 then addBookmark() return true end
         if x == 11 then download(t.url) return true end
-        if x >= 14 then self.focusAddress = true self.address = t.url return true end
+        if x == 13 or x == 14 then openCraftTube(youtubeQuery(t.url)) return true end
+        if x >= 16 then self.focusAddress = true self.address = t.url return true end
       elseif settings.showBookmarks and y == 3 then
         for _, b in ipairs(self.bookmarks) do
           if b.x and x >= b.x and x < b.x + b.w then loadUrl(b.url, true) return true end
