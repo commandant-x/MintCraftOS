@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.17.2 base:
+This repository currently contains the V0.17.3 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -33,6 +33,7 @@ This repository currently contains the V0.17.2 base:
 - Combat app for Create: Radars / CC:CBC probing, target lists, semi-auto aiming and confirmed fire control
 - Combat reads Create: Radars track methods such as `getSelectedTrack`/`getTracks` when exposed, and shows a radar diagnostic when no target API is available
 - Combat radar view refreshes on a timer and draws a tactical scope with radar cone, ship marker, target markers and selected target details
+- Combat scope follows radar heading when exposed, falls back to a simulated sweep, and prefers rendered target names over UUIDs
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 - app crash isolation for process, window draw and input errors, with log entry and notification

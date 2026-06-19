@@ -19,7 +19,9 @@ local DEFAULT_CFG = {
 local READ_METHODS = {
   "getYaw", "getPitch", "getX", "getY", "getZ", "isRunning",
   "isAssembled", "isLoaded", "isReady", "getAmmo", "getAmmunition",
-  "getRange", "getHeading", "getTarget", "getTargets", "scan",
+  "getRange", "getFov", "getFOV", "getHeading", "getBearing",
+  "getRotation", "getAngle", "getFacing", "getDirection",
+  "getTarget", "getTargets", "scan",
   "getSelectedTrack", "getTrack", "getTracks", "getAllTracks",
   "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts",
   "getDetections", "getDetectedEntities", "getBlips", "getAircraft",
@@ -31,6 +33,10 @@ local TARGET_METHODS = {
   "getContacts", "getDetections", "getDetectedEntities", "getBlips",
   "getAircraft", "getTarget",
 }
+
+local RADAR_HEADING_METHODS = { "getHeading", "getBearing", "getYaw", "getRotation", "getAngle", "getFacing", "getDirection" }
+local RADAR_RANGE_METHODS = { "getRange", "getRadius", "getScanRange", "getMaxRange" }
+local RADAR_FOV_METHODS = { "getFov", "getFOV", "getScanFov", "getConeAngle" }
 
 local function cfg()
   local out = config.load(M.cfgPath, {})
@@ -138,6 +144,28 @@ local function numberField(value, ...)
   return nil
 end
 
+local function stringField(value, ...)
+  if type(value) ~= "table" then return nil end
+  for i = 1, select("#", ...) do
+    local key = select(i, ...)
+    local v = value[key]
+    if type(v) == "string" and v ~= "" then return v end
+    if type(v) == "number" or type(v) == "boolean" then return tostring(v) end
+  end
+  return nil
+end
+
+local function scalarFromCall(device, set, methods)
+  for _, method in ipairs(methods) do
+    if set[method] then
+      local value = call(device, method)
+      if tonumber(value) then return tonumber(value), method end
+      if type(value) == "string" and value ~= "" then return value, method end
+    end
+  end
+  return nil, nil
+end
+
 local function firstTable(...)
   for i = 1, select("#", ...) do
     local value = select(i, ...)
@@ -160,6 +188,9 @@ local function normalizeTarget(raw, index)
   local t = type(raw) == "table" and raw or { label = tostring(raw) }
   local position = firstTable(t.position, t.pos, t.location, t.worldPosition, t.globalPosition)
   local velocity = firstTable(t.velocity, t.vel, t.motion)
+  local entity = firstTable(t.entity, t.object, t.track, t.target, t.render, t.data)
+  local label = stringField(t, "renderName", "displayName", "username", "playerName", "ownerName", "entityName", "name", "callsign", "label", "type")
+    or stringField(entity, "renderName", "displayName", "username", "playerName", "ownerName", "entityName", "name", "callsign", "label", "type")
   local x = numberField(t, "x", "X", "posX", "targetX") or numberField(position, "x", "X", 1)
   local y = numberField(t, "y", "Y", "posY", "altitude", "height", "targetY") or numberField(position, "y", "Y", 2)
   local z = numberField(t, "z", "Z", "posZ", "targetZ") or numberField(position, "z", "Z", 3)
@@ -167,7 +198,8 @@ local function normalizeTarget(raw, index)
   local bearing = tonumber(t.bearing or t.heading or t.yaw)
   return {
     id = tostring(t.id or t.uuid or t.name or ("target-" .. tostring(index))),
-    label = tostring(t.label or t.name or t.type or t.id or ("Target " .. tostring(index))),
+    label = tostring(label or t.id or t.uuid or ("Target " .. tostring(index))),
+    renderName = label,
     x = x,
     y = y,
     z = z,
@@ -209,6 +241,27 @@ local function targetReadiness(methods)
     if set[method] then table.insert(available, method) end
   end
   return available
+end
+
+local function readRadar(device, item)
+  local methods = item.methods or {}
+  local set = methodSet(methods)
+  local heading, headingMethod = scalarFromCall(device, set, RADAR_HEADING_METHODS)
+  local range, rangeMethod = scalarFromCall(device, set, RADAR_RANGE_METHODS)
+  local fov, fovMethod = scalarFromCall(device, set, RADAR_FOV_METHODS)
+  return {
+    name = item.name,
+    types = item.types,
+    methods = methods,
+    targetMethods = targetReadiness(methods),
+    heading = tonumber(heading),
+    headingLabel = heading and tostring(heading) or nil,
+    headingMethod = headingMethod,
+    range = tonumber(range),
+    rangeMethod = rangeMethod,
+    fov = tonumber(fov),
+    fovMethod = fovMethod,
+  }
 end
 
 local function readCannon(device, item, index)
@@ -299,7 +352,7 @@ function M.snapshot()
   local radars, targets, cannons, mounts, controllers, unknown = {}, {}, {}, {}, {}, {}
   for _, item in ipairs(devices) do
     if item.roles.radar then
-      table.insert(radars, { name = item.name, types = item.types, methods = item.methods, targetMethods = targetReadiness(item.methods) })
+      table.insert(radars, readRadar(item.device, item))
       if item.device then
         for _, target in ipairs(readTargets(item.device, item.methods)) do table.insert(targets, target) end
       end

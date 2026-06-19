@@ -29,9 +29,30 @@ end
 
 local function shortLabel(value, fallback)
   value = tostring(value or fallback or "-")
-  if #value > 18 and value:find("%-") then return fallback or "target" end
-  if #value > 18 then return string.sub(value, 1, 15) .. "..." end
+  if #value > 24 and value:find("%-") then return fallback or "target" end
+  if #value > 24 then return string.sub(value, 1, 21) .. "..." end
   return value
+end
+
+local function atan2(y, x)
+  if math.atan2 then return math.atan2(y, x) end
+  if x > 0 then return math.atan(y / x) end
+  if x < 0 and y >= 0 then return math.atan(y / x) + math.pi end
+  if x < 0 and y < 0 then return math.atan(y / x) - math.pi end
+  if x == 0 and y > 0 then return math.pi / 2 end
+  if x == 0 and y < 0 then return -math.pi / 2 end
+  return 0
+end
+
+local function normalizeAngle(angle)
+  angle = tonumber(angle) or 0
+  while angle <= -180 do angle = angle + 360 end
+  while angle > 180 do angle = angle - 360 end
+  return angle
+end
+
+local function angularDiff(a, b)
+  return normalizeAngle((tonumber(a) or 0) - (tonumber(b) or 0))
 end
 
 local function selected(list, index)
@@ -87,7 +108,7 @@ function M.run(ctx)
   local function targetBearing(target, index)
     if tonumber(target.bearing) then return tonumber(target.bearing) end
     if tonumber(target.x) and tonumber(target.z) then
-      return math.deg(math.atan2 and math.atan2(tonumber(target.x), tonumber(target.z)) or math.atan(tonumber(target.x) / math.max(1, tonumber(target.z))))
+      return math.deg(atan2(tonumber(target.x), tonumber(target.z)))
     end
     return (index - 1) * 35 - 70
   end
@@ -99,6 +120,18 @@ function M.run(ctx)
       return math.sqrt(x * x + z * z)
     end
     return 80 + index * 35
+  end
+
+  local function activeRadar()
+    local snap = app.snapshot or refresh()
+    return selected(snap.radars or {}, 1) or {}
+  end
+
+  local function radarHeading()
+    local radar = activeRadar()
+    if tonumber(radar.heading) then return tonumber(radar.heading), true end
+    local t = os.clock and os.clock() or 0
+    return (t * 95) % 360, false
   end
 
   local function currentTarget()
@@ -151,16 +184,20 @@ function M.run(ctx)
   end
 
   local function drawMap(w, h, targets)
+    local radar = activeRadar()
+    local heading, lockedHeading = radarHeading()
+    local fov = math.max(20, math.min(140, tonumber(radar.fov) or 76))
     local mapX, mapY = 2, 8
-    local mapW, mapH = math.max(26, math.min(w - 4, 54)), math.max(9, math.min(h - 11, 16))
+    local mapW, mapH = math.max(30, math.min(w - 4, 62)), math.max(11, math.min(h - 11, 18))
     renderer.fill(mapX, mapY, mapW, mapH, colors.black)
     local cx, cy = mapX + math.floor(mapW / 2), mapY + math.floor(mapH / 2)
     local maxR = math.max(3, math.min(math.floor(mapW / 2) - 2, mapH - 2))
+    renderer.writeAt(mapX + 1, mapY, renderer.crop(" RANGE " .. scalar(radar.range or "~") .. "  HDG " .. scalar(heading) .. (lockedHeading and "" or " sim"), mapW - 2), colors.lightGray, colors.black)
     for r = 2, maxR, 3 do
-      renderer.writeAt(cx - r, cy, "-", colors.gray, colors.black)
-      renderer.writeAt(cx + r, cy, "-", colors.gray, colors.black)
-      if cy - r >= mapY then renderer.writeAt(cx, cy - r, "|", colors.gray, colors.black) end
-      if cy + r <= mapY + mapH - 1 then renderer.writeAt(cx, cy + r, "|", colors.gray, colors.black) end
+      renderer.writeAt(cx - r, cy, "-", colors.lightGray, colors.black)
+      renderer.writeAt(cx + r, cy, "-", colors.lightGray, colors.black)
+      if cy - r >= mapY then renderer.writeAt(cx, cy - r, "|", colors.lightGray, colors.black) end
+      if cy + r <= mapY + mapH - 1 then renderer.writeAt(cx, cy + r, "|", colors.lightGray, colors.black) end
     end
     for y = mapY, mapY + mapH - 1 do
       local dy = cy - y
@@ -168,13 +205,20 @@ function M.run(ctx)
         local dx = x - cx
         local dist = math.sqrt(dx * dx + dy * dy)
         if dist > 1 and dist <= maxR then
-          local angle = math.deg(math.atan2 and math.atan2(dx, dy) or math.atan(dx / math.max(1, dy)))
-          if math.abs(angle) <= 38 then
-            local ch = dist > maxR - 1 and "." or " "
-            renderer.writeAt(x, y, ch, colors.lime, colors.green)
+          local angle = math.deg(atan2(dx, dy))
+          local diff = math.abs(angularDiff(angle, heading))
+          if diff <= fov / 2 then
+            local edge = diff > fov / 2 - 5 or dist > maxR - 1
+            renderer.writeAt(x, y, edge and "." or " ", edge and colors.lime or colors.green, colors.green)
           end
         end
       end
+    end
+    local sweep = math.rad(heading)
+    for r = 1, maxR do
+      local x = math.max(mapX, math.min(mapX + mapW - 1, cx + math.floor(math.sin(sweep) * r)))
+      local y = math.max(mapY, math.min(mapY + mapH - 1, cy - math.floor(math.cos(sweep) * r)))
+      renderer.writeAt(x, y, "*", colors.lime, colors.black)
     end
     renderer.writeAt(cx - 1, mapY, "N", colors.white, colors.black)
     renderer.writeAt(cx, cy, "^", colors.white, colors.blue)
@@ -189,7 +233,11 @@ function M.run(ctx)
       local rad = math.rad(bearing)
       local x = math.max(mapX, math.min(mapX + mapW - 1, cx + math.floor(math.sin(rad) * r)))
       local y = math.max(mapY, math.min(mapY + mapH - 1, cy - math.floor(math.cos(rad) * r)))
+      local label = shortLabel(target.renderName or target.label, "T" .. tostring(i))
       renderer.writeAt(x, y, i == app.targetIndex and "X" or tostring(i % 10), i == app.targetIndex and colors.red or colors.yellow, colors.black)
+      if x + 2 + #label < mapX + mapW and y > mapY + 1 then
+        renderer.writeAt(x + 2, y, label, i == app.targetIndex and colors.red or colors.yellow, colors.black)
+      end
     end
     return mapY + mapH
   end
@@ -202,7 +250,7 @@ function M.run(ctx)
     if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 then
       renderer.writeAt(1, 6, renderer.crop("Radar visible, no track readable. Select/link target or open Probe.", w), colors.orange, colors.lightGray)
     else
-      renderer.writeAt(1, 6, renderer.crop("Radar scope: green=cone, ^=ship, X=selected, numbers=targets", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 6, renderer.crop("Radar scope: rotating cone, sweep line, labels and selected target details", w), colors.gray, colors.lightGray)
     end
     local bottom = drawMap(w, h, snap.targets or {})
     local detailX = math.min(w, 58)
@@ -210,10 +258,11 @@ function M.run(ctx)
       local target = selected(snap.targets or {}, app.targetIndex)
       renderer.writeAt(detailX, 8, renderer.crop("Selected", w - detailX + 1), colors.black, colors.gray)
       if target then
-        renderer.writeAt(detailX, 10, renderer.crop(shortLabel(target.label, "T" .. tostring(app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 10, renderer.crop(shortLabel(target.renderName or target.label, "T" .. tostring(app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
         renderer.writeAt(detailX, 11, renderer.crop("dist " .. scalar(targetDistance(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
         renderer.writeAt(detailX, 12, renderer.crop("bear " .. scalar(targetBearing(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
         renderer.writeAt(detailX, 13, renderer.crop("alt  " .. scalar(target.altitude), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 14, renderer.crop("id   " .. shortLabel(target.id, "target"), w - detailX + 1), colors.gray, colors.lightGray)
       else
         renderer.writeAt(detailX, 10, renderer.crop("No target", w - detailX + 1), colors.gray, colors.lightGray)
       end
@@ -222,7 +271,7 @@ function M.run(ctx)
       local radar = snap.radars[i]
       local methods = table.concat(radar.targetMethods or {}, ",")
       if methods == "" then methods = "no target method" end
-      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " " .. methods, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " hdg=" .. scalar(radar.heading or radar.headingLabel) .. " " .. methods, w), colors.black, colors.lightGray)
     end
     if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 and bottom + #(snap.radars or {}) + 1 <= h then
       renderer.writeAt(1, h, renderer.crop("Create Radars: link Bearing -> Network Controller -> Monitor/Fire Controller.", w), colors.gray, colors.lightGray)
@@ -236,7 +285,7 @@ function M.run(ctx)
     for i, target in ipairs(snap.targets or {}) do
       if i > h - 4 then break end
       local bg = i == app.targetIndex and colors.cyan or colors.lightGray
-      local line = tostring(i) .. " " .. shortLabel(target.label, "T" .. tostring(i)) .. " dist=" .. scalar(targetDistance(target, i)) .. " bearing=" .. scalar(targetBearing(target, i)) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
+      local line = tostring(i) .. " " .. shortLabel(target.renderName or target.label, "T" .. tostring(i)) .. " dist=" .. scalar(targetDistance(target, i)) .. " bearing=" .. scalar(targetBearing(target, i)) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
       renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, bg)
     end
   end
