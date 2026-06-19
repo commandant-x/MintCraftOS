@@ -33,6 +33,7 @@ local help = {
   crafttube = "crafttube - open native YouTube metadata client",
   messenger = "messenger - open Rednet chat",
   navigation = "navigation - open Sable navigation control center",
+  combat = "combat - open radar/CBC combat control center",
   store = "store - open package store",
   install = "install <pkg> - install package",
   whoami = "whoami - show current security user",
@@ -174,6 +175,8 @@ local function runCommand(app, ctx, input)
     ctx.apps.launch("messenger")
   elseif cmd == "navigation" then
     ctx.apps.launch("navigation")
+  elseif cmd == "combat" then
+    ctx.apps.launch("combat")
   elseif cmd == "store" then
     ctx.apps.launch("store")
   elseif cmd == "install" then

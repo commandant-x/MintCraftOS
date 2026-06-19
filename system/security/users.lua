@@ -43,6 +43,8 @@ local function defaults()
           "devices.list",
           "sable.read",
           "avionics.read",
+          "combat.read",
+          "peripheral.probe",
         },
       },
     },
@@ -57,6 +59,8 @@ local function defaults()
         "devices.list",
         "sable.read",
         "avionics.read",
+        "combat.read",
+        "peripheral.probe",
       },
     },
   }

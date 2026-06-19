@@ -7,6 +7,7 @@ local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
 local sabled = require("system.services.sabled")
 local avionicsd = require("system.services.avionicsd")
+local combatd = require("system.services.combatd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -19,6 +20,7 @@ function M.run(ctx)
     { id = "system", label = "System" },
     { id = "display", label = "Display" },
     { id = "nav", label = "Nav" },
+    { id = "combat", label = "Combat" },
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
@@ -114,6 +116,16 @@ function M.run(ctx)
         renderer.writeAt(1, 15 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
       end
       renderer.button(1, h - 2, 18, "Open Navigation", false)
+    elseif self.page == "combat" then
+      local st = combatd.status()
+      local counts = st.counts or {}
+      local combat = config.load("/system/config/combat.cfg", {})
+      renderer.writeAt(1, 3, "Combat: " .. tostring(st.available and "ready" or "missing"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, renderer.crop("Radar=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, renderer.crop("Mode: semi-auto=" .. tostring(combat.semiAuto ~= false) .. " confirmFire=" .. tostring(combat.requireFireConfirmation ~= false), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("Ballistics: gravity=" .. tostring(combat.ballistics and combat.ballistics.gravity or "-") .. " muzzle=" .. tostring(combat.ballistics and combat.ballistics.muzzleVelocity or "-"), w), colors.black, colors.lightGray)
+      if st.errors and #st.errors > 0 then renderer.writeAt(1, 9, renderer.crop("Error: " .. tostring(st.errors[1]), w), colors.red, colors.lightGray) end
+      renderer.button(1, h - 2, 14, "Open Combat", false)
     elseif self.page == "desktop" then
       renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
@@ -291,6 +303,9 @@ function M.run(ctx)
       if x >= 28 and x <= 35 then deviced.setScale(2) return true end
     elseif self.page == "nav" and y == select(2, term.getSize()) - 2 and x <= 18 then
       ctx.apps.launch("navigation")
+      return true
+    elseif self.page == "combat" and y == select(2, term.getSize()) - 2 and x <= 14 then
+      ctx.apps.launch("combat")
       return true
     elseif self.page == "sound" and y == 9 and x <= 12 then
       local st = audiod.status()

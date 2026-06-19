@@ -1,4 +1,4 @@
--- MintCraft OS V0.16.0 installer for CC:Tweaked
+-- MintCraft OS V0.17.0 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [===[
@@ -13,7 +13,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -687,11 +687,321 @@ end
 
 return M
 ]===],
+  ["apps/combat/app.cfg"] = [===[
+{
+  id = "combat",
+  name = "Combat",
+  version = "0.17.0",
+  main = "apps.combat.main",
+  permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" },
+}
+]===],
+  ["apps/combat/main.lua"] = [===[
+local renderer = require("system.gui.renderer")
+local ui = require("system.gui.components")
+local config = require("system.libraries.config")
+local combatd = require("system.services.combatd")
+
+local M = {}
+
+local CFG = "/system/config/combat.cfg"
+
+local function scalar(v)
+  if v == nil then return "-" end
+  if type(v) == "number" then return string.format("%.2f", v) end
+  return tostring(v)
+end
+
+local function loadCfg()
+  return config.load(CFG, {
+    refreshSeconds = 0.5,
+    semiAuto = true,
+    requireFireConfirmation = true,
+    ballistics = { gravity = 9.81, muzzleVelocity = 120, drag = 0 },
+    radar = { maxTargets = 64, staleSeconds = 5 },
+  })
+end
+
+local function typeLabel(types)
+  return table.concat(types or {}, ",")
+end
+
+local function selected(list, index)
+  if not list or #list == 0 then return nil end
+  index = math.max(1, math.min(#list, tonumber(index) or 1))
+  return list[index]
+end
+
+function M.run(ctx)
+  local cfg = loadCfg()
+  local app = {
+    page = "radar",
+    targetIndex = 1,
+    cannonIndex = 1,
+    deviceIndex = 1,
+    confirmFire = nil,
+    message = "Combat ready",
+    solution = nil,
+    snapshot = nil,
+  }
+
+  local tabs = {
+    { id = "radar", label = "Radar" },
+    { id = "targets", label = "Targets" },
+    { id = "cannons", label = "Cannons" },
+    { id = "fire", label = "Fire" },
+    { id = "probe", label = "Probe" },
+    { id = "config", label = "Config" },
+  }
+
+  local fireActions = {
+    { id = "solve", label = "Solve" },
+    { id = "aim", label = "Aim" },
+    { id = "fire", label = "Fire" },
+  }
+
+  local probeActions = {
+    { id = "export", label = "Export" },
+    { id = "refresh", label = "Refresh" },
+  }
+
+  local function refresh()
+    local allowed, denied = ctx.security.require("combat.read", "combat")
+    if not allowed then
+      app.snapshot = { ok = false, status = tostring(denied), counts = {}, radars = {}, targets = {}, cannons = {}, devices = {}, errors = { tostring(denied) } }
+    else
+      local ok, snap = pcall(combatd.snapshot)
+      app.snapshot = (ok and snap) or { ok = false, status = "combatd error", counts = {}, radars = {}, targets = {}, cannons = {}, devices = {}, errors = { tostring(snap) } }
+    end
+    return app.snapshot
+  end
+
+  local function currentTarget()
+    local snap = app.snapshot or refresh()
+    return selected(snap.targets or {}, app.targetIndex)
+  end
+
+  local function currentCannon()
+    local snap = app.snapshot or refresh()
+    return selected(snap.cannons or {}, app.cannonIndex)
+  end
+
+  local function solve()
+    local cannon = currentCannon()
+    local target = currentTarget()
+    if not cannon or not target then app.message = "Need cannon and target" return end
+    local solution, err = combatd.solution(cannon.id, target)
+    if solution then
+      app.solution = solution
+      app.message = "Solution yaw=" .. scalar(solution.yaw) .. " pitch=" .. scalar(solution.pitch)
+    else
+      app.message = tostring(err)
+    end
+  end
+
+  local function aim()
+    local allowed, denied = ctx.security.require("combat.aim", "aim")
+    if not allowed then app.message = tostring(denied) return end
+    local cannon = currentCannon()
+    if not cannon then app.message = "No cannon" return end
+    if not app.solution then solve() end
+    local ok, msg = combatd.aim(cannon.id, app.solution)
+    app.message = tostring(msg)
+    if ctx.notifications then ctx.notifications:push(ok and "success" or "warn", "Combat", app.message, 3) end
+  end
+
+  local function requestFire()
+    local allowed, denied = ctx.security.require("combat.fire", "fire")
+    if not allowed then app.message = tostring(denied) return end
+    local cannon = currentCannon()
+    if not cannon then app.message = "No cannon" return end
+    app.confirmFire = cannon
+    app.message = "Confirm fire: " .. tostring(cannon.name)
+  end
+
+  local function fire(cannon)
+    local ok, msg = combatd.fire(cannon.id)
+    app.message = tostring(msg)
+    if ctx.notifications then ctx.notifications:push(ok and "warn" or "error", "Combat", app.message, 4) end
+  end
+
+  local function drawMap(w, h, targets)
+    local mapX, mapY = 2, 8
+    local mapW, mapH = math.max(20, math.min(w - 4, 42)), math.max(7, math.min(h - 10, 13))
+    renderer.fill(mapX, mapY, mapW, mapH, colors.gray)
+    local cx, cy = mapX + math.floor(mapW / 2), mapY + math.floor(mapH / 2)
+    renderer.writeAt(cx, cy, "+", colors.white, colors.gray)
+    for i, target in ipairs(targets or {}) do
+      local bearing = tonumber(target.bearing) or (i * 45)
+      local dist = tonumber(target.distance) or (i * 10)
+      local r = math.min(math.floor(dist / 50) + 1, math.min(math.floor(mapW / 2) - 1, math.floor(mapH / 2) - 1))
+      local rad = math.rad(bearing)
+      local x = math.max(mapX, math.min(mapX + mapW - 1, cx + math.floor(math.sin(rad) * r)))
+      local y = math.max(mapY, math.min(mapY + mapH - 1, cy - math.floor(math.cos(rad) * r)))
+      renderer.writeAt(x, y, i == app.targetIndex and "X" or "*", i == app.targetIndex and colors.red or colors.yellow, colors.gray)
+    end
+    return mapY + mapH
+  end
+
+  local function drawRadar(w, h)
+    local snap = app.snapshot or refresh()
+    local counts = snap.counts or {}
+    renderer.writeAt(1, 3, renderer.crop("Status: " .. tostring(snap.status or "-"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 4, renderer.crop("Radars=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 6, renderer.crop("Tactical map: center=ship, *=target, X=selected", w), colors.gray, colors.lightGray)
+    local bottom = drawMap(w, h, snap.targets or {})
+    for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 1)) do
+      local radar = snap.radars[i]
+      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " " .. typeLabel(radar.types), w), colors.black, colors.lightGray)
+    end
+  end
+
+  local function drawTargets(w, h)
+    local snap = app.snapshot or refresh()
+    renderer.writeAt(1, 3, renderer.crop("TARGETS  click row to select", w), colors.black, colors.gray)
+    if #(snap.targets or {}) == 0 then renderer.writeAt(1, 5, renderer.crop("No target from radar/probe.", w), colors.gray, colors.lightGray) end
+    for i, target in ipairs(snap.targets or {}) do
+      if i > h - 4 then break end
+      local bg = i == app.targetIndex and colors.cyan or colors.lightGray
+      local line = tostring(i) .. " " .. tostring(target.label) .. " dist=" .. scalar(target.distance) .. " bearing=" .. scalar(target.bearing) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
+      renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, bg)
+    end
+  end
+
+  local function drawCannons(w, h)
+    local snap = app.snapshot or refresh()
+    renderer.writeAt(1, 3, renderer.crop("CANNONS / MOUNTS  click row to select", w), colors.black, colors.gray)
+    if #(snap.cannons or {}) == 0 then renderer.writeAt(1, 5, renderer.crop("No CBC cannon peripheral detected. Use Probe to inspect devices.", w), colors.gray, colors.lightGray) end
+    for i, cannon in ipairs(snap.cannons or {}) do
+      if i > h - 4 then break end
+      local bg = i == app.cannonIndex and colors.cyan or colors.lightGray
+      local line = tostring(i) .. " " .. tostring(cannon.name) .. " yaw=" .. scalar(cannon.yaw) .. " pitch=" .. scalar(cannon.pitch) .. " loaded=" .. tostring(cannon.loaded) .. " aim=" .. tostring(cannon.canAim) .. " fire=" .. tostring(cannon.canFire)
+      renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, bg)
+    end
+  end
+
+  local function drawFire(w, h)
+    app.fireToolbar = ui.toolbar(1, 2, w, fireActions)
+    local cannon, target = currentCannon(), currentTarget()
+    renderer.writeAt(1, 4, renderer.crop("Mode: semi-auto. Aim may move cannon; Fire always asks confirmation.", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 6, renderer.crop("Cannon: " .. tostring(cannon and cannon.name or "-"), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 7, renderer.crop("Target: " .. tostring(target and target.label or "-"), w), colors.black, colors.lightGray)
+    if app.solution then
+      renderer.writeAt(1, 9, renderer.crop("Solution yaw=" .. scalar(app.solution.yaw) .. " pitch=" .. scalar(app.solution.pitch) .. " distance=" .. scalar(app.solution.distance) .. " dy=" .. scalar(app.solution.deltaY), w), colors.black, colors.lightGray)
+    else
+      renderer.writeAt(1, 9, renderer.crop("No solution yet. Tap Solve.", w), colors.gray, colors.lightGray)
+    end
+    renderer.writeAt(1, h - 1, renderer.crop(app.message, w), colors.white, colors.gray)
+    if app.confirmFire then
+      local dx, dy = 3, math.max(4, math.floor(h / 2) - 2)
+      local dw = math.min(44, w - 4)
+      app.confirmBox = { x = dx + 1, y = dy + 4, w = math.min(12, dw - 2), h = 1 }
+      ui.dialog(dx, dy, dw, "Confirm Fire", tostring(app.confirmFire.name), "Fire")
+    end
+  end
+
+  local function drawProbe(w, h)
+    local snap = app.snapshot or refresh()
+    app.probeToolbar = ui.toolbar(1, 2, w, probeActions)
+    renderer.writeAt(1, 4, renderer.crop("Probe devices. Export writes /var/logs/peripheral_probe.log", w), colors.black, colors.lightGray)
+    local devices = snap.devices or {}
+    if #devices == 0 then renderer.writeAt(1, 6, renderer.crop("No combat-like peripheral detected.", w), colors.gray, colors.lightGray) end
+    for i, device in ipairs(devices) do
+      if i > math.min(6, h - 8) then break end
+      local bg = i == app.deviceIndex and colors.cyan or colors.lightGray
+      renderer.writeAt(1, i + 5, renderer.crop(tostring(i) .. " " .. tostring(device.name) .. " " .. typeLabel(device.types), w), colors.black, bg)
+    end
+    local item = selected(devices, app.deviceIndex)
+    if item then
+      local probe = combatd.probe(item.name)
+      local y = 13
+      renderer.writeAt(1, y, renderer.crop("Methods: " .. table.concat(probe.methods or {}, ","), w), colors.black, colors.lightGray)
+      local line = y + 2
+      for method, value in pairs(probe.reads or {}) do
+        if line > h - 1 then break end
+        renderer.writeAt(1, line, renderer.crop(method .. " = " .. textutils.serialize(value), w), colors.black, colors.lightGray)
+        line = line + 1
+      end
+    end
+  end
+
+  local function drawConfig(w, h)
+    renderer.writeAt(1, 3, renderer.crop("Config: /system/config/combat.cfg", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 5, renderer.crop("refreshSeconds=" .. scalar(cfg.refreshSeconds) .. " semiAuto=" .. tostring(cfg.semiAuto) .. " confirmFire=" .. tostring(cfg.requireFireConfirmation), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 6, renderer.crop("gravity=" .. scalar(cfg.ballistics and cfg.ballistics.gravity) .. " muzzleVelocity=" .. scalar(cfg.ballistics and cfg.ballistics.muzzleVelocity) .. " drag=" .. scalar(cfg.ballistics and cfg.ballistics.drag), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 8, renderer.crop("Radar maxTargets=" .. scalar(cfg.radar and cfg.radar.maxTargets) .. " staleSeconds=" .. scalar(cfg.radar and cfg.radar.staleSeconds), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 10, renderer.crop("Edit config from Files for now; app reloads values on launch.", w), colors.gray, colors.lightGray)
+  end
+
+  function app:draw(w, h)
+    refresh()
+    self.tabs = ui.tabs(1, 1, w, tabs, self.page)
+    if self.page == "radar" then drawRadar(w, h)
+    elseif self.page == "targets" then drawTargets(w, h)
+    elseif self.page == "cannons" then drawCannons(w, h)
+    elseif self.page == "fire" then drawFire(w, h)
+    elseif self.page == "probe" then drawProbe(w, h)
+    elseif self.page == "config" then drawConfig(w, h)
+    end
+  end
+
+  function app:handle(event)
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    for _, tab in ipairs(self.tabs or {}) do
+      if ui.hit(tab, x, y) then self.page = tab.id self.confirmFire = nil return true end
+    end
+    if self.confirmFire then
+      if ui.hit(self.confirmBox, x, y) then fire(self.confirmFire) end
+      self.confirmFire = nil
+      return true
+    end
+    if self.page == "targets" and y >= 4 then
+      local idx = y - 3
+      if (self.snapshot.targets or {})[idx] then self.targetIndex = idx self.message = "Target " .. tostring(idx) return true end
+    elseif self.page == "cannons" and y >= 4 then
+      local idx = y - 3
+      if (self.snapshot.cannons or {})[idx] then self.cannonIndex = idx self.message = "Cannon " .. tostring(idx) return true end
+    elseif self.page == "fire" then
+      local action = ui.toolbarHit(self.fireToolbar, x, y)
+      if action == "solve" then solve() return true end
+      if action == "aim" then aim() return true end
+      if action == "fire" then requestFire() return true end
+    elseif self.page == "probe" then
+      local action = ui.toolbarHit(self.probeToolbar, x, y)
+      if action == "export" then
+        local allowed, denied = ctx.security.require("peripheral.probe", "export")
+        if allowed then
+          local ok, msg = combatd.exportProbe()
+          self.message = tostring(msg)
+          ctx.notifications:push(ok and "success" or "warn", "Probe", tostring(msg), 3)
+        else
+          self.message = tostring(denied)
+        end
+        return true
+      elseif action == "refresh" then
+        refresh()
+        return true
+      elseif y >= 6 and y <= 11 then
+        local idx = y - 5
+        if (self.snapshot.devices or {})[idx] then self.deviceIndex = idx return true end
+      end
+    end
+    return false
+  end
+
+  local sw, sh = term.getSize()
+  local win = ctx.windowManager:create({ title = "Combat", w = math.min(86, sw - 4), h = math.min(25, sh - 3), x = 6, y = 3, app = app })
+  while not win.closed do ctx.pullEvent() end
+end
+
+return M
+]===],
   ["apps/crafttube/app.cfg"] = [===[
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1055,7 +1365,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -1065,6 +1375,7 @@ local renderer = require("system.gui.renderer")
 local deviced = require("system.services.deviced")
 local sabled = require("system.services.sabled")
 local avionicsd = require("system.services.avionicsd")
+local combatd = require("system.services.combatd")
 
 local M = {}
 
@@ -1077,27 +1388,35 @@ function M.run(ctx)
     local sable = sabled.status()
     local avionics = avionicsd.status()
     local counts = avionics.counts or {}
+    local combat = combatd.status()
+    local combatCounts = combat.counts or {}
     renderer.writeAt(1, 2, renderer.crop("Target: " .. tostring(display.target) .. " " .. tostring(display.width) .. "x" .. tostring(display.height), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(display.monitorSide or "none") .. " scale " .. tostring(display.scale or "-"), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 4, renderer.crop("Sable: " .. tostring(sable.available and "available" or "missing") .. "  Sublevel: " .. tostring(sable.inSublevel and "ready" or "none"), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 5, renderer.crop("Avionics: " .. tostring(avionics.available and "ready" or "missing") .. " alt=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " prop=" .. tostring(counts.propeller or 0) .. " throttle=" .. tostring(counts.throttle or 0), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("APIs: " .. table.concat(sable.apiNames or {}, ",") .. "  Recommended: 4x3 monitor scale 0.5", w), colors.gray, colors.lightGray)
-    renderer.writeAt(1, 8, renderer.crop("DEVICE          TYPE          ROLE", w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 6, renderer.crop("Combat: " .. tostring(combat.available and "ready" or "missing") .. " radar=" .. tostring(combatCounts.radars or 0) .. " target=" .. tostring(combatCounts.targets or 0) .. " cannon=" .. tostring(combatCounts.cannons or 0), w), colors.black, colors.lightGray)
+    renderer.writeAt(1, 7, renderer.crop("APIs: " .. table.concat(sable.apiNames or {}, ",") .. "  Recommended: 4x3 monitor scale 0.5", w), colors.gray, colors.lightGray)
+    renderer.writeAt(1, 9, renderer.crop("DEVICE          TYPE          ROLE", w), colors.black, colors.lightGray)
     local rows = deviced.list()
     if #rows == 0 then
-      renderer.writeAt(1, 10, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 11, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
     end
-    for i = 1, math.min(#rows, h - 8) do
+    for i = 1, math.min(#rows, h - 9) do
       local d = rows[i]
+      local lowerType = tostring(d.type):lower()
       local role = tostring(d.type) == "modem" and "rednet"
         or tostring(d.type) == "monitor" and "display"
-        or tostring(d.type):lower():find("altitude", 1, true) and "avionics"
-        or tostring(d.type):lower():find("gimbal", 1, true) and "avionics"
-        or tostring(d.type):lower():find("propeller", 1, true) and "avionics"
-        or tostring(d.type):lower():find("throttle", 1, true) and "avionics"
-        or tostring(d.type):find("redstone", 1, true) and "assist"
+        or lowerType:find("altitude", 1, true) and "avionics"
+        or lowerType:find("gimbal", 1, true) and "avionics"
+        or lowerType:find("propeller", 1, true) and "avionics"
+        or lowerType:find("throttle", 1, true) and "avionics"
+        or lowerType:find("radar", 1, true) and "radar"
+        or lowerType:find("cannon", 1, true) and "cbc"
+        or lowerType:find("mount", 1, true) and "cbc"
+        or lowerType:find("controller", 1, true) and "fire-control"
+        or lowerType:find("redstone", 1, true) and "assist"
         or "-"
-      renderer.writeAt(1, i + 8, renderer.crop(d.name .. "          " .. tostring(d.type) .. "          " .. role, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, i + 9, renderer.crop(d.name .. "          " .. tostring(d.type) .. "          " .. role, w), colors.black, colors.lightGray)
     end
   end
 
@@ -1131,7 +1450,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1315,7 +1634,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1622,7 +1941,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -1701,7 +2020,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -1820,7 +2139,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" },
 }
@@ -2387,7 +2706,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2468,7 +2787,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2483,6 +2802,7 @@ local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
 local sabled = require("system.services.sabled")
 local avionicsd = require("system.services.avionicsd")
+local combatd = require("system.services.combatd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -2495,6 +2815,7 @@ function M.run(ctx)
     { id = "system", label = "System" },
     { id = "display", label = "Display" },
     { id = "nav", label = "Nav" },
+    { id = "combat", label = "Combat" },
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
@@ -2590,6 +2911,16 @@ function M.run(ctx)
         renderer.writeAt(1, 15 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
       end
       renderer.button(1, h - 2, 18, "Open Navigation", false)
+    elseif self.page == "combat" then
+      local st = combatd.status()
+      local counts = st.counts or {}
+      local combat = config.load("/system/config/combat.cfg", {})
+      renderer.writeAt(1, 3, "Combat: " .. tostring(st.available and "ready" or "missing"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 4, renderer.crop("Radar=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 6, renderer.crop("Mode: semi-auto=" .. tostring(combat.semiAuto ~= false) .. " confirmFire=" .. tostring(combat.requireFireConfirmation ~= false), w), colors.black, colors.lightGray)
+      renderer.writeAt(1, 7, renderer.crop("Ballistics: gravity=" .. tostring(combat.ballistics and combat.ballistics.gravity or "-") .. " muzzle=" .. tostring(combat.ballistics and combat.ballistics.muzzleVelocity or "-"), w), colors.black, colors.lightGray)
+      if st.errors and #st.errors > 0 then renderer.writeAt(1, 9, renderer.crop("Error: " .. tostring(st.errors[1]), w), colors.red, colors.lightGray) end
+      renderer.button(1, h - 2, 14, "Open Combat", false)
     elseif self.page == "desktop" then
       renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
@@ -2768,6 +3099,9 @@ function M.run(ctx)
     elseif self.page == "nav" and y == select(2, term.getSize()) - 2 and x <= 18 then
       ctx.apps.launch("navigation")
       return true
+    elseif self.page == "combat" and y == select(2, term.getSize()) - 2 and x <= 14 then
+      ctx.apps.launch("combat")
+      return true
     elseif self.page == "sound" and y == 9 and x <= 12 then
       local st = audiod.status()
       audiod.setEnabled(not st.enabled)
@@ -2841,7 +3175,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -2956,7 +3290,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3072,7 +3406,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.16.0",
+  version = "0.17.0",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3113,6 +3447,7 @@ local help = {
   crafttube = "crafttube - open native YouTube metadata client",
   messenger = "messenger - open Rednet chat",
   navigation = "navigation - open Sable navigation control center",
+  combat = "combat - open radar/CBC combat control center",
   store = "store - open package store",
   install = "install <pkg> - install package",
   whoami = "whoami - show current security user",
@@ -3254,6 +3589,8 @@ local function runCommand(app, ctx, input)
     ctx.apps.launch("messenger")
   elseif cmd == "navigation" then
     ctx.apps.launch("navigation")
+  elseif cmd == "combat" then
+    ctx.apps.launch("combat")
   elseif cmd == "store" then
     ctx.apps.launch("store")
   elseif cmd == "install" then
@@ -3457,7 +3794,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.16.0",
+  version = "0.17.0",
 }
 ]===],
   ["apps/update/main.lua"] = [===[
@@ -3886,7 +4223,7 @@ return M
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.16.0 base:
+This repository currently contains the V0.17.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -3914,6 +4251,7 @@ This repository currently contains the V0.16.0 base:
 - Store and local package manager with bundled example packages
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - Navigation app for CC:Sable telemetry, Create: Avionics sensor diagnostics, quadcopter force tables and confirmed Redstone Assist pulses
+- Combat app for Create: Radars / CC:CBC probing, target lists, semi-auto aiming and confirmed fire control
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 - app crash isolation for process, window draw and input errors, with log entry and notification
@@ -4032,7 +4370,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.16.0",
+    version = "0.17.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4058,8 +4396,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.16.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.16.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.17.0" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.17.0"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -4185,6 +4523,22 @@ return M
   notifyOnSystemReady = true,
 }
 ]===],
+  ["system/config/combat.cfg"] = [===[
+{
+  refreshSeconds = 0.5,
+  semiAuto = true,
+  requireFireConfirmation = true,
+  ballistics = {
+    gravity = 9.81,
+    muzzleVelocity = 120,
+    drag = 0,
+  },
+  radar = {
+    maxTargets = 64,
+    staleSeconds = 5,
+  },
+}
+]===],
   ["system/config/crafttube.cfg"] = [===[
 {
   provider = "invidious",
@@ -4298,7 +4652,7 @@ return M
 ]===],
   ["system/config/system.cfg"] = [===[
 {
-  version = "0.16.0",
+  version = "0.17.0",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -4338,7 +4692,7 @@ local ccWords = {
 
 local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
-  "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "navigation", "store", "install", "files", "settings", "devices",
+  "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "navigation", "combat", "store", "install", "files", "settings", "devices",
   "whoami", "lock", "unlock", "login", "logout", "passwd",
   "reboot", "help",
 }
@@ -4741,6 +5095,7 @@ local function drawIcons()
     { app = "browser" },
     { app = "messenger" },
     { app = "navigation" },
+    { app = "combat" },
     { app = "files" },
     { app = "settings" },
     { app = "devices" },
@@ -4899,6 +5254,7 @@ local function openContextMenu(x, y)
       end },
       { label = "Terminal", action = function() launch("terminal") end },
       { label = "Navigation", action = function() launch("navigation") end },
+      { label = "Combat", action = function() launch("combat") end },
       { label = "Settings", action = function() launch("settings") end },
       { label = "Devices", action = function() launch("devices") end },
     },
@@ -5333,20 +5689,21 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.16.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.16.0", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.16.0", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.16.0", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.16.0", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.16.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.16.0", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.16.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.16.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.16.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.16.0", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.16.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.16.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.16.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.17.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.17.0", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.17.0", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.17.0", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.17.0", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" } })
+  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.17.0", permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.17.0", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.17.0", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.17.0", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.17.0", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.17.0", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.17.0", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.17.0", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.17.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.17.0", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -5380,6 +5737,7 @@ function M.start()
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("sabled", "system.services.sabled", true)
   ctx.services:register("avionicsd", "system.services.avionicsd", true)
+  ctx.services:register("combatd", "system.services.combatd", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
   ctx.services:startAutostart()
@@ -5576,7 +5934,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.16.0",
+    version = meta.version or "0.17.0",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -6092,6 +6450,8 @@ local function defaults()
           "devices.list",
           "sable.read",
           "avionics.read",
+          "combat.read",
+          "peripheral.probe",
         },
       },
     },
@@ -6106,6 +6466,8 @@ local function defaults()
         "devices.list",
         "sable.read",
         "avionics.read",
+        "combat.read",
+        "peripheral.probe",
       },
     },
   }
@@ -6524,6 +6886,428 @@ function M.start(ctx)
   M.ctx = ctx
   local snap = M.snapshot()
   log.info("avionicsd", snap.status)
+end
+
+function M.stop()
+  M.ctx = nil
+end
+
+return M
+]===],
+  ["system/services/combatd.lua"] = [===[
+local config = require("system.libraries.config")
+local log = require("system.libraries.log")
+
+local M = {
+  ctx = nil,
+  cfgPath = "/system/config/combat.cfg",
+  lastSnapshot = nil,
+  lastStatus = { available = false, counts = {}, error = "not started" },
+}
+
+local DEFAULT_CFG = {
+  refreshSeconds = 0.5,
+  semiAuto = true,
+  requireFireConfirmation = true,
+  ballistics = { gravity = 9.81, muzzleVelocity = 120, drag = 0 },
+  radar = { maxTargets = 64, staleSeconds = 5 },
+}
+
+local READ_METHODS = {
+  "getYaw", "getPitch", "getX", "getY", "getZ", "isRunning",
+  "isAssembled", "isLoaded", "isReady", "getAmmo", "getAmmunition",
+  "getRange", "getHeading", "getTarget", "getTargets", "scan",
+  "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts",
+}
+
+local function cfg()
+  local out = config.load(M.cfgPath, {})
+  for k, v in pairs(DEFAULT_CFG) do if out[k] == nil then out[k] = v end end
+  out.ballistics = out.ballistics or DEFAULT_CFG.ballistics
+  out.radar = out.radar or DEFAULT_CFG.radar
+  return out
+end
+
+local function norm(value)
+  return tostring(value or ""):lower():gsub("[^%w_]", "_")
+end
+
+local function hasAny(value, tokens)
+  value = norm(value)
+  for _, token in ipairs(tokens) do
+    if value:find(token, 1, true) then return true end
+  end
+  return false
+end
+
+local function call(device, method, ...)
+  if not device or type(device[method]) ~= "function" then return nil, method .. " unavailable" end
+  local fn = device[method]
+  local ok, value = pcall(fn, ...)
+  if ok then return value, nil end
+  ok, value = pcall(fn, device, ...)
+  if ok then return value, nil end
+  return nil, tostring(value)
+end
+
+local function requireUserPermission(permission, target)
+  local ok, securityd = pcall(require, "system.services.securityd")
+  if ok and securityd and securityd.authorize then
+    local allowed, reason = securityd.authorize({ appId = "combatd", permissions = { permission } }, permission)
+    if not allowed then
+      local message = tostring(reason or ("permission denied: " .. tostring(permission)))
+      if target then message = message .. " on " .. tostring(target) end
+      return false, message
+    end
+  end
+  return true
+end
+
+local function copy(value, depth)
+  if type(value) ~= "table" then return value end
+  depth = depth or 0
+  if depth > 2 then return "table" end
+  local out = {}
+  local count = 0
+  for k, v in pairs(value) do
+    count = count + 1
+    if count > 64 then out.more = true break end
+    out[k] = copy(v, depth + 1)
+  end
+  return out
+end
+
+local function typesOf(name)
+  if not peripheral or not peripheral.getType then return {} end
+  local ok, a, b, c = pcall(peripheral.getType, name)
+  if not ok then return {} end
+  local out = {}
+  for _, value in ipairs({ a, b, c }) do if value then table.insert(out, tostring(value)) end end
+  return out
+end
+
+local function methodsOf(name)
+  if not peripheral or not peripheral.getMethods then return {} end
+  local ok, methods = pcall(peripheral.getMethods, name)
+  if ok and type(methods) == "table" then table.sort(methods) return methods end
+  return {}
+end
+
+local function methodSet(methods)
+  local set = {}
+  for _, method in ipairs(methods or {}) do set[method] = true end
+  return set
+end
+
+local function classify(name, types, methods)
+  local text = norm(name) .. " " .. table.concat(types or {}, " ") .. " " .. table.concat(methods or {}, " ")
+  local set = methodSet(methods)
+  local roles = {}
+  if hasAny(text, { "radar", "target", "contact", "detector" }) or set.getTargets or set.scan or set.getDetectedTargets or set.getTrackedTargets then roles.radar = true end
+  if hasAny(text, { "cbc", "cannon", "autocannon", "mount" }) or set.fire or set.assemble or set.setYaw or set.setPitch then roles.cannon = true end
+  if hasAny(text, { "mount" }) or set.getYaw or set.getPitch or set.setYaw or set.setPitch then roles.mount = true end
+  if hasAny(text, { "controller", "fire_control", "firecontrol" }) then roles.controller = true end
+  if roles.radar or roles.cannon or roles.mount or roles.controller then return roles end
+  if hasAny(text, { "radar", "cbc", "cannon", "autocannon", "munition", "shell" }) then roles.unknownCombat = true end
+  return roles
+end
+
+local function idOf(prefix, index, name)
+  return prefix .. tostring(index) .. ":" .. tostring(name)
+end
+
+local function numberField(value, ...)
+  if type(value) ~= "table" then return nil end
+  for i = 1, select("#", ...) do
+    local key = select(i, ...)
+    local v = value[key]
+    if tonumber(v) then return tonumber(v) end
+  end
+  return nil
+end
+
+local function atan2(y, x)
+  if math.atan2 then return math.atan2(y, x) end
+  if x > 0 then return math.atan(y / x) end
+  if x < 0 and y >= 0 then return math.atan(y / x) + math.pi end
+  if x < 0 and y < 0 then return math.atan(y / x) - math.pi end
+  if x == 0 and y > 0 then return math.pi / 2 end
+  if x == 0 and y < 0 then return -math.pi / 2 end
+  return 0
+end
+
+local function normalizeTarget(raw, index)
+  local t = type(raw) == "table" and raw or { label = tostring(raw) }
+  local x = numberField(t, "x", "X", "posX", "targetX") or numberField(t.position, "x", 1)
+  local y = numberField(t, "y", "Y", "posY", "altitude", "height", "targetY") or numberField(t.position, "y", 2)
+  local z = numberField(t, "z", "Z", "posZ", "targetZ") or numberField(t.position, "z", 3)
+  local distance = tonumber(t.distance or t.range or t.r or t.dist)
+  local bearing = tonumber(t.bearing or t.heading or t.yaw)
+  return {
+    id = tostring(t.id or t.uuid or t.name or ("target-" .. tostring(index))),
+    label = tostring(t.label or t.name or t.type or t.id or ("Target " .. tostring(index))),
+    x = x,
+    y = y,
+    z = z,
+    distance = distance,
+    bearing = bearing,
+    altitude = tonumber(t.altitude or y),
+    velocity = copy(t.velocity or t.vel),
+    raw = copy(t),
+  }
+end
+
+local function appendTargets(out, value)
+  if type(value) ~= "table" then return end
+  local n = #out
+  if #value > 0 then
+    for _, item in ipairs(value) do table.insert(out, normalizeTarget(item, #out + 1)) end
+  else
+    table.insert(out, normalizeTarget(value, n + 1))
+  end
+end
+
+local function readTargets(device, methods)
+  local targets = {}
+  local set = methodSet(methods)
+  for _, method in ipairs({ "getTargets", "scan", "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts", "getTarget" }) do
+    if set[method] then
+      local value = call(device, method)
+      appendTargets(targets, value)
+      if #targets > 0 then break end
+    end
+  end
+  return targets
+end
+
+local function readCannon(device, item, index)
+  local methods = item.methods or {}
+  local set = methodSet(methods)
+  local yaw = set.getYaw and call(device, "getYaw") or nil
+  local pitch = set.getPitch and call(device, "getPitch") or nil
+  local x = set.getX and call(device, "getX") or nil
+  local y = set.getY and call(device, "getY") or nil
+  local z = set.getZ and call(device, "getZ") or nil
+  local running = set.isRunning and call(device, "isRunning") or (set.isAssembled and call(device, "isAssembled") or nil)
+  local loaded = set.isLoaded and call(device, "isLoaded") or (set.isReady and call(device, "isReady") or nil)
+  local ammo = set.getAmmo and call(device, "getAmmo") or (set.getAmmunition and call(device, "getAmmunition") or nil)
+  return {
+    id = idOf("cannon", index, item.name),
+    name = item.name,
+    types = item.types,
+    methods = methods,
+    yaw = yaw,
+    pitch = pitch,
+    x = x,
+    y = y,
+    z = z,
+    running = running,
+    loaded = loaded,
+    ammo = copy(ammo),
+    canAim = set.setYaw or set.setPitch,
+    canFire = set.fire,
+    canAssemble = set.assemble,
+  }
+end
+
+local function scanDevices()
+  local devices = {}
+  local errors = {}
+  if not peripheral or not peripheral.getNames or not peripheral.wrap then
+    return devices, { "peripheral API unavailable" }
+  end
+  local ok, names = pcall(peripheral.getNames)
+  if not ok then return devices, { tostring(names) } end
+  for _, name in ipairs(names or {}) do
+    local types = typesOf(name)
+    local methods = methodsOf(name)
+    local roles = classify(name, types, methods)
+    local active = roles.radar or roles.cannon or roles.mount or roles.controller or roles.unknownCombat
+    if active then
+      local okWrap, device = pcall(peripheral.wrap, name)
+      if not okWrap then table.insert(errors, tostring(name) .. ": " .. tostring(device)) end
+      table.insert(devices, {
+        name = name,
+        types = types,
+        methods = methods,
+        roles = roles,
+        device = okWrap and device or nil,
+        error = okWrap and nil or tostring(device),
+      })
+    end
+  end
+  return devices, errors
+end
+
+local function solveBallistics(cannon, target, combatCfg)
+  combatCfg = combatCfg or cfg()
+  local b = combatCfg.ballistics or {}
+  local g = tonumber(b.gravity) or 9.81
+  local v = tonumber(b.muzzleVelocity) or 120
+  local dx = (tonumber(target.x) and tonumber(cannon.x)) and (tonumber(target.x) - tonumber(cannon.x)) or nil
+  local dy = (tonumber(target.y) and tonumber(cannon.y)) and (tonumber(target.y) - tonumber(cannon.y)) or tonumber(target.altitude or 0)
+  local dz = (tonumber(target.z) and tonumber(cannon.z)) and (tonumber(target.z) - tonumber(cannon.z)) or nil
+  local horizontal = target.distance or (dx and dz and math.sqrt(dx * dx + dz * dz)) or 0
+  local yaw = target.bearing
+  if dx and dz then yaw = math.deg(atan2(-dx, dz)) end
+  local pitch = nil
+  if horizontal > 0 and v > 0 then
+    local v2 = v * v
+    local disc = v2 * v2 - g * (g * horizontal * horizontal + 2 * dy * v2)
+    if disc >= 0 then
+      pitch = math.deg(math.atan((v2 - math.sqrt(disc)) / (g * horizontal)))
+    else
+      pitch = math.deg(atan2(dy, horizontal))
+    end
+  end
+  return { yaw = yaw or cannon.yaw or 0, pitch = pitch or cannon.pitch or 0, distance = horizontal, deltaY = dy, estimated = true }
+end
+
+function M.snapshot()
+  local devices, errors = scanDevices()
+  local radars, targets, cannons, mounts, controllers, unknown = {}, {}, {}, {}, {}, {}
+  for _, item in ipairs(devices) do
+    if item.roles.radar then
+      table.insert(radars, { name = item.name, types = item.types, methods = item.methods })
+      if item.device then
+        for _, target in ipairs(readTargets(item.device, item.methods)) do table.insert(targets, target) end
+      end
+    end
+    if item.roles.cannon then table.insert(cannons, readCannon(item.device, item, #cannons + 1)) end
+    if item.roles.mount then table.insert(mounts, { name = item.name, types = item.types, methods = item.methods }) end
+    if item.roles.controller then table.insert(controllers, { name = item.name, types = item.types, methods = item.methods }) end
+    if item.roles.unknownCombat then table.insert(unknown, { name = item.name, types = item.types, methods = item.methods }) end
+  end
+  local c = cfg()
+  while #targets > (tonumber(c.radar and c.radar.maxTargets) or 64) do table.remove(targets) end
+  local snap = {
+    ok = true,
+    status = (#devices > 0) and "combat peripherals ready" or "no combat peripheral detected",
+    devices = devices,
+    radars = radars,
+    targets = targets,
+    cannons = cannons,
+    mounts = mounts,
+    controllers = controllers,
+    unknownCombatDevices = unknown,
+    errors = errors,
+    counts = {
+      radars = #radars,
+      targets = #targets,
+      cannons = #cannons,
+      mounts = #mounts,
+      controllers = #controllers,
+      unknown = #unknown,
+    },
+  }
+  snap.available = #devices > 0
+  M.lastSnapshot = snap
+  M.lastStatus = { available = snap.available, status = snap.status, counts = snap.counts, errors = errors }
+  return snap
+end
+
+function M.status()
+  M.snapshot()
+  return M.lastStatus
+end
+
+function M.probe(name)
+  local devices = scanDevices()
+  local selected = nil
+  for _, item in ipairs(devices) do
+    if not name or item.name == name then selected = item break end
+  end
+  if not selected then return { ok = false, error = "peripheral not found", name = name } end
+  local reads = {}
+  if selected.device then
+    local set = methodSet(selected.methods)
+    for _, method in ipairs(READ_METHODS) do
+      if set[method] then
+        local value, err = call(selected.device, method)
+        reads[method] = err and { error = err } or copy(value)
+      end
+    end
+  end
+  return { ok = true, name = selected.name, types = selected.types, roles = selected.roles, methods = selected.methods, reads = reads }
+end
+
+function M.exportProbe(path)
+  local allowed, denied = requireUserPermission("peripheral.probe", path or "probe")
+  if not allowed then return false, denied end
+  path = path or "/var/logs/peripheral_probe.log"
+  local dir = fs.getDir(path)
+  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+  local snap = M.snapshot()
+  local h = fs.open(path, "w")
+  if not h then return false, "cannot write " .. path end
+  h.write(textutils.serialize(snap))
+  h.close()
+  log.info("combatd", "probe exported to " .. path)
+  return true, path
+end
+
+local function findCannon(snapshot, cannonId)
+  for _, cannon in ipairs(snapshot.cannons or {}) do
+    if cannon.id == cannonId or cannon.name == cannonId then return cannon end
+  end
+  return nil
+end
+
+local function wrapByName(name)
+  if not peripheral or not peripheral.wrap then return nil, "peripheral API unavailable" end
+  local ok, wrapped = pcall(peripheral.wrap, name)
+  if ok and wrapped then return wrapped end
+  return nil, tostring(wrapped)
+end
+
+function M.solution(cannonId, target)
+  local snap = M.snapshot()
+  local cannon = findCannon(snap, cannonId) or (snap.cannons or {})[1]
+  if not cannon then return nil, "no cannon" end
+  if type(target) ~= "table" then target = (snap.targets or {})[tonumber(target) or 1] end
+  if not target then return nil, "no target" end
+  return solveBallistics(cannon, target, cfg()), nil
+end
+
+function M.aim(cannonId, solution)
+  local allowed, denied = requireUserPermission("combat.aim", cannonId)
+  if not allowed then return false, denied end
+  local snap = M.snapshot()
+  local cannon = findCannon(snap, cannonId)
+  if not cannon then return false, "no cannon selected" end
+  local dev, err = wrapByName(cannon.name)
+  if not dev then return false, err end
+  solution = solution or { yaw = cannon.yaw, pitch = cannon.pitch }
+  local okYaw, errYaw = true, nil
+  local okPitch, errPitch = true, nil
+  if type(dev.setYaw) == "function" and solution.yaw ~= nil then _, errYaw = call(dev, "setYaw", tonumber(solution.yaw)); okYaw = errYaw == nil end
+  if type(dev.setPitch) == "function" and solution.pitch ~= nil then _, errPitch = call(dev, "setPitch", tonumber(solution.pitch)); okPitch = errPitch == nil end
+  if okYaw and okPitch then
+    log.info("combatd", "aim " .. tostring(cannon.name) .. " yaw=" .. tostring(solution.yaw) .. " pitch=" .. tostring(solution.pitch))
+    return true, "aim sent"
+  end
+  return false, tostring(errYaw or errPitch or "aim unavailable")
+end
+
+function M.fire(cannonId)
+  local allowed, denied = requireUserPermission("combat.fire", cannonId)
+  if not allowed then return false, denied end
+  local snap = M.snapshot()
+  local cannon = findCannon(snap, cannonId)
+  if not cannon then return false, "no cannon selected" end
+  local dev, err = wrapByName(cannon.name)
+  if not dev then return false, err end
+  if type(dev.fire) ~= "function" then return false, "fire unavailable" end
+  local _, fireErr = call(dev, "fire")
+  if fireErr then return false, fireErr end
+  log.warn("combatd", "fire " .. tostring(cannon.name))
+  return true, "fire sent"
+end
+
+function M.start(ctx)
+  M.ctx = ctx
+  local st = M.status()
+  log.info("combatd", st.status)
 end
 
 function M.stop()
@@ -7468,6 +8252,14 @@ return M
 6f6f6f6
 6666666
 ]===],
+  ["system/themes/icons/combat.nfp"] = [===[
+eeeeeee
+efffffe
+efeeefe
+efffffe
+eeefeee
+eeeeeee
+]===],
   ["system/themes/icons/crafttube.nfp"] = [===[
 eeeeeee
 efffffe
@@ -8135,7 +8927,7 @@ if (-not (Test-Command "yt-dlp")) {
 npm start
 ]===],
   ["VERSION"] = [===[
-0.16.0
+0.17.0
 ]===],
 }
 
@@ -8151,5 +8943,5 @@ for path, content in pairs(files) do
   h.close()
 end
 
-print("MintCraft OS 0.16.0 installed.")
+print("MintCraft OS 0.17.0 installed.")
 print("Run reboot to start MintCraft OS.")
