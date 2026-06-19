@@ -1,4 +1,4 @@
--- MintCraft OS V0.17.1 installer for CC:Tweaked
+-- MintCraft OS V0.17.2 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [===[
@@ -13,7 +13,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -691,7 +691,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" },
 }
@@ -724,6 +724,13 @@ end
 
 local function typeLabel(types)
   return table.concat(types or {}, ",")
+end
+
+local function shortLabel(value, fallback)
+  value = tostring(value or fallback or "-")
+  if #value > 18 and value:find("%-") then return fallback or "target" end
+  if #value > 18 then return string.sub(value, 1, 15) .. "..." end
+  return value
 end
 
 local function selected(list, index)
@@ -774,6 +781,23 @@ function M.run(ctx)
       app.snapshot = (ok and snap) or { ok = false, status = "combatd error", counts = {}, radars = {}, targets = {}, cannons = {}, devices = {}, errors = { tostring(snap) } }
     end
     return app.snapshot
+  end
+
+  local function targetBearing(target, index)
+    if tonumber(target.bearing) then return tonumber(target.bearing) end
+    if tonumber(target.x) and tonumber(target.z) then
+      return math.deg(math.atan2 and math.atan2(tonumber(target.x), tonumber(target.z)) or math.atan(tonumber(target.x) / math.max(1, tonumber(target.z))))
+    end
+    return (index - 1) * 35 - 70
+  end
+
+  local function targetDistance(target, index)
+    if tonumber(target.distance) then return tonumber(target.distance) end
+    if tonumber(target.x) and tonumber(target.z) then
+      local x, z = tonumber(target.x), tonumber(target.z)
+      return math.sqrt(x * x + z * z)
+    end
+    return 80 + index * 35
   end
 
   local function currentTarget()
@@ -827,18 +851,44 @@ function M.run(ctx)
 
   local function drawMap(w, h, targets)
     local mapX, mapY = 2, 8
-    local mapW, mapH = math.max(20, math.min(w - 4, 42)), math.max(7, math.min(h - 10, 13))
-    renderer.fill(mapX, mapY, mapW, mapH, colors.gray)
+    local mapW, mapH = math.max(26, math.min(w - 4, 54)), math.max(9, math.min(h - 11, 16))
+    renderer.fill(mapX, mapY, mapW, mapH, colors.black)
     local cx, cy = mapX + math.floor(mapW / 2), mapY + math.floor(mapH / 2)
-    renderer.writeAt(cx, cy, "+", colors.white, colors.gray)
+    local maxR = math.max(3, math.min(math.floor(mapW / 2) - 2, mapH - 2))
+    for r = 2, maxR, 3 do
+      renderer.writeAt(cx - r, cy, "-", colors.gray, colors.black)
+      renderer.writeAt(cx + r, cy, "-", colors.gray, colors.black)
+      if cy - r >= mapY then renderer.writeAt(cx, cy - r, "|", colors.gray, colors.black) end
+      if cy + r <= mapY + mapH - 1 then renderer.writeAt(cx, cy + r, "|", colors.gray, colors.black) end
+    end
+    for y = mapY, mapY + mapH - 1 do
+      local dy = cy - y
+      for x = mapX, mapX + mapW - 1 do
+        local dx = x - cx
+        local dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 1 and dist <= maxR then
+          local angle = math.deg(math.atan2 and math.atan2(dx, dy) or math.atan(dx / math.max(1, dy)))
+          if math.abs(angle) <= 38 then
+            local ch = dist > maxR - 1 and "." or " "
+            renderer.writeAt(x, y, ch, colors.lime, colors.green)
+          end
+        end
+      end
+    end
+    renderer.writeAt(cx - 1, mapY, "N", colors.white, colors.black)
+    renderer.writeAt(cx, cy, "^", colors.white, colors.blue)
+    renderer.writeAt(mapX, mapY, "+", colors.lightGray, colors.black)
+    renderer.writeAt(mapX + mapW - 1, mapY, "+", colors.lightGray, colors.black)
+    renderer.writeAt(mapX, mapY + mapH - 1, "+", colors.lightGray, colors.black)
+    renderer.writeAt(mapX + mapW - 1, mapY + mapH - 1, "+", colors.lightGray, colors.black)
     for i, target in ipairs(targets or {}) do
-      local bearing = tonumber(target.bearing) or (i * 45)
-      local dist = tonumber(target.distance) or (i * 10)
-      local r = math.min(math.floor(dist / 50) + 1, math.min(math.floor(mapW / 2) - 1, math.floor(mapH / 2) - 1))
+      local bearing = targetBearing(target, i)
+      local dist = targetDistance(target, i)
+      local r = math.max(1, math.min(math.floor(dist / 60) + 1, maxR))
       local rad = math.rad(bearing)
       local x = math.max(mapX, math.min(mapX + mapW - 1, cx + math.floor(math.sin(rad) * r)))
       local y = math.max(mapY, math.min(mapY + mapH - 1, cy - math.floor(math.cos(rad) * r)))
-      renderer.writeAt(x, y, i == app.targetIndex and "X" or "*", i == app.targetIndex and colors.red or colors.yellow, colors.gray)
+      renderer.writeAt(x, y, i == app.targetIndex and "X" or tostring(i % 10), i == app.targetIndex and colors.red or colors.yellow, colors.black)
     end
     return mapY + mapH
   end
@@ -851,9 +901,22 @@ function M.run(ctx)
     if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 then
       renderer.writeAt(1, 6, renderer.crop("Radar visible, no track readable. Select/link target or open Probe.", w), colors.orange, colors.lightGray)
     else
-      renderer.writeAt(1, 6, renderer.crop("Tactical map: center=ship, *=target, X=selected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 6, renderer.crop("Radar scope: green=cone, ^=ship, X=selected, numbers=targets", w), colors.gray, colors.lightGray)
     end
     local bottom = drawMap(w, h, snap.targets or {})
+    local detailX = math.min(w, 58)
+    if detailX + 20 <= w then
+      local target = selected(snap.targets or {}, app.targetIndex)
+      renderer.writeAt(detailX, 8, renderer.crop("Selected", w - detailX + 1), colors.black, colors.gray)
+      if target then
+        renderer.writeAt(detailX, 10, renderer.crop(shortLabel(target.label, "T" .. tostring(app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 11, renderer.crop("dist " .. scalar(targetDistance(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 12, renderer.crop("bear " .. scalar(targetBearing(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 13, renderer.crop("alt  " .. scalar(target.altitude), w - detailX + 1), colors.black, colors.lightGray)
+      else
+        renderer.writeAt(detailX, 10, renderer.crop("No target", w - detailX + 1), colors.gray, colors.lightGray)
+      end
+    end
     for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 2)) do
       local radar = snap.radars[i]
       local methods = table.concat(radar.targetMethods or {}, ",")
@@ -872,7 +935,7 @@ function M.run(ctx)
     for i, target in ipairs(snap.targets or {}) do
       if i > h - 4 then break end
       local bg = i == app.targetIndex and colors.cyan or colors.lightGray
-      local line = tostring(i) .. " " .. tostring(target.label) .. " dist=" .. scalar(target.distance) .. " bearing=" .. scalar(target.bearing) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
+      local line = tostring(i) .. " " .. shortLabel(target.label, "T" .. tostring(i)) .. " dist=" .. scalar(targetDistance(target, i)) .. " bearing=" .. scalar(targetBearing(target, i)) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
       renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, bg)
     end
   end
@@ -1000,8 +1063,15 @@ function M.run(ctx)
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Combat", w = math.min(86, sw - 4), h = math.min(25, sh - 3), x = 6, y = 3, app = app })
-  while not win.closed do ctx.pullEvent() end
+  local win = ctx.windowManager:create({ title = "Combat", w = math.min(94, sw - 4), h = math.min(27, sh - 3), x = 6, y = 3, app = app })
+  local refreshTimer = os.startTimer(math.max(0.2, tonumber(cfg.refreshSeconds) or 0.5))
+  while not win.closed do
+    local event = ctx.pullEvent()
+    if event.name == "timer" and event.args[1] == refreshTimer then
+      refresh()
+      refreshTimer = os.startTimer(math.max(0.2, tonumber(cfg.refreshSeconds) or 0.5))
+    end
+  end
 end
 
 return M
@@ -1010,7 +1080,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1374,7 +1444,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -1459,7 +1529,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1643,7 +1713,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1950,7 +2020,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2029,7 +2099,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2148,7 +2218,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" },
 }
@@ -2715,7 +2785,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2796,7 +2866,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3184,7 +3254,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3299,7 +3369,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3415,7 +3485,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.17.1",
+  version = "0.17.2",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3803,7 +3873,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.17.1",
+  version = "0.17.2",
 }
 ]===],
   ["apps/update/main.lua"] = [===[
@@ -4232,7 +4302,7 @@ return M
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.17.1 base:
+This repository currently contains the V0.17.2 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -4262,6 +4332,7 @@ This repository currently contains the V0.17.1 base:
 - Navigation app for CC:Sable telemetry, Create: Avionics sensor diagnostics, quadcopter force tables and confirmed Redstone Assist pulses
 - Combat app for Create: Radars / CC:CBC probing, target lists, semi-auto aiming and confirmed fire control
 - Combat reads Create: Radars track methods such as `getSelectedTrack`/`getTracks` when exposed, and shows a radar diagnostic when no target API is available
+- Combat radar view refreshes on a timer and draws a tactical scope with radar cone, ship marker, target markers and selected target details
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 - app crash isolation for process, window draw and input errors, with log entry and notification
@@ -4380,7 +4451,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.17.1",
+    version = "0.17.2",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4406,8 +4477,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.17.1" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.17.1"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.17.2" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.17.2"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -4662,7 +4733,7 @@ return M
 ]===],
   ["system/config/system.cfg"] = [===[
 {
-  version = "0.17.1",
+  version = "0.17.2",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -5699,21 +5770,21 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.17.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.17.1", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.17.1", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.17.1", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.17.1", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" } })
-  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.17.1", permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.17.1", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.17.1", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.17.1", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.17.1", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.17.1", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.17.1", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.17.1", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.17.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.17.1", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.17.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.17.2", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.17.2", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.17.2", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.17.2", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" } })
+  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.17.2", permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.17.2", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.17.2", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.17.2", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.17.2", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.17.2", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.17.2", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.17.2", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.17.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.17.2", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -5944,7 +6015,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.17.1",
+    version = meta.version or "0.17.2",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -8965,7 +9036,7 @@ if (-not (Test-Command "yt-dlp")) {
 npm start
 ]===],
   ["VERSION"] = [===[
-0.17.1
+0.17.2
 ]===],
 }
 
@@ -8981,5 +9052,5 @@ for path, content in pairs(files) do
   h.close()
 end
 
-print("MintCraft OS 0.17.1 installed.")
+print("MintCraft OS 0.17.2 installed.")
 print("Run reboot to start MintCraft OS.")

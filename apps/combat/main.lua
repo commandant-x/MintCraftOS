@@ -27,6 +27,13 @@ local function typeLabel(types)
   return table.concat(types or {}, ",")
 end
 
+local function shortLabel(value, fallback)
+  value = tostring(value or fallback or "-")
+  if #value > 18 and value:find("%-") then return fallback or "target" end
+  if #value > 18 then return string.sub(value, 1, 15) .. "..." end
+  return value
+end
+
 local function selected(list, index)
   if not list or #list == 0 then return nil end
   index = math.max(1, math.min(#list, tonumber(index) or 1))
@@ -75,6 +82,23 @@ function M.run(ctx)
       app.snapshot = (ok and snap) or { ok = false, status = "combatd error", counts = {}, radars = {}, targets = {}, cannons = {}, devices = {}, errors = { tostring(snap) } }
     end
     return app.snapshot
+  end
+
+  local function targetBearing(target, index)
+    if tonumber(target.bearing) then return tonumber(target.bearing) end
+    if tonumber(target.x) and tonumber(target.z) then
+      return math.deg(math.atan2 and math.atan2(tonumber(target.x), tonumber(target.z)) or math.atan(tonumber(target.x) / math.max(1, tonumber(target.z))))
+    end
+    return (index - 1) * 35 - 70
+  end
+
+  local function targetDistance(target, index)
+    if tonumber(target.distance) then return tonumber(target.distance) end
+    if tonumber(target.x) and tonumber(target.z) then
+      local x, z = tonumber(target.x), tonumber(target.z)
+      return math.sqrt(x * x + z * z)
+    end
+    return 80 + index * 35
   end
 
   local function currentTarget()
@@ -128,18 +152,44 @@ function M.run(ctx)
 
   local function drawMap(w, h, targets)
     local mapX, mapY = 2, 8
-    local mapW, mapH = math.max(20, math.min(w - 4, 42)), math.max(7, math.min(h - 10, 13))
-    renderer.fill(mapX, mapY, mapW, mapH, colors.gray)
+    local mapW, mapH = math.max(26, math.min(w - 4, 54)), math.max(9, math.min(h - 11, 16))
+    renderer.fill(mapX, mapY, mapW, mapH, colors.black)
     local cx, cy = mapX + math.floor(mapW / 2), mapY + math.floor(mapH / 2)
-    renderer.writeAt(cx, cy, "+", colors.white, colors.gray)
+    local maxR = math.max(3, math.min(math.floor(mapW / 2) - 2, mapH - 2))
+    for r = 2, maxR, 3 do
+      renderer.writeAt(cx - r, cy, "-", colors.gray, colors.black)
+      renderer.writeAt(cx + r, cy, "-", colors.gray, colors.black)
+      if cy - r >= mapY then renderer.writeAt(cx, cy - r, "|", colors.gray, colors.black) end
+      if cy + r <= mapY + mapH - 1 then renderer.writeAt(cx, cy + r, "|", colors.gray, colors.black) end
+    end
+    for y = mapY, mapY + mapH - 1 do
+      local dy = cy - y
+      for x = mapX, mapX + mapW - 1 do
+        local dx = x - cx
+        local dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 1 and dist <= maxR then
+          local angle = math.deg(math.atan2 and math.atan2(dx, dy) or math.atan(dx / math.max(1, dy)))
+          if math.abs(angle) <= 38 then
+            local ch = dist > maxR - 1 and "." or " "
+            renderer.writeAt(x, y, ch, colors.lime, colors.green)
+          end
+        end
+      end
+    end
+    renderer.writeAt(cx - 1, mapY, "N", colors.white, colors.black)
+    renderer.writeAt(cx, cy, "^", colors.white, colors.blue)
+    renderer.writeAt(mapX, mapY, "+", colors.lightGray, colors.black)
+    renderer.writeAt(mapX + mapW - 1, mapY, "+", colors.lightGray, colors.black)
+    renderer.writeAt(mapX, mapY + mapH - 1, "+", colors.lightGray, colors.black)
+    renderer.writeAt(mapX + mapW - 1, mapY + mapH - 1, "+", colors.lightGray, colors.black)
     for i, target in ipairs(targets or {}) do
-      local bearing = tonumber(target.bearing) or (i * 45)
-      local dist = tonumber(target.distance) or (i * 10)
-      local r = math.min(math.floor(dist / 50) + 1, math.min(math.floor(mapW / 2) - 1, math.floor(mapH / 2) - 1))
+      local bearing = targetBearing(target, i)
+      local dist = targetDistance(target, i)
+      local r = math.max(1, math.min(math.floor(dist / 60) + 1, maxR))
       local rad = math.rad(bearing)
       local x = math.max(mapX, math.min(mapX + mapW - 1, cx + math.floor(math.sin(rad) * r)))
       local y = math.max(mapY, math.min(mapY + mapH - 1, cy - math.floor(math.cos(rad) * r)))
-      renderer.writeAt(x, y, i == app.targetIndex and "X" or "*", i == app.targetIndex and colors.red or colors.yellow, colors.gray)
+      renderer.writeAt(x, y, i == app.targetIndex and "X" or tostring(i % 10), i == app.targetIndex and colors.red or colors.yellow, colors.black)
     end
     return mapY + mapH
   end
@@ -152,9 +202,22 @@ function M.run(ctx)
     if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 then
       renderer.writeAt(1, 6, renderer.crop("Radar visible, no track readable. Select/link target or open Probe.", w), colors.orange, colors.lightGray)
     else
-      renderer.writeAt(1, 6, renderer.crop("Tactical map: center=ship, *=target, X=selected", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, 6, renderer.crop("Radar scope: green=cone, ^=ship, X=selected, numbers=targets", w), colors.gray, colors.lightGray)
     end
     local bottom = drawMap(w, h, snap.targets or {})
+    local detailX = math.min(w, 58)
+    if detailX + 20 <= w then
+      local target = selected(snap.targets or {}, app.targetIndex)
+      renderer.writeAt(detailX, 8, renderer.crop("Selected", w - detailX + 1), colors.black, colors.gray)
+      if target then
+        renderer.writeAt(detailX, 10, renderer.crop(shortLabel(target.label, "T" .. tostring(app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 11, renderer.crop("dist " .. scalar(targetDistance(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 12, renderer.crop("bear " .. scalar(targetBearing(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
+        renderer.writeAt(detailX, 13, renderer.crop("alt  " .. scalar(target.altitude), w - detailX + 1), colors.black, colors.lightGray)
+      else
+        renderer.writeAt(detailX, 10, renderer.crop("No target", w - detailX + 1), colors.gray, colors.lightGray)
+      end
+    end
     for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 2)) do
       local radar = snap.radars[i]
       local methods = table.concat(radar.targetMethods or {}, ",")
@@ -173,7 +236,7 @@ function M.run(ctx)
     for i, target in ipairs(snap.targets or {}) do
       if i > h - 4 then break end
       local bg = i == app.targetIndex and colors.cyan or colors.lightGray
-      local line = tostring(i) .. " " .. tostring(target.label) .. " dist=" .. scalar(target.distance) .. " bearing=" .. scalar(target.bearing) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
+      local line = tostring(i) .. " " .. shortLabel(target.label, "T" .. tostring(i)) .. " dist=" .. scalar(targetDistance(target, i)) .. " bearing=" .. scalar(targetBearing(target, i)) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
       renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, bg)
     end
   end
@@ -301,8 +364,15 @@ function M.run(ctx)
   end
 
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Combat", w = math.min(86, sw - 4), h = math.min(25, sh - 3), x = 6, y = 3, app = app })
-  while not win.closed do ctx.pullEvent() end
+  local win = ctx.windowManager:create({ title = "Combat", w = math.min(94, sw - 4), h = math.min(27, sh - 3), x = 6, y = 3, app = app })
+  local refreshTimer = os.startTimer(math.max(0.2, tonumber(cfg.refreshSeconds) or 0.5))
+  while not win.closed do
+    local event = ctx.pullEvent()
+    if event.name == "timer" and event.args[1] == refreshTimer then
+      refresh()
+      refreshTimer = os.startTimer(math.max(0.2, tonumber(cfg.refreshSeconds) or 0.5))
+    end
+  end
 end
 
 return M
