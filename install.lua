@@ -1,4 +1,4 @@
--- MintCraft OS V0.17.0 installer for CC:Tweaked
+-- MintCraft OS V0.17.1 installer for CC:Tweaked
 -- Install with: wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
 local files = {
   [".gitignore"] = [===[
@@ -13,7 +13,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -691,7 +691,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" },
 }
@@ -848,11 +848,20 @@ function M.run(ctx)
     local counts = snap.counts or {}
     renderer.writeAt(1, 3, renderer.crop("Status: " .. tostring(snap.status or "-"), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 4, renderer.crop("Radars=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("Tactical map: center=ship, *=target, X=selected", w), colors.gray, colors.lightGray)
+    if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 then
+      renderer.writeAt(1, 6, renderer.crop("Radar visible, no track readable. Select/link target or open Probe.", w), colors.orange, colors.lightGray)
+    else
+      renderer.writeAt(1, 6, renderer.crop("Tactical map: center=ship, *=target, X=selected", w), colors.gray, colors.lightGray)
+    end
     local bottom = drawMap(w, h, snap.targets or {})
-    for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 1)) do
+    for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 2)) do
       local radar = snap.radars[i]
-      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " " .. typeLabel(radar.types), w), colors.black, colors.lightGray)
+      local methods = table.concat(radar.targetMethods or {}, ",")
+      if methods == "" then methods = "no target method" end
+      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " " .. methods, w), colors.black, colors.lightGray)
+    end
+    if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 and bottom + #(snap.radars or {}) + 1 <= h then
+      renderer.writeAt(1, h, renderer.crop("Create Radars: link Bearing -> Network Controller -> Monitor/Fire Controller.", w), colors.gray, colors.lightGray)
     end
   end
 
@@ -1001,7 +1010,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1365,7 +1374,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.devices.main",
   permissions = { "devices.list" },
 }
@@ -1450,7 +1459,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1634,7 +1643,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1941,7 +1950,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2020,7 +2029,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2139,7 +2148,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" },
 }
@@ -2706,7 +2715,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2787,7 +2796,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3175,7 +3184,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3290,7 +3299,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3406,7 +3415,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.17.0",
+  version = "0.17.1",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3794,7 +3803,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.17.0",
+  version = "0.17.1",
 }
 ]===],
   ["apps/update/main.lua"] = [===[
@@ -4223,7 +4232,7 @@ return M
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.17.0 base:
+This repository currently contains the V0.17.1 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -4252,6 +4261,7 @@ This repository currently contains the V0.17.0 base:
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - Navigation app for CC:Sable telemetry, Create: Avionics sensor diagnostics, quadcopter force tables and confirmed Redstone Assist pulses
 - Combat app for Create: Radars / CC:CBC probing, target lists, semi-auto aiming and confirmed fire control
+- Combat reads Create: Radars track methods such as `getSelectedTrack`/`getTracks` when exposed, and shows a radar diagnostic when no target API is available
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 - app crash isolation for process, window draw and input errors, with log entry and notification
@@ -4370,7 +4380,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.17.0",
+    version = "0.17.1",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4396,8 +4406,8 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.17.0" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.17.0"))
+  local cfg = config.load("/system/config/system.cfg", { version = "0.17.1" })
+  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.17.1"))
 
   local kernel = require("system.kernel.kernel")
   kernel.start()
@@ -4652,7 +4662,7 @@ return M
 ]===],
   ["system/config/system.cfg"] = [===[
 {
-  version = "0.17.0",
+  version = "0.17.1",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -5689,21 +5699,21 @@ local function normalize(raw)
 end
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.17.0", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.17.0", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.17.0", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.17.0", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.17.0", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" } })
-  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.17.0", permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.17.0", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.17.0", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.17.0", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.17.0", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.17.0", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.17.0", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.17.0", permissions = { "devices.list" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.17.0", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.17.0", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.17.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.17.1", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.17.1", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.17.1", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.17.1", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist" } })
+  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.17.1", permissions = { "combat.read", "combat.aim", "combat.fire", "peripheral.probe" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.17.1", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.17.1", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.17.1", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.17.1", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.17.1", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.17.1", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.17.1", permissions = { "devices.list" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.17.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.17.1", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -5934,7 +5944,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.17.0",
+    version = meta.version or "0.17.1",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -6917,7 +6927,16 @@ local READ_METHODS = {
   "getYaw", "getPitch", "getX", "getY", "getZ", "isRunning",
   "isAssembled", "isLoaded", "isReady", "getAmmo", "getAmmunition",
   "getRange", "getHeading", "getTarget", "getTargets", "scan",
+  "getSelectedTrack", "getTrack", "getTracks", "getAllTracks",
   "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts",
+  "getDetections", "getDetectedEntities", "getBlips", "getAircraft",
+}
+
+local TARGET_METHODS = {
+  "getTargets", "scan", "getSelectedTrack", "getTrack", "getTracks",
+  "getAllTracks", "getDetectedTargets", "getTrackedTargets", "getEntities",
+  "getContacts", "getDetections", "getDetectedEntities", "getBlips",
+  "getAircraft", "getTarget",
 }
 
 local function cfg()
@@ -7003,7 +7022,7 @@ local function classify(name, types, methods)
   local text = norm(name) .. " " .. table.concat(types or {}, " ") .. " " .. table.concat(methods or {}, " ")
   local set = methodSet(methods)
   local roles = {}
-  if hasAny(text, { "radar", "target", "contact", "detector" }) or set.getTargets or set.scan or set.getDetectedTargets or set.getTrackedTargets then roles.radar = true end
+  if hasAny(text, { "radar", "target", "track", "contact", "detector" }) or set.getTargets or set.scan or set.getSelectedTrack or set.getTracks or set.getDetectedTargets or set.getTrackedTargets then roles.radar = true end
   if hasAny(text, { "cbc", "cannon", "autocannon", "mount" }) or set.fire or set.assemble or set.setYaw or set.setPitch then roles.cannon = true end
   if hasAny(text, { "mount" }) or set.getYaw or set.getPitch or set.setYaw or set.setPitch then roles.mount = true end
   if hasAny(text, { "controller", "fire_control", "firecontrol" }) then roles.controller = true end
@@ -7026,6 +7045,14 @@ local function numberField(value, ...)
   return nil
 end
 
+local function firstTable(...)
+  for i = 1, select("#", ...) do
+    local value = select(i, ...)
+    if type(value) == "table" then return value end
+  end
+  return nil
+end
+
 local function atan2(y, x)
   if math.atan2 then return math.atan2(y, x) end
   if x > 0 then return math.atan(y / x) end
@@ -7038,9 +7065,11 @@ end
 
 local function normalizeTarget(raw, index)
   local t = type(raw) == "table" and raw or { label = tostring(raw) }
-  local x = numberField(t, "x", "X", "posX", "targetX") or numberField(t.position, "x", 1)
-  local y = numberField(t, "y", "Y", "posY", "altitude", "height", "targetY") or numberField(t.position, "y", 2)
-  local z = numberField(t, "z", "Z", "posZ", "targetZ") or numberField(t.position, "z", 3)
+  local position = firstTable(t.position, t.pos, t.location, t.worldPosition, t.globalPosition)
+  local velocity = firstTable(t.velocity, t.vel, t.motion)
+  local x = numberField(t, "x", "X", "posX", "targetX") or numberField(position, "x", "X", 1)
+  local y = numberField(t, "y", "Y", "posY", "altitude", "height", "targetY") or numberField(position, "y", "Y", 2)
+  local z = numberField(t, "z", "Z", "posZ", "targetZ") or numberField(position, "z", "Z", 3)
   local distance = tonumber(t.distance or t.range or t.r or t.dist)
   local bearing = tonumber(t.bearing or t.heading or t.yaw)
   return {
@@ -7052,7 +7081,7 @@ local function normalizeTarget(raw, index)
     distance = distance,
     bearing = bearing,
     altitude = tonumber(t.altitude or y),
-    velocity = copy(t.velocity or t.vel),
+    velocity = copy(velocity),
     raw = copy(t),
   }
 end
@@ -7070,14 +7099,23 @@ end
 local function readTargets(device, methods)
   local targets = {}
   local set = methodSet(methods)
-  for _, method in ipairs({ "getTargets", "scan", "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts", "getTarget" }) do
+  for _, method in ipairs(TARGET_METHODS) do
     if set[method] then
       local value = call(device, method)
       appendTargets(targets, value)
-      if #targets > 0 then break end
+      if #targets > 0 and method ~= "getSelectedTrack" then break end
     end
   end
   return targets
+end
+
+local function targetReadiness(methods)
+  local set = methodSet(methods)
+  local available = {}
+  for _, method in ipairs(TARGET_METHODS) do
+    if set[method] then table.insert(available, method) end
+  end
+  return available
 end
 
 local function readCannon(device, item, index)
@@ -7168,7 +7206,7 @@ function M.snapshot()
   local radars, targets, cannons, mounts, controllers, unknown = {}, {}, {}, {}, {}, {}
   for _, item in ipairs(devices) do
     if item.roles.radar then
-      table.insert(radars, { name = item.name, types = item.types, methods = item.methods })
+      table.insert(radars, { name = item.name, types = item.types, methods = item.methods, targetMethods = targetReadiness(item.methods) })
       if item.device then
         for _, target in ipairs(readTargets(item.device, item.methods)) do table.insert(targets, target) end
       end
@@ -8927,7 +8965,7 @@ if (-not (Test-Command "yt-dlp")) {
 npm start
 ]===],
   ["VERSION"] = [===[
-0.17.0
+0.17.1
 ]===],
 }
 
@@ -8943,5 +8981,5 @@ for path, content in pairs(files) do
   h.close()
 end
 
-print("MintCraft OS 0.17.0 installed.")
+print("MintCraft OS 0.17.1 installed.")
 print("Run reboot to start MintCraft OS.")

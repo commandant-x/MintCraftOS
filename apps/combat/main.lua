@@ -149,11 +149,20 @@ function M.run(ctx)
     local counts = snap.counts or {}
     renderer.writeAt(1, 3, renderer.crop("Status: " .. tostring(snap.status or "-"), w), colors.black, colors.lightGray)
     renderer.writeAt(1, 4, renderer.crop("Radars=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("Tactical map: center=ship, *=target, X=selected", w), colors.gray, colors.lightGray)
+    if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 then
+      renderer.writeAt(1, 6, renderer.crop("Radar visible, no track readable. Select/link target or open Probe.", w), colors.orange, colors.lightGray)
+    else
+      renderer.writeAt(1, 6, renderer.crop("Tactical map: center=ship, *=target, X=selected", w), colors.gray, colors.lightGray)
+    end
     local bottom = drawMap(w, h, snap.targets or {})
-    for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 1)) do
+    for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 2)) do
       local radar = snap.radars[i]
-      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " " .. typeLabel(radar.types), w), colors.black, colors.lightGray)
+      local methods = table.concat(radar.targetMethods or {}, ",")
+      if methods == "" then methods = "no target method" end
+      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " " .. methods, w), colors.black, colors.lightGray)
+    end
+    if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 and bottom + #(snap.radars or {}) + 1 <= h then
+      renderer.writeAt(1, h, renderer.crop("Create Radars: link Bearing -> Network Controller -> Monitor/Fire Controller.", w), colors.gray, colors.lightGray)
     end
   end
 

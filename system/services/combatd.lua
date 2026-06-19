@@ -20,7 +20,16 @@ local READ_METHODS = {
   "getYaw", "getPitch", "getX", "getY", "getZ", "isRunning",
   "isAssembled", "isLoaded", "isReady", "getAmmo", "getAmmunition",
   "getRange", "getHeading", "getTarget", "getTargets", "scan",
+  "getSelectedTrack", "getTrack", "getTracks", "getAllTracks",
   "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts",
+  "getDetections", "getDetectedEntities", "getBlips", "getAircraft",
+}
+
+local TARGET_METHODS = {
+  "getTargets", "scan", "getSelectedTrack", "getTrack", "getTracks",
+  "getAllTracks", "getDetectedTargets", "getTrackedTargets", "getEntities",
+  "getContacts", "getDetections", "getDetectedEntities", "getBlips",
+  "getAircraft", "getTarget",
 }
 
 local function cfg()
@@ -106,7 +115,7 @@ local function classify(name, types, methods)
   local text = norm(name) .. " " .. table.concat(types or {}, " ") .. " " .. table.concat(methods or {}, " ")
   local set = methodSet(methods)
   local roles = {}
-  if hasAny(text, { "radar", "target", "contact", "detector" }) or set.getTargets or set.scan or set.getDetectedTargets or set.getTrackedTargets then roles.radar = true end
+  if hasAny(text, { "radar", "target", "track", "contact", "detector" }) or set.getTargets or set.scan or set.getSelectedTrack or set.getTracks or set.getDetectedTargets or set.getTrackedTargets then roles.radar = true end
   if hasAny(text, { "cbc", "cannon", "autocannon", "mount" }) or set.fire or set.assemble or set.setYaw or set.setPitch then roles.cannon = true end
   if hasAny(text, { "mount" }) or set.getYaw or set.getPitch or set.setYaw or set.setPitch then roles.mount = true end
   if hasAny(text, { "controller", "fire_control", "firecontrol" }) then roles.controller = true end
@@ -129,6 +138,14 @@ local function numberField(value, ...)
   return nil
 end
 
+local function firstTable(...)
+  for i = 1, select("#", ...) do
+    local value = select(i, ...)
+    if type(value) == "table" then return value end
+  end
+  return nil
+end
+
 local function atan2(y, x)
   if math.atan2 then return math.atan2(y, x) end
   if x > 0 then return math.atan(y / x) end
@@ -141,9 +158,11 @@ end
 
 local function normalizeTarget(raw, index)
   local t = type(raw) == "table" and raw or { label = tostring(raw) }
-  local x = numberField(t, "x", "X", "posX", "targetX") or numberField(t.position, "x", 1)
-  local y = numberField(t, "y", "Y", "posY", "altitude", "height", "targetY") or numberField(t.position, "y", 2)
-  local z = numberField(t, "z", "Z", "posZ", "targetZ") or numberField(t.position, "z", 3)
+  local position = firstTable(t.position, t.pos, t.location, t.worldPosition, t.globalPosition)
+  local velocity = firstTable(t.velocity, t.vel, t.motion)
+  local x = numberField(t, "x", "X", "posX", "targetX") or numberField(position, "x", "X", 1)
+  local y = numberField(t, "y", "Y", "posY", "altitude", "height", "targetY") or numberField(position, "y", "Y", 2)
+  local z = numberField(t, "z", "Z", "posZ", "targetZ") or numberField(position, "z", "Z", 3)
   local distance = tonumber(t.distance or t.range or t.r or t.dist)
   local bearing = tonumber(t.bearing or t.heading or t.yaw)
   return {
@@ -155,7 +174,7 @@ local function normalizeTarget(raw, index)
     distance = distance,
     bearing = bearing,
     altitude = tonumber(t.altitude or y),
-    velocity = copy(t.velocity or t.vel),
+    velocity = copy(velocity),
     raw = copy(t),
   }
 end
@@ -173,14 +192,23 @@ end
 local function readTargets(device, methods)
   local targets = {}
   local set = methodSet(methods)
-  for _, method in ipairs({ "getTargets", "scan", "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts", "getTarget" }) do
+  for _, method in ipairs(TARGET_METHODS) do
     if set[method] then
       local value = call(device, method)
       appendTargets(targets, value)
-      if #targets > 0 then break end
+      if #targets > 0 and method ~= "getSelectedTrack" then break end
     end
   end
   return targets
+end
+
+local function targetReadiness(methods)
+  local set = methodSet(methods)
+  local available = {}
+  for _, method in ipairs(TARGET_METHODS) do
+    if set[method] then table.insert(available, method) end
+  end
+  return available
 end
 
 local function readCannon(device, item, index)
@@ -271,7 +299,7 @@ function M.snapshot()
   local radars, targets, cannons, mounts, controllers, unknown = {}, {}, {}, {}, {}, {}
   for _, item in ipairs(devices) do
     if item.roles.radar then
-      table.insert(radars, { name = item.name, types = item.types, methods = item.methods })
+      table.insert(radars, { name = item.name, types = item.types, methods = item.methods, targetMethods = targetReadiness(item.methods) })
       if item.device then
         for _, target in ipairs(readTargets(item.device, item.methods)) do table.insert(targets, target) end
       end
