@@ -4,8 +4,20 @@ local keyboard = require("system.gui.keyboard")
 local ui = require("system.gui.components")
 local autocomplete = require("system.dev.autocomplete")
 local securityd = require("system.services.securityd")
+local fileNames = require("system.libraries.file_names")
 
 local M = {}
+
+local function sensitive(input)
+  local command = input:match("^%s*(%S+)")
+  return command == "login" or command == "unlock" or command == "passwd"
+end
+
+local function displayInput(input)
+  if not sensitive(input) then return input end
+  local command, args = input:match("^%s*(%S+)%s*(.*)$")
+  return command .. (args ~= "" and " ***" or "")
+end
 
 local function append(app, line)
   table.insert(app.lines, line)
@@ -49,7 +61,7 @@ local function trashPath(name)
 end
 
 local function runCommand(app, ctx, input)
-  append(app, "> " .. input)
+  append(app, "> " .. displayInput(input))
   if app.pending then
     if input == "yes" then
       local pending = app.pending
@@ -103,12 +115,24 @@ local function runCommand(app, ctx, input)
       local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
       local ok, err = ctx.security.require("filesystem.write", to)
       if not ok then append(app, err)
-      elseif fs.exists(from) and not fs.exists(to) then fs.move(from, to) ctx.security.audit("move", from .. " -> " .. to) else append(app, "Cannot move") end
+      elseif fileNames.protected(from) then append(app, "Protected path")
+      elseif fs.exists(from) and not fs.exists(to) then
+        app.pending = function()
+          local sourceAllowed, sourceError = ctx.security.require("filesystem.write", from)
+          local targetAllowed, targetError = ctx.security.require("filesystem.write", to)
+          if not sourceAllowed or not targetAllowed then append(app, sourceError or targetError) return end
+          fs.move(from, to)
+          ctx.security.audit("move", from .. " -> " .. to)
+        end
+        append(app, "Type yes to move " .. from .. " -> " .. to)
+      else append(app, "Cannot move") end
     end
   elseif cmd == "rm" then
     if rest ~= "" then
       local path = fs.combine(app.cwd, rest)
-      if fs.exists(path) then
+      if fileNames.protected(path) then
+        append(app, "Protected path")
+      elseif fs.exists(path) then
         app.pending = function()
           local ok, err = ctx.security.require("filesystem.write", path)
           if ok then fs.delete(path) ctx.security.audit("delete", path) append(app, "deleted") else append(app, err) end
@@ -258,9 +282,17 @@ function M.run(ctx)
     return autocomplete.prefix(app.input, #app.input + 1, "([%w_%-/%.]+)$")
   end
 
+  local suggestionInput, suggestionCwd, suggestionTime
   local function updateSuggestion()
+    local now = os.clock()
+    if suggestionInput == app.input and suggestionCwd == app.cwd and now - suggestionTime < 1 then return end
+    suggestionInput, suggestionCwd, suggestionTime = app.input, app.cwd, now
+    if sensitive(app.input) then
+      app.suggestion = nil
+      return
+    end
     local prefix = currentWord()
-    app.suggestion = autocomplete.suggest({ mode = "terminal", prefix = prefix, cwd = app.cwd })
+    app.suggestion = autocomplete.suggest({ mode = "terminal", prefix = prefix, cwd = app.cwd, text = app.input, cursor = #app.input + 1 })
   end
 
   local function acceptSuggestion()
@@ -276,8 +308,19 @@ function M.run(ctx)
   local function submit()
     local input = app.input
     app.input = ""
-    if input ~= "" then table.insert(app.history, input) app.historyIndex = nil end
-    runCommand(app, ctx, input)
+    if input ~= "" and not sensitive(input) then
+      table.insert(app.history, input)
+      if #app.history > 100 then table.remove(app.history, 1) end
+      app.historyIndex = nil
+    end
+    local ok, err = pcall(runCommand, app, ctx, input)
+    suggestionInput = nil
+    if not ok then
+      app.pending = nil
+      if sensitive(input) then err = "Authentication command failed" end
+      append(app, "Error: " .. tostring(err))
+      log.error("terminal", tostring(err))
+    end
   end
 
   local function hitQuick(x, y)
@@ -299,6 +342,10 @@ function M.run(ctx)
   app.keyboard.onBackspace = function() app.input = string.sub(app.input, 1, -2) updateSuggestion() end
   app.keyboard.onEnter = submit
   app.keyboard.onTab = acceptSuggestion
+  app.keyboard.onControl = function(ch)
+    if ch == "l" then app.lines = {}
+    elseif ch == "u" then app.input = "" updateSuggestion() end
+  end
 
   function app:draw(w, h)
     self.lastH = h
@@ -314,7 +361,7 @@ function M.run(ctx)
       y = y + 1
       if y >= top - 1 then break end
     end
-    local prompt = self.cwd .. "> " .. self.input
+    local prompt = self.cwd .. "> " .. displayInput(self.input)
     if self.suggestion then prompt = prompt .. "  [tab " .. self.suggestion.label .. "]" end
     renderer.writeAt(1, top - 1, renderer.crop(prompt, w), colors.white, colors.gray)
 
@@ -331,9 +378,7 @@ function M.run(ctx)
     elseif event.name == "key" then
       local key = event.args[1]
       if key == keys.enter then
-        local input = self.input
-        self.input = ""
-        runCommand(self, ctx, input)
+        submit()
         return true
       elseif key == keys.backspace then
         self.input = string.sub(self.input, 1, -2)

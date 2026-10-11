@@ -1,0 +1,50 @@
+package.path = "./?.lua;" .. package.path
+local writes, keyboardTop = {}, nil
+package.loaded["system.gui.renderer"] = {writeAt = function(x,y,text) writes[y] = text end, crop = function(t) return t end}
+package.loaded["system.gui.keyboard"] = {height = function() return 7 end, draw = function(x,y) keyboardTop = y end}
+package.loaded["system.dev.autocomplete"] = {prefix = function() return "" end, suggest = function() return nil end}
+colors = {white=1,gray=2,black=3,lightGray=4,orange=5}
+term = {getSize = function() return 51,19 end}
+local allowWrite, compiled, removed = false, 0, nil
+fs = {
+  exists = function() return false end,
+  open = function() if allowWrite then return {write=function() end,close=function() end} end end,
+  delete = function(path) removed = path end,
+}
+loadfile = function(path) compiled = compiled + 1 return function() error("must not execute compiled code") end end
+local app
+local ctx = {pid=42,args={},windowManager={create=function(_,opts) app=opts.app return {closed=false} end},pullEvent=function() coroutine.yield() end}
+local co = coroutine.create(function() require("apps.editor.main").run(ctx) end)
+assert(coroutine.resume(co))
+app:handle({name="mouse_click",args={1,9,1}})
+assert(compiled == 0 and app.status:find("cannot write",1,true))
+allowWrite = true
+app:handle({name="mouse_click",args={1,9,1}})
+assert(compiled == 1 and app.status == "Compile OK")
+assert(removed == "/var/tmp/editor_compile_42.lua")
+app:draw(47,14)
+assert(writes[6] == "Compile OK" and keyboardTop == 8, "status hidden behind keyboard")
+keys = {up=1,down=2,left=3,right=4,backspace=5,enter=6,tab=7}
+app.lines, app.cy, app.cx = {"long line", "x"}, 1, 10
+app:handle({name="key",args={keys.down}})
+assert(app.cy == 2 and app.cx == 2)
+app:handle({name="key",args={keys.right}})
+assert(app.cx == 2)
+app.cx = 1
+app:handle({name="key",args={keys.backspace}})
+assert(#app.lines == 1 and app.lines[1] == "long linex" and app.cx == 10)
+app.lines, app.cy, app.cx = {"ab"}, 1, 2
+app:handle({name="paste",args={"x\ny"}})
+assert(app.lines[1] == "ax" and app.lines[2] == "yb" and app.cy == 2 and app.cx == 2)
+app.cx = 1
+app.keyboard.onBackspace()
+assert(#app.lines == 1 and app.lines[1] == "axyb")
+local completion = package.loaded["system.dev.autocomplete"]
+completion.suggest = function() return {label="function",insert="function()\nend",kind="snippet"} end
+completion.apply = function() return "function()\nend suffix", 15 end
+app.lines, app.cy, app.cx = {"fun suffix", "following line"}, 1, 4
+app.keyboard.onTab()
+assert(#app.lines == 3 and app.lines[1] == "function()" and app.lines[2] == "end suffix")
+assert(app.lines[3] == "following line" and app.cy == 2 and app.cx == 4)
+for _, line in ipairs(app.lines) do assert(not line:find("\n",1,true)) end
+print("editor compile tests passed")

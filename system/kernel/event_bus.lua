@@ -28,7 +28,8 @@ function EventBus:off(id)
 end
 
 function EventBus:emit(name, ...)
-  local listeners = self.listeners[name] or {}
+  local listeners = {}
+  for _, listener in ipairs(self.listeners[name] or {}) do table.insert(listeners, listener) end
   for _, listener in ipairs(listeners) do
     local ok, err = pcall(listener.callback, ...)
     if not ok then

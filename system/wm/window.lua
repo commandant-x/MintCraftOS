@@ -41,6 +41,11 @@ end
 
 function Window:clamp()
   local sw, sh = term.getSize()
+  self.w = math.min(self.w, sw)
+  self.h = math.min(self.h, math.max(1, sh - 1))
+  if self.maximized then
+    self.w, self.h = sw, math.max(1, sh - 1)
+  end
   local maxX = math.max(1, sw - self.w + 1)
   local maxY = math.max(1, sh - self.h)
   self.x = math.max(1, math.min(self.x, maxX))
@@ -48,6 +53,7 @@ function Window:clamp()
 end
 
 function Window:contains(x, y)
+  if self.closed or self.minimized then return false end
   return x >= self.x and x < self.x + self.w and y >= self.y and y < self.y + self.h
 end
 
@@ -87,7 +93,8 @@ end
 function Window:draw()
   if self.closed or self.minimized then return end
   self:clamp()
-  renderer.fill(self.x + 1, self.y + 1, self.w, self.h, theme.get("shadow"))
+  local _, screenHeight = term.getSize()
+  renderer.fill(self.x + 1, self.y + 1, self.w, math.min(self.h, screenHeight - self.y - 1), theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
   self:updateControls()
   local title = self.movePending and " Tap destination" or (" " .. self.title)
@@ -96,8 +103,20 @@ function Window:draw()
   renderer.writeAt(self.maximizeBox.x, self.y, self.maximized and "[]" or "[]", theme.get("titleFg"), theme.get("titleBg"))
   renderer.writeAt(self.closeBox.x, self.y, " X", theme.get("titleFg"), theme.get("titleBg"))
 
-  if self.app and self.app.draw then
-    local target = window.create(term.current(), self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
+  if self.app and self.app.draw and self.w > 2 and self.h > 2 then
+    local parent = term.current()
+    if not self.surface or self.surfaceParent ~= parent then
+      self.surface = window.create(parent, self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
+      self.surfaceParent = parent
+      self.surfaceBounds = nil
+    end
+    local target = self.surface
+    target.setVisible(false)
+    local bounds = self.surfaceBounds
+    if not bounds or bounds.x ~= self.x or bounds.y ~= self.y or bounds.w ~= self.w or bounds.h ~= self.h then
+      target.reposition(self.x + 1, self.y + 1, self.w - 2, self.h - 2)
+      self.surfaceBounds = {x = self.x, y = self.y, w = self.w, h = self.h}
+    end
     local previous = term.redirect(target)
     term.setBackgroundColor(theme.get("windowBg"))
     term.setTextColor(theme.get("windowFg"))
@@ -113,7 +132,9 @@ function Window:draw()
 end
 
 function Window:handle(event)
-  if self.closed or self.minimized then return false end
+  if self.closed then return false end
+  local background = event.name == "timer" or event.name == "peripheral" or event.name == "peripheral_detach"
+  if self.minimized and not background then return false end
   if event.name == "mouse_click" then
     local button, x, y = table.unpack(event.args)
     if self.movePending then

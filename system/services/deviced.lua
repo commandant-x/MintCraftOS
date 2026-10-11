@@ -13,6 +13,7 @@ local M = {
     monitorSide = nil,
   },
   ctx = nil,
+  listeners = {},
 }
 
 local function readScale()
@@ -36,21 +37,40 @@ end
 function M.scan()
   local devices = {}
   if peripheral and peripheral.getNames then
-    for _, name in ipairs(peripheral.getNames()) do
-      devices[name] = {
-        name = name,
-        type = peripheral.getType(name),
-      }
+    local ok, names = pcall(peripheral.getNames)
+    if not ok or type(names) ~= "table" then
+      M.scanError = "Peripheral scan failed: " .. tostring(names)
+      log.error("deviced", M.scanError)
+      return M.devices, M.scanError
+    end
+    for _, name in ipairs(names) do
+      local result = {pcall(peripheral.getType, name)}
+      if result[1] and type(result[2]) == "string" then
+        local types = {}
+        for i = 2, #result do
+          if type(result[i]) == "string" then types[result[i]] = true end
+        end
+        devices[name] = {name = name, type = result[2], types = types}
+      end
     end
   end
+  M.scanError = nil
   M.devices = devices
   return devices
 end
 
+function M.hasType(kind)
+  for _, device in pairs(M.devices) do
+    if device.type == kind or (device.types and device.types[kind]) then return true end
+  end
+  return false
+end
+
 function M.useMonitor()
   if not peripheral or not peripheral.find then return false end
-  local monitor, side = peripheral.find("monitor")
+  local monitor = peripheral.find("monitor")
   if not monitor then return false end
+  local side = peripheral.getName(monitor)
 
   local scale = readScale()
   if monitor.setTextScale then monitor.setTextScale(scale) end
@@ -73,9 +93,14 @@ function M.useMonitor()
 end
 
 function M.refreshDisplay()
+  if M.ctx and M.ctx.invalidateDisplay then M.ctx.invalidateDisplay() end
   M.scan()
   local oldW, oldH = M.display.width, M.display.height
-  local ok = M.useMonitor()
+  local success, ok = pcall(M.useMonitor)
+  if not success then
+    log.error("deviced", "monitor unavailable: " .. tostring(ok))
+    ok = false
+  end
   if not ok then
     if M.redirected and M.nativeTerm then
       term.redirect(M.nativeTerm)
@@ -97,7 +122,8 @@ end
 
 function M.getDisplay()
   if not M.redirected then
-    local w, h = term.getSize()
+    local native = M.nativeTerm or term.current()
+    local w, h = native.getSize()
     M.display = {
       target = "computer",
       scale = nil,
@@ -106,24 +132,39 @@ function M.getDisplay()
       monitorSide = nil,
     }
   end
-  return M.display
+  local display = {}
+  for key, value in pairs(M.display) do display[key] = value end
+  return display
 end
 
 function M.start(ctx)
+  if M.ctx then M.stop() end
   M.ctx = ctx
+  if not M.nativeTerm then M.nativeTerm = term.current() end
   M.refreshDisplay()
   if ctx and ctx.eventBus then
-    ctx.eventBus:on("peripheral", function()
+    table.insert(M.listeners, ctx.eventBus:on("peripheral", function()
       M.refreshDisplay()
-    end)
-    ctx.eventBus:on("peripheral_detach", function()
+    end))
+    table.insert(M.listeners, ctx.eventBus:on("peripheral_detach", function()
       M.refreshDisplay()
-    end)
+    end))
+    table.insert(M.listeners, ctx.eventBus:on("monitor_resize", function(side)
+      if side == M.display.monitorSide then M.refreshDisplay() end
+    end))
+    table.insert(M.listeners, ctx.eventBus:on("term_resize", function()
+      if not M.redirected then M.getDisplay() end
+    end))
   end
   log.info("deviced", "device service ready")
 end
 
 function M.stop()
+  if M.ctx and M.ctx.eventBus then
+    for _, id in ipairs(M.listeners) do M.ctx.eventBus:off(id) end
+  end
+  M.listeners = {}
+  M.ctx = nil
   if M.redirected and M.nativeTerm then
     term.redirect(M.nativeTerm)
     M.redirected = false
@@ -132,9 +173,10 @@ function M.stop()
 end
 
 function M.list()
-  M.scan()
   local rows = {}
-  for _, device in pairs(M.devices) do table.insert(rows, device) end
+  for _, device in pairs(M.devices) do
+    table.insert(rows, { name = device.name, type = device.type })
+  end
   table.sort(rows, function(a, b) return a.name < b.name end)
   return rows
 end

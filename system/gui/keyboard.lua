@@ -1,87 +1,71 @@
 local renderer = require("system.gui.renderer")
-
 local M = {}
-
-local rows = {
-  "1234567890",
-  "azertyuiop",
-  "qsdfghjklm",
-  "wxcvbn",
-  ".,;:!?'-_/",
+local rows = { "1234567890", "azertyuiop", "qsdfghjklm", "wxcvbn" }
+local symbols = { ".,;:!?'-_/", "()[]{}+*=\\", '\"<>@#$%&|~', "`^" }
+local controls = {
+  { "caps", "Maj", "M" }, { "shift", "Shift", "S" },
+  { "ctrl", "Ctrl", "C" }, { "symbols", "Sym", "#" },
+  { "tab", "Tab", "Tab" }, { "space", "Space", "_" },
+  { "back", "Back", "<" }, { "enter", "Enter", "Ent" },
 }
-
-local function ensure(state)
-  state.caps = state.caps or false
-  state.shift = state.shift or false
-  return state
-end
-
-function M.height()
-  return 7
-end
-
+function M.height() return 7 end
 function M.draw(x, y, w, state)
-  state = ensure(state or {})
+  state = state or {}
+  state.x, state.y, state.w = x, y, w
+  state.boxes = {}
+  state.symbolPage = state.symbolPage or 1
+  local function key(row, index, count, id, label, active, text)
+    local left = math.floor((index - 1) * w / count)
+    local right = math.floor(index * w / count)
+    if right <= left then return end
+    local width = right - left
+    local shown = label:sub(1, width)
+    local pad = math.floor((width - #shown) / 2)
+    renderer.writeAt(x + left, y + row - 1,
+      string.rep(" ", pad) .. shown .. string.rep(" ", width - pad - #shown),
+      active and colors.black or colors.white, active and colors.cyan or colors.gray)
+    table.insert(state.boxes, { x = x + left, y = y + row - 1, w = width, id = id, text = text })
+  end
   renderer.fill(x, y, w, M.height(), colors.lightGray)
-  for row, chars in ipairs(rows) do
-    local line = ""
+  for row = 1, 5 do
+    local chars = rows[row] or symbols[state.symbolPage]
     for i = 1, #chars do
       local ch = chars:sub(i, i)
-      if state.caps or state.shift then ch = ch:upper() end
-      line = line .. ch .. " "
+      if (state.caps == true) ~= (state.shift == true) then ch = ch:upper() end
+      key(row, i, math.max(10, #chars), "text", ch, false, ch)
     end
-    renderer.writeAt(x, y + row - 1, renderer.crop(line, w), colors.black, colors.lightGray)
   end
-  local symbols = state.shift and "()[]{}+*=\\\"" or ".,;:!?'-_/"
-  renderer.writeAt(x, y + 4, renderer.crop(symbols:gsub(".", "%0 "), w), colors.black, colors.lightGray)
-  local control = w < 48 and "[M] [S] [C] [Tab] [Space] [<] [Enter]" or "[maj] [shift] [ctrl] [tab] [space] [back] [enter]"
-  local flags = (state.caps and "CAPS " or "") .. (state.shift and "SHIFT " or "") .. (state.ctrl and "CTRL " or "")
-  renderer.writeAt(x, y + 5, renderer.crop(control, w), colors.white, colors.gray)
-  renderer.writeAt(x, y + 6, renderer.crop(flags .. (state.hint or ""), w), colors.black, colors.orange)
+  for i, control in ipairs(controls) do
+    local active = state[control[1]] == true or (control[1] == "symbols" and state.symbolPage > 1)
+    key(6 + math.floor((i - 1) / 4), (i - 1) % 4 + 1, 4,
+      control[1], w >= 24 and control[2] or control[3], active)
+  end
 end
-
 function M.handle(event, state)
-  state = ensure(state or {})
-  if event.name ~= "mouse_click" then return false end
-  local _, x, y = table.unpack(event.args)
-  local relY = y - (state.y or 1) + 1
-  local relX = x - (state.x or 1) + 1
-
-  if relY >= 1 and relY <= 5 then
-    local chars = relY == 5 and (state.shift and "()[]{}+*=\\\"" or rows[5]) or rows[relY]
-    local index = math.floor((relX + 1) / 2)
-    local ch = chars:sub(index, index)
-    if ch ~= "" then
-      if state.caps or state.shift then ch = ch:upper() end
-      state.shift = false
-      if state.onText then state.onText(ch) end
-      return true
-    end
-  elseif relY == 6 then
-    if relX >= 1 and relX <= 5 then
-      state.caps = not state.caps
-      return true
-    elseif relX >= 7 and relX <= 13 then
-      state.shift = true
-      return true
-    elseif relX >= 15 and relX <= 20 then
-      state.ctrl = not state.ctrl
-      return true
-    elseif relX >= 22 and relX <= 27 then
-      if state.onTab then state.onTab() end
-      return true
-    elseif relX >= 29 and relX <= 36 then
-      if state.onText then state.onText(" ") end
-      return true
-    elseif relX >= 38 and relX <= 45 then
-      if state.onBackspace then state.onBackspace() end
-      return true
-    elseif relX >= 47 and relX <= 55 then
-      if state.onEnter then state.onEnter() end
+  if not state or event.name ~= "mouse_click" or event.args[1] ~= 1 then return false end
+  local x, y = event.args[2], event.args[3]
+  for _, box in ipairs(state.boxes or {}) do
+    if x >= box.x and x < box.x + box.w and y == box.y then
+      local id = box.id
+      if id == "caps" or id == "shift" or id == "ctrl" then state[id] = not state[id]
+      elseif id == "symbols" then state.symbolPage = (state.symbolPage or 1) % #symbols + 1
+      elseif id == "text" then
+        if state.ctrl then
+          if state.onControl then state.onControl(box.text:lower()) end
+        elseif state.onText then state.onText(box.text) end
+        state.shift = false
+      elseif id == "space" then
+        if state.onText then state.onText(" ") end
+      elseif id == "tab" then
+        if state.onTab then state.onTab() end
+      elseif id == "back" then
+        if state.onBackspace then state.onBackspace() end
+      elseif id == "enter" then
+        if state.onEnter then state.onEnter() end
+      end
       return true
     end
   end
   return false
 end
-
 return M

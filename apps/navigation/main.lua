@@ -1,556 +1,210 @@
-local renderer = require("system.gui.renderer")
-local ui = require("system.gui.components")
-local config = require("system.libraries.config")
-local log = require("system.libraries.log")
-local keyboard = require("system.gui.keyboard")
-local sabled = require("system.services.sabled")
-local avionicsd = require("system.services.avionicsd")
-
-local M = {}
-
-local CFG = "/system/config/navigation.cfg"
-local SIDES = { "left", "right", "front", "back", "top", "bottom" }
-
-local function aircraftDefaults()
-  return {
-    name = "Quad Heavy",
-    massKg = 126093,
-    declaredWeightNewton = 1400000,
-    gravityMultiplier = 11,
-    seaLevelY = 60,
-    altitudeLevels = {
-      { level = 0, y = 289 },
-      { level = 1, y = 282 },
-      { level = 2, y = 278 },
-      { level = 3, y = 270 },
-      { level = 4, y = 248 },
-      { level = 5, y = 224 },
-      { level = 6, y = 198 },
-      { level = 7, y = 178 },
-      { level = 8, y = 134 },
-      { level = 9, y = 96 },
-      { level = 10, y = 60 },
-    },
-    rearThrustVacuum = {
-      [15] = 0,
-      [14] = 38896,
-      [13] = 77792,
-      [12] = 116688,
-      [11] = 155584,
-      [10] = 194480,
-      [9] = 233376,
-      [8] = 272272,
-      [7] = 311168,
-      [6] = 350065,
-      [5] = 388961,
-      [4] = 427857,
-      [3] = 466753,
-      [2] = 505650,
-      [1] = 544545,
-      [0] = 622637,
-    },
-    densityCalibration = {
-      level = 6,
-      density = 0.6906,
-      vacuumForce = 622637,
-      measuredForce = 1822183,
-    },
-    commands = {
-      { id = "forward", name = "Forward", frequency = "2x green concrete powder", role = "rear thrust forward" },
-      { id = "reverse", name = "Reverse", frequency = "2x red concrete powder", role = "rear thrust reverse" },
-      { id = "yawRight", name = "Yaw Right", frequency = "2x yellow concrete powder", role = "2 push / 2 pull right yaw" },
-      { id = "yawLeft", name = "Yaw Left", frequency = "2x blue concrete powder", role = "2 push / 2 pull left yaw" },
-      { id = "strafeRight", name = "Strafe Right", frequency = "2x pink concrete powder", role = "weak lateral right" },
-      { id = "strafeLeft", name = "Strafe Left", frequency = "2x magenta concrete powder", role = "weak lateral left" },
-      { id = "correctionUp", name = "Correction Up", frequency = "2x white concrete powder", role = "vertical trim up" },
-      { id = "correctionDown", name = "Correction Down", frequency = "2x black concrete powder", role = "vertical trim down" },
-      { id = "rollRight", name = "Roll Right", frequency = "2x orange concrete powder", role = "roll correction right" },
-      { id = "rollLeft", name = "Roll Left", frequency = "2x light blue concrete powder", role = "roll correction left" },
-      { id = "diagPrimary", name = "Diag Primary", frequency = "2x lime concrete powder", role = "loss motor 1/3, keep 2/4 stable" },
-      { id = "diagSecondary", name = "Diag Secondary", frequency = "2x purple concrete powder", role = "loss motor 2/4, keep 1/3 stable" },
-    },
-    modes = {
-      { name = "Turn left spot", detail = "blue only: yaw around center; add roll/diagonal correction if rear thrust tilts" },
-      { name = "Turn right spot", detail = "yellow only: yaw around center; add roll/diagonal correction if rear thrust tilts" },
-      { name = "Advance + left", detail = "green + blue, advanced: keep outside rear motors, cut motors in turn direction" },
-      { name = "Advance + right", detail = "green + yellow, advanced: keep outside rear motors, cut motors in turn direction" },
-      { name = "Reverse + left", detail = "red + blue, advanced reverse yaw trim" },
-      { name = "Reverse + right", detail = "red + yellow, advanced reverse yaw trim" },
-    },
-  }
+local renderer=require("system.gui.renderer")
+local ui=require("system.gui.components")
+local forms=require("system.gui.form")
+local addon=require("system.libraries.addon")
+local instruments=require("system.navigation.instruments")
+local sable=require("system.services.sabled")
+local avionics=require("system.services.avionicsd")
+local flight=require("system.services.flightd")
+local config=require("system.libraries.config")
+local M={}
+local axes={"pitch","roll","altitude","heading"}
+local sides={"top","bottom","left","right","front","back"}
+local function fmt(value,unit)
+  return addon.finite(value) and string.format("%.1f%s",value,unit or "") or "unavailable"
 end
-
-local function defaults()
-  return {
-    refreshSeconds = 1,
-    aircraft = aircraftDefaults(),
-    redstoneProfiles = {
-      { name = "Brake", side = "back", pulseSeconds = 0.5, description = "short braking pulse" },
-      { name = "Lift", side = "top", pulseSeconds = 0.5, description = "short lift pulse" },
-      { name = "Yaw Left", side = "left", pulseSeconds = 0.25, description = "short yaw-left pulse" },
-      { name = "Yaw Right", side = "right", pulseSeconds = 0.25, description = "short yaw-right pulse" },
-      { name = "Forward", side = "front", pulseSeconds = 0.5, description = "short forward pulse" },
-      { name = "Reverse", side = "bottom", pulseSeconds = 0.5, description = "short reverse pulse" },
-    },
-  }
-end
-
-local function mergeList(existing, def)
-  if type(existing) ~= "table" or #existing == 0 then return def end
-  return existing
-end
-
-local function mergeAircraft(cfg, def)
-  cfg.aircraft = cfg.aircraft or {}
-  for key, value in pairs(def.aircraft) do
-    if cfg.aircraft[key] == nil then cfg.aircraft[key] = value end
-  end
-  cfg.aircraft.commands = mergeList(cfg.aircraft.commands, def.aircraft.commands)
-  cfg.aircraft.modes = mergeList(cfg.aircraft.modes, def.aircraft.modes)
-  cfg.aircraft.altitudeLevels = mergeList(cfg.aircraft.altitudeLevels, def.aircraft.altitudeLevels)
-  cfg.aircraft.rearThrustVacuum = cfg.aircraft.rearThrustVacuum or def.aircraft.rearThrustVacuum
-  cfg.aircraft.densityCalibration = cfg.aircraft.densityCalibration or def.aircraft.densityCalibration
-end
-
-local function loadCfg()
-  local cfg = config.load(CFG, {})
-  local def = defaults()
-  if type(cfg.redstoneProfiles) ~= "table" then cfg.redstoneProfiles = def.redstoneProfiles end
-  cfg.refreshSeconds = tonumber(cfg.refreshSeconds) or def.refreshSeconds
-  mergeAircraft(cfg, def)
-  return cfg
-end
-
-local function saveCfg(cfg)
-  return config.save(CFG, cfg)
-end
-
-local function scalar(v)
-  if v == nil then return "-" end
-  if type(v) == "number" then return string.format("%.3f", v) end
-  return tostring(v)
-end
-
-local function integer(v)
-  v = tonumber(v)
-  if not v then return "-" end
-  local s = tostring(math.floor(v + 0.5))
-  local out = ""
-  while #s > 3 do
-    out = " " .. s:sub(-3) .. out
-    s = s:sub(1, -4)
-  end
-  return s .. out
-end
-
-local function percent(v)
-  v = tonumber(v)
-  if not v then return "-" end
-  return string.format("%.2f%%", v * 100)
-end
-
-local function clamp(v, min, max)
-  v = tonumber(v) or 0
-  if v < min then return min end
-  if v > max then return max end
-  return v
-end
-
-local function vec(v)
-  if type(v) ~= "table" then return scalar(v) end
-  local x = v.x or v[1] or v.X
-  local y = v.y or v[2] or v.Y
-  local z = v.z or v[3] or v.Z
-  if x or y or z then return scalar(x or 0) .. ", " .. scalar(y or 0) .. ", " .. scalar(z or 0) end
-  local count = 0
-  for _ in pairs(v) do count = count + 1 end
-  return "table(" .. tostring(count) .. ")"
-end
-
-local function poseLine(pose)
-  if type(pose) ~= "table" then return "-" end
-  return "pos " .. vec(pose.position or pose.pos) .. "  rot " .. vec(pose.orientation or pose.rotation or pose.rot)
-end
-
-local function validSide(side)
-  for _, item in ipairs(SIDES) do if item == side then return true end end
-  return false
-end
-
-local function firstData(snap, key)
-  local rows = snap and snap[key]
-  local first = rows and rows[1]
-  return first and first.data or nil
-end
-
-local function densityGain(profile)
-  local cal = profile.densityCalibration or {}
-  local d = tonumber(cal.density) or 0
-  local vacuum = tonumber(cal.vacuumForce) or 0
-  local measured = tonumber(cal.measuredForce) or 0
-  if d <= 0 or vacuum <= 0 or measured <= 0 then return 0 end
-  return ((measured / vacuum) - 1) / d
-end
-
-local function adjustedThrust(profile, state, density)
-  local vacuum = tonumber((profile.rearThrustVacuum or {})[state]) or 0
-  return vacuum * (1 + clamp(density, 0, 1) * densityGain(profile))
-end
-
-local function nearestAltitudeLevel(profile, height)
-  height = tonumber(height)
-  if not height then return nil end
-  local best = nil
-  local bestDist = nil
-  for _, row in ipairs(profile.altitudeLevels or {}) do
-    local dist = math.abs((tonumber(row.y) or 0) - height)
-    if not bestDist or dist < bestDist then
-      best = row
-      bestDist = dist
-    end
-  end
-  return best
-end
-
 function M.run(ctx)
-  local cfg = loadCfg()
-  local app = {
-    page = "flight",
-    selected = 1,
-    confirm = nil,
-    inputMode = nil,
-    input = "",
-    keyboard = {},
-    timers = {},
-    message = "Navigation ready",
-    snapshot = nil,
-    avionics = nil,
-  }
-
-  local tabs = {
-    { id = "flight", label = "Flight" },
-    { id = "avionics", label = "Avion" },
-    { id = "quad", label = "Quad" },
-    { id = "forces", label = "Force" },
-    { id = "assist", label = "Assist" },
-    { id = "config", label = "Config" },
-  }
-
-  local assistActions = {
-    { id = "pulse", label = "Pulse" },
-    { id = "edit", label = "Edit" },
-    { id = "save", label = "Save" },
-  }
-
-  local editActions = {
-    { id = "name", label = "Name" },
-    { id = "side", label = "Side" },
-    { id = "duration", label = "Duration" },
-    { id = "desc", label = "Desc" },
-  }
-
-  local function refreshSable()
-    local allowed, denied = ctx.security.require("sable.read", "navigation")
-    if not allowed then
-      app.snapshot = { ok = false, status = tostring(denied), error = tostring(denied) }
-      return app.snapshot
-    end
-    local ok, snap = pcall(sabled.snapshot)
-    if ok and snap then
-      app.snapshot = snap
-    else
-      app.snapshot = { ok = false, status = "sabled error", error = tostring(snap) }
-      log.warn("navigation", "sabled error: " .. tostring(snap))
-    end
-    return app.snapshot
+  local actor={pid=ctx.pid}
+  local draft=flight.configuration()
+  local original=config.load("/system/config/navigation.cfg",{})
+  local app={page="flight",tabState={},barState={},form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
+  local tabs={{id="flight",label="Flight"},{id="control",label="Control"},{id="mapping",label="Map"},{id="gains",label="PID"},{id="sensors",label="Sensors"},{id="manual",label="Manual"},{id="calibration",label="Calibrate"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  local win,timer
+  local function refresh()
+    app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
   end
-
-  local function refreshAvionics()
-    local allowed, denied = ctx.security.require("avionics.read", "navigation")
-    if not allowed then
-      app.avionics = { ok = false, available = false, status = tostring(denied), error = tostring(denied), counts = {} }
-      return app.avionics
+  local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
+  local function confirm(title,callback) app.confirm={title=title,callback=callback} end
+  local function fields()
+    local rows={}
+    local function field(object,key,label,kind,options)
+      local item=forms.field(object,key,label,kind,options)
+      local set=item.set item.set=function(value) set(value) app.dirty=true end
+      rows[#rows+1]=item
     end
-    local ok, snap = pcall(avionicsd.snapshot)
-    if ok and snap then
-      app.avionics = snap
-    else
-      app.avionics = { ok = false, available = false, status = "avionicsd error", error = tostring(snap), counts = {} }
-      log.warn("navigation", "avionicsd error: " .. tostring(snap))
-    end
-    return app.avionics
-  end
-
-  local function selectedProfile()
-    return cfg.redstoneProfiles[app.selected]
-  end
-
-  local function requestPulse()
-    local profile = selectedProfile()
-    if not profile then app.message = "No profile selected" return end
-    local allowed, denied = ctx.security.require("navigation.assist", tostring(profile.name))
-    if not allowed then app.message = tostring(denied) return end
-    app.confirm = profile
-    app.message = "Confirm pulse: " .. tostring(profile.name)
-  end
-
-  local function doPulse(profile)
-    local allowed, denied = ctx.security.require("redstone.output", tostring(profile.side))
-    if not allowed then app.message = tostring(denied) return end
-    if not redstone or not redstone.setOutput then app.message = "redstone API unavailable" return end
-    if not validSide(profile.side) then app.message = "invalid side: " .. tostring(profile.side) return end
-    local seconds = math.max(0.1, math.min(10, tonumber(profile.pulseSeconds) or 0.5))
-    redstone.setOutput(profile.side, true)
-    local timer = os.startTimer(seconds)
-    app.timers[timer] = profile.side
-    app.message = "Pulse " .. tostring(profile.name) .. " on " .. tostring(profile.side)
-    log.info("navigation", "pulse " .. tostring(profile.name) .. " side=" .. tostring(profile.side) .. " seconds=" .. tostring(seconds))
-    if ctx.notifications then ctx.notifications:push("success", "Navigation", app.message, 3) end
-  end
-
-  local function startEdit(mode, value)
-    app.inputMode = mode
-    app.input = tostring(value or "")
-    app.keyboard.hint = mode .. ": " .. app.input
-  end
-
-  local function applyEdit()
-    local profile = selectedProfile()
-    if not profile or not app.inputMode then return end
-    if app.inputMode == "name" and app.input ~= "" then profile.name = app.input
-    elseif app.inputMode == "side" and validSide(app.input) then profile.side = app.input
-    elseif app.inputMode == "duration" then profile.pulseSeconds = math.max(0.1, math.min(10, tonumber(app.input) or profile.pulseSeconds or 0.5))
-    elseif app.inputMode == "desc" then profile.description = app.input
-    else app.message = "Invalid value" end
-    app.inputMode = nil
-    app.input = ""
-    saveCfg(cfg)
-  end
-
-  app.keyboard.onText = function(ch) app.input = app.input .. ch end
-  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
-  app.keyboard.onEnter = applyEdit
-
-  local function drawFlight(w, h)
-    local snap = app.snapshot or refreshSable()
-    local av = app.avionics or refreshAvionics()
-    local okStatus, st = pcall(sabled.status)
-    if not okStatus or not st then st = { available = false, inSublevel = false, apiNames = {}, error = tostring(st) } end
-    renderer.writeAt(1, 3, renderer.crop("CC:Sable: " .. tostring(st.available and "available" or "missing") .. "  Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Avionics: " .. tostring(av.available and "ready" or "missing") .. "  Alt:" .. tostring((av.counts or {}).altitude or 0) .. " Gimbal:" .. tostring((av.counts or {}).gimbal or 0) .. " Prop:" .. tostring((av.counts or {}).propeller or 0), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 5, renderer.crop("Aircraft: " .. tostring(cfg.aircraft.name) .. "  Mass " .. integer(cfg.aircraft.massKg) .. " kg  declared weight " .. integer(cfg.aircraft.declaredWeightNewton) .. " N", w), colors.black, colors.lightGray)
-    if not st.available and not av.available then
-      renderer.writeAt(1, 7, renderer.crop("Install CC:Sable or Create: Avionics peripherals. Navigation stays read-only until data exists.", w), colors.gray, colors.lightGray)
-      renderer.button(1, 9, 12, "Devices", false)
-      renderer.button(15, 9, 10, "Logs", false)
-      return
-    end
-    local sub = snap.sublevel
-    if sub and sub.inSublevel then
-      local rows = {
-        "Name: " .. scalar(sub.name),
-        "UUID: " .. scalar(sub.uuid),
-        "Flags: grid=" .. tostring(sub.plotGrid) .. " yard=" .. tostring(sub.plotYard),
-        "Logical: " .. poseLine(sub.logicalPose),
-        "Velocity: " .. vec(sub.velocity),
-        "Angular: " .. vec(sub.angularVelocity),
-        "Mass: " .. scalar(sub.mass) .. "  Center: " .. vec(sub.centerOfMass),
-      }
-      for i = 1, math.min(#rows, h - 7) do renderer.writeAt(1, i + 6, renderer.crop(rows[i], w), colors.black, colors.lightGray) end
-    else
-      renderer.writeAt(1, 7, renderer.crop("Sable pose unavailable. Use Avion/Force tabs for Create: Avionics sensors.", w), colors.gray, colors.lightGray)
-    end
-  end
-
-  local function drawAvionics(w, h)
-    local av = app.avionics or refreshAvionics()
-    local counts = av.counts or {}
-    renderer.writeAt(1, 3, renderer.crop("Status: " .. tostring(av.status or av.error or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Peripherals  altitude=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " nav=" .. tostring(counts.nav or 0) .. " prop=" .. tostring(counts.propeller or 0) .. " throttle=" .. tostring(counts.throttle or 0), w), colors.black, colors.lightGray)
-
-    local alt = firstData(av, "altitude") or {}
-    local gim = firstData(av, "gimbal") or {}
-    local nav = firstData(av, "nav") or {}
-    local prop = firstData(av, "propeller") or {}
-    local rows = {
-      "Altitude height: " .. scalar(alt.height) .. "  pressure: " .. scalar(alt.airPressure) .. "  vertical speed: " .. scalar(alt.verticalSpeed),
-      "Gimbal angles: " .. vec(gim.angles),
-      "Angular rates: " .. vec(gim.angularRates),
-      "Gravity: " .. vec(gim.gravity),
-      "Linear accel: " .. vec(gim.linearAcceleration),
-      "Heading: " .. scalar(nav.heading) .. "  target bearing: " .. scalar(nav.targetBearing) .. "  distance: " .. scalar(nav.targetDistance),
-      "Prop sample thrust: " .. scalar(prop.thrust) .. "  airflow: " .. scalar(prop.airflow) .. "  active: " .. tostring(prop.active),
-      "Prop speed: " .. scalar(prop.speed or prop.rotationSpeed) .. "  axis: " .. vec(prop.axis),
-    }
-    for i = 1, math.min(#rows, h - 6) do renderer.writeAt(1, i + 5, renderer.crop(rows[i], w), colors.black, colors.lightGray) end
-
-    local y = 14
-    if y < h then renderer.writeAt(1, y, renderer.crop("Detected Avionics devices:", w), colors.black, colors.gray) end
-    for i = 1, math.min(#(av.devices or {}), math.max(0, h - y)) do
-      local d = av.devices[i]
-      renderer.writeAt(1, y + i, renderer.crop(tostring(d.name) .. "  " .. table.concat(d.types or {}, ","), w), colors.black, colors.lightGray)
-    end
-  end
-
-  local function drawQuad(w, h)
-    renderer.writeAt(1, 3, renderer.crop("Quad profile: 4 vertical props + 4 rear props + weak lateral strafe", w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Corrections are frequency plans only; no automatic actuation in this version.", w), colors.gray, colors.lightGray)
-    local y = 6
-    for i, cmd in ipairs(cfg.aircraft.commands or {}) do
-      if y + i - 1 >= h then break end
-      local line = tostring(cmd.name) .. " = " .. tostring(cmd.frequency) .. "  " .. tostring(cmd.role)
-      renderer.writeAt(1, y + i - 1, renderer.crop(line, w), colors.black, colors.lightGray)
-    end
-    local modeY = y + #(cfg.aircraft.commands or {}) + 1
-    if modeY < h then renderer.writeAt(1, modeY, renderer.crop("Suggested modes:", w), colors.black, colors.gray) end
-    for i, mode in ipairs(cfg.aircraft.modes or {}) do
-      if modeY + i >= h then break end
-      renderer.writeAt(1, modeY + i, renderer.crop(tostring(mode.name) .. ": " .. tostring(mode.detail), w), colors.black, colors.lightGray)
-    end
-  end
-
-  local function drawForces(w, h)
-    local av = app.avionics or refreshAvionics()
-    local alt = firstData(av, "altitude") or {}
-    local profile = cfg.aircraft
-    local density = tonumber(alt.airPressure) or (profile.densityCalibration and profile.densityCalibration.density) or 0
-    density = clamp(density, 0, 1)
-    local height = tonumber(alt.height)
-    local nearest = nearestAltitudeLevel(profile, height)
-    local gain = densityGain(profile)
-    renderer.writeAt(1, 3, renderer.crop("Air density: " .. percent(density) .. "  gain factor: " .. scalar(gain) .. "  height: " .. scalar(height), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Nearest hover level: " .. tostring(nearest and nearest.level or "-") .. " at Y=" .. tostring(nearest and nearest.y or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 5, renderer.crop("Declared stationary thrust/weight: " .. integer(profile.declaredWeightNewton) .. " N", w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 7, renderer.crop("Rear prop thrust table, corrected by current/calibrated air density:", w), colors.black, colors.gray)
-    renderer.writeAt(1, 8, renderer.crop("STATE  VACUUM N       ADJUSTED N", w), colors.black, colors.lightGray)
-    for state = 0, 15 do
-      local row = 9 + state
-      if row > h then break end
-      local vacuum = (profile.rearThrustVacuum or {})[state] or 0
-      local adjusted = adjustedThrust(profile, state, density)
-      renderer.writeAt(1, row, renderer.crop(string.format("%2d     %10s     %10s", state, integer(vacuum), integer(adjusted)), w), colors.black, colors.lightGray)
-    end
-  end
-
-  local function drawEnvironment(w, h)
-    local snap = app.snapshot or refreshSable()
-    local aero = snap.aero or {}
-    local rows = {
-      "Gravity: " .. vec(aero.gravity),
-      "Magnetic north: " .. vec(aero.magneticNorth),
-      "Air pressure: " .. scalar(aero.airPressure),
-      "Universal drag: " .. scalar(aero.universalDrag),
-      "Raw: " .. vec(aero.raw),
-      "Default: " .. vec(aero.default),
-    }
-    for i = 1, math.min(#rows, h - 2) do renderer.writeAt(1, i + 2, renderer.crop(rows[i], w), colors.black, colors.lightGray) end
-  end
-
-  local function drawAssist(w, h)
-    app.toolbar = ui.toolbar(1, 2, w, assistActions)
-    renderer.writeAt(1, 4, renderer.crop("REDSTONE ASSIST - confirmed pulses only", w), colors.black, colors.gray)
-    for i, profile in ipairs(cfg.redstoneProfiles or {}) do
-      local bg = i == app.selected and colors.cyan or colors.lightGray
-      local line = tostring(i) .. " " .. tostring(profile.name) .. "  " .. tostring(profile.side) .. "  " .. scalar(profile.pulseSeconds) .. "s  " .. tostring(profile.description or "")
-      renderer.writeAt(1, i + 4, renderer.crop(line, w), colors.black, bg)
-    end
-    renderer.writeAt(1, h - 1, renderer.crop(app.message, w), colors.white, colors.gray)
-    if app.confirm then
-      local dx = 3
-      local dy = math.max(4, math.floor(h / 2) - 2)
-      local dw = math.min(42, w - 4)
-      app.confirmBox = { x = dx + 1, y = dy + 4, w = math.min(12, dw - 2), h = 1 }
-      ui.dialog(dx, dy, dw, "Confirm Redstone", tostring(app.confirm.name) .. " on " .. tostring(app.confirm.side), "Pulse")
-    end
-  end
-
-  local function drawConfig(w, h)
-    app.toolbar = ui.toolbar(1, 2, w, editActions)
-    local profile = selectedProfile()
-    renderer.writeAt(1, 4, renderer.crop("Selected redstone profile: " .. tostring(profile and profile.name or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 5, renderer.crop("Side options: left right front back top bottom", w), colors.gray, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("Aircraft profile is stored in /system/config/navigation.cfg", w), colors.gray, colors.lightGray)
-    if profile then
-      renderer.writeAt(1, 8, renderer.crop("Name: " .. tostring(profile.name), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 9, renderer.crop("Side: " .. tostring(profile.side), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 10, renderer.crop("Duration: " .. scalar(profile.pulseSeconds), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 11, renderer.crop("Desc: " .. tostring(profile.description or ""), w), colors.black, colors.lightGray)
-    end
-    if app.inputMode then
-      renderer.writeAt(1, h - keyboard.height(), renderer.crop(app.inputMode .. ": " .. app.input, w), colors.white, colors.gray)
-      app.keyboard.x = 1
-      app.keyboard.y = h - keyboard.height() + 1
-      keyboard.draw(1, app.keyboard.y, w, app.keyboard)
-    end
-  end
-
-  function app:draw(w, h)
-    refreshSable()
-    refreshAvionics()
-    self.tabs = ui.tabs(1, 1, w, tabs, self.page)
-    if self.page == "flight" then drawFlight(w, h)
-    elseif self.page == "avionics" then drawAvionics(w, h)
-    elseif self.page == "quad" then drawQuad(w, h)
-    elseif self.page == "forces" then drawForces(w, h)
-    elseif self.page == "environment" then drawEnvironment(w, h)
-    elseif self.page == "assist" then drawAssist(w, h)
-    elseif self.page == "config" then drawConfig(w, h)
-    end
-  end
-
-  function app:handle(event)
-    if event.name == "timer" then
-      local side = self.timers[event.args[1]]
-      if side and redstone and redstone.setOutput then redstone.setOutput(side, false) end
-      self.timers[event.args[1]] = nil
-      return true
-    end
-    if self.inputMode then
-      if event.name == "char" then self.input = self.input .. event.args[1] return true end
-      if event.name == "key" then
-        local key = event.args[1]
-        if key == keys.backspace then self.input = self.input:sub(1, -2) return true end
-        if key == keys.enter then applyEdit() return true end
+    if app.page=="mapping" then
+      local channel=draft.channels[app.index]
+      if not channel then return rows end
+      field(channel,"id","Output ID","string")
+      field(channel,"backend","Backend",nil,{"redstone","avionics"})
+      if channel.backend=="redstone" then field(channel,"side","PC side",nil,sides)
+      else
+        local names={}
+        for _,row in ipairs(app.av.devices or {}) do if row.roles.analog or row.roles.throttle then names[#names+1]=row.name end end
+        if #names>0 then field(channel,"name","Avionics endpoint",nil,names) else field(channel,"name","Avionics endpoint","string") end
       end
-      if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
+      for _,key in ipairs({"min","max","neutral","rescue"}) do field(channel,key,key,"number") end
+      channel.mix=channel.mix or {}
+      for _,axis in ipairs(axes) do field(channel.mix,axis,"Mix "..axis,"number") end
+      field(channel,"frequency","Create frequency (label)","string")
+    elseif app.page=="gains" then
+      local axis=axes[app.axis]
+      for _,key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do field(draft.gains[axis],key,axis.." "..key,"number") end
+    elseif app.page=="sensors" then
+      for _,role in ipairs({"gimbal","altitude","nav"}) do
+        local names={""}
+        for _,row in ipairs(app.av[role] or {}) do names[#names+1]=row.name end
+        field(draft.sensors,role,role,nil,names)
+      end
+    elseif app.page=="manual" then
+      local binding=draft.manualInputs[app.index]
+      if binding then
+        field(binding,"axis","Axis",nil,axes)
+        field(binding,"side","Digital input side",nil,sides)
+        field(binding,"value","Override -1..1","number")
+      end
     end
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    for _, tab in ipairs(self.tabs or {}) do
-      if ui.hit(tab, x, y) then self.page = tab.id self.confirm = nil return true end
+    return rows
+  end
+  local function lines(w,h,rows,y)
+    y=y or 4
+    local count=math.max(1,h-y-1)
+    app.scroll=math.max(1,math.min(app.scroll,math.max(1,#rows-count+1)))
+    for i=app.scroll,math.min(#rows,app.scroll+count-1) do renderer.writeAt(1,y+i-app.scroll,renderer.crop(rows[i],w)) end
+  end
+  local function actions()
+    if app.page=="mapping" or app.page=="manual" then return {{id="previous",label="Prev"},{id="next",label="Next"},{id="add",label="Add"},{id="remove",label="Remove"},{id="save",label="Save"}}
+    elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
+    elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
+    elseif app.page=="control" then return {{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"},{id="yawLeft",label="Yaw-"},{id="yawRight",label="Yaw+"}}
+    elseif app.page=="calibration" then return {{id="previous",label="Prev"},{id="next",label="Next"},{id="test",label="Test"},{id="channel",label="Verify direction"},{id="hover",label="Hover OK"},{id="manual",label="Manual OK"},{id="rescue",label="Test rescue"},{id="rescueConfirm",label="Rescue OK"},{id="disarm",label="Acknowledge"}}
+    else return {{id="rescan",label="Rescan"},{id="devices",label="Devices"},{id="logs",label="Logs"}} end
+  end
+  function app:draw(w,h)
+    if h<9 then renderer.writeAt(1,1,renderer.crop("Navigation: enlarge window",w)) return end
+    self.tabs=ui.tabs(1,1,w,tabs,self.page,self.tabState)
+    self.bar=ui.toolbar(1,2,w,actions(),self.barState)
+    if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
+      self.form:draw(w,h,fields())
+      if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | 6 independent PC sides") or "Configuration draft",w),colors.cyan) end
+    elseif self.page=="flight" then
+      local measured=self.av.measurements or {}
+      local fresh=os.clock()-(self.av.timestamp or 0)<=0.5
+      local pitch=fresh and measured.pitch and measured.pitch.valid and measured.pitch.value
+      local roll=fresh and measured.roll and measured.roll.valid and measured.roll.value
+      renderer.writeAt(1,3,renderer.crop(fresh and "Measured attitude | +Z heading = south" or "STALE / missing flight telemetry",w),fresh and colors.cyan or colors.orange)
+      local graphW=w>=65 and math.floor(w*0.52) or w
+      local graphH=w>=65 and math.max(3,h-5) or math.max(2,math.floor((h-5)/2))
+      local key=graphW..":"..graphH..":"..tostring(pitch)..":"..tostring(roll)
+      if key~=self.horizonKey and (not self.horizon or os.clock()-(self.graphAt or -1)>=0.2 or self.graphW~=graphW or self.graphH~=graphH) then
+        self.horizon=instruments.horizon(graphW,graphH,pitch,roll) self.horizonKey=key self.graphAt=os.clock() self.graphW,self.graphH=graphW,graphH
+      end
+      self.horizon:draw(1,4)
+      if not pitch or not roll then renderer.writeAt(2,4,renderer.crop("Attitude unavailable",math.max(1,graphW-2)),colors.white,colors.black) end
+      local x,y=graphW<w and graphW+2 or 1,graphW<w and 4 or 4+graphH
+      local t=flight.telemetry()
+      local mass=self.sub.sublevel and self.sub.sublevel.mass
+      local velocity=addon.vec(self.sub.sublevel and self.sub.sublevel.linearVelocity)
+      local speed=velocity and math.sqrt(velocity.x^2+velocity.y^2+velocity.z^2)
+      local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
+      for i=1,math.min(#rows,h-y) do renderer.writeAt(x,y+i-1,renderer.crop(rows[i],w-x+1)) end
+    elseif self.page=="control" then
+      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),"Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Heading: "..fmt(self.flight.targets and self.flight.targets.heading,"deg"),"Readiness:"}
+      for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
+      for name,value in pairs(self.flight.outputs or {}) do rows[#rows+1]=name.." signal="..value end
+      lines(w,h,rows)
+    elseif self.page=="calibration" then
+      local channel=draft.channels[self.index]
+      lines(w,h,{"Output: "..tostring(channel and channel.id or "none"),"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Test is 0.3s, then calibrated rescue",tostring(self.flight.state)..": "..tostring(self.flight.reason),"Verify axis direction and limits physically","Hover / manual / rescue require confirmation","Software rescue only; no power-loss guarantee"},6)
+      self.testValue=self.testValue or {value=channel and channel.neutral or 0}
+      ui.input(1,4,w,"Test signal",self.testValue.value,false)
+      if self.form.edit then self.form:draw(w,h,{forms.field(self.testValue,"value","Test signal","number")}) end
+    elseif self.page=="environment" then
+      local a=self.sub.aero or {}
+      local g=addon.vec(a.gravity or ((self.av.measurements or {}).gravity or {}).value)
+      local rows={"MEASURED", "Gravity "..(g and fmt(math.sqrt(g.x^2+g.y^2+g.z^2),"m/s2") or "unavailable"),"Pressure "..fmt(((self.av.measurements or {}).pressure or {}).value," fraction"),"Magnetic north: "..(a.magneticNorth and textutils.serialize(a.magneticNorth) or "unavailable"),"Drag: "..tostring(a.universalDrag or "unavailable")}
+      for _,row in ipairs(self.av.propeller or {}) do rows[#rows+1]=row.name.." active="..tostring(row.data and row.data.active).." thrust="..fmt(row.data and row.data.thrust,"pN raw") end
+      lines(w,h,rows)
+    elseif self.page=="estimates" then
+      local aircraft=original.aircraft or {}
+      local rows={"ESTIMATES - not flight calibration","Declared mass "..fmt(aircraft.massKg,"kg"),"Declared weight "..fmt(aircraft.declaredWeightNewton,"N")}
+      for _,level in ipairs(aircraft.altitudeLevels or {}) do rows[#rows+1]="Level "..level.level.." = "..level.y.."m (legacy estimate)" end
+      lines(w,h,rows)
+    elseif self.page=="frequencies" then
+      local rows={}
+      for _,command in ipairs((original.aircraft or {}).commands or {}) do rows[#rows+1]=command.name.." : "..command.frequency end
+      lines(w,h,rows)
     end
+    renderer.writeAt(1,h,renderer.crop(self.dirty and "Unsaved mapping; Save before calibration/arm" or self.message,w),colors.white,colors.gray)
     if self.confirm then
-      if ui.hit(self.confirmBox, x, y) then doPulse(self.confirm) end
-      self.confirm = nil
+      renderer.fill(1,3,w,h-3,colors.gray)
+      renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
+      self.confirmBar=ui.toolbar(1,math.min(h-1,6),w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
+    end
+  end
+  function app:handle(event)
+    if self.confirm then
+      if event.name=="mouse_click" then
+        local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
+        if id=="confirm" then local callback=self.confirm.callback self.confirm=nil callback() refresh()
+        elseif id=="cancel" then self.confirm=nil end
+      end
       return true
     end
-    if self.page == "flight" and y == 9 then
-      if x <= 12 then ctx.apps.launch("devices") return true end
-      if x >= 15 and x <= 24 then ctx.apps.launch("logs") return true end
-    elseif self.page == "assist" then
-      local action = ui.toolbarHit(self.toolbar, x, y)
-      if action == "pulse" then requestPulse() return true end
-      if action == "save" then saveCfg(cfg) self.message = "Saved" return true end
-      if y >= 5 then
-        local idx = y - 4
-        if cfg.redstoneProfiles[idx] then self.selected = idx return true end
-      end
-    elseif self.page == "config" then
-      local action = ui.toolbarHit(self.toolbar, x, y)
-      local profile = selectedProfile()
-      if action and profile then
-        if action == "name" then startEdit("name", profile.name) return true end
-        if action == "side" then startEdit("side", profile.side) return true end
-        if action == "duration" then startEdit("duration", profile.pulseSeconds) return true end
-        if action == "desc" then startEdit("desc", profile.description) return true end
+    if self.form.edit then return self.form:handle(event) end
+    if event.name=="mouse_scroll" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_click" then
+      local _,x,y=table.unpack(event.args)
+      for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
+        if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta) else self.page=box.id self.barState.first=1 self.form.scroll=1 self.scroll=1 end
+        return true
+      end end
+      for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
+      local id=ui.toolbarHit(self.bar,x,y)
+      if id=="previous" or id=="next" then
+        if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%4+1
+        else self.index=math.max(1,math.min(self.page=="manual" and #draft.manualInputs or #draft.channels,self.index+(id=="next" and 1 or -1))) end
+        self.testValue=nil self.form.scroll=1 return true
+      elseif id=="add" then
+        self.dirty=true
+        if self.page=="manual" then draft.manualInputs[#draft.manualInputs+1]={axis="altitude",side="back",value=1} self.index=#draft.manualInputs return true end
+        draft.channels[#draft.channels+1]={id="output"..(#draft.channels+1),backend="redstone",side=sides[math.min(6,#draft.channels+1)],min=0,max=15,neutral=15,rescue=15,mix={pitch=0,roll=0,altitude=0,heading=0},validated=false,frequency=""}
+        self.index=#draft.channels return true
+      elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
+      elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() self.dirty=false end refresh() return true
+      elseif id=="rescan" then avionics.rescan() sable.rescan() return true
+      elseif id=="devices" or id=="logs" then ctx.apps.launch(id) return true
+      elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm("Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
+      elseif id=="disarm" then report(flight.disarm(actor)) refresh() return true
+      elseif id=="altDown" or id=="altUp" then report(flight.manual(actor,"altitude",id=="altUp" and 1 or -1)) return true
+      elseif id=="yawLeft" or id=="yawRight" then report(flight.manual(actor,"heading",id=="yawRight" and 1 or -1)) return true
+      elseif id=="test" then
+        if self.dirty then self.message="Save changes first" return true end
+        local channel=draft.channels[self.index]
+        if channel then confirm("Test "..channel.id.." at signal "..tostring(self.testValue and self.testValue.value).."?",function() report(flight.testOutput(actor,channel.id,self.testValue.value,true)) end) end return true
+      elseif id=="channel" or id=="hover" or id=="manual" or id=="rescue" or id=="rescueConfirm" then
+        if self.dirty then self.message="Save changes first" return true end
+        local channel=draft.channels[self.index]
+        confirm("Physically verify "..id.." before confirming",function() report(flight.calibrate(actor,id,channel and channel.id,true)) end) return true
+      elseif self.page=="calibration" and y==4 then
+        local channel=draft.channels[self.index]
+        self.testValue=self.testValue or {value=channel and channel.neutral or 0}
+        self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
+    if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then return self.form:handle(event) end
     return false
   end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Navigation", w = math.min(86, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
-  while not win.closed do ctx.pullEvent() end
+  refresh()
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,app=app})
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end flight.release(ctx.pid,"Navigation closed/crashed/killed") end)
+  timer=os.startTimer(0.2)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event.name=="timer" and event.args[1]==timer then
+      if not win.minimized then refresh() end timer=os.startTimer(0.2)
+    end
+  end
 end
-
 return M

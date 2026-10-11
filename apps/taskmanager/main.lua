@@ -34,25 +34,35 @@ end
 
 function M.run(ctx)
   local app = { selectedPid = nil, scroll = 1 }
+  local sampleTime, sample
+  local function metrics()
+    local now = os.clock()
+    if not sample or now - sampleTime >= 1 then
+      local rows = ctx.listProcesses()
+      local ready = 0
+      for _, process in ipairs(rows) do if process.state == "ready" then ready = ready + 1 end end
+      sample = { rows = rows, memory = memoryStats(), disk = diskStats(),
+        cpu = #rows > 0 and math.floor(ready / #rows * 100 + 0.5) or 0 }
+      sampleTime = now
+    end
+    return sample
+  end
   local actions = {
     { id = "kill", label = "Kill" },
     { id = "refresh", label = "Refresh" },
   }
 
   function app:draw(w, h)
-    local rows = ctx.listProcesses()
+    local snapshot = metrics()
+    local rows = snapshot.rows
     local total = #rows
-    local ready = 0
-    for _, p in ipairs(rows) do
-      if p.state == "ready" then ready = ready + 1 end
-    end
-    local cpuEstimate = total > 0 and math.floor((ready / total) * 100 + 0.5) or 0
+    local cpuEstimate = snapshot.cpu
 
     self.toolbar = ui.toolbar(1, 1, w, actions)
     renderer.writeAt(1, 2, renderer.crop("MintCraft Task Manager", w), colors.black, colors.lightGray)
     renderer.writeAt(2, 3, renderer.crop("CPU est. CC: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 4, renderer.crop(memoryStats(), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 5, renderer.crop(diskStats(), w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 4, renderer.crop(snapshot.memory, w - 2), colors.black, colors.lightGray)
+    renderer.writeAt(2, 5, renderer.crop(snapshot.disk, w - 2), colors.black, colors.lightGray)
     renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), colors.black, colors.gray)
 
     for i = 1, math.min(#rows, h - 7) do
@@ -84,13 +94,15 @@ function M.run(ctx)
     local action = ui.toolbarHit(self.toolbar, x, y)
     if action == "kill" and self.selectedPid then
       local ok, err = ctx.kill(self.selectedPid)
+      sample = nil
       if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Task Manager", ok and "Killed" or tostring(err), 3) end
       return true
     elseif action then
+      sample = nil
       return true
     end
     if y >= 8 then
-      local rows = ctx.listProcesses()
+      local rows = metrics().rows
       local p = rows[self.scroll + y - 8]
       if p then self.selectedPid = p.pid return true end
     end

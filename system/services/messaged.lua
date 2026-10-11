@@ -7,6 +7,7 @@ local M = {
   side = nil,
   ctx = nil,
   listener = nil,
+  deviceListeners = {},
 }
 
 local function computerId()
@@ -25,13 +26,19 @@ end
 
 local function parse(data, sender)
   local packet = type(data) == "string" and textutils.unserialize(data) or data
-  if type(packet) == "table" and packet.type == "message" then return packet end
+  if type(packet) == "table" and packet.type == "message" and type(packet.text) == "string" then
+    return {
+      type = "message", id = sender,
+      from = type(packet.from) == "string" and packet.from:sub(1, 64) or ("Computer " .. tostring(sender)),
+      text = packet.text:sub(1, 4096), time = tonumber(packet.time) or 0,
+    }
+  end
   if type(data) == "string" and data ~= "" then
     return {
       type = "message",
       from = "Computer " .. tostring(sender),
       id = sender,
-      text = data,
+      text = data:sub(1, 4096),
       time = os.time and os.time() or 0,
     }
   end
@@ -44,6 +51,7 @@ local function push(packet)
 end
 
 function M.open()
+  M.side = nil
   if not peripheral or not peripheral.getNames or not rednet then
     M.status = "no rednet"
     return false, M.status
@@ -51,7 +59,10 @@ function M.open()
 
   for _, name in ipairs(peripheral.getNames()) do
     if peripheral.getType(name) == "modem" then
-      if not rednet.isOpen(name) then rednet.open(name) end
+      local ok, err = pcall(function()
+        if not rednet.isOpen(name) then rednet.open(name) end
+      end)
+      if not ok then M.status = "modem error: " .. tostring(err) return false, M.status end
       M.side = name
       M.status = "public chat ready on " .. tostring(name)
       return true, name
@@ -74,6 +85,7 @@ end
 function M.send(text)
   text = tostring(text or "")
   if text == "" then return false, "empty message" end
+  if #text > 4096 then return false, "message too long" end
   local ok, err = M.open()
   if not ok then return false, err end
   local packet = {
@@ -83,11 +95,13 @@ function M.send(text)
     text = text,
     time = os.time and os.time() or 0,
   }
-  rednet.broadcast(textutils.serialize(packet), M.protocol)
+  local sent, problem = pcall(rednet.broadcast, textutils.serialize(packet), M.protocol)
+  if not sent then M.status = "send failed: " .. tostring(problem) return false, M.status end
   return true, "sent"
 end
 
 function M.start(ctx)
+  M.stop()
   M.ctx = ctx
   M.open()
   if ctx and ctx.eventBus and not M.listener then
@@ -101,6 +115,11 @@ function M.start(ctx)
       log.info("messaged", "message from " .. tostring(sender))
     end)
   end
+  if ctx and ctx.eventBus then
+    for _, event in ipairs({ "peripheral", "peripheral_detach" }) do
+      table.insert(M.deviceListeners, ctx.eventBus:on(event, function() M.open() end))
+    end
+  end
   log.info("messaged", M.status)
 end
 
@@ -108,7 +127,13 @@ function M.stop()
   if M.ctx and M.ctx.eventBus and M.listener then
     M.ctx.eventBus:off(M.listener)
   end
+  if M.ctx and M.ctx.eventBus then
+    for _, id in ipairs(M.deviceListeners) do M.ctx.eventBus:off(id) end
+  end
+  M.deviceListeners = {}
   M.listener = nil
+  M.ctx = nil
+  M.status = "stopped"
 end
 
 return M

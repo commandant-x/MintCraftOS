@@ -1,6 +1,7 @@
 local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local autocomplete = require("system.dev.autocomplete")
+local safeWrite = require("system.libraries.safe_write")
 
 local M = {}
 
@@ -35,6 +36,7 @@ local function currentPrefix(line, col)
 end
 
 local function insertText(app, text)
+  app.revision = app.revision + 1
   local line = app.lines[app.cy]
   local before = line:sub(1, app.cx - 1)
   local after = line:sub(app.cx)
@@ -54,14 +56,19 @@ local function insertText(app, text)
 end
 
 local function compile(app)
-  local tmp = "/var/tmp/editor_compile.lua"
-  writeFile(tmp, app.lines)
-  local fn, err = loadfile(tmp)
-  if fn then app.status = "Compile OK" else app.status = tostring(err) end
+  local tmp = "/var/tmp/editor_compile_" .. tostring(app.pid) .. ".lua"
+  local ok, result = pcall(function()
+    if not writeFile(tmp, app.lines) then return "Compile failed: cannot write temporary file" end
+    local fn, err = loadfile(tmp)
+    return fn and "Compile OK" or tostring(err)
+  end)
+  pcall(fs.delete, tmp)
+  app.status = ok and result or ("Compile failed: " .. tostring(result))
 end
 
 function M.run(ctx)
   local app = {
+    pid = ctx.pid or 0,
     path = ctx.args.path or "/home/user/documents/untitled.lua",
     lines = readFile(ctx.args.path),
     cx = 1,
@@ -71,40 +78,73 @@ function M.run(ctx)
     caps = false,
     shift = false,
     keyboard = {},
+    revision = 0,
   }
 
   local function visibleHeight(h)
-    return math.max(4, h - 8)
+    return math.max(0, h - keyboard.height() - 3)
+  end
+
+  local function save()
+    local ok, message = safeWrite.write(app.path, table.concat(app.lines, "\n"))
+    app.status = ok and message or ("Save failed: " .. tostring(message))
+  end
+
+  local completionCache
+  local function suggestion()
+    local prefix = currentPrefix(app.lines[app.cy] or "", app.cx)
+    local now = os.clock()
+    if not completionCache or completionCache.lines ~= app.lines or completionCache.prefix ~= prefix
+      or completionCache.revision ~= app.revision or now - completionCache.time >= 5 then
+      completionCache = { lines = app.lines, prefix = prefix, revision = app.revision, time = now,
+        value = autocomplete.suggest({ mode = "editor", prefix = prefix, lines = app.lines, revision = app.revision }) }
+    end
+    return completionCache.value, prefix
   end
 
   local function applySuggestion()
     local line = app.lines[app.cy]
-    local prefix = currentPrefix(line, app.cx)
-    local sug = autocomplete.suggest({ mode = "editor", prefix = prefix, lines = app.lines })
+    local sug, prefix = suggestion()
     if not sug then return false end
     local replaced, cursor = autocomplete.apply(line, app.cx, sug, prefix)
-    app.lines[app.cy] = replaced
-    app.cx = cursor
+    local row = app.cy
+    local replacement = splitLines(replaced)
+    app.lines[row] = replacement[1]
+    for i = 2, #replacement do table.insert(app.lines, row + i - 1, replacement[i]) end
+    local beforeCursor = splitLines(replaced:sub(1, cursor - 1))
+    app.cy = row + #beforeCursor - 1
+    app.cx = #beforeCursor[#beforeCursor] + 1
     app.status = "Inserted " .. sug.label
+    app.revision = app.revision + 1
     return true
   end
 
   app.keyboard.onText = function(ch) insertText(app, ch) end
   app.keyboard.onBackspace = function()
+    app.revision = app.revision + 1
     local line = app.lines[app.cy]
     if app.cx > 1 then
       app.lines[app.cy] = line:sub(1, app.cx - 2) .. line:sub(app.cx)
       app.cx = app.cx - 1
+    elseif app.cy > 1 then
+      local previous = app.lines[app.cy - 1]
+      app.lines[app.cy - 1] = previous .. line
+      table.remove(app.lines, app.cy)
+      app.cy, app.cx = app.cy - 1, #previous + 1
     end
   end
   app.keyboard.onEnter = function() insertText(app, "\n") end
   app.keyboard.onTab = applySuggestion
+  app.keyboard.onControl = function(ch)
+    if ch == "s" then
+      save()
+    end
+  end
 
   function app:draw(w, h)
-    local prefix = currentPrefix(self.lines[self.cy] or "", self.cx)
-    local sug = autocomplete.suggest({ mode = "editor", prefix = prefix, lines = self.lines })
+    local sug = suggestion()
     renderer.writeAt(1, 1, renderer.crop("[Save] [Compile] " .. self.path, w), colors.white, colors.gray)
-    local maxLines = math.max(4, h - keyboard.height() - 3)
+    local maxLines = math.max(0, h - keyboard.height() - 3)
     if self.cy < self.scroll then self.scroll = self.cy end
     if self.cy >= self.scroll + maxLines then self.scroll = self.cy - maxLines + 1 end
     for row = 1, maxLines do
@@ -113,8 +153,8 @@ function M.run(ctx)
       local marker = lineNo == self.cy and ">" or " "
       renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), colors.black, colors.lightGray)
     end
-    renderer.writeAt(1, h - 5, renderer.crop(self.status, w), colors.white, colors.gray)
-    if sug then renderer.writeAt(1, h - keyboard.height(), renderer.crop("Tab: " .. sug.label .. " [" .. sug.kind .. "]", w), colors.black, colors.orange) end
+    renderer.writeAt(1, h - keyboard.height() - 1, renderer.crop(self.status, w), colors.white, colors.gray)
+    renderer.writeAt(1, h - keyboard.height(), renderer.crop(sug and ("Tab: " .. sug.label .. " [" .. sug.kind .. "]") or "", w), colors.black, colors.orange)
     self.keyboard.x = 1
     self.keyboard.y = h - keyboard.height() + 1
     self.keyboard.hint = sug and ("Tab: " .. sug.label) or ""
@@ -122,7 +162,7 @@ function M.run(ctx)
   end
 
   function app:handle(event)
-    if event.name == "char" then
+    if event.name == "char" or event.name == "paste" then
       insertText(self, event.args[1])
       return true
     elseif event.name == "key" then
@@ -130,21 +170,23 @@ function M.run(ctx)
       if key == keys.tab then return applySuggestion()
       elseif key == keys.enter then insertText(self, "\n") return true
       elseif key == keys.backspace then
-        local line = self.lines[self.cy]
-        if self.cx > 1 then
-          self.lines[self.cy] = line:sub(1, self.cx - 2) .. line:sub(self.cx)
-          self.cx = self.cx - 1
-        end
+        self.keyboard.onBackspace()
         return true
-      elseif key == keys.up then self.cy = math.max(1, self.cy - 1) return true
-      elseif key == keys.down then self.cy = math.min(#self.lines, self.cy + 1) return true
+      elseif key == keys.up then
+        self.cy = math.max(1, self.cy - 1)
+        self.cx = math.min(self.cx, #self.lines[self.cy] + 1)
+        return true
+      elseif key == keys.down then
+        self.cy = math.min(#self.lines, self.cy + 1)
+        self.cx = math.min(self.cx, #self.lines[self.cy] + 1)
+        return true
       elseif key == keys.left then self.cx = math.max(1, self.cx - 1) return true
-      elseif key == keys.right then self.cx = self.cx + 1 return true
+      elseif key == keys.right then self.cx = math.min(#self.lines[self.cy] + 1, self.cx + 1) return true
       end
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
       if y == 1 and x <= 6 then
-        if writeFile(self.path, self.lines) then self.status = "Saved" else self.status = "Save failed" end
+        save()
         return true
       elseif y == 1 and x >= 8 and x <= 16 then
         compile(self)

@@ -2,29 +2,32 @@ local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local config = require("system.libraries.config")
 local ui = require("system.gui.components")
+local fileNames = require("system.libraries.file_names")
 
 local M = {}
 
 local function sortedList(path)
   local rows = {}
+  local directories = {}
   if fs.exists(path) and fs.isDir(path) then
     for _, name in ipairs(fs.list(path)) do
       table.insert(rows, name)
+      directories[name] = fs.isDir(fs.combine(path, name))
     end
   end
   table.sort(rows, function(a, b)
-    local ad = fs.isDir(fs.combine(path, a))
-    local bd = fs.isDir(fs.combine(path, b))
+    local ad = directories[a]
+    local bd = directories[b]
     if ad ~= bd then return ad end
     return a:lower() < b:lower()
   end)
-  return rows
+  return rows, directories
 end
 
 local function parent(path)
   local dir = fs.getDir(path)
   if dir == "" then return "/" end
-  return dir
+  return fileNames.absolute(dir)
 end
 
 local function basename(path)
@@ -54,16 +57,8 @@ local function trashPath(path)
   return candidate
 end
 
-local protected = {
-  ["/system"] = true,
-  ["/apps"] = true,
-  ["/boot.lua"] = true,
-  ["/startup.lua"] = true,
-}
-
 local function isProtected(path)
-  if protected[path] then return true end
-  return path:match("^/system/") or path:match("^/apps/")
+  return fileNames.protected(path)
 end
 
 local function extOf(path)
@@ -77,13 +72,14 @@ end
 
 function M.run(ctx)
   local app = {
-    path = ctx.args.path or "/home/user",
+    path = fileNames.absolute(ctx.args.path or "/home/user"),
     selected = nil,
     scroll = 1,
     mode = nil,
     input = "",
     confirm = nil,
     keyboard = {},
+    history = {},
   }
 
   local actions = {
@@ -98,6 +94,20 @@ function M.run(ctx)
     { label = "Refresh", id = "refresh" },
   }
   local toolbar = {}
+  local toolbarState = {first = 1}
+
+  local function refresh()
+    local ok, rows, directories = pcall(sortedList, app.path)
+    if not ok then
+      ctx.notifications:push("error", "Files", "Cannot read folder: " .. tostring(rows), 4)
+      app.files, app.directories = {}, {}
+      return false
+    end
+    app.files, app.directories = rows, directories
+    app.scroll = math.max(1, math.min(app.scroll, math.max(1, #rows)))
+    return true
+  end
+  refresh()
 
   local function setMode(mode, default)
     app.mode = mode
@@ -107,14 +117,29 @@ function M.run(ctx)
 
   local function selectedPath()
     if not app.selected then return nil end
-    return fs.combine(app.path, app.selected)
+    return fileNames.absolute(fs.combine(app.path, app.selected))
+  end
+
+  local function navigate(path, backwards)
+    path = fileNames.absolute(path)
+    if not fs.exists(path) or not fs.isDir(path) then
+      ctx.notifications:push("warn", "Files", "Folder is no longer available", 3)
+      return false
+    end
+    if path ~= app.path and not backwards then
+      table.insert(app.history, app.path)
+      if #app.history > 100 then table.remove(app.history, 1) end
+    end
+    app.path, app.selected, app.scroll = path, nil, 1
+    app.mode, app.confirm = nil, nil
+    refresh()
+    return true
   end
 
   local function openFile(path)
+    path = fileNames.absolute(path)
     if fs.isDir(path) then
-      app.path = path
-      app.selected = nil
-      app.scroll = 1
+      navigate(path)
       return
     end
     local target = mimeApp(path)
@@ -126,19 +151,30 @@ function M.run(ctx)
   end
 
   local function submitInput()
+    local function target(name)
+      local path, problem = fileNames.target(app.path, name)
+      if not path then ctx.notifications:push("warn", "Files", problem, 3) end
+      return path
+    end
     if app.mode == "new_file" then
       local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_file_", ".txt"))
-      local path = fs.combine(app.path, name)
+      local path = target(name)
+      if not path then return end
       local h = fs.open(path, "w")
-      if h then h.write("") h.close() end
+      if not h then ctx.notifications:push("error", "Files", "Cannot create file", 3) return end
+      h.close()
       app.selected = name
     elseif app.mode == "new_dir" then
       local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_folder_", ""))
-      fs.makeDir(fs.combine(app.path, name))
+      local path = target(name)
+      if not path then return end
+      fs.makeDir(path)
       app.selected = name
     elseif app.mode == "rename" and app.selected then
       local old = fs.combine(app.path, app.selected)
-      local new = fs.combine(app.path, app.input)
+      if isProtected(old) then ctx.notifications:push("error", "Files", "Protected path", 3) return end
+      local new = target(app.input)
+      if not new then return end
       if app.input ~= "" and not fs.exists(new) then
         fs.move(old, new)
         app.selected = app.input
@@ -147,27 +183,17 @@ function M.run(ctx)
       end
     end
     setMode(nil)
-  end
-
-  local function toolbarHit(x)
-    local cursor = 1
-    for _, action in ipairs(actions) do
-      local width = #action.label + 2
-      if x >= cursor and x < cursor + width then return action.id end
-      cursor = cursor + width + 1
-    end
-    return nil
+    refresh()
   end
 
   local function perform(action)
-    if action == "back" or action == "up" then
-      app.path = parent(app.path)
-      app.selected = nil
-      app.scroll = 1
+    if action == "back" then
+      local path = app.history[#app.history]
+      if path and navigate(path, true) then table.remove(app.history) end
+    elseif action == "up" then
+      navigate(parent(app.path))
     elseif action == "home" then
-      app.path = "/home/user"
-      app.selected = nil
-      app.scroll = 1
+      navigate("/home/user")
     elseif action == "new_file" then
       setMode("new_file", basename(uniquePath(app.path, "new_file_", ".txt")))
     elseif action == "new_dir" then
@@ -186,17 +212,20 @@ function M.run(ctx)
     elseif action == "restore" then
       if app.selected and app.path == "/home/user/.trash" then
         local from = selectedPath()
-        local to = fs.combine("/home/user", app.selected:gsub("%.%d+$", ""))
+        local restoredName = app.selected:gsub("%.%d+$", "")
+        local to = fs.combine("/home/user", restoredName)
         if fs.exists(from) and not fs.exists(to) then
           fs.move(from, to)
           ctx.notifications:push("success", "Files", "Restored to /home/user", 3)
           app.selected = nil
+          refresh()
         else
           ctx.notifications:push("warn", "Files", "Cannot restore", 3)
         end
       end
     elseif action == "refresh" then
       app.scroll = 1
+      refresh()
     end
   end
 
@@ -212,15 +241,19 @@ function M.run(ctx)
   app.keyboard.onTab = submitInput
 
   function app:draw(w, h)
-    toolbar = ui.toolbar(1, 1, w, actions)
+    if self.mode then
+      toolbar = ui.toolbar(1, 1, w, {{id = "cancel", label = "Cancel"}})
+    else
+      toolbar = ui.toolbar(1, 1, w, actions, toolbarState)
+    end
     renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), colors.black, colors.lightGray)
-    local files = sortedList(self.path)
+    local files = self.files
     local kbH = self.mode and keyboard.height() or 0
     local listTop = 3
     local listH = math.max(1, h - listTop - kbH)
+    self.listBottom = listTop + listH - 1
     ui.list(1, listTop, w, listH, files, self.selected, self.scroll, function(name)
-      local full = fs.combine(self.path, name)
-      local prefix = fs.isDir(full) and "[D] " or "[F] "
+      local prefix = self.directories[name] and "[D] " or "[F] "
       return prefix .. name
     end)
     if self.confirm then
@@ -238,7 +271,10 @@ function M.run(ctx)
     if event.name == "key" then
       local key = event.args[1]
       if self.mode then
-        if key == keys.backspace then
+        if key == keys.escape then
+          setMode(nil)
+          return true
+        elseif key == keys.backspace then
           self.input = self.input:sub(1, -2)
           self.keyboard.hint = tostring(self.mode) .. ": " .. self.input
           return true
@@ -255,7 +291,19 @@ function M.run(ctx)
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
       if self.mode and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
-      local action = y == 1 and (ui.toolbarHit(toolbar, x, y) or toolbarHit(x)) or nil
+      local action
+      if y == 1 then
+        for _, box in ipairs(toolbar) do
+          if ui.hit(box, x, y) then
+            if box.delta then
+              toolbarState.first = math.max(1, math.min(#actions, toolbarState.first + box.delta))
+              return true
+            end
+            action = box.id
+            break
+          end
+        end
+      end
       if self.confirm then
         if action == "delete" and self.selected then
           local full = fs.combine(self.path, self.selected)
@@ -267,13 +315,15 @@ function M.run(ctx)
             ctx.notifications:push("warn", "Files", "Deleted", 3)
           end
           self.selected = nil
+          refresh()
         end
         self.confirm = nil
         return true
       end
+      if action == "cancel" then setMode(nil) return true end
       if action then perform(action) return true end
-      if y >= 3 then
-        local files = sortedList(self.path)
+      if not self.mode and y >= 3 and y <= (self.listBottom or 2) then
+        local files = self.files
         local name = files[self.scroll + y - 3]
         if name then
           if self.selected == name then openFile(fs.combine(self.path, name)) else self.selected = name end
@@ -282,7 +332,8 @@ function M.run(ctx)
       end
     elseif event.name == "mouse_scroll" then
       local dir = event.args[1]
-      self.scroll = math.max(1, self.scroll + dir)
+      local visible = math.max(1, (self.listBottom or 3) - 2)
+      self.scroll = math.max(1, math.min(math.max(1, #self.files - visible + 1), self.scroll + dir))
       return true
     end
     return false

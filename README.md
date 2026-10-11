@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.17.3 base:
+This repository currently contains the V0.18.0 base:
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -29,11 +29,14 @@ This repository currently contains the V0.17.3 base:
 - CraftTube Play supports DFPWM audio through `tools/crafttube-dfpwm-proxy`; raw YouTube/Invidious audio is not decoded locally
 - Store and local package manager with bundled example packages
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
-- Navigation app for CC:Sable telemetry, Create: Avionics sensor diagnostics, quadcopter force tables and confirmed Redstone Assist pulses
-- Combat app for Create: Radars / CC:CBC probing, target lists, semi-auto aiming and confirmed fire control
-- Combat reads Create: Radars track methods such as `getSelectedTrack`/`getTracks` when exposed, and shows a radar diagnostic when no target API is available
-- Combat radar view refreshes on a timer and draws a tactical scope with radar cone, ship marker, target markers and selected target details
-- Combat scope follows radar heading when exposed, falls back to a simulated sweep, and prefers rendered target names over UUIDs
+- Navigation: measured horizon, altitude, heading, vertical speed, environment, hybrid output mapping and calibrated PID control
+- Native coroutine workers: flight telemetry/control at 10 Hz, radar at 5 Hz and slow Avionics diagnostics at 1 Hz
+- Combat: subpixel 2D/3D schematic scopes, measured/calibrated radar heading, bounded trails, persistent target IDs and local aliases
+- CC:CBC 1.1.1 mount adapter: calibrated ballistic estimates, mechanical limits, asynchronous aiming/tracking and separately confirmed fire pulses
+- No simulated radar sweep, fabricated name, origin, angle or fallback target position; unknown coordinate frames block control
+- Navigation gains start at zero and arming requires output tests, direction/hover/manual/rescue confirmation and fresh selected sensors
+- Closing/crashing/killing the Navigation owner requests calibrated rescue; never automatically rearm after rescue or reboot
+- Browser/CraftTube remain legacy features in pause; V0.18 adds no browser/HTML5 work
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 - app crash isolation for process, window draw and input errors, with log entry and notification
@@ -51,7 +54,7 @@ shell.run("/boot.lua")
 On a CC:Tweaked computer with HTTP enabled:
 
 ```lua
-wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/main/install.lua
+wget run https://raw.githubusercontent.com/commandant-x/MintCraftOS/<COMMIT_SHA>/install.lua
 ```
 
 Then reboot:
@@ -59,6 +62,10 @@ Then reboot:
 ```lua
 reboot
 ```
+
+Use the published full commit SHA, not `main`, for a reproducible installation.
+See [V0.18 commissioning and API evidence](docs/V0.18.md). Software rescue requires a functioning,
+powered computer; it is not a hardware failsafe. Real ship commissioning is still required.
 
 ## CraftTube Audio
 

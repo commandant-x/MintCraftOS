@@ -12,7 +12,8 @@ function M.hit(box, x, y)
   return box and x >= box.x and x < box.x + box.w and y >= box.y and y < box.y + (box.h or 1)
 end
 
-function M.toolbar(x, y, w, actions)
+function M.toolbar(x, y, w, actions, state)
+  if state then return M.tabs(x, y, w, actions, nil, state) end
   local boxes = {}
   local cursor = x
   for _, action in ipairs(actions) do
@@ -33,15 +34,29 @@ function M.toolbarHit(actions, x, y)
   return nil
 end
 
-function M.tabs(x, y, w, tabs, selected)
+function M.tabs(x, y, w, tabs, selected, state)
   local boxes = {}
   local cursor = x
-  for _, tab in ipairs(tabs) do
-    local width = math.min(#tab.label + 2, math.max(5, w - cursor + x))
-    if cursor + width - x > w then break end
+  local pageable = state ~= nil
+  state = state or {}
+  local total = -1
+  for _, tab in ipairs(tabs) do total = total + #tab.label + 3 end
+  local overflow = total > w
+  state.first = overflow and math.max(1, math.min(#tabs, state.first or 1)) or 1
+  local right = x + w - 1
+  if overflow and pageable and w >= 5 then
+    renderer.writeAt(x, y, "<", theme.get("buttonFg"), theme.get("buttonBg"))
+    renderer.writeAt(right, y, ">", theme.get("buttonFg"), theme.get("buttonBg"))
+    boxes[#boxes + 1] = {x = x, y = y, w = 1, delta = -1}
+    boxes[#boxes + 1] = {x = right, y = y, w = 1, delta = 1}
+    cursor, right = x + 2, right - 2
+  end
+  for index = state.first, #tabs do
+    local tab = tabs[index]
+    local width = math.min(#tab.label + 2, right - cursor + 1)
+    if width < 1 then break end
     renderer.button(cursor, y, width, tab.label, tab.id == selected)
-    tab.x, tab.y, tab.w, tab.h = cursor, y, width, 1
-    table.insert(boxes, tab)
+    table.insert(boxes, {id = tab.id, x = cursor, y = y, w = width, h = 1})
     cursor = cursor + width + 1
   end
   return boxes

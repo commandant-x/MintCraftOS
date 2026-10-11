@@ -1,0 +1,40 @@
+local addon = require("system.libraries.addon")
+local M = {}
+
+function M.wrap(angle) return (angle + 180) % 360 - 180 end
+function M.atan2(y, x)
+  if x > 0 then return math.atan(y / x) end
+  if x < 0 then return math.atan(y / x) + (y >= 0 and math.pi or -math.pi) end
+  return y > 0 and math.pi / 2 or y < 0 and -math.pi / 2 or 0
+end
+
+function M.relative(position, origin, heading)
+  position, origin = addon.vec(position), addon.vec(origin)
+  if not position or not origin then return nil, "world origin/position unavailable" end
+  local dx, dy, dz = position.x - origin.x, position.y - origin.y, position.z - origin.z
+  local a = math.rad(heading or 0)
+  return { x = dx * math.cos(a) - dz * math.sin(a), y = dy, z = dx * math.sin(a) + dz * math.cos(a),
+    distance = math.sqrt(dx * dx + dz * dz), bearing = math.deg(M.atan2(dx, dz)) }
+end
+
+function M.transform(point, pose)
+  point = addon.vec(point)
+  if not point or type(pose) ~= "table" then return nil, "unknown pose" end
+  local origin = addon.vec(pose.position)
+  local q = pose.orientation
+  if not origin or type(q) ~= "table" then return nil, "unknown pose convention" end
+  local x, y, z, w = q.x or q[1], q.y or q[2], q.z or q[3], q.w or q[4]
+  if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil end
+  local norm = math.sqrt(x*x + y*y + z*z + w*w)
+  if norm < 1e-9 then return nil end
+  x, y, z, w = x/norm, y/norm, z/norm, w/norm
+  local pivot = addon.vec(pose.rotationPoint)
+  local scale = addon.vec(pose.scale)
+  if not pivot or not scale then return nil,"pose pivot/scale unavailable" end
+  local px, py, pz = (point.x-pivot.x)*scale.x, (point.y-pivot.y)*scale.y, (point.z-pivot.z)*scale.z
+  local tx, ty, tz = 2*(y*pz-z*py), 2*(z*px-x*pz), 2*(x*py-y*px)
+  return { x = origin.x + px + w*tx + y*tz-z*ty,
+    y = origin.y + py + w*ty + z*tx-x*tz, z = origin.z + pz + w*tz + x*ty-y*tx }
+end
+
+return M

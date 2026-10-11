@@ -61,7 +61,6 @@ function M.scan()
 end
 
 function M.status()
-  M.scan()
   local cfg = loadCfg()
   return {
     enabled = cfg.enabled ~= false,
@@ -70,6 +69,43 @@ function M.status()
     defaultSide = M.defaultSide,
     count = #M.speakers,
     speakers = M.speakers,
+  }
+end
+
+function M.openStream(path, side)
+  local cfg = loadCfg()
+  if cfg.enabled == false then return nil, "Audio disabled" end
+  local device, name = get(side or cfg.defaultSide or M.defaultSide)
+  if not device or not device.playAudio then return nil, "No speaker audio API" end
+  name = name or (peripheral.getName and peripheral.getName(device))
+  if not name then return nil, "Speaker name unavailable" end
+  local ok, dfpwm = pcall(require, "cc.audio.dfpwm")
+  if not ok then return nil, "DFPWM decoder unavailable" end
+  local handle = fs.open(path, "rb")
+  if not handle then return nil, "Cannot open audio file" end
+  local decoder = dfpwm.make_decoder()
+  local pending, closed = nil, false
+  return {
+    side = name,
+    advance = function()
+      if closed then return true end
+      if not pending then
+        local chunk = handle.read(16 * 1024)
+        if not chunk or #chunk == 0 then
+          handle.close()
+          closed = true
+          return true
+        end
+        pending = decoder(chunk)
+      end
+      if device.playAudio(pending, clampVolume(cfg.volume)) then pending = nil end
+      return false
+    end,
+    close = function(stopAudio)
+      if not closed then pcall(handle.close) closed = true end
+      pending = nil
+      if stopAudio and device.stop then pcall(device.stop) end
+    end,
   }
 end
 

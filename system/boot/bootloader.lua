@@ -1,6 +1,8 @@
 local splash = require("system.boot.splash")
 local log = require("system.libraries.log")
 local config = require("system.libraries.config")
+local version = require("system.libraries.version")
+local safeWrite = require("system.libraries.safe_write")
 
 local M = {}
 
@@ -46,12 +48,18 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.17.3",
+    version = "0.18.0",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
     safeMode = false,
   })
+  local systemConfig=config.load("/system/config/system.cfg",{})
+  if type(systemConfig)=="table" and systemConfig.version~=version.current() then
+    systemConfig.version=version.current()
+    local saved,err=safeWrite.write("/system/config/system.cfg",textutils.serialize(systemConfig))
+    if not saved then log.warn("boot","version metadata: "..tostring(err)) end
+  end
   config.ensure("/system/config/security.cfg", {
     enabled = true,
     mode = "users",
@@ -72,8 +80,7 @@ function M.start()
   ensureDirs()
   log.info("boot", "bootloader started")
   ensureDefaults()
-  local cfg = config.load("/system/config/system.cfg", { version = "0.17.3" })
-  splash.draw("MintCraft OS", "Version " .. tostring(cfg.version or "0.17.3"))
+  splash.draw("MintCraft OS", "Version " .. version.current())
 
   local kernel = require("system.kernel.kernel")
   kernel.start()

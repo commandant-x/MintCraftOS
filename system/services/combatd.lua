@@ -1,501 +1,389 @@
+local addon = require("system.libraries.addon")
+local geometry = require("system.navigation.geometry")
 local config = require("system.libraries.config")
+local safeWrite = require("system.libraries.safe_write")
+local permissions = require("system.security.permissions")
+local sable = require("system.services.sabled")
 local log = require("system.libraries.log")
+local M = {}
+local ctx, runner, inventory, settings = nil, nil, {}, {}
+local tracks, revision, pending, tokens, serial = {}, 0, {}, {}, 0
+local active, firing, uncertain = nil, nil, {}
+local probeResult
+local lastFault
+local cached = { ok = false, status = "waiting for combat", devices = {}, radars = {}, targets = {}, cannons = {}, errors = {}, revision = 0, timestamp = 0 }
+local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", "getRotationSpeed", "getDishCount"},
+  cannon = {"getInfo", "isComputerControl"}, controller = {"getAngle"} }
 
-local M = {
-  ctx = nil,
-  cfgPath = "/system/config/combat.cfg",
-  lastSnapshot = nil,
-  lastStatus = { available = false, counts = {}, error = "not started" },
-}
-
-local DEFAULT_CFG = {
-  refreshSeconds = 0.5,
-  semiAuto = true,
-  requireFireConfirmation = true,
-  ballistics = { gravity = 9.81, muzzleVelocity = 120, drag = 0 },
-  radar = { maxTargets = 64, staleSeconds = 5 },
-}
-
-local READ_METHODS = {
-  "getYaw", "getPitch", "getX", "getY", "getZ", "isRunning",
-  "isAssembled", "isLoaded", "isReady", "getAmmo", "getAmmunition",
-  "getRange", "getFov", "getFOV", "getHeading", "getBearing",
-  "getRotation", "getAngle", "getFacing", "getDirection",
-  "getTarget", "getTargets", "scan",
-  "getSelectedTrack", "getTrack", "getTracks", "getAllTracks",
-  "getDetectedTargets", "getTrackedTargets", "getEntities", "getContacts",
-  "getDetections", "getDetectedEntities", "getBlips", "getAircraft",
-}
-
-local TARGET_METHODS = {
-  "getTargets", "scan", "getSelectedTrack", "getTrack", "getTracks",
-  "getAllTracks", "getDetectedTargets", "getTrackedTargets", "getEntities",
-  "getContacts", "getDetections", "getDetectedEntities", "getBlips",
-  "getAircraft", "getTarget",
-}
-
-local RADAR_HEADING_METHODS = { "getHeading", "getBearing", "getYaw", "getRotation", "getAngle", "getFacing", "getDirection" }
-local RADAR_RANGE_METHODS = { "getRange", "getRadius", "getScanRange", "getMaxRange" }
-local RADAR_FOV_METHODS = { "getFov", "getFOV", "getScanFov", "getConeAngle" }
-
-local function cfg()
-  local out = config.load(M.cfgPath, {})
-  for k, v in pairs(DEFAULT_CFG) do if out[k] == nil then out[k] = v end end
-  out.ballistics = out.ballistics or DEFAULT_CFG.ballistics
-  out.radar = out.radar or DEFAULT_CFG.radar
-  return out
+local function loadSettings()
+  settings = config.load("/system/config/combat.cfg", {})
+  if type(settings)~="table" then settings={} end
+  settings.radar = settings.radar or {}
+  settings.radar.maxTargets = math.max(1, math.min(128, tonumber(settings.radar.maxTargets) or 128))
+  settings.radar.staleSeconds = 5
+  settings.aliases, settings.profiles, settings.radars = settings.aliases or {}, settings.profiles or {}, settings.radars or {}
+  settings.requireFireConfirmation, settings.semiAuto = true, true
 end
 
-local function norm(value)
-  return tostring(value or ""):lower():gsub("[^%w_]", "_")
+local function allowed(actor, permission)
+  local process = ctx and actor and ctx.scheduler.processes[actor.pid]
+  if not process or process.state ~= "ready" then return false, "owner not running" end
+  return permissions.require({pid = process.pid, appId = process.meta.appId, permissions = process.permissions}, permission)
 end
 
-local function hasAny(value, tokens)
-  value = norm(value)
-  for _, token in ipairs(tokens) do
-    if value:find(token, 1, true) then return true end
+local function role(row)
+  if addon.hasType(row, "cannon_mount") and row.set.getInfo and row.set.setTargetAngles then return "cannon" end
+  if row.set.getTracks and row.set.getPosition and row.set.getRange then return "radar" end
+  for _, value in ipairs(row.types) do
+    if value == "create_radar:yaw_controller" or value == "create_radar:pitch_controller" or value == "create_radar:fire_controller" then return "controller" end
   end
-  return false
+  return "unknown"
 end
 
-local function call(device, method, ...)
-  if not device or type(device[method]) ~= "function" then return nil, method .. " unavailable" end
-  local fn = device[method]
-  local ok, value = pcall(fn, ...)
-  if ok then return value, nil end
-  ok, value = pcall(fn, device, ...)
-  if ok then return value, nil end
-  return nil, tostring(value)
+local function find(rows, id)
+  if id==nil then return nil end
+  for _, row in ipairs(rows or {}) do if row.id == id or row.name == id then return row end end
 end
 
-local function requireUserPermission(permission, target)
-  local ok, securityd = pcall(require, "system.services.securityd")
-  if ok and securityd and securityd.authorize then
-    local allowed, reason = securityd.authorize({ appId = "combatd", permissions = { permission } }, permission)
-    if not allowed then
-      local message = tostring(reason or ("permission denied: " .. tostring(permission)))
-      if target then message = message .. " on " .. tostring(target) end
-      return false, message
+local function origin(position, calibration)
+  local onShip = sable.status().inSublevel
+  local frame = calibration.frame or "unknown"
+  if calibration.origin then
+    if onShip then return nil,"fixed world origin invalid on moving sublevel" end
+    return addon.vec(calibration.origin), "calibrated world"
+  end
+  if frame == "world" then return addon.vec(position), "world" end
+  if frame == "body" then
+    local snapshot=sable.snapshot()
+    if not onShip or os.clock()-(snapshot.timestamp or 0)>0.5 then return nil,"stale/missing sublevel pose" end
+    local position,why=geometry.transform(position,snapshot.sublevel and snapshot.sublevel.logicalPose)
+    return position,position and "world" or why
+  end
+  return nil, "unknown"
+end
+
+function M.acquire(rescan)
+  if rescan then inventory = addon.inventory() end
+  local now = os.clock()
+  local trackCount=0
+  for id,target in pairs(tracks) do if now-target.timestamp>10 then tracks[id]=nil else trackCount=trackCount+1 end end
+  local snap = {ok = true, devices = {}, radars = {}, targets = {}, cannons = {}, controllers = {}, unknownCombatDevices = {}, errors = {}, timestamp = now, frame = "world"}
+  local branches={}
+  for _, item in ipairs(inventory) do
+    branches[#branches+1]=function()
+    item.role = role(item)
+    if item.role ~= "unknown" then
+      local public = {id = item.name, name = item.name, types = item.types, methods = item.methods, role = item.role}
+      snap.devices[#snap.devices + 1] = public
+      local values, errors = addon.read(item.device, READS[item.role])
+      for method, err in pairs(errors) do snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. ": " .. err end
+      if item.role == "radar" then
+        local cal = settings.radars[item.name] or {}
+        local pos, frame = origin(values.getPosition, cal)
+        local radar = {id = item.name, name = item.name, position = pos, frame = frame, rawPosition = addon.vec(values.getPosition),
+          range = addon.finite(values.getRange) and values.getRange or nil, heading = nil,
+          rawRotation = addon.finite(values.getRotation) and values.getRotation or nil,
+          fov = addon.finite(cal.fov) and cal.fov or nil, fovSource = cal.fov and "calibrated" or "unknown",
+          verticalFov=addon.finite(cal.verticalFov) and cal.verticalFov or nil,
+          rotationSpeed = values.getRotationSpeed, timestamp = now}
+        if cal.headingValidated and radar.rawRotation then
+          radar.heading = (radar.rawRotation * (cal.headingSign or 1) + (cal.headingOffset or 0)) % 360
+          if cal.headingFrame == "body" then
+            local nav = require("system.services.avionicsd").snapshot().measurements or {}
+            radar.heading = nav.heading and nav.heading.valid and now-nav.heading.timestamp<=0.5 and radar.heading + nav.heading.value or nil
+          end
+        elseif addon.finite(cal.heading) then radar.heading = cal.heading end
+        radar.measurements={position=addon.measure(pos,"m",frame,item.name,now),heading=addon.measure(radar.heading,"deg","world",item.name,now),range=addon.measure(radar.range,"m",frame,item.name,now),fov=addon.measure(radar.fov,"deg","radar calibrated",item.name,now)}
+        snap.radars[#snap.radars + 1] = radar
+        for _, raw in ipairs(type(values.getTracks) == "table" and values.getTracks or {}) do
+          local id, position = raw.id and tostring(raw.id), addon.vec(raw.position)
+          if id and position and (tracks[id] or trackCount<settings.radar.maxTargets) then
+            local old = tracks[id]
+            if not old then trackCount=trackCount+1 end
+            local changed = not old or (addon.finite(raw.scannedTime) and (not addon.finite(old.scannedTime) or raw.scannedTime>old.scannedTime))
+            local target = old or {id = id, history = {}, timestamp=now, position=position}
+            if changed then
+              target.timestamp, target.position, target.scannedTime = now, position, raw.scannedTime
+              target.history[#target.history + 1] = {position = position, timestamp = now}
+              if #target.history > 20 then table.remove(target.history, 1) end
+              target.category, target.entityType, target.radarId = raw.category, raw.entityType, item.name
+              target.velocity, target.frame = addon.vec(raw.velocity), "world"
+              target.velocityUnit = raw.category=="entity" and "blocks/tick" or "API units (unverified)"
+              target.renderName = type(raw.name) == "string" and raw.name or type(raw.displayName) == "string" and raw.displayName or nil
+              target.freshnessKnown=addon.finite(raw.scannedTime)
+            end
+            target.label = settings.aliases[id] or target.renderName or ("ID " .. id:sub(1, 8))
+            target.labelSource = settings.aliases[id] and "alias" or target.renderName and "api" or "id"
+            tracks[id] = target
+          end
+        end
+      elseif item.role == "cannon" then
+        local info = type(values.getInfo) == "table" and values.getInfo or {}
+        local cal = settings.profiles[item.name] or {}
+        local pos, frame = origin({x=info.x,y=info.y,z=info.z}, cal)
+        snap.cannons[#snap.cannons + 1] = {id=item.name,name=item.name,position=pos,frame=frame,
+          yaw=info.yaw,pitch=info.pitch,assembled=info.assembled,computerControl=info.computerControl,
+          targetYaw=info.targetYaw,targetPitch=info.targetPitch,info=info,calibrated=cal.validated==true,timestamp=now,
+          measurements={position=addon.measure(pos,"m",frame,item.name,now),yaw=addon.measure(info.yaw,"deg","mount",item.name,now),pitch=addon.measure(info.pitch,"deg","mount",item.name,now)}}
+      else snap.controllers[#snap.controllers + 1] = {id=item.name,name=item.name,values=values} end
+    else
+      local text = table.concat(item.types, " ")
+      snap.devices[#snap.devices+1]={id=item.name,name=item.name,types=addon.copy(item.types),methods=addon.copy(item.methods),role="unknown (list only)"}
+      if text:find("radar",1,true) or text:find("cannon",1,true) then snap.unknownCombatDevices[#snap.unknownCombatDevices+1] = {name=item.name,types=item.types,methods=item.methods} end
+    end
     end
   end
+  if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
+  for _,key in ipairs({"devices","radars","cannons","controllers"}) do table.sort(snap[key],function(a,b) return a.name<b.name end) end
+  for token,entry in pairs(tokens) do if now>entry.expires then tokens[token]=nil end end
+  for id, target in pairs(tracks) do
+    target.stale = not target.freshnessKnown or now - target.timestamp > 5
+    target.measurements={position=addon.measure(target.position,"m","world",target.radarId,target.timestamp),velocity=addon.measure(target.velocity,target.velocityUnit,"world",target.radarId,target.timestamp)}
+    for _,measurement in pairs(target.measurements) do if target.stale then measurement.valid=false end end
+    if now - target.timestamp > 10 then tracks[id] = nil else snap.targets[#snap.targets + 1] = addon.copy(target) end
+  end
+  local prefixes={}
+  for _,target in ipairs(snap.targets) do if target.labelSource=="id" then local prefix=target.id:sub(1,8) prefixes[prefix]=(prefixes[prefix] or 0)+1 end end
+  for _,target in ipairs(snap.targets) do if target.labelSource=="id" and prefixes[target.id:sub(1,8)]>1 then target.label="ID "..target.id:sub(1,8)..".."..target.id:sub(-6) end end
+  table.sort(snap.targets, function(a,b) if a.timestamp ~= b.timestamp then return a.timestamp > b.timestamp end return a.id < b.id end)
+  while #snap.targets > settings.radar.maxTargets do
+    local removed = table.remove(snap.targets)
+    tracks[removed.id] = nil
+  end
+  revision = revision + 1
+  snap.revision = revision
+  snap.counts = {radars=#snap.radars, targets=#snap.targets, cannons=#snap.cannons, unknown=#snap.unknownCombatDevices}
+  snap.available = #snap.radars+#snap.cannons+#snap.controllers>0
+  snap.status = snap.available and "combat peripherals ready" or "no supported combat peripheral"
+  snap.ok=#snap.errors==0
+  cached = snap
+end
+
+function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
+function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.rescan() if runner then runner:rescan() end end
+function M.configuration() return addon.copy(settings) end
+function M.configure(actor, section, id, value)
+  local ok, err = allowed(actor, "combat.configure")
+  if not ok then return false, err end
+  if section ~= "aliases" and section ~= "profiles" and section ~= "radars" then return false, "invalid section" end
+  if type(id)~="string" or id=="" then return false,"invalid ID" end
+  if section=="aliases" then
+    if type(value)~="string" or #value>80 then return false,"alias must be at most 80 characters" end
+  elseif type(value)~="table" then return false,"invalid calibration" end
+  if section=="profiles" or section=="radars" then
+    if value.frame~="world" and value.frame~="body" and value.frame~="unknown" then return false,"unknown coordinate convention" end
+    if value.headingFrame~="world" and value.headingFrame~="body" then return false,"heading frame required" end
+    local signKeys=section=="profiles" and {"yawSign","pitchSign"} or {"headingSign"}
+    for _,key in ipairs(signKeys) do if value[key]~=1 and value[key]~=-1 then return false,key.." must be +1 or -1" end end
+    if section=="radars" then
+      if value.fov~=nil and (not addon.finite(value.fov) or value.fov<=0 or value.fov>360) then return false,"FOV must be 1..360 deg" end
+      if value.verticalFov~=nil and (not addon.finite(value.verticalFov) or value.verticalFov<=0 or value.verticalFov>180) then return false,"vertical FOV must be 1..180 deg" end
+      if not addon.finite(value.headingOffset) then return false,"heading offset invalid" end
+    elseif value.validated then
+      for _,key in ipairs({"gravity","muzzleVelocity","minYaw","maxYaw","minPitch","maxPitch","yawOffset","pitchOffset"}) do
+        if not addon.finite(value[key]) then return false,key.." missing" end
+      end
+      if value.gravity<=0 or value.muzzleVelocity<=0 or value.minPitch>value.maxPitch or value.minYaw>value.maxYaw then return false,"invalid ballistic/mechanical profile" end
+    end
+  end
+  local previous=settings[section][id]
+  settings[section][id] = addon.copy(value)
+  local saved, reason = safeWrite.write("/system/config/combat.cfg", textutils.serialize(settings))
+  if saved then M.rescan() end
+  if not saved then settings[section][id]=previous end
+  return saved, reason
+end
+
+function M.solution(cannonId, targetId)
+  local cannon, target = find(cached.cannons, cannonId), find(cached.targets, type(targetId)=="table" and targetId.id or targetId)
+  if not cannon or not target then return nil, "select cannon and target" end
+  if target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale" end
+  if os.clock()-(cannon.timestamp or 0)>0.5 then return nil,"cannon telemetry stale" end
+  local profile = settings.profiles[cannon.id] or {}
+  if not profile.validated then return nil, "cannon profile not calibrated" end
+  local rel, err = geometry.relative(target.position, cannon.position)
+  if not rel then return nil, err end
+  local g, v = profile.gravity, profile.muzzleVelocity
+  if not addon.finite(g) or not addon.finite(v) or g <= 0 or v <= 0 or rel.distance <= 0 then return nil, "invalid ballistic data" end
+  local v2 = v*v
+  local disc = v2*v2 - g*(g*rel.distance*rel.distance + 2*rel.y*v2)
+  if disc < 0 then return nil, "target out of ballistic range" end
+  local pitch = math.deg(math.atan((v2-math.sqrt(disc))/(g*rel.distance)))
+  local bearing=rel.bearing
+  if profile.headingFrame=="body" then
+    local nav=require("system.services.avionicsd").snapshot()
+    local heading=(nav.measurements or {}).heading
+    if not heading or not heading.valid or os.clock()-heading.timestamp>0.5 then return nil,"ship heading unavailable" end
+    bearing=geometry.wrap(bearing-heading.value)
+  end
+  local yaw = bearing*(profile.yawSign or 1)+(profile.yawOffset or 0)
+  pitch = pitch*(profile.pitchSign or 1)+(profile.pitchOffset or 0)
+  if not (addon.finite(profile.minPitch) and addon.finite(profile.maxPitch) and addon.finite(profile.minYaw) and addon.finite(profile.maxYaw)) then return nil, "mechanical limits missing" end
+  if yaw<profile.minYaw or yaw>profile.maxYaw then yaw=yaw+360*math.floor(((profile.minYaw+profile.maxYaw)/2-yaw)/360+0.5) end
+  if pitch < profile.minPitch or pitch > profile.maxPitch or yaw < profile.minYaw or yaw > profile.maxYaw then return nil, "outside calibrated mount limits" end
+  return {yaw=yaw,pitch=pitch,distance=rel.distance,deltaY=rel.y,cannonId=cannon.id,targetId=target.id,
+    targetTimestamp=target.timestamp,revision=cached.revision,estimated=true,model="vacuum, no drag"}
+end
+
+local function enqueue(actor, kind, cannonId, targetId, token)
+  local ok, err = allowed(actor, kind == "fire" and "combat.fire" or "combat.aim")
+  if not ok then return false, err end
+  if #pending >= 8 then return false, "command queue full" end
+  if uncertain[cannonId] then return false,"previous command uncertain; Rescan/verify mount before acknowledgement" end
+  if active and active.cannonId==cannonId then return false,"cannon command active" end
+  for _, command in ipairs(pending) do if command.cannonId == cannonId then return false, "cannon command pending" end end
+  local solution, reason = M.solution(cannonId,targetId)
+  if not solution then return false, reason end
+  if kind == "fire" then
+    if type(token)~="string" then return false,"fire confirmation missing" end
+    local entry = tokens[token]
+    tokens[token] = nil
+    if not entry or entry.pid ~= actor.pid or entry.cannonId ~= cannonId or entry.targetId ~= targetId or os.clock()>entry.expires then return false, "fire confirmation invalid/expired" end
+  end
+  serial = serial + 1
+  pending[#pending + 1] = {id=serial,pid=actor.pid,kind=kind,cannonId=cannonId,targetId=targetId,solution=solution}
+  os.queueEvent("mintcraft_combat_command")
+  return true, serial
+end
+
+function M.prepareFire(actor, cannonId, targetId)
+  local ok, err = allowed(actor,"combat.fire")
+  if not ok then return nil, err end
+  local solution, reason = M.solution(cannonId,targetId)
+  if not solution then return nil, reason end
+  serial = serial + 1
+  local token = tostring(serial) .. ":" .. tostring(actor.pid)
+  tokens[token] = {pid=actor.pid,cannonId=cannonId,targetId=targetId,expires=os.clock()+5}
+  return token
+end
+function M.requestAim(actor, cannonId, targetId) return enqueue(actor,"aim",cannonId,targetId) end
+function M.requestFire(actor, cannonId, targetId, token) return enqueue(actor,"fire",cannonId,targetId,token) end
+
+function M.probe(actor,name)
+  local ok, err = allowed(actor,"peripheral.probe")
+  if not ok then return nil, err end
+  local row = find(inventory,name)
+  if not row then return nil,"unknown device" end
+  for _,value in ipairs(row.types) do
+    if value=="altitude_sensor" or value=="gimbal_sensor" or value=="navigation_table" or value=="analog_transmission" or value=="throttle_lever" or value=="propeller_bearing" or value=="propeller" then return require("system.services.avionicsd").probe(name) end
+  end
+  local data, errors = addon.read(row.device, READS[role(row)] or {})
+  return {name=name,types=addon.copy(row.types),methods=addon.copy(row.methods),values=data,errors=errors}
+end
+
+function M.requestProbe(actor,name)
+  local ok, err = allowed(actor,"peripheral.probe")
+  if not ok then return false,err end
+  if #pending>=8 then return false,"command queue full" end
+  serial=serial+1
+  pending[#pending+1] = {id=serial,kind="probe",pid=actor.pid,name=name}
+  os.queueEvent("mintcraft_combat_command")
+  return true,serial
+end
+
+function M.acknowledge(actor,id,confirmed)
+  local ok,err=allowed(actor,"combat.configure")
+  if not ok then return false,err end
+  if confirmed~=true or (active and active.cannonId==id) then return false,"manual verification required; output busy" end
+  if firing and firing.name==id then firing=nil end
+  uncertain[id]=nil
   return true
 end
+function M.release(pid)
+  for i=#pending,1,-1 do if pending[i].pid==pid then table.remove(pending,i) end end
+  for token,entry in pairs(tokens) do if entry.pid==pid then tokens[token]=nil end end
+end
 
-local function copy(value, depth)
-  if type(value) ~= "table" then return value end
-  depth = depth or 0
-  if depth > 2 then return "table" end
-  local out = {}
-  local count = 0
-  for k, v in pairs(value) do
-    count = count + 1
-    if count > 64 then out.more = true break end
-    out[k] = copy(v, depth + 1)
+local function processCommand(command)
+  if command.kind == "probe" then
+    local data, err = M.probe({pid=command.pid},command.name)
+    if data then
+      probeResult=addon.copy(data)
+      local saved,why=safeWrite.write("/var/logs/peripheral_probe.log",textutils.serialize(data))
+      return saved,saved and "Probe exported /var/logs/peripheral_probe.log" or why
+    end
+    return false, err
   end
-  return out
-end
-
-local function typesOf(name)
-  if not peripheral or not peripheral.getType then return {} end
-  local ok, a, b, c = pcall(peripheral.getType, name)
-  if not ok then return {} end
-  local out = {}
-  for _, value in ipairs({ a, b, c }) do if value then table.insert(out, tostring(value)) end end
-  return out
-end
-
-local function methodsOf(name)
-  if not peripheral or not peripheral.getMethods then return {} end
-  local ok, methods = pcall(peripheral.getMethods, name)
-  if ok and type(methods) == "table" then table.sort(methods) return methods end
-  return {}
-end
-
-local function methodSet(methods)
-  local set = {}
-  for _, method in ipairs(methods or {}) do set[method] = true end
-  return set
-end
-
-local function classify(name, types, methods)
-  local text = norm(name) .. " " .. table.concat(types or {}, " ") .. " " .. table.concat(methods or {}, " ")
-  local set = methodSet(methods)
-  local roles = {}
-  if hasAny(text, { "radar", "target", "track", "contact", "detector" }) or set.getTargets or set.scan or set.getSelectedTrack or set.getTracks or set.getDetectedTargets or set.getTrackedTargets then roles.radar = true end
-  if hasAny(text, { "cbc", "cannon", "autocannon", "mount" }) or set.fire or set.assemble or set.setYaw or set.setPitch then roles.cannon = true end
-  if hasAny(text, { "mount" }) or set.getYaw or set.getPitch or set.setYaw or set.setPitch then roles.mount = true end
-  if hasAny(text, { "controller", "fire_control", "firecontrol" }) then roles.controller = true end
-  if roles.radar or roles.cannon or roles.mount or roles.controller then return roles end
-  if hasAny(text, { "radar", "cbc", "cannon", "autocannon", "munition", "shell" }) then roles.unknownCombat = true end
-  return roles
-end
-
-local function idOf(prefix, index, name)
-  return prefix .. tostring(index) .. ":" .. tostring(name)
-end
-
-local function numberField(value, ...)
-  if type(value) ~= "table" then return nil end
-  for i = 1, select("#", ...) do
-    local key = select(i, ...)
-    local v = value[key]
-    if tonumber(v) then return tonumber(v) end
+  local ok, err = allowed({pid=command.pid},command.kind=="fire" and "combat.fire" or "combat.aim")
+  if not ok then return false,err end
+  local solution, reason = M.solution(command.cannonId,command.targetId)
+  if not solution then return false,reason end
+  local row = find(inventory,command.cannonId)
+  if not row then return false,"cannon detached" end
+  local info, readErr = addon.call(row.device,"getInfo")
+  if readErr or type(info) ~= "table" or info.assembled ~= true then return false,"cannon not assembled/readable" end
+  if command.kind == "aim" then
+    local control, controlErr = addon.call(row.device,"setComputerControl",true)
+    if controlErr or control==false then return false,controlErr or "control refused" end
+    local result, aimErr = addon.call(row.device,"setTargetAngles",solution.yaw,solution.pitch)
+    return aimErr==nil and result~=false,aimErr or (result==false and "aim refused" or "Aim sent")
   end
-  return nil
+  if not addon.finite(info.yaw) or not addon.finite(info.pitch) or math.abs(geometry.wrap(info.yaw-solution.yaw))>2 or math.abs(info.pitch-solution.pitch)>2 then return false,"cannon not aligned with selected target" end
+  firing=row
+  local value, fireErr = addon.call(row.device,"fire",true)
+  if fireErr or value == false then return false,fireErr or "fire refused" end
+  local timer = os.startTimer(0.1)
+  while true do local _, id=os.pullEvent("timer") if id==timer then break end end
+  local released, stopErr = addon.call(row.device,"fire",false)
+  if released==false then stopErr=stopErr or "fire release refused" end
+  if not stopErr then firing=nil end
+  log.warn("combat", "confirmed fire " .. command.cannonId .. " target=" .. command.targetId)
+  return stopErr==nil,stopErr or "Fire pulse completed"
 end
 
-local function stringField(value, ...)
-  if type(value) ~= "table" then return nil end
-  for i = 1, select("#", ...) do
-    local key = select(i, ...)
-    local v = value[key]
-    if type(v) == "string" and v ~= "" then return v end
-    if type(v) == "number" or type(v) == "boolean" then return tostring(v) end
-  end
-  return nil
-end
-
-local function scalarFromCall(device, set, methods)
-  for _, method in ipairs(methods) do
-    if set[method] then
-      local value = call(device, method)
-      if tonumber(value) then return tonumber(value), method end
-      if type(value) == "string" and value ~= "" then return value, method end
+function M.start(context)
+  local stopped,why=M.stop()
+  if stopped==false then error(why) end
+  ctx = context
+  loadSettings()
+  runner = addon.periodic(ctx,"combatd",0.2,M.acquire)
+  runner.onError = function(err)
+    cached.errors = {err} cached.ok=false
+    if lastFault~=err then
+      lastFault=err pcall(log.error,"combat",err)
+      if ctx.notifications then pcall(ctx.notifications.push,ctx.notifications,"warn","Combat read failed",err,5) end
     end
   end
-  return nil, nil
-end
-
-local function firstTable(...)
-  for i = 1, select("#", ...) do
-    local value = select(i, ...)
-    if type(value) == "table" then return value end
-  end
-  return nil
-end
-
-local function atan2(y, x)
-  if math.atan2 then return math.atan2(y, x) end
-  if x > 0 then return math.atan(y / x) end
-  if x < 0 and y >= 0 then return math.atan(y / x) + math.pi end
-  if x < 0 and y < 0 then return math.atan(y / x) - math.pi end
-  if x == 0 and y > 0 then return math.pi / 2 end
-  if x == 0 and y < 0 then return -math.pi / 2 end
-  return 0
-end
-
-local function normalizeTarget(raw, index)
-  local t = type(raw) == "table" and raw or { label = tostring(raw) }
-  local position = firstTable(t.position, t.pos, t.location, t.worldPosition, t.globalPosition)
-  local velocity = firstTable(t.velocity, t.vel, t.motion)
-  local entity = firstTable(t.entity, t.object, t.track, t.target, t.render, t.data)
-  local label = stringField(t, "renderName", "displayName", "username", "playerName", "ownerName", "entityName", "name", "callsign", "label", "type")
-    or stringField(entity, "renderName", "displayName", "username", "playerName", "ownerName", "entityName", "name", "callsign", "label", "type")
-  local x = numberField(t, "x", "X", "posX", "targetX") or numberField(position, "x", "X", 1)
-  local y = numberField(t, "y", "Y", "posY", "altitude", "height", "targetY") or numberField(position, "y", "Y", 2)
-  local z = numberField(t, "z", "Z", "posZ", "targetZ") or numberField(position, "z", "Z", 3)
-  local distance = tonumber(t.distance or t.range or t.r or t.dist)
-  local bearing = tonumber(t.bearing or t.heading or t.yaw)
-  return {
-    id = tostring(t.id or t.uuid or t.name or ("target-" .. tostring(index))),
-    label = tostring(label or t.id or t.uuid or ("Target " .. tostring(index))),
-    renderName = label,
-    x = x,
-    y = y,
-    z = z,
-    distance = distance,
-    bearing = bearing,
-    altitude = tonumber(t.altitude or y),
-    velocity = copy(velocity),
-    raw = copy(t),
-  }
-end
-
-local function appendTargets(out, value)
-  if type(value) ~= "table" then return end
-  local n = #out
-  if #value > 0 then
-    for _, item in ipairs(value) do table.insert(out, normalizeTarget(item, #out + 1)) end
-  else
-    table.insert(out, normalizeTarget(value, n + 1))
-  end
-end
-
-local function readTargets(device, methods)
-  local targets = {}
-  local set = methodSet(methods)
-  for _, method in ipairs(TARGET_METHODS) do
-    if set[method] then
-      local value = call(device, method)
-      appendTargets(targets, value)
-      if #targets > 0 and method ~= "getSelectedTrack" then break end
-    end
-  end
-  return targets
-end
-
-local function targetReadiness(methods)
-  local set = methodSet(methods)
-  local available = {}
-  for _, method in ipairs(TARGET_METHODS) do
-    if set[method] then table.insert(available, method) end
-  end
-  return available
-end
-
-local function readRadar(device, item)
-  local methods = item.methods or {}
-  local set = methodSet(methods)
-  local heading, headingMethod = scalarFromCall(device, set, RADAR_HEADING_METHODS)
-  local range, rangeMethod = scalarFromCall(device, set, RADAR_RANGE_METHODS)
-  local fov, fovMethod = scalarFromCall(device, set, RADAR_FOV_METHODS)
-  return {
-    name = item.name,
-    types = item.types,
-    methods = methods,
-    targetMethods = targetReadiness(methods),
-    heading = tonumber(heading),
-    headingLabel = heading and tostring(heading) or nil,
-    headingMethod = headingMethod,
-    range = tonumber(range),
-    rangeMethod = rangeMethod,
-    fov = tonumber(fov),
-    fovMethod = fovMethod,
-  }
-end
-
-local function readCannon(device, item, index)
-  local methods = item.methods or {}
-  local set = methodSet(methods)
-  local yaw = set.getYaw and call(device, "getYaw") or nil
-  local pitch = set.getPitch and call(device, "getPitch") or nil
-  local x = set.getX and call(device, "getX") or nil
-  local y = set.getY and call(device, "getY") or nil
-  local z = set.getZ and call(device, "getZ") or nil
-  local running = set.isRunning and call(device, "isRunning") or (set.isAssembled and call(device, "isAssembled") or nil)
-  local loaded = set.isLoaded and call(device, "isLoaded") or (set.isReady and call(device, "isReady") or nil)
-  local ammo = set.getAmmo and call(device, "getAmmo") or (set.getAmmunition and call(device, "getAmmunition") or nil)
-  return {
-    id = idOf("cannon", index, item.name),
-    name = item.name,
-    types = item.types,
-    methods = methods,
-    yaw = yaw,
-    pitch = pitch,
-    x = x,
-    y = y,
-    z = z,
-    running = running,
-    loaded = loaded,
-    ammo = copy(ammo),
-    canAim = set.setYaw or set.setPitch,
-    canFire = set.fire,
-    canAssemble = set.assemble,
-  }
-end
-
-local function scanDevices()
-  local devices = {}
-  local errors = {}
-  if not peripheral or not peripheral.getNames or not peripheral.wrap then
-    return devices, { "peripheral API unavailable" }
-  end
-  local ok, names = pcall(peripheral.getNames)
-  if not ok then return devices, { tostring(names) } end
-  for _, name in ipairs(names or {}) do
-    local types = typesOf(name)
-    local methods = methodsOf(name)
-    local roles = classify(name, types, methods)
-    local active = roles.radar or roles.cannon or roles.mount or roles.controller or roles.unknownCombat
-    if active then
-      local okWrap, device = pcall(peripheral.wrap, name)
-      if not okWrap then table.insert(errors, tostring(name) .. ": " .. tostring(device)) end
-      table.insert(devices, {
-        name = name,
-        types = types,
-        methods = methods,
-        roles = roles,
-        device = okWrap and device or nil,
-        error = okWrap and nil or tostring(device),
-      })
-    end
-  end
-  return devices, errors
-end
-
-local function solveBallistics(cannon, target, combatCfg)
-  combatCfg = combatCfg or cfg()
-  local b = combatCfg.ballistics or {}
-  local g = tonumber(b.gravity) or 9.81
-  local v = tonumber(b.muzzleVelocity) or 120
-  local dx = (tonumber(target.x) and tonumber(cannon.x)) and (tonumber(target.x) - tonumber(cannon.x)) or nil
-  local dy = (tonumber(target.y) and tonumber(cannon.y)) and (tonumber(target.y) - tonumber(cannon.y)) or tonumber(target.altitude or 0)
-  local dz = (tonumber(target.z) and tonumber(cannon.z)) and (tonumber(target.z) - tonumber(cannon.z)) or nil
-  local horizontal = target.distance or (dx and dz and math.sqrt(dx * dx + dz * dz)) or 0
-  local yaw = target.bearing
-  if dx and dz then yaw = math.deg(atan2(-dx, dz)) end
-  local pitch = nil
-  if horizontal > 0 and v > 0 then
-    local v2 = v * v
-    local disc = v2 * v2 - g * (g * horizontal * horizontal + 2 * dy * v2)
-    if disc >= 0 then
-      pitch = math.deg(math.atan((v2 - math.sqrt(disc)) / (g * horizontal)))
-    else
-      pitch = math.deg(atan2(dy, horizontal))
-    end
-  end
-  return { yaw = yaw or cannon.yaw or 0, pitch = pitch or cannon.pitch or 0, distance = horizontal, deltaY = dy, estimated = true }
-end
-
-function M.snapshot()
-  local devices, errors = scanDevices()
-  local radars, targets, cannons, mounts, controllers, unknown = {}, {}, {}, {}, {}, {}
-  for _, item in ipairs(devices) do
-    if item.roles.radar then
-      table.insert(radars, readRadar(item.device, item))
-      if item.device then
-        for _, target in ipairs(readTargets(item.device, item.methods)) do table.insert(targets, target) end
+  if runner.error then runner.onError(runner.error) end
+  M.commandPid = ctx.scheduler:spawn("combat commands",function()
+    while true do
+      while #pending>0 do
+        local command = table.remove(pending,1)
+        active=command
+        local ok, success, message = addon.bounded(function() return processCommand(command) end,0.5)
+        if not ok then
+          message = success
+          if command.cannonId then uncertain[command.cannonId]=tostring(message) end
+        end
+        if firing then
+          local row=firing
+          local cleared,clearErr=addon.bounded(function()
+            local value,err=addon.call(row.device,"fire",false)
+            if err or value==false then error(err or "fire release refused") end
+          end,0.5)
+          if cleared then firing=nil else uncertain[row.name]=tostring(clearErr) end
+        end
+        active=nil
+        os.queueEvent("mintcraft_combat_result",command.pid,command.id,ok and success==true,tostring(message))
+        if not ok or success==false then
+          pcall(log.error,"combat",tostring(message))
+          if ctx.notifications then pcall(ctx.notifications.push,ctx.notifications,"warn","Combat command failed",tostring(message),4) end
+        end
       end
+      os.pullEvent("mintcraft_combat_command")
     end
-    if item.roles.cannon then table.insert(cannons, readCannon(item.device, item, #cannons + 1)) end
-    if item.roles.mount then table.insert(mounts, { name = item.name, types = item.types, methods = item.methods }) end
-    if item.roles.controller then table.insert(controllers, { name = item.name, types = item.types, methods = item.methods }) end
-    if item.roles.unknownCombat then table.insert(unknown, { name = item.name, types = item.types, methods = item.methods }) end
-  end
-  local c = cfg()
-  while #targets > (tonumber(c.radar and c.radar.maxTargets) or 64) do table.remove(targets) end
-  local snap = {
-    ok = true,
-    status = (#devices > 0) and "combat peripherals ready" or "no combat peripheral detected",
-    devices = devices,
-    radars = radars,
-    targets = targets,
-    cannons = cannons,
-    mounts = mounts,
-    controllers = controllers,
-    unknownCombatDevices = unknown,
-    errors = errors,
-    counts = {
-      radars = #radars,
-      targets = #targets,
-      cannons = #cannons,
-      mounts = #mounts,
-      controllers = #controllers,
-      unknown = #unknown,
-    },
-  }
-  snap.available = #devices > 0
-  M.lastSnapshot = snap
-  M.lastStatus = { available = snap.available, status = snap.status, counts = snap.counts, errors = errors }
-  return snap
-end
-
-function M.status()
-  M.snapshot()
-  return M.lastStatus
-end
-
-function M.probe(name)
-  local devices = scanDevices()
-  local selected = nil
-  for _, item in ipairs(devices) do
-    if not name or item.name == name then selected = item break end
-  end
-  if not selected then return { ok = false, error = "peripheral not found", name = name } end
-  local reads = {}
-  if selected.device then
-    local set = methodSet(selected.methods)
-    for _, method in ipairs(READ_METHODS) do
-      if set[method] then
-        local value, err = call(selected.device, method)
-        reads[method] = err and { error = err } or copy(value)
-      end
-    end
-  end
-  return { ok = true, name = selected.name, types = selected.types, roles = selected.roles, methods = selected.methods, reads = reads }
-end
-
-function M.exportProbe(path)
-  local allowed, denied = requireUserPermission("peripheral.probe", path or "probe")
-  if not allowed then return false, denied end
-  path = path or "/var/logs/peripheral_probe.log"
-  local dir = fs.getDir(path)
-  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-  local snap = M.snapshot()
-  local h = fs.open(path, "w")
-  if not h then return false, "cannot write " .. path end
-  h.write(textutils.serialize(snap))
-  h.close()
-  log.info("combatd", "probe exported to " .. path)
-  return true, path
-end
-
-local function findCannon(snapshot, cannonId)
-  for _, cannon in ipairs(snapshot.cannons or {}) do
-    if cannon.id == cannonId or cannon.name == cannonId then return cannon end
-  end
-  return nil
-end
-
-local function wrapByName(name)
-  if not peripheral or not peripheral.wrap then return nil, "peripheral API unavailable" end
-  local ok, wrapped = pcall(peripheral.wrap, name)
-  if ok and wrapped then return wrapped end
-  return nil, tostring(wrapped)
-end
-
-function M.solution(cannonId, target)
-  local snap = M.snapshot()
-  local cannon = findCannon(snap, cannonId) or (snap.cannons or {})[1]
-  if not cannon then return nil, "no cannon" end
-  if type(target) ~= "table" then target = (snap.targets or {})[tonumber(target) or 1] end
-  if not target then return nil, "no target" end
-  return solveBallistics(cannon, target, cfg()), nil
-end
-
-function M.aim(cannonId, solution)
-  local allowed, denied = requireUserPermission("combat.aim", cannonId)
-  if not allowed then return false, denied end
-  local snap = M.snapshot()
-  local cannon = findCannon(snap, cannonId)
-  if not cannon then return false, "no cannon selected" end
-  local dev, err = wrapByName(cannon.name)
-  if not dev then return false, err end
-  solution = solution or { yaw = cannon.yaw, pitch = cannon.pitch }
-  local okYaw, errYaw = true, nil
-  local okPitch, errPitch = true, nil
-  if type(dev.setYaw) == "function" and solution.yaw ~= nil then _, errYaw = call(dev, "setYaw", tonumber(solution.yaw)); okYaw = errYaw == nil end
-  if type(dev.setPitch) == "function" and solution.pitch ~= nil then _, errPitch = call(dev, "setPitch", tonumber(solution.pitch)); okPitch = errPitch == nil end
-  if okYaw and okPitch then
-    log.info("combatd", "aim " .. tostring(cannon.name) .. " yaw=" .. tostring(solution.yaw) .. " pitch=" .. tostring(solution.pitch))
-    return true, "aim sent"
-  end
-  return false, tostring(errYaw or errPitch or "aim unavailable")
-end
-
-function M.fire(cannonId)
-  local allowed, denied = requireUserPermission("combat.fire", cannonId)
-  if not allowed then return false, denied end
-  local snap = M.snapshot()
-  local cannon = findCannon(snap, cannonId)
-  if not cannon then return false, "no cannon selected" end
-  local dev, err = wrapByName(cannon.name)
-  if not dev then return false, err end
-  if type(dev.fire) ~= "function" then return false, "fire unavailable" end
-  local _, fireErr = call(dev, "fire")
-  if fireErr then return false, fireErr end
-  log.warn("combatd", "fire " .. tostring(cannon.name))
-  return true, "fire sent"
-end
-
-function M.start(ctx)
-  M.ctx = ctx
-  local st = M.status()
-  log.info("combatd", st.status)
+  end,{eventMode="raw",appId="combatd",protected=true})
+  ctx.scheduler:start(M.commandPid)
 end
 
 function M.stop()
-  M.ctx = nil
+  if active or firing then return false,"combat output active/uncertain; wait for release" end
+  if runner then runner:stop() runner=nil end
+  if ctx and M.commandPid then ctx.scheduler:kill(M.commandPid,true) end
+  pending,tokens={},{}
+  ctx=nil
+  return true
 end
 
 return M

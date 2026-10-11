@@ -1,13 +1,16 @@
 local log = require("system.libraries.log")
+local profile = require("system.libraries.profile")
 
 local ServiceManager = {}
 ServiceManager.__index = ServiceManager
 
 function ServiceManager.new(ctx)
-  return setmetatable({ ctx = ctx, services = {} }, ServiceManager)
+  return setmetatable({ ctx = ctx, services = {}, order = {} }, ServiceManager)
 end
 
 function ServiceManager:register(name, moduleName, autostart)
+  if not profile.serviceEnabled(name) then return end
+  if not self.services[name] then table.insert(self.order, name) end
   self.services[name] = {
     name = name,
     moduleName = moduleName,
@@ -31,8 +34,10 @@ function ServiceManager:start(name)
 
   service.module = mod
   if mod.start then
-    local started, err = pcall(mod.start, self.ctx)
-    if not started then
+    local started, result, detail = pcall(mod.start, self.ctx)
+    if not started or result == false then
+      local err = started and (detail or "start refused") or result
+      if mod.stop then pcall(mod.stop, self.ctx) end
       service.state = "crashed"
       service.error = tostring(err)
       log.error("service", name .. ": " .. tostring(err))
@@ -49,14 +54,24 @@ end
 function ServiceManager:stop(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
-  if service.module and service.module.stop then pcall(service.module.stop, self.ctx) end
+  if service.module and service.module.stop then
+    local ok, result, detail = pcall(service.module.stop, self.ctx)
+    if not ok or result == false then
+      -- A refused stop leaves its worker running (for example, pending rescue).
+      if not ok then service.state = "crashed" end
+      service.error = tostring(ok and (detail or "stop refused") or result)
+      log.error("service", name .. ": " .. service.error)
+      return false, service.error
+    end
+  end
   service.state = "stopped"
   log.info("service", name .. " stopped")
   return true
 end
 
 function ServiceManager:startAutostart()
-  for name, service in pairs(self.services) do
+  for _, name in ipairs(self.order) do
+    local service = self.services[name]
     if service.autostart then self:start(name) end
   end
 end

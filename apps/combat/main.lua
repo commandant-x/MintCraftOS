@@ -1,427 +1,216 @@
-local renderer = require("system.gui.renderer")
-local ui = require("system.gui.components")
-local config = require("system.libraries.config")
-local combatd = require("system.services.combatd")
-
-local M = {}
-
-local CFG = "/system/config/combat.cfg"
-
-local function scalar(v)
-  if v == nil then return "-" end
-  if type(v) == "number" then return string.format("%.2f", v) end
-  return tostring(v)
-end
-
-local function loadCfg()
-  return config.load(CFG, {
-    refreshSeconds = 0.5,
-    semiAuto = true,
-    requireFireConfirmation = true,
-    ballistics = { gravity = 9.81, muzzleVelocity = 120, drag = 0 },
-    radar = { maxTargets = 64, staleSeconds = 5 },
-  })
-end
-
-local function typeLabel(types)
-  return table.concat(types or {}, ",")
-end
-
-local function shortLabel(value, fallback)
-  value = tostring(value or fallback or "-")
-  if #value > 24 and value:find("%-") then return fallback or "target" end
-  if #value > 24 then return string.sub(value, 1, 21) .. "..." end
-  return value
-end
-
-local function atan2(y, x)
-  if math.atan2 then return math.atan2(y, x) end
-  if x > 0 then return math.atan(y / x) end
-  if x < 0 and y >= 0 then return math.atan(y / x) + math.pi end
-  if x < 0 and y < 0 then return math.atan(y / x) - math.pi end
-  if x == 0 and y > 0 then return math.pi / 2 end
-  if x == 0 and y < 0 then return -math.pi / 2 end
-  return 0
-end
-
-local function normalizeAngle(angle)
-  angle = tonumber(angle) or 0
-  while angle <= -180 do angle = angle + 360 end
-  while angle > 180 do angle = angle - 360 end
-  return angle
-end
-
-local function angularDiff(a, b)
-  return normalizeAngle((tonumber(a) or 0) - (tonumber(b) or 0))
-end
-
-local function selected(list, index)
-  if not list or #list == 0 then return nil end
-  index = math.max(1, math.min(#list, tonumber(index) or 1))
-  return list[index]
-end
-
+local renderer=require("system.gui.renderer")
+local ui=require("system.gui.components")
+local forms=require("system.gui.form")
+local addon=require("system.libraries.addon")
+local geometry=require("system.navigation.geometry")
+local instruments=require("system.navigation.instruments")
+local combat=require("system.services.combatd")
+local M={}
+local function find(rows,id) if id==nil then return nil end for _,row in ipairs(rows or {}) do if row.id==id or row.name==id then return row end end end
+local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
 function M.run(ctx)
-  local cfg = loadCfg()
-  local app = {
-    page = "radar",
-    targetIndex = 1,
-    cannonIndex = 1,
-    deviceIndex = 1,
-    confirmFire = nil,
-    message = "Combat ready",
-    solution = nil,
-    snapshot = nil,
-  }
-
-  local tabs = {
-    { id = "radar", label = "Radar" },
-    { id = "targets", label = "Targets" },
-    { id = "cannons", label = "Cannons" },
-    { id = "fire", label = "Fire" },
-    { id = "probe", label = "Probe" },
-    { id = "config", label = "Config" },
-  }
-
-  local fireActions = {
-    { id = "solve", label = "Solve" },
-    { id = "aim", label = "Aim" },
-    { id = "fire", label = "Fire" },
-  }
-
-  local probeActions = {
-    { id = "export", label = "Export" },
-    { id = "refresh", label = "Refresh" },
-  }
-
+  local actor={pid=ctx.pid}
+  local app={page="radar",tabState={},barState={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=25},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
+  local tabs={{id="radar",label="Radar"},{id="three",label="3D"},{id="targets",label="Targets"},{id="cannons",label="Cannons"},{id="fire",label="Fire"},{id="probe",label="Probe"},{id="config",label="Config"}}
+  local cfg=combat.configuration()
+  local win,timer,trackTimer
   local function refresh()
-    local allowed, denied = ctx.security.require("combat.read", "combat")
-    if not allowed then
-      app.snapshot = { ok = false, status = tostring(denied), counts = {}, radars = {}, targets = {}, cannons = {}, devices = {}, errors = { tostring(denied) } }
-    else
-      local ok, snap = pcall(combatd.snapshot)
-      app.snapshot = (ok and snap) or { ok = false, status = "combatd error", counts = {}, radars = {}, targets = {}, cannons = {}, devices = {}, errors = { tostring(snap) } }
-    end
-    return app.snapshot
+    app.snapshot=combat.snapshot()
+    for _,target in ipairs(app.snapshot.targets or {}) do target.stale=not target.freshnessKnown or os.clock()-target.timestamp>5 end
+    if not app.radarId and app.snapshot.radars[1] then app.radarId=app.snapshot.radars[1].id end
+    if not app.cannonId and app.snapshot.cannons[1] then app.cannonId=app.snapshot.cannons[1].id end
   end
-
-  local function targetBearing(target, index)
-    if tonumber(target.bearing) then return tonumber(target.bearing) end
-    if tonumber(target.x) and tonumber(target.z) then
-      return math.deg(atan2(tonumber(target.x), tonumber(target.z)))
-    end
-    return (index - 1) * 35 - 70
-  end
-
-  local function targetDistance(target, index)
-    if tonumber(target.distance) then return tonumber(target.distance) end
-    if tonumber(target.x) and tonumber(target.z) then
-      local x, z = tonumber(target.x), tonumber(target.z)
-      return math.sqrt(x * x + z * z)
-    end
-    return 80 + index * 35
-  end
-
-  local function activeRadar()
-    local snap = app.snapshot or refresh()
-    return selected(snap.radars or {}, 1) or {}
-  end
-
-  local function radarHeading()
-    local radar = activeRadar()
-    if tonumber(radar.heading) then return tonumber(radar.heading), true end
-    local t = os.clock and os.clock() or 0
-    return (t * 95) % 360, false
-  end
-
-  local function currentTarget()
-    local snap = app.snapshot or refresh()
-    return selected(snap.targets or {}, app.targetIndex)
-  end
-
-  local function currentCannon()
-    local snap = app.snapshot or refresh()
-    return selected(snap.cannons or {}, app.cannonIndex)
-  end
-
+  local function report(ok,message) app.message=ok and (type(message)=="number" and "Queued #"..message or message or "Done") or tostring(message or "Refused") end
+  local function confirm(title,callback) app.confirm={title=title,callback=callback} end
+  local function selectTarget(id) app.targetId=id app.confirm=nil app.tracking=false app.solution=nil end
   local function solve()
-    local cannon = currentCannon()
-    local target = currentTarget()
-    if not cannon or not target then app.message = "Need cannon and target" return end
-    local solution, err = combatd.solution(cannon.id, target)
-    if solution then
-      app.solution = solution
-      app.message = "Solution yaw=" .. scalar(solution.yaw) .. " pitch=" .. scalar(solution.pitch)
+    local solution,err=combat.solution(app.cannonId,app.targetId)
+    app.solution=solution app.message=err or "Estimated vacuum trajectory (no drag)"
+  end
+  local function configObject()
+    if app.configKind=="alias" then return app.alias or {value=""} end
+    local section=app.configKind=="radar" and "radars" or "profiles"
+    local id=app.configKind=="radar" and app.radarId or app.cannonId
+    if not id then return end
+    if not cfg[section][id] then
+      cfg[section][id]=app.configKind=="radar" and {frame="unknown",headingFrame="world",headingSign=1,headingOffset=0,headingValidated=false} or {frame="unknown",headingFrame="world",yawSign=1,pitchSign=1,yawOffset=0,pitchOffset=0,validated=false}
+    end
+    return cfg[section][id]
+  end
+  local function fields()
+    local object=configObject() local rows={}
+    if not object then return rows end
+    local function field(key,label,kind,options) rows[#rows+1]=forms.field(object,key,label,kind,options) end
+    if app.configKind=="alias" then field("value","Local alias","string") return rows end
+    field("frame","Position frame",nil,{"unknown","world","body"})
+    field("headingFrame","Mount heading frame",nil,{"world","body"})
+    if app.configKind=="radar" then
+      field("headingSign","Rotation sign","number") field("headingOffset","Rotation offset deg","number")
+      field("fov","Calibrated FOV deg","number") field("heading","Fixed heading deg (optional)","number")
+      field("verticalFov","Calibrated vertical FOV (optional)","number")
+      field("headingValidated","Rotating heading verified","boolean")
     else
-      app.message = tostring(err)
+      for _,key in ipairs({"gravity","muzzleVelocity","minYaw","maxYaw","minPitch","maxPitch","yawSign","pitchSign","yawOffset","pitchOffset"}) do field(key,key,"number") end
+      field("validated","Geometry/ballistics physically calibrated","boolean")
     end
+    return rows
   end
-
-  local function aim()
-    local allowed, denied = ctx.security.require("combat.aim", "aim")
-    if not allowed then app.message = tostring(denied) return end
-    local cannon = currentCannon()
-    if not cannon then app.message = "No cannon" return end
-    if not app.solution then solve() end
-    local ok, msg = combatd.aim(cannon.id, app.solution)
-    app.message = tostring(msg)
-    if ctx.notifications then ctx.notifications:push(ok and "success" or "warn", "Combat", app.message, 3) end
+  local function actions()
+    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="radarNext",label="Radar"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    elseif app.page=="targets" then return {{id="alias",label="Alias"},{id="previous",label="Up"},{id="next",label="Down"}}
+    elseif app.page=="cannons" then return {{id="rescan",label="Rescan"},{id="ack",label="Verify/acknowledge"},{id="previous",label="Up"},{id="next",label="Down"}}
+    elseif app.page=="fire" then return {{id="solve",label="Solve"},{id="aim",label="Aim once"},{id="track",label=app.tracking and "Stop track" or "Track"},{id="fire",label="Fire"}}
+    elseif app.page=="probe" then return {{id="probe",label="Read/export"},{id="rescan",label="Rescan"},{id="previous",label="Up"},{id="next",label="Down"}}
+    else return {{id="configKind",label="Radar/Cannon"},{id="save",label="Save"},{id="rescan",label="Rescan"}} end
   end
-
-  local function requestFire()
-    local allowed, denied = ctx.security.require("combat.fire", "fire")
-    if not allowed then app.message = tostring(denied) return end
-    local cannon = currentCannon()
-    if not cannon then app.message = "No cannon" return end
-    app.confirmFire = cannon
-    app.message = "Confirm fire: " .. tostring(cannon.name)
-  end
-
-  local function fire(cannon)
-    local ok, msg = combatd.fire(cannon.id)
-    app.message = tostring(msg)
-    if ctx.notifications then ctx.notifications:push(ok and "warn" or "error", "Combat", app.message, 4) end
-  end
-
-  local function drawMap(w, h, targets)
-    local radar = activeRadar()
-    local heading, lockedHeading = radarHeading()
-    local fov = math.max(20, math.min(140, tonumber(radar.fov) or 76))
-    local mapX, mapY = 2, 8
-    local mapW, mapH = math.max(30, math.min(w - 4, 62)), math.max(11, math.min(h - 11, 18))
-    renderer.fill(mapX, mapY, mapW, mapH, colors.black)
-    local cx, cy = mapX + math.floor(mapW / 2), mapY + math.floor(mapH / 2)
-    local maxR = math.max(3, math.min(math.floor(mapW / 2) - 2, mapH - 2))
-    renderer.writeAt(mapX + 1, mapY, renderer.crop(" RANGE " .. scalar(radar.range or "~") .. "  HDG " .. scalar(heading) .. (lockedHeading and "" or " sim"), mapW - 2), colors.lightGray, colors.black)
-    for r = 2, maxR, 3 do
-      renderer.writeAt(cx - r, cy, "-", colors.lightGray, colors.black)
-      renderer.writeAt(cx + r, cy, "-", colors.lightGray, colors.black)
-      if cy - r >= mapY then renderer.writeAt(cx, cy - r, "|", colors.lightGray, colors.black) end
-      if cy + r <= mapY + mapH - 1 then renderer.writeAt(cx, cy + r, "|", colors.lightGray, colors.black) end
-    end
-    for y = mapY, mapY + mapH - 1 do
-      local dy = cy - y
-      for x = mapX, mapX + mapW - 1 do
-        local dx = x - cx
-        local dist = math.sqrt(dx * dx + dy * dy)
-        if dist > 1 and dist <= maxR then
-          local angle = math.deg(atan2(dx, dy))
-          local diff = math.abs(angularDiff(angle, heading))
-          if diff <= fov / 2 then
-            local edge = diff > fov / 2 - 5 or dist > maxR - 1
-            renderer.writeAt(x, y, edge and "." or " ", edge and colors.lime or colors.green, colors.green)
-          end
+  function app:draw(w,h)
+    if h<9 then renderer.writeAt(1,1,renderer.crop("Combat: enlarge window",w)) return end
+    self.tabs=ui.tabs(1,1,w,tabs,self.page,self.tabState)
+    self.bar=ui.toolbar(1,2,w,actions(),self.barState)
+    self.rowHits={}
+    local snap=self.snapshot
+    if self.page=="radar" or self.page=="three" then
+      self.view.three=self.page=="three"
+      local panel=w>=75 and 27 or 0
+      local graphW,graphH=w-panel,math.max(2,h-5)
+      local key=table.concat({snap.revision or 0,graphW,graphH,tostring(self.targetId),tostring(self.radarId),self.page,self.view.zoom,self.view.yaw,self.view.pitch},":")
+      if not self.canvas or self.graphW~=graphW or self.graphH~=graphH or (key~=self.graphKey and os.clock()-(self.graphAt or -1)>=0.2) then
+        self.canvas,self.graphHits,self.labels,self.graphStatus=instruments.radar(graphW,graphH,snap,self.radarId,self.targetId,self.view)
+        self.graphW,self.graphH,self.graphKey,self.graphAt=graphW,graphH,key,os.clock()
+      end
+      renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..tostring(self.radarId or "No radar"),w),colors.cyan)
+      if snap.ok==false and snap.errors and snap.errors[1] then renderer.writeAt(1,3,renderer.crop("Read error: "..snap.errors[1],w),colors.orange) end
+      self.canvas:draw(1,4)
+      local occupied={}
+      for _,label in ipairs(self.labels or {}) do
+        if label.x<graphW-4 and label.y>=1 and label.y<=graphH and not occupied[label.y] then
+          renderer.writeAt(label.x,3+label.y,renderer.crop(label.text,math.min(22,graphW-label.x+1)),label.color,colors.black) occupied[label.y]=true
         end
       end
-    end
-    local sweep = math.rad(heading)
-    for r = 1, maxR do
-      local x = math.max(mapX, math.min(mapX + mapW - 1, cx + math.floor(math.sin(sweep) * r)))
-      local y = math.max(mapY, math.min(mapY + mapH - 1, cy - math.floor(math.cos(sweep) * r)))
-      renderer.writeAt(x, y, "*", colors.lime, colors.black)
-    end
-    renderer.writeAt(cx - 1, mapY, "N", colors.white, colors.black)
-    renderer.writeAt(cx, cy, "^", colors.white, colors.blue)
-    renderer.writeAt(mapX, mapY, "+", colors.lightGray, colors.black)
-    renderer.writeAt(mapX + mapW - 1, mapY, "+", colors.lightGray, colors.black)
-    renderer.writeAt(mapX, mapY + mapH - 1, "+", colors.lightGray, colors.black)
-    renderer.writeAt(mapX + mapW - 1, mapY + mapH - 1, "+", colors.lightGray, colors.black)
-    for i, target in ipairs(targets or {}) do
-      local bearing = targetBearing(target, i)
-      local dist = targetDistance(target, i)
-      local r = math.max(1, math.min(math.floor(dist / 60) + 1, maxR))
-      local rad = math.rad(bearing)
-      local x = math.max(mapX, math.min(mapX + mapW - 1, cx + math.floor(math.sin(rad) * r)))
-      local y = math.max(mapY, math.min(mapY + mapH - 1, cy - math.floor(math.cos(rad) * r)))
-      local label = shortLabel(target.renderName or target.label, "T" .. tostring(i))
-      renderer.writeAt(x, y, i == app.targetIndex and "X" or tostring(i % 10), i == app.targetIndex and colors.red or colors.yellow, colors.black)
-      if x + 2 + #label < mapX + mapW and y > mapY + 1 then
-        renderer.writeAt(x + 2, y, label, i == app.targetIndex and colors.red or colors.yellow, colors.black)
+      local target=find(snap.targets,self.targetId)
+      if panel>0 then
+        local x=graphW+2
+        local radar=find(snap.radars,self.radarId)
+        local relative=target and radar and geometry.relative(target.position,radar.position)
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Cone: "..tostring(radar and radar.fovSource or "unknown")}
+        for i=1,math.min(#rows,h-5) do renderer.writeAt(x,3+i,renderer.crop(rows[i],panel-2)) end
       end
-    end
-    return mapY + mapH
-  end
-
-  local function drawRadar(w, h)
-    local snap = app.snapshot or refresh()
-    local counts = snap.counts or {}
-    renderer.writeAt(1, 3, renderer.crop("Status: " .. tostring(snap.status or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Radars=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
-    if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 then
-      renderer.writeAt(1, 6, renderer.crop("Radar visible, no track readable. Select/link target or open Probe.", w), colors.orange, colors.lightGray)
+    elseif self.page=="targets" or self.page=="cannons" or self.page=="probe" then
+      local rows=self.page=="targets" and snap.targets or self.page=="cannons" and snap.cannons or snap.devices
+      local listHeight=self.page=="probe" and math.max(1,math.floor((h-5)/3)) or h-5
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-listHeight+1)))
+      for i=self.scroll,math.min(#rows,self.scroll+listHeight-1) do
+        local row=rows[i] local y=4+i-self.scroll
+        local label=self.page=="targets" and (row.label.." | y="..fmt(row.position.y)..(row.stale and " STALE" or "")) or self.page=="cannons" and (row.name.." | yaw="..fmt(row.yaw).." pitch="..fmt(row.pitch).." assembled="..tostring(row.assembled)) or (row.name.." "..row.role)
+        local selected=self.page=="targets" and self.targetId or self.page=="cannons" and self.cannonId or self.deviceId
+        renderer.writeAt(1,y,renderer.crop(label,w),row.id==selected and colors.yellow or colors.white,row.id==selected and colors.gray or nil)
+        self.rowHits[#self.rowHits+1]={id=row.id,x=1,y=y,w=w,h=1}
+      end
+      if #rows==0 then renderer.writeAt(1,4,renderer.crop(snap.status or "No peripheral",w),colors.orange) end
+      if self.page=="probe" then
+        local selected=find(rows,self.deviceId)
+        local y=5+listHeight
+        renderer.writeAt(1,y,renderer.crop("Methods: "..table.concat(selected and selected.methods or {},", "),w),colors.cyan)
+        local probe=snap.probe
+        if probe and probe.name==self.deviceId then
+          local values={}
+          for key,value in pairs(probe.values or {}) do values[#values+1]=key.." = "..textutils.serialize(value):gsub("\n"," ") end
+          for key,value in pairs(probe.errors or {}) do values[#values+1]=key.." ERROR "..value end
+          table.sort(values)
+          for i=1,math.min(#values,h-y-1) do renderer.writeAt(1,y+i,renderer.crop(values[i],w)) end
+        end
+      end
+    elseif self.page=="fire" then
+      local target=find(snap.targets,self.targetId)
+      local rows={"Cannon: "..tostring(self.cannonId or "select in Cannons"),"Target: "..tostring(target and target.label or "select in Targets"),"Track: "..(self.tracking and "2 Hz" or "OFF"),"Fire: independent, single-use confirmation"}
+      if self.solution then rows[#rows+1]="Yaw "..fmt(self.solution.yaw).." Pitch "..fmt(self.solution.pitch) rows[#rows+1]="ESTIMATE: vacuum trajectory, no drag" end
+      for i=1,math.min(#rows,h-5) do renderer.writeAt(1,3+i,renderer.crop(rows[i],w)) end
     else
-      renderer.writeAt(1, 6, renderer.crop("Radar scope: rotating cone, sweep line, labels and selected target details", w), colors.gray, colors.lightGray)
+      renderer.writeAt(1,3,renderer.crop(self.configKind..": "..tostring(self.configKind=="radar" and self.radarId or self.configKind=="alias" and self.targetId or self.cannonId or "none"),w),colors.cyan)
+      self.form:draw(w,h,fields())
     end
-    local bottom = drawMap(w, h, snap.targets or {})
-    local detailX = math.min(w, 58)
-    if detailX + 20 <= w then
-      local target = selected(snap.targets or {}, app.targetIndex)
-      renderer.writeAt(detailX, 8, renderer.crop("Selected", w - detailX + 1), colors.black, colors.gray)
-      if target then
-        renderer.writeAt(detailX, 10, renderer.crop(shortLabel(target.renderName or target.label, "T" .. tostring(app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
-        renderer.writeAt(detailX, 11, renderer.crop("dist " .. scalar(targetDistance(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
-        renderer.writeAt(detailX, 12, renderer.crop("bear " .. scalar(targetBearing(target, app.targetIndex)), w - detailX + 1), colors.black, colors.lightGray)
-        renderer.writeAt(detailX, 13, renderer.crop("alt  " .. scalar(target.altitude), w - detailX + 1), colors.black, colors.lightGray)
-        renderer.writeAt(detailX, 14, renderer.crop("id   " .. shortLabel(target.id, "target"), w - detailX + 1), colors.gray, colors.lightGray)
-      else
-        renderer.writeAt(detailX, 10, renderer.crop("No target", w - detailX + 1), colors.gray, colors.lightGray)
-      end
-    end
-    for i = 1, math.min(#(snap.radars or {}), math.max(0, h - bottom - 2)) do
-      local radar = snap.radars[i]
-      local methods = table.concat(radar.targetMethods or {}, ",")
-      if methods == "" then methods = "no target method" end
-      renderer.writeAt(1, bottom + i, renderer.crop("Radar " .. tostring(i) .. ": " .. tostring(radar.name) .. " hdg=" .. scalar(radar.heading or radar.headingLabel) .. " " .. methods, w), colors.black, colors.lightGray)
-    end
-    if (counts.radars or 0) > 0 and (counts.targets or 0) == 0 and bottom + #(snap.radars or {}) + 1 <= h then
-      renderer.writeAt(1, h, renderer.crop("Create Radars: link Bearing -> Network Controller -> Monitor/Fire Controller.", w), colors.gray, colors.lightGray)
+    renderer.writeAt(1,h,renderer.crop(self.message,w),colors.white,colors.gray)
+    if self.confirm then
+      renderer.fill(1,3,w,h-3,colors.gray)
+      renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
+      self.confirmBar=ui.toolbar(1,6,w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
     end
   end
-
-  local function drawTargets(w, h)
-    local snap = app.snapshot or refresh()
-    renderer.writeAt(1, 3, renderer.crop("TARGETS  click row to select", w), colors.black, colors.gray)
-    if #(snap.targets or {}) == 0 then renderer.writeAt(1, 5, renderer.crop("No target from radar/probe.", w), colors.gray, colors.lightGray) end
-    for i, target in ipairs(snap.targets or {}) do
-      if i > h - 4 then break end
-      local bg = i == app.targetIndex and colors.cyan or colors.lightGray
-      local line = tostring(i) .. " " .. shortLabel(target.renderName or target.label, "T" .. tostring(i)) .. " dist=" .. scalar(targetDistance(target, i)) .. " bearing=" .. scalar(targetBearing(target, i)) .. " xyz=" .. scalar(target.x) .. "," .. scalar(target.y) .. "," .. scalar(target.z)
-      renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, bg)
-    end
-  end
-
-  local function drawCannons(w, h)
-    local snap = app.snapshot or refresh()
-    renderer.writeAt(1, 3, renderer.crop("CANNONS / MOUNTS  click row to select", w), colors.black, colors.gray)
-    if #(snap.cannons or {}) == 0 then renderer.writeAt(1, 5, renderer.crop("No CBC cannon peripheral detected. Use Probe to inspect devices.", w), colors.gray, colors.lightGray) end
-    for i, cannon in ipairs(snap.cannons or {}) do
-      if i > h - 4 then break end
-      local bg = i == app.cannonIndex and colors.cyan or colors.lightGray
-      local line = tostring(i) .. " " .. tostring(cannon.name) .. " yaw=" .. scalar(cannon.yaw) .. " pitch=" .. scalar(cannon.pitch) .. " loaded=" .. tostring(cannon.loaded) .. " aim=" .. tostring(cannon.canAim) .. " fire=" .. tostring(cannon.canFire)
-      renderer.writeAt(1, i + 3, renderer.crop(line, w), colors.black, bg)
-    end
-  end
-
-  local function drawFire(w, h)
-    app.fireToolbar = ui.toolbar(1, 2, w, fireActions)
-    local cannon, target = currentCannon(), currentTarget()
-    renderer.writeAt(1, 4, renderer.crop("Mode: semi-auto. Aim may move cannon; Fire always asks confirmation.", w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("Cannon: " .. tostring(cannon and cannon.name or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 7, renderer.crop("Target: " .. tostring(target and target.label or "-"), w), colors.black, colors.lightGray)
-    if app.solution then
-      renderer.writeAt(1, 9, renderer.crop("Solution yaw=" .. scalar(app.solution.yaw) .. " pitch=" .. scalar(app.solution.pitch) .. " distance=" .. scalar(app.solution.distance) .. " dy=" .. scalar(app.solution.deltaY), w), colors.black, colors.lightGray)
-    else
-      renderer.writeAt(1, 9, renderer.crop("No solution yet. Tap Solve.", w), colors.gray, colors.lightGray)
-    end
-    renderer.writeAt(1, h - 1, renderer.crop(app.message, w), colors.white, colors.gray)
-    if app.confirmFire then
-      local dx, dy = 3, math.max(4, math.floor(h / 2) - 2)
-      local dw = math.min(44, w - 4)
-      app.confirmBox = { x = dx + 1, y = dy + 4, w = math.min(12, dw - 2), h = 1 }
-      ui.dialog(dx, dy, dw, "Confirm Fire", tostring(app.confirmFire.name), "Fire")
-    end
-  end
-
-  local function drawProbe(w, h)
-    local snap = app.snapshot or refresh()
-    app.probeToolbar = ui.toolbar(1, 2, w, probeActions)
-    renderer.writeAt(1, 4, renderer.crop("Probe devices. Export writes /var/logs/peripheral_probe.log", w), colors.black, colors.lightGray)
-    local devices = snap.devices or {}
-    if #devices == 0 then renderer.writeAt(1, 6, renderer.crop("No combat-like peripheral detected.", w), colors.gray, colors.lightGray) end
-    for i, device in ipairs(devices) do
-      if i > math.min(6, h - 8) then break end
-      local bg = i == app.deviceIndex and colors.cyan or colors.lightGray
-      renderer.writeAt(1, i + 5, renderer.crop(tostring(i) .. " " .. tostring(device.name) .. " " .. typeLabel(device.types), w), colors.black, bg)
-    end
-    local item = selected(devices, app.deviceIndex)
-    if item then
-      local probe = combatd.probe(item.name)
-      local y = 13
-      renderer.writeAt(1, y, renderer.crop("Methods: " .. table.concat(probe.methods or {}, ","), w), colors.black, colors.lightGray)
-      local line = y + 2
-      for method, value in pairs(probe.reads or {}) do
-        if line > h - 1 then break end
-        renderer.writeAt(1, line, renderer.crop(method .. " = " .. textutils.serialize(value), w), colors.black, colors.lightGray)
-        line = line + 1
-      end
-    end
-  end
-
-  local function drawConfig(w, h)
-    renderer.writeAt(1, 3, renderer.crop("Config: /system/config/combat.cfg", w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 5, renderer.crop("refreshSeconds=" .. scalar(cfg.refreshSeconds) .. " semiAuto=" .. tostring(cfg.semiAuto) .. " confirmFire=" .. tostring(cfg.requireFireConfirmation), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 6, renderer.crop("gravity=" .. scalar(cfg.ballistics and cfg.ballistics.gravity) .. " muzzleVelocity=" .. scalar(cfg.ballistics and cfg.ballistics.muzzleVelocity) .. " drag=" .. scalar(cfg.ballistics and cfg.ballistics.drag), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 8, renderer.crop("Radar maxTargets=" .. scalar(cfg.radar and cfg.radar.maxTargets) .. " staleSeconds=" .. scalar(cfg.radar and cfg.radar.staleSeconds), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 10, renderer.crop("Edit config from Files for now; app reloads values on launch.", w), colors.gray, colors.lightGray)
-  end
-
-  function app:draw(w, h)
-    refresh()
-    self.tabs = ui.tabs(1, 1, w, tabs, self.page)
-    if self.page == "radar" then drawRadar(w, h)
-    elseif self.page == "targets" then drawTargets(w, h)
-    elseif self.page == "cannons" then drawCannons(w, h)
-    elseif self.page == "fire" then drawFire(w, h)
-    elseif self.page == "probe" then drawProbe(w, h)
-    elseif self.page == "config" then drawConfig(w, h)
-    end
-  end
-
   function app:handle(event)
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    for _, tab in ipairs(self.tabs or {}) do
-      if ui.hit(tab, x, y) then self.page = tab.id self.confirmFire = nil return true end
+    if self.confirm then
+      if event.name=="mouse_click" then
+        local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
+        if id=="confirm" then local callback=self.confirm.callback self.confirm=nil callback()
+        elseif id=="cancel" then self.confirm=nil end
+      end return true
     end
-    if self.confirmFire then
-      if ui.hit(self.confirmBox, x, y) then fire(self.confirmFire) end
-      self.confirmFire = nil
-      return true
+    if self.form.edit then return self.form:handle(event) end
+    if event.name=="mouse_scroll" and self.page~="config" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name~="mouse_click" then return self.page=="config" and self.form:handle(event) or false end
+    local _,x,y=table.unpack(event.args)
+    for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
+      if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta)
+      else self.page=box.id self.barState.first=1 self.scroll=1 self.tracking=false end return true
+    end end
+    for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
+    local id=ui.toolbarHit(self.bar,x,y)
+    if id=="rescan" then combat.rescan() return true
+    elseif id=="zoomIn" or id=="zoomOut" then self.view.zoom=math.max(0.25,math.min(16,self.view.zoom*(id=="zoomIn" and 1.5 or 1/1.5))) return true
+    elseif id=="left" or id=="right" then self.view.yaw=(self.view.yaw+(id=="right" and 15 or -15))%360 return true
+    elseif id=="up" or id=="down" then self.view.pitch=math.max(-80,math.min(80,self.view.pitch+(id=="up" and 10 or -10))) return true
+    elseif id=="radarNext" then
+      local index=1 for i,row in ipairs(self.snapshot.radars) do if row.id==self.radarId then index=i break end end
+      if #self.snapshot.radars>0 then self.radarId=self.snapshot.radars[index%#self.snapshot.radars+1].id end return true
+    elseif id=="previous" or id=="next" then self.scroll=math.max(1,self.scroll+(id=="next" and 1 or -1)) return true
+    elseif id=="solve" then solve() return true
+    elseif id=="aim" then report(combat.requestAim(actor,self.cannonId,self.targetId)) return true
+    elseif id=="track" then
+      if self.tracking then self.tracking=false else solve() self.tracking=self.solution~=nil end return true
+    elseif id=="fire" then
+      self.tracking=false
+      local cannonId,targetId=self.cannonId,self.targetId
+      local token,err=combat.prepareFire(actor,cannonId,targetId)
+      if not token then self.message=err return true end
+      confirm("Fire "..cannonId.." -> "..targetId:sub(1,12).."? (5s)",function() report(combat.requestFire(actor,cannonId,targetId,token)) end) return true
+    elseif id=="ack" then local cannonId=self.cannonId confirm("Physically verify stopped mount/output",function() report(combat.acknowledge(actor,cannonId,true)) end) return true
+    elseif id=="probe" then report(combat.requestProbe(actor,self.deviceId)) return true
+    elseif id=="alias" then
+      if self.targetId then self.configKind="alias" self.alias={value=cfg.aliases[self.targetId] or ""} self.page="config" self.form.scroll=1 end return true
+    elseif id=="configKind" then self.configKind=self.configKind=="radar" and "cannon" or "radar" self.form.scroll=1 return true
+    elseif id=="save" then
+      local object=configObject()
+      if not object then self.message="Select a device first" return true end
+      local section=self.configKind=="radar" and "radars" or self.configKind=="alias" and "aliases" or "profiles"
+      local targetId=self.configKind=="radar" and self.radarId or self.configKind=="alias" and self.targetId or self.cannonId
+      local value=addon.copy(self.configKind=="alias" and object.value or object)
+      confirm("Save verified "..self.configKind.." calibration?",function() report(combat.configure(actor,section,targetId,value)) end) return true
     end
-    if self.page == "targets" and y >= 4 then
-      local idx = y - 3
-      if (self.snapshot.targets or {})[idx] then self.targetIndex = idx self.message = "Target " .. tostring(idx) return true end
-    elseif self.page == "cannons" and y >= 4 then
-      local idx = y - 3
-      if (self.snapshot.cannons or {})[idx] then self.cannonIndex = idx self.message = "Cannon " .. tostring(idx) return true end
-    elseif self.page == "fire" then
-      local action = ui.toolbarHit(self.fireToolbar, x, y)
-      if action == "solve" then solve() return true end
-      if action == "aim" then aim() return true end
-      if action == "fire" then requestFire() return true end
-    elseif self.page == "probe" then
-      local action = ui.toolbarHit(self.probeToolbar, x, y)
-      if action == "export" then
-        local allowed, denied = ctx.security.require("peripheral.probe", "export")
-        if allowed then
-          local ok, msg = combatd.exportProbe()
-          self.message = tostring(msg)
-          ctx.notifications:push(ok and "success" or "warn", "Probe", tostring(msg), 3)
-        else
-          self.message = tostring(denied)
-        end
-        return true
-      elseif action == "refresh" then
-        refresh()
-        return true
-      elseif y >= 6 and y <= 11 then
-        local idx = y - 5
-        if (self.snapshot.devices or {})[idx] then self.deviceIndex = idx return true end
-      end
+    for _,box in ipairs(self.rowHits or {}) do if ui.hit(box,x,y) then
+      if self.page=="targets" then selectTarget(box.id) elseif self.page=="cannons" then self.cannonId=box.id self.tracking=false else self.deviceId=box.id end return true
+    end end
+    if self.page=="radar" or self.page=="three" then
+      for _,box in ipairs(self.graphHits or {}) do if ui.hit({x=math.max(1,box.x-1),y=box.y+2,w=box.w,h=box.h},x,y) then selectTarget(box.id) return true end end
     end
-    return false
+    return self.page=="config" and self.form:handle(event) or false
   end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Combat", w = math.min(94, sw - 4), h = math.min(27, sh - 3), x = 6, y = 3, app = app })
-  local refreshTimer = os.startTimer(math.max(0.2, tonumber(cfg.refreshSeconds) or 0.5))
+  refresh()
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="Combat",w=math.min(120,w-2),h=math.min(38,h-2),x=2,y=2,app=app})
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end if trackTimer then os.cancelTimer(trackTimer) end combat.release(ctx.pid) end)
+  timer=os.startTimer(0.2) trackTimer=os.startTimer(0.5)
   while not win.closed do
-    local event = ctx.pullEvent()
-    if event.name == "timer" and event.args[1] == refreshTimer then
-      refresh()
-      refreshTimer = os.startTimer(math.max(0.2, tonumber(cfg.refreshSeconds) or 0.5))
+    local event=ctx.pullEvent()
+    if event.name=="timer" and event.args[1]==timer then
+      if not win.minimized then refresh() end timer=os.startTimer(0.2)
+    elseif event.name=="timer" and event.args[1]==trackTimer then
+      if app.tracking and not win.minimized and not app.confirm then
+        local ok,err=combat.requestAim(actor,app.cannonId,app.targetId)
+        if not ok then app.tracking=false app.message=tostring(err) end
+      end trackTimer=os.startTimer(0.5)
+    elseif event.name=="mintcraft_combat_result" and event.args[1]==ctx.pid then
+      report(event.args[3],event.args[4])
+      if not event.args[3] then app.tracking=false end
     end
   end
 end
-
 return M

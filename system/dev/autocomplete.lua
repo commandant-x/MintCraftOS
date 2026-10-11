@@ -1,4 +1,11 @@
 local M = {}
+local moduleIndex, moduleTime
+local symbolCache = setmetatable({}, { __mode = "k" })
+
+function M.invalidate()
+  moduleIndex, moduleTime = nil, nil
+  symbolCache = setmetatable({}, { __mode = "k" })
+end
 
 local luaWords = {
   "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
@@ -38,6 +45,8 @@ local function add(rows, seen, label, insert, kind)
 end
 
 local function listModules()
+  local now = os.clock()
+  if moduleIndex and now - moduleTime < 5 then return moduleIndex end
   local rows = {}
   local function walk(path)
     if not fs.exists(path) then return end
@@ -46,13 +55,15 @@ local function listModules()
       if fs.isDir(full) then
         walk(full)
       elseif name:match("%.lua$") then
-        table.insert(rows, full:gsub("^/", ""):gsub("%.lua$", ""):gsub("/", "."))
+        local module = full:gsub("^/", ""):gsub("%.lua$", ""):gsub("/", ".")
+        table.insert(rows, module)
       end
     end
   end
   walk("/system")
   walk("/apps")
   table.sort(rows)
+  moduleIndex, moduleTime = rows, now
   return rows
 end
 
@@ -76,6 +87,17 @@ function M.prefix(text, cursor, pattern)
   return left:match(pattern or "([%w_%.%-/]+)$") or ""
 end
 
+local function symbols(ctx)
+  local lines = ctx.lines or {}
+  if ctx.revision == nil then return localSymbols(lines) end
+  local entry = symbolCache[lines]
+  if not entry or entry.revision ~= ctx.revision then
+    entry = { revision = ctx.revision, rows = localSymbols(lines) }
+    symbolCache[lines] = entry
+  end
+  return entry.rows
+end
+
 function M.suggest(ctx)
   ctx = ctx or {}
   local prefix = ctx.prefix or M.prefix(ctx.text or "", ctx.cursor or 1, ctx.pattern)
@@ -83,36 +105,46 @@ function M.suggest(ctx)
 
   local rows, seen = {}, {}
   if ctx.mode == "terminal" then
+    local before = ctx.text and ctx.text:sub(1, (ctx.cursor or (#ctx.text + 1)) - #prefix - 1) or ""
+    if before:match("^%s*$") then
     for _, cmd in ipairs(terminalCommands) do
-      if cmd:sub(1, #prefix) == prefix then add(rows, seen, cmd, cmd, "command") end
+      if cmd:sub(1, #prefix) == prefix then return { label = cmd, insert = cmd, kind = "command" } end
+    end
     end
     local dir = ctx.cwd or "/"
     local part = prefix
-    if prefix:find("/") then
-      dir = fs.getDir(fs.combine(ctx.cwd or "/", prefix))
-      part = fs.getName(prefix)
+    local base = prefix:match("^(.*)/")
+    if base then
+      base = base .. "/"
+      part = prefix:sub(#base + 1)
+      dir = base:sub(1, 1) == "/" and base or fs.combine(ctx.cwd or "/", base)
     end
     if fs.exists(dir) and fs.isDir(dir) then
       for _, name in ipairs(fs.list(dir)) do
-        if name:sub(1, #part) == part then add(rows, seen, name, name, "path") end
+        if name:sub(1, #part) == part then
+          local value = (base or "") .. name
+          if fs.isDir(fs.combine(dir, name)) then value = value .. "/" end
+          add(rows, seen, value, value, "path")
+          return rows[1]
+        end
       end
     end
   else
     for _, item in ipairs(snippets) do
-      if item.label:sub(1, #prefix) == prefix then add(rows, seen, item.label, item.insert, item.kind) end
+      if item.label:sub(1, #prefix) == prefix then return { label = item.label, insert = item.insert, kind = item.kind } end
     end
     for _, word in ipairs(luaWords) do
-      if word:sub(1, #prefix) == prefix then add(rows, seen, word, word, "lua") end
+      if word:sub(1, #prefix) == prefix then return { label = word, insert = word, kind = "lua" } end
     end
     for _, word in ipairs(ccWords) do
-      if word:sub(1, #prefix) == prefix then add(rows, seen, word, word, "cc") end
+      if word:sub(1, #prefix) == prefix then return { label = word, insert = word, kind = "cc" } end
     end
-    for _, word in ipairs(localSymbols(ctx.lines or {})) do
-      if word:sub(1, #prefix) == prefix and word ~= prefix then add(rows, seen, word, word, "local") end
+    for _, word in ipairs(symbols(ctx)) do
+      if word:sub(1, #prefix) == prefix and word ~= prefix then return { label = word, insert = word, kind = "local" } end
     end
     if #rows == 0 then
       for _, mod in ipairs(listModules()) do
-        if mod:sub(1, #prefix) == prefix then add(rows, seen, mod, mod, "module") end
+        if mod:sub(1, #prefix) == prefix then return { label = mod, insert = mod, kind = "module" } end
       end
     end
   end

@@ -25,10 +25,10 @@ local function drawIcons()
   local w, h = term.getSize()
   local labels = {
     { app = "terminal" },
-    { app = "browser" },
-    { app = "messenger" },
     { app = "navigation" },
     { app = "combat" },
+    { app = "browser" },
+    { app = "messenger" },
     { app = "files" },
     { app = "settings" },
     { app = "devices" },
@@ -37,7 +37,8 @@ local function drawIcons()
   }
   local icons = {}
   local x, y = 2, 2
-  local cellW, cellH = 14, 8
+  local columns = math.max(1, math.floor((w - 2) / 12))
+  local cellW, cellH = math.max(1, math.floor((w - 2) / columns)), 8
   for _, item in ipairs(labels) do
     local meta = M.apps and M.apps.get(item.app) or nil
     table.insert(icons, {
@@ -58,7 +59,7 @@ local function drawIcons()
   M.icons = icons
   for _, icon in ipairs(icons) do
     iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"))
-    renderer.writeAt(icon.x, icon.y + 6, renderer.crop(icon.label, 12), colors.white, theme.get("desktopBg"))
+    renderer.writeAt(icon.x, icon.y + 6, renderer.crop(icon.label, math.min(12, w - icon.x + 1)), colors.white, theme.get("desktopBg"))
   end
 end
 
@@ -78,17 +79,28 @@ local function drawContextMenu()
   end
 end
 
+function M.clockText()
+  local minutes = math.floor(os.time() * 60 + 1e-7) % 1440
+  return string.format("%02d:%02d", math.floor(minutes / 60), minutes % 60)
+end
+
+function M.drawClock(time)
+  local w, h = term.getSize()
+  time = time or M.clockText()
+  renderer.writeAt(w - 5, h, time, theme.get("taskbarFg"), theme.get("taskbarBg"))
+  M.displayedClock = time
+end
+
 local function drawTaskbar()
   local w, h = term.getSize()
   renderer.fill(1, h, w, 1, theme.get("taskbarBg"))
   renderer.button(1, h, 8, "Menu", M.menuOpen)
-  local searchW = math.min(24, math.max(10, w - 26))
+  local searchW = require("system.gui.taskbar").layout(w).searchWidth
   M.searchBox = { x = 10, y = h, w = searchW }
   local searchBg = M.searchFocused and colors.white or colors.lightGray
   local searchFg = colors.black
   renderer.writeAt(10, h, renderer.crop("?" .. M.search, searchW), searchFg, searchBg)
-  local time = textutils.formatTime(os.time(), true)
-  renderer.writeAt(w - #time, h, time, theme.get("taskbarFg"), theme.get("taskbarBg"))
+  M.drawClock()
 end
 
 local function drawSearchKeyboard()
@@ -102,7 +114,8 @@ end
 
 local function drawMenu()
   if not M.menuOpen or not M.apps then return end
-  local _, h = term.getSize()
+  local w, h = term.getSize()
+  if M.searchFocused then h = math.max(3, h - keyboard.height()) end
   local appList = M.apps.list()
   if M.search ~= "" then
     local filtered = {}
@@ -115,7 +128,7 @@ local function drawMenu()
     appList = filtered
   end
   local height = math.min(#appList + 3, h - 2)
-  local menuW = math.min(32, w)
+  local menuW = M.searchFocused and w or math.min(32, w)
   renderer.fill(1, h - height, menuW, height, colors.lightGray)
   renderer.writeAt(2, h - height, renderer.crop("MintCraft OS", menuW - 2), colors.black, colors.lightGray)
   renderer.writeAt(2, h - height + 1, renderer.crop("Search: " .. M.search, menuW - 2), colors.gray, colors.lightGray)
@@ -131,9 +144,17 @@ function M.draw()
   renderer.fill(1, 1, w, h, theme.get("desktopBg"))
   drawIcons()
   drawTaskbar()
+end
+
+function M.drawOverlays()
   drawMenu()
   drawContextMenu()
   drawSearchKeyboard()
+end
+
+function M.captures(event)
+  if M.searchFocused and (event.name == "char" or event.name == "key" or event.name == "paste") then return true end
+  return event.name == "mouse_click" and (M.menuOpen or M.contextMenu ~= nil or M.searchFocused)
 end
 
 local function launch(appId)
@@ -176,6 +197,7 @@ local function openContextMenu(x, y)
     x = x,
     y = y,
     items = {
+      { label = "Refresh icons", action = function() iconRenderer.invalidate() end },
       { label = "New file", action = createTextFile },
       { label = "New folder", action = createFolder },
       { label = "Open Files", action = function() launch("files") end },
@@ -186,8 +208,6 @@ local function openContextMenu(x, y)
         launch("files", { path = "/home/user/desktop" })
       end },
       { label = "Terminal", action = function() launch("terminal") end },
-      { label = "Navigation", action = function() launch("navigation") end },
-      { label = "Combat", action = function() launch("combat") end },
       { label = "Settings", action = function() launch("settings") end },
       { label = "Devices", action = function() launch("devices") end },
     },
@@ -221,13 +241,21 @@ end
 M.keyboard.onTab = M.keyboard.onEnter
 
 function M.handle(event)
+  if event.name == "paste" and M.searchFocused then
+    M.search = M.search .. event.args[1]
+    M.menuOpen = true
+    return true
+  end
   if event.name == "char" and M.searchFocused then
     M.search = M.search .. event.args[1]
     M.menuOpen = true
     return true
   elseif event.name == "key" and M.searchFocused then
     local key = event.args[1]
-    if key == keys.backspace then
+    if key == keys.escape then
+      M.searchFocused, M.menuOpen = false, false
+      return true
+    elseif key == keys.backspace then
       M.search = string.sub(M.search, 1, -2)
       return true
     elseif key == keys.enter then
@@ -291,14 +319,18 @@ function M.handle(event)
       end
       appList = filtered
     end
-    local menuTop = h - math.min(#appList + 3, h - 2)
+    local menuBottom = M.searchFocused and math.max(3, h - keyboard.height()) or h
+    local menuTop = menuBottom - math.min(#appList + 3, menuBottom - 2)
     local index = y - menuTop - 1
-    if x <= 32 and index >= 1 and appList[index] then
+    if x <= math.min(32, w) and y < menuBottom and index >= 1 and appList[index] then
       M.menuOpen = false
+      M.searchFocused = false
       launch(appList[index].id)
       return true
     end
     M.menuOpen = false
+    M.searchFocused = false
+    return true
   end
 
   if button == 2 then

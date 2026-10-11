@@ -1,13 +1,11 @@
 local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local config = require("system.libraries.config")
+local version = require("system.libraries.version")
 local deviced = require("system.services.deviced")
 local networkd = require("system.services.networkd")
 local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
-local sabled = require("system.services.sabled")
-local avionicsd = require("system.services.avionicsd")
-local combatd = require("system.services.combatd")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 
@@ -19,8 +17,6 @@ function M.run(ctx)
   local pages = {
     { id = "system", label = "System" },
     { id = "display", label = "Display" },
-    { id = "nav", label = "Nav" },
-    { id = "combat", label = "Combat" },
     { id = "desktop", label = "Desktop" },
     { id = "network", label = "Network" },
     { id = "storage", label = "Storage" },
@@ -29,6 +25,8 @@ function M.run(ctx)
     { id = "apps", label = "Apps" },
     { id = "packages", label = "Packages" },
     { id = "dev", label = "Dev" },
+    { id = "nav", label = "Navigation" },
+    { id = "combat", label = "Combat" },
   }
 
   local function computerId()
@@ -58,10 +56,8 @@ function M.run(ctx)
   end
 
   local function rednetStatus()
-    if not peripheral or not peripheral.find then return "no peripheral API" end
-    local modem = peripheral.find("modem")
-    if not modem then return "no modem" end
-    return "modem ready"
+    if deviced.scanError then return "device scan unavailable" end
+    return deviced.hasType("modem") and "modem detected" or "no modem"
   end
 
   local function sizeLabel(bytes)
@@ -72,12 +68,13 @@ function M.run(ctx)
   end
 
   function app:draw(w, h)
-    ui.tabs(1, 1, w, pages, self.page)
+    self.tabState = self.tabState or {first = 1}
+    self.tabBoxes = ui.tabs(1, 1, w, pages, self.page, self.tabState)
 
     if self.page == "system" then
       renderer.writeAt(1, 3, "Computer ID: " .. tostring(computerId()), colors.black, colors.lightGray)
       renderer.writeAt(1, 4, "Label: " .. tostring(os.getComputerLabel and (os.getComputerLabel() or "-") or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "MintCraft: " .. tostring(config.load("/system/config/system.cfg", {}).version or "?"), colors.black, colors.lightGray)
+      renderer.writeAt(1, 5, "MintCraft: " .. version.current(), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
       renderer.writeAt(1, 8, "CraftOS over CC:Tweaked", colors.gray, colors.lightGray)
       renderer.button(1, 10, 16, "Set label", false)
@@ -88,6 +85,7 @@ function M.run(ctx)
       renderer.writeAt(1, 5, "Monitor side: " .. tostring(d.monitorSide or "-"), colors.black, colors.lightGray)
       renderer.writeAt(1, 6, "Scale: " .. tostring(d.scale or "-"), colors.black, colors.lightGray)
       renderer.writeAt(1, 7, "Monitor grade: " .. monitorGrade(d), colors.black, colors.lightGray)
+        renderer.writeAt(1, 8, "Graphics: " .. tostring(d.width * 2) .. "x" .. tostring(d.height * 3) .. " subpixels", colors.black, colors.lightGray)
       renderer.button(1, 9, 18, "Refresh display", false)
       renderer.writeAt(1, 11, "Set scale:", colors.black, colors.lightGray)
       renderer.button(1, 12, 8, "0.5", d.scale == 0.5)
@@ -95,6 +93,8 @@ function M.run(ctx)
       renderer.button(19, 12, 8, "1.5", d.scale == 1.5)
       renderer.button(28, 12, 8, "2.0", d.scale == 2)
     elseif self.page == "nav" then
+      local sabled = require("system.services.sabled")
+      local avionicsd = require("system.services.avionicsd")
       local st = sabled.status()
       local av = avionicsd.status()
       local counts = av.counts or {}
@@ -117,6 +117,7 @@ function M.run(ctx)
       end
       renderer.button(1, h - 2, 18, "Open Navigation", false)
     elseif self.page == "combat" then
+      local combatd = require("system.services.combatd")
       local st = combatd.status()
       local counts = st.counts or {}
       local combat = config.load("/system/config/combat.cfg", {})
@@ -276,8 +277,12 @@ function M.run(ctx)
     if event.name ~= "mouse_click" then return false end
     local _, x, y = table.unpack(event.args)
     if y == 1 then
-      for _, page in ipairs(pages) do
+      for _, page in ipairs(self.tabBoxes or {}) do
         if ui.hit(page, x, y) then
+          if page.delta then
+            self.tabState.first = math.max(1, math.min(#pages, self.tabState.first + page.delta))
+            return true
+          end
           self.page = page.id
           self.scroll = 1
           return true

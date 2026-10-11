@@ -1,5 +1,6 @@
 local log = require("system.libraries.log")
 local permissions = require("system.security.permissions")
+local profile = require("system.libraries.profile")
 
 local M = {
   registry = {},
@@ -11,6 +12,7 @@ function M.setContext(ctx)
 end
 
 function M.register(id, name, module, meta)
+  if not profile.appEnabled(id) then return end
   meta = meta or {}
   M.registry[id] = {
     id = id,
@@ -19,7 +21,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.17.3",
+    version = meta.version or "0.18.0",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -39,13 +41,20 @@ function M.list(includeHidden)
 end
 
 function M.launch(id, args)
+  if not profile.appEnabled(id) then return false, "Integration deferred: " .. tostring(id) end
   local app = M.registry[id]
   if not app then return false, "Unknown app: " .. tostring(id) end
   if not M.ctx then return false, "App context not ready" end
 
   local ok, mod = pcall(require, app.module)
+  if ok and (type(mod) ~= "table" or type(mod.run) ~= "function") then
+    ok, mod = false, "Invalid app module: missing run()"
+  end
   if not ok then
-    log.error("apps", tostring(mod))
+    log.error("apps", app.name .. ": " .. tostring(mod))
+    if M.ctx.notifications then
+      M.ctx.notifications:push("error", "App failed to load", app.name, 5)
+    end
     return false, tostring(mod)
   end
 
@@ -80,7 +89,8 @@ function M.launch(id, args)
     procCtx.system = M.ctx
     mod.run(procCtx, startEvent)
   end, { appId = id, permissions = app.permissions })
-  scheduler:start(pid)
+  local started, err = scheduler:start(pid)
+  if not started then return false, err end
 
   return true, pid
 end
