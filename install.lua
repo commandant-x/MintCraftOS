@@ -4,7 +4,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -682,7 +682,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -703,7 +703,7 @@ local function find(rows,id) if id==nil then return nil end for _,row in ipairs(
 local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
 function M.run(ctx)
   local actor={pid=ctx.pid}
-  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=25},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
+  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=45},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
   local tabs={{id="radar",label="Radar"},{id="three",label="3D"},{id="targets",label="Targets"},{id="cannons",label="Cannons"},{id="fire",label="Fire"},{id="probe",label="Probe"},{id="config",label="Config"}}
   local cfg=combat.configuration()
   tabs[#tabs+1]={id="network",label="Network"}
@@ -765,7 +765,7 @@ function M.run(ctx)
     return rows
   end
   local function actions()
-    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="overview",label=app.view.network and "Local view" or "Overview"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="alias",label="Alias"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="autoRadars",label="Auto setup"},{id="overview",label=app.view.network and "Local view" or "Overview"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="alias",label="Alias"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
     elseif app.page=="network" then local net=radarNet.configuration() return {{id="networkToggle",label=net.enabled and "Network ON" or "Network OFF"},{id="publishToggle",label=net.publish and "Station ON" or "Station OFF"},{id="networkConfig",label="Zone/Group"},{id="networkRescan",label="Discover"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="targets" then return {{id="alias",label="Alias"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="cannons" then return {{id="rescan",label="Rescan"},{id="ack",label="Verify/acknowledge"},{id="previous",label="Up"},{id="next",label="Down"}}
@@ -857,6 +857,13 @@ function M.run(ctx)
         local relative=target and radar and geometry.relative(target.position,radar.position)
         local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Refresh: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
+        if radar then
+          rows[#rows+1]="Heading: "..fmt(radar.heading).." deg"
+          rows[#rows+1]="FOV: "..fmt(radar.fov).." deg"
+          rows[#rows+1]="Range: "..fmt(radar.range).." m"
+          rows[#rows+1]="Scan: "..(radar.running==nil and "unknown" or radar.running and "RUNNING" or "STOPPED")
+          if radar.scanHeadingFrame=="body" and not radar.heading then rows[#rows+1]="Body heading not converted" end
+        end
         for i=1,math.min(#rows,h-6) do renderer.writeAt(x,4+i,renderer.crop(rows[i],panel-2)) end
       end
     elseif self.page=="network" then
@@ -959,6 +966,8 @@ function M.run(ctx)
     elseif id=="networkCancel" then self.page="network" self.configKind="radar" self.barState.first=1 return true
     elseif id=="overview" then self.view.network=not self.view.network self.canvas=nil self.view.zoom=1 return true end
     if id=="rescan" then combat.rescan() return true
+    elseif id=="autoRadars" then
+      confirm("Use automatic scanner API for all local radars?",function() report(combat.autoConfigureRadars(actor)) self.canvas=nil end) return true
     elseif id=="radarConfig" then
       local radar=find(self.snapshot.radars,self.radarId)
       if radar and radar.remote then self.message="Configure this radar on its source station" return true end
@@ -1040,7 +1049,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1404,7 +1413,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1490,7 +1499,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1716,7 +1725,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2074,7 +2083,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2153,7 +2162,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2272,7 +2281,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2493,7 +2502,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2574,7 +2583,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2967,7 +2976,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3082,7 +3091,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3210,7 +3219,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.2",
+  version = "0.18.3",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3643,7 +3652,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.2",
+  version = "0.18.3",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4116,7 +4125,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.2",
+    version = "0.18.3",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4419,7 +4428,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.2",
+  version = "0.18.3",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -5869,21 +5878,21 @@ local compositor = require("system.gui.compositor")
 local M = {}
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.2", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.2", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.2", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.2", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.2", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.2", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.2", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.2", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.2", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.2", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.2", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.2", permissions = { "devices.list", "peripheral.probe" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.2", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.3", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.3", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.3", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.3", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.3", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.3", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.3", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.3", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.3", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.3", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.3", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.3", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.3", permissions = { "devices.list", "peripheral.probe" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.3", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.3", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -6308,7 +6317,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.2",
+    version = meta.version or "0.18.3",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -6778,6 +6787,8 @@ local addon=require("system.libraries.addon")
 local filters=require("system.navigation.radar_filter")
 local M={}
 local categoryPalette={players=colors.lightBlue,mobs=colors.orange,vessels=colors.white,projectiles=colors.red,other=colors.lightGray}
+local unitCircle={}
+for step=0,48 do local a=step*math.pi/24 unitCircle[#unitCircle+1]={math.sin(a),math.cos(a)} end
 function M.horizon(w,h,pitch,roll)
   local canvas=pixels.new(w,h,colors.black)
   if not addon.finite(pitch) or not addon.finite(roll) then return canvas end
@@ -6815,7 +6826,7 @@ function M.radar(w,h,snap,radarId,selected,view)
       minZ=math.min(minZ or math.huge,p.z-r) maxZ=math.max(maxZ or -math.huge,p.z+r)
       altitude=altitude or p.y
     end end
-    if minX then radar={position={x=(minX+maxX)/2,y=altitude,z=(minZ+maxZ)/2},range=math.max(maxX-minX,maxZ-minZ)/2} end
+    if minX then radar={position={x=(minX+maxX)/2,y=altitude,z=(minZ+maxZ)/2},range=math.max(maxX-minX,maxZ-minZ)/2*(view.three and 1.5 or 1.05)} end
   end
   local hits,labels={},{}
   if not radar or not radar.position or not addon.finite(radar.range) or radar.range<=0 then return canvas,hits,labels,"Radar world frame/range unavailable" end
@@ -6827,7 +6838,7 @@ function M.radar(w,h,snap,radarId,selected,view)
   if heading==nil then return canvas,hits,labels,"Heading unavailable" end
   local headingRadians=math.rad(heading)
   local sh,ch=math.sin(headingRadians),math.cos(headingRadians)
-  local yaw,pitch=math.rad(view.yaw or 30),math.rad(view.pitch or 25)
+  local yaw,pitch=math.rad(view.yaw or 30),math.rad(view.pitch or 45)
   local sy,cyaw,sp,cp=math.sin(yaw),math.cos(yaw),math.sin(pitch),math.cos(pitch)
   local function project(position)
     if not addon.vec(position) then return end
@@ -6847,67 +6858,59 @@ function M.radar(w,h,snap,radarId,selected,view)
   local o=radar.position
   local function circle(position,r,color)
     local previous
-    for step=0,48 do local a=step*math.pi/24
-      local p={x=position.x+math.sin(a)*r,y=position.y,z=position.z+math.cos(a)*r}
+    for _,point in ipairs(unitCircle) do
+      local p={x=position.x+point[1]*r,y=position.y,z=position.z+point[2]*r}
       if previous then segment(previous,p,color) end previous=p
     end
   end
-  if view.network then
-    for _,station in ipairs(snap.radars or {}) do if station.position and addon.finite(station.range) then
-      circle(station.position,station.range,station.remote and colors.blue or colors.green)
-      if addon.finite(station.heading) and addon.finite(station.fov) then
-        local previous
-        for step=0,24 do
-          local a=math.rad(station.heading-station.fov/2+station.fov*step/24)
-          local p={x=station.position.x+math.sin(a)*station.range,y=station.position.y,z=station.position.z+math.cos(a)*station.range}
-          segment(previous or station.position,p,colors.lime) previous=p
-        end
-        segment(previous,station.position,colors.lime)
-      end
-      local x,y=project(station.position)
-      if x and x>=1 and x<=canvas.width and y>=1 and y<=canvas.height then
-        canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,colors.cyan)
-        labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan}
-      end
-    end end
-  end
-  local zone=snap.zone
-  if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
-    circle({x=zone.x,y=zone.y,z=zone.z},zone.radius,colors.orange)
-  end
   if view.three then
+    circle(o,range,colors.gray)
     for _,d in ipairs({{range,0,0},{0,range,0},{0,0,range}}) do segment(o,{x=o.x+d[1],y=o.y+d[2],z=o.z+d[3]},colors.gray) end
   else
-    for _,factor in ipairs({0.5,1}) do
-      local previous
-      for step=0,72 do
-        local a=step*math.pi/36
-        local p={x=o.x+math.sin(a)*range*factor,y=o.y,z=o.z+math.cos(a)*range*factor}
-        if previous then segment(previous,p,colors.gray) end previous=p
-      end
-    end
+    for _,factor in ipairs({0.5,1}) do circle(o,range*factor,colors.gray) end
     canvas:line(cx-radius,cy,cx+radius,cy,colors.gray)
     canvas:line(cx,cy-radius,cx,cy+radius,colors.gray)
   end
-  if addon.finite(radar.heading) and addon.finite(radar.fov) then
+  local function beam(station)
+    if not addon.finite(station.heading) or not addon.finite(station.fov) or station.running==false then return end
+    local centre=station.position
     local elevations={0}
-    if view.three and addon.finite(radar.verticalFov) then elevations={-radar.verticalFov/2,radar.verticalFov/2} end
+    local heights={0}
+    if view.three and addon.finite(station.halfHeight) then heights={-station.halfHeight,station.halfHeight}
+    elseif view.three and addon.finite(station.verticalFov) then elevations={-station.verticalFov/2,station.verticalFov/2} end
     local rims={}
-    for ring,elevation in ipairs(elevations) do
+    local planes=math.max(#heights,#elevations)
+    for ring=1,planes do
+      local height=heights[ring] or 0
+      local e=math.rad(elevations[ring] or 0)
+      local start={x=centre.x,y=centre.y+height,z=centre.z}
       local previous
-      local e=math.rad(elevation)
       rims[ring]={}
       for step=0,24 do
-        local a=math.rad(radar.heading-radar.fov/2+radar.fov*step/24)
-        local p={x=o.x+math.sin(a)*radar.range*math.cos(e),y=o.y+math.sin(e)*radar.range,z=o.z+math.cos(a)*radar.range*math.cos(e)}
-        if previous then segment(previous,p,colors.green) else segment(o,p,colors.green) end
+        local a=math.rad(station.heading-station.fov/2+station.fov*step/24)
+        local p={x=centre.x+math.sin(a)*station.range*math.cos(e),y=centre.y+height+math.sin(e)*station.range,z=centre.z+math.cos(a)*station.range*math.cos(e)}
+        if previous then segment(previous,p,colors.lime) else segment(start,p,colors.lime) end
+        if step%6==0 then segment(start,p,colors.green) end
         previous=p rims[ring][step+1]=p
       end
-      segment(o,previous,colors.green)
+      segment(start,previous,colors.lime)
     end
-    if rims[2] then for _,index in ipairs({1,13,25}) do segment(rims[1][index],rims[2][index],colors.green) end end
-    local a=math.rad(radar.heading)
-    segment(o,{x=o.x+math.sin(a)*radar.range,y=o.y,z=o.z+math.cos(a)*radar.range},colors.lime)
+    if rims[2] then for _,index in ipairs({1,7,13,19,25}) do segment(rims[1][index],rims[2][index],colors.green) end end
+    local a=math.rad(station.heading)
+    segment(centre,{x=centre.x+math.sin(a)*station.range,y=centre.y,z=centre.z+math.cos(a)*station.range},colors.yellow)
+  end
+    for _,station in ipairs(snap.radars or {}) do if station.position and addon.finite(station.range) then
+      circle(station.position,station.range,station.running==false and colors.gray or station.remote and colors.blue or colors.green)
+      beam(station)
+      local x,y=project(station.position)
+      if x and x>=1 and x<=canvas.width and y>=1 and y<=canvas.height then
+        canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,colors.cyan)
+        if view.network then labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan} end
+      end
+    end end
+  local zone=snap.zone
+  if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
+    circle({x=zone.x,y=zone.y,z=zone.z},zone.radius,colors.orange)
   end
   if not view.three and not view.relative then labels[#labels+1]={x=math.max(1,math.floor(cx/2)),y=1,text="N (-Z)",color=colors.white} end
   for _,target in ipairs(snap.targets or {}) do
@@ -6927,7 +6930,7 @@ function M.radar(w,h,snap,radarId,selected,view)
   end
   canvas:line(cx-3,cy,cx+3,cy,colors.cyan)
   canvas:line(cx,cy-3,cx,cy+3,colors.cyan)
-  return canvas,hits,labels,string.format("%.0fm | %s",range,view.three and "schematic 3D" or "world 2D")
+  return canvas,hits,labels,string.format("View %.0fm | %s",range,view.three and "schematic 3D" or "world 2D")
 end
 return M
 ]=],
@@ -7850,7 +7853,7 @@ local active, firing, uncertain = nil, nil, {}
 local probeResult
 local lastFault
 local cached = { ok = false, status = "waiting for combat", devices = {}, radars = {}, targets = {}, cannons = {}, errors = {}, revision = 0, timestamp = 0 }
-local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", "getRotationSpeed", "getDishCount"},
+local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", "getRotationSpeed", "getDishCount", "getScanGeometry"},
   cannon = {"getInfo", "isComputerControl"}, controller = {"getAngle"} }
 
 local function loadSettings()
@@ -7926,18 +7929,28 @@ function M.acquire(rescan)
       snap.devices[#snap.devices + 1] = public
       local methods = READS[item.role]
       local radarConfig = item.role=="radar" and settings.radars[item.name]
-      if radarConfig and (radarConfig.positionMode=="manual" or (radarConfig.origin and radarConfig.positionMode==nil)) then
+      if item.role=="radar" and knownRadar(item) and item.set.getScanGeometry then
+        methods={"getTracks","getScanGeometry"}
+      elseif radarConfig and (radarConfig.positionMode=="manual" or (radarConfig.origin and radarConfig.positionMode==nil)) then
         methods = {}
         for _,method in ipairs(READS.radar) do if method~="getPosition" then methods[#methods+1]=method end end
       end
       local values, errors = addon.read(item.device, methods)
+      local scan=type(values.getScanGeometry)=="table" and values.getScanGeometry.version==1 and values.getScanGeometry or nil
+      if scan then
+        values.getPosition,values.getRange,values.getRotation=scan.position,scan.range,scan.rotation
+        values.getRotationSpeed,values.getDishCount=scan.rotationSpeed,scan.dishCount
+      end
       for method, err in pairs(errors) do snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. ": " .. err end
       if item.role == "radar" then
         local cal = settings.radars[item.name] or {}
         local effectiveCal = cal
+        if scan and scan.positionFrame=="world" and cal.positionMode~="manual" and not cal.origin then
+          effectiveCal=addon.copy(cal) effectiveCal.frame="world"
+        end
         -- The documented API returns block coordinates. They are world coordinates
         -- on fixed terrain, not necessarily on a moving sublevel/shipyard.
-        if cal.frame == nil and knownRadar(item) and not sable.status().inSublevel then
+        if not scan and cal.frame == nil and knownRadar(item) and not sable.status().inSublevel then
           effectiveCal = addon.copy(cal)
           effectiveCal.frame = "world"
         end
@@ -7953,13 +7966,21 @@ function M.acquire(rescan)
           capabilities={tracks=item.set.getTracks==true,position=item.set.getPosition==true,
             range=item.set.getRange==true,rotation=item.set.getRotation==true,dishes=item.set.getDishCount==true},
           trackApi="getTracks", classificationSource="not exposed"}
+        radar.autoGeometry=scan~=nil
+        radar.scanPositionFrame=scan and scan.positionFrame
+        radar.scanHeadingFrame=scan and scan.headingFrame
+        radar.running=scan and scan.running
+        radar.halfHeight=scan and addon.finite(scan.halfHeight) and scan.halfHeight>=0 and scan.halfHeight or nil
+        if scan and addon.finite(scan.fov) and scan.fov>0 and scan.fov<=360 then
+          radar.fov,radar.fovSource=scan.fov,"scanner API"
+        end
         radar.kind=addon.hasType(item,"create_radar:plane_radar") and "fixed" or item.set.getRotation and "rotating" or "unknown"
         radar.apiProfile=cal.apiProfile or "auto"
         radar.positionSource = (cal.origin and cal.positionMode==nil) and "configured world origin" or
           cal.positionMode=="manual" and "configured "..tostring(cal.frame) or "API"
         radar.positionIssue = not pos and frame or nil
         for _, method in ipairs({"getTracks", "getPosition", "getRange"}) do
-          if not item.set[method] and not (method=="getPosition" and pos) then
+          if not item.set[method] and not (method=="getPosition" and pos) and not (scan and values[method]~=nil) then
             radar.readErrors[method] = "method unavailable"
             snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. " unavailable"
           end
@@ -7968,7 +7989,9 @@ function M.acquire(rescan)
           not radar.position and "position frame required" or
           (not radar.range or radar.range<=0) and "range unavailable" or
           radar.rawTrackCount==0 and "reading OK; no contacts returned" or "reading OK"
-        if cal.headingValidated and radar.rawRotation then
+        if scan and scan.headingFrame=="world" and addon.finite(scan.heading) then
+          radar.heading=scan.heading%360 radar.headingSource="scanner API"
+        elseif cal.headingValidated and radar.rawRotation then
           radar.heading = (radar.rawRotation * (cal.headingSign or 1) + (cal.headingOffset or 0)) % 360
           if cal.headingFrame == "body" then
             local nav = require("system.services.avionicsd").snapshot().measurements or {}
@@ -8078,6 +8101,24 @@ function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(pr
 function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
 function M.rescan() if runner then runner:rescan() end end
 function M.configuration() return addon.copy(settings) end
+function M.autoConfigureRadars(actor)
+  local ok,err=allowed(actor,"combat.configure") if not ok then return false,err end
+  local updated=addon.copy(settings) local count=0 local missing=0
+  for _,radar in ipairs(cached.radars) do if not radar.remote then
+    if radar.autoGeometry and radar.rawPosition and radar.scanPositionFrame=="world" then
+      local cal=updated.radars[radar.id] or {}
+      cal.positionMode="api" cal.frame="world" cal.apiProfile="auto"
+      -- Retain the old manual origin/coordinates for recovery without using them.
+      if cal.origin then cal.manualOriginBackup=cal.origin cal.origin=nil end
+      updated.radars[radar.id]=cal count=count+1
+    else missing=missing+1 end
+  end end
+  if count==0 then return false,"Scanner API missing; install the Radar API bridge on the source PC" end
+  local saved,why=safeWrite.write("/system/config/combat.cfg",textutils.serialize(updated))
+  if not saved then return false,why end
+  settings=updated M.rescan()
+  return true,tostring(count).." radars on automatic API; "..missing.." without bridge"
+end
 function M.validateRadar(value)
   if type(value)~="table" then return false,"invalid radar configuration" end
   if value.frame~="world" and value.frame~="body" then return false,"Position frame required: world/body" end
@@ -9276,7 +9317,7 @@ function M.receive(sender,packet,protocol)
   if protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
   if type(packet)~="table" or packet.version~=1 or packet.group~=settings.group or packet.frame~="world" or
     not short(packet.session,80) or not addon.finite(packet.sequence) or packet.sequence<0 or packet.sequence%1~=0 or
-    not short(packet.label,80) or type(packet.radars)~="table" or #packet.radars>16 or
+    not short(packet.label,80) or type(packet.radars)~="table" or #packet.radars>64 or
     type(packet.targets)~="table" or #packet.targets>128 then return false end
   local old=nodes[sender]
   if old and old.session==packet.session and packet.sequence<=old.sequence then return false end
@@ -9291,7 +9332,12 @@ function M.receive(sender,packet,protocol)
     local id="net:"..sender..":"..radar.id
     node.radars[#node.radars+1]={id=id,name=packet.label.." / "..radar.id,position=pos,range=radar.range,frame="world",remote=true,
       stationId=sender,timestamp=os.clock()-radar.age,heading=addon.finite(radar.heading) and radar.heading or nil,
-      fov=addon.finite(radar.fov) and radar.fov>0 and radar.fov<=360 and radar.fov or nil,fovSource="station calibration",positionSource="remote world"}
+      fov=addon.finite(radar.fov) and radar.fov>0 and radar.fov<=360 and radar.fov or nil,
+      halfHeight=addon.finite(radar.halfHeight) and radar.halfHeight>=0 and radar.halfHeight<=100000 and radar.halfHeight or nil,
+      verticalFov=addon.finite(radar.verticalFov) and radar.verticalFov>0 and radar.verticalFov<=180 and radar.verticalFov or nil,
+      running=type(radar.running)=="boolean" and radar.running or nil,
+      fovSource=short(radar.fovSource,40) or "remote calibration",positionSource="remote world"}
+    if radar.running==false then node.radars[#node.radars].running=false end
   end
   for _,target in ipairs(packet.targets) do
     if type(target)~="table" then return false end
@@ -9322,7 +9368,7 @@ function M.snapshot()
     result.nodes[#result.nodes+1]={id=id,label=node.label,online=online,age=now-node.received,included=settings.trusted[tostring(id)]==true,radars=#node.radars,targets=#node.targets}
     if online and settings.trusted[tostring(id)] then
       for _,key in ipairs({"radars","targets"}) do for _,row in ipairs(node[key]) do
-        if now-row.timestamp<=5 and #result[key]<128 then result[key][#result[key]+1]=addon.copy(row) end
+        if now-row.timestamp<=5 and #result[key]<(key=="radars" and 256 or 128) then result[key][#result[key]+1]=addon.copy(row) end
       end end
     end
   end
@@ -9338,9 +9384,10 @@ function M.publish(snapshot)
   local sources={}
   if settings.publish then
     for _,radar in ipairs(snapshot.radars or {}) do
-      if not radar.remote and radar.position and addon.finite(radar.range) and radar.range>0 and now-radar.timestamp<=0.5 and #packet.radars<16 then
+      if not radar.remote and radar.position and addon.finite(radar.range) and radar.range>0 and now-radar.timestamp<=0.5 and #packet.radars<64 then
         sources[radar.id]=true
-        packet.radars[#packet.radars+1]={id=radar.id,position=radar.position,range=radar.range,heading=radar.heading,fov=radar.fov,age=math.max(0,now-radar.timestamp)}
+        packet.radars[#packet.radars+1]={id=radar.id,position=radar.position,range=radar.range,heading=radar.heading,fov=radar.fov,
+          halfHeight=radar.halfHeight,verticalFov=radar.verticalFov,running=radar.running,fovSource=radar.fovSource,age=math.max(0,now-radar.timestamp)}
       end
     end
     for _,target in ipairs(snapshot.targets or {}) do
@@ -10704,7 +10751,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.2
+0.18.3
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

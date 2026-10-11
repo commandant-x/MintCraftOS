@@ -4,6 +4,8 @@ local addon=require("system.libraries.addon")
 local filters=require("system.navigation.radar_filter")
 local M={}
 local categoryPalette={players=colors.lightBlue,mobs=colors.orange,vessels=colors.white,projectiles=colors.red,other=colors.lightGray}
+local unitCircle={}
+for step=0,48 do local a=step*math.pi/24 unitCircle[#unitCircle+1]={math.sin(a),math.cos(a)} end
 function M.horizon(w,h,pitch,roll)
   local canvas=pixels.new(w,h,colors.black)
   if not addon.finite(pitch) or not addon.finite(roll) then return canvas end
@@ -41,7 +43,7 @@ function M.radar(w,h,snap,radarId,selected,view)
       minZ=math.min(minZ or math.huge,p.z-r) maxZ=math.max(maxZ or -math.huge,p.z+r)
       altitude=altitude or p.y
     end end
-    if minX then radar={position={x=(minX+maxX)/2,y=altitude,z=(minZ+maxZ)/2},range=math.max(maxX-minX,maxZ-minZ)/2} end
+    if minX then radar={position={x=(minX+maxX)/2,y=altitude,z=(minZ+maxZ)/2},range=math.max(maxX-minX,maxZ-minZ)/2*(view.three and 1.5 or 1.05)} end
   end
   local hits,labels={},{}
   if not radar or not radar.position or not addon.finite(radar.range) or radar.range<=0 then return canvas,hits,labels,"Radar world frame/range unavailable" end
@@ -53,7 +55,7 @@ function M.radar(w,h,snap,radarId,selected,view)
   if heading==nil then return canvas,hits,labels,"Heading unavailable" end
   local headingRadians=math.rad(heading)
   local sh,ch=math.sin(headingRadians),math.cos(headingRadians)
-  local yaw,pitch=math.rad(view.yaw or 30),math.rad(view.pitch or 25)
+  local yaw,pitch=math.rad(view.yaw or 30),math.rad(view.pitch or 45)
   local sy,cyaw,sp,cp=math.sin(yaw),math.cos(yaw),math.sin(pitch),math.cos(pitch)
   local function project(position)
     if not addon.vec(position) then return end
@@ -73,67 +75,59 @@ function M.radar(w,h,snap,radarId,selected,view)
   local o=radar.position
   local function circle(position,r,color)
     local previous
-    for step=0,48 do local a=step*math.pi/24
-      local p={x=position.x+math.sin(a)*r,y=position.y,z=position.z+math.cos(a)*r}
+    for _,point in ipairs(unitCircle) do
+      local p={x=position.x+point[1]*r,y=position.y,z=position.z+point[2]*r}
       if previous then segment(previous,p,color) end previous=p
     end
   end
-  if view.network then
-    for _,station in ipairs(snap.radars or {}) do if station.position and addon.finite(station.range) then
-      circle(station.position,station.range,station.remote and colors.blue or colors.green)
-      if addon.finite(station.heading) and addon.finite(station.fov) then
-        local previous
-        for step=0,24 do
-          local a=math.rad(station.heading-station.fov/2+station.fov*step/24)
-          local p={x=station.position.x+math.sin(a)*station.range,y=station.position.y,z=station.position.z+math.cos(a)*station.range}
-          segment(previous or station.position,p,colors.lime) previous=p
-        end
-        segment(previous,station.position,colors.lime)
-      end
-      local x,y=project(station.position)
-      if x and x>=1 and x<=canvas.width and y>=1 and y<=canvas.height then
-        canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,colors.cyan)
-        labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan}
-      end
-    end end
-  end
-  local zone=snap.zone
-  if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
-    circle({x=zone.x,y=zone.y,z=zone.z},zone.radius,colors.orange)
-  end
   if view.three then
+    circle(o,range,colors.gray)
     for _,d in ipairs({{range,0,0},{0,range,0},{0,0,range}}) do segment(o,{x=o.x+d[1],y=o.y+d[2],z=o.z+d[3]},colors.gray) end
   else
-    for _,factor in ipairs({0.5,1}) do
-      local previous
-      for step=0,72 do
-        local a=step*math.pi/36
-        local p={x=o.x+math.sin(a)*range*factor,y=o.y,z=o.z+math.cos(a)*range*factor}
-        if previous then segment(previous,p,colors.gray) end previous=p
-      end
-    end
+    for _,factor in ipairs({0.5,1}) do circle(o,range*factor,colors.gray) end
     canvas:line(cx-radius,cy,cx+radius,cy,colors.gray)
     canvas:line(cx,cy-radius,cx,cy+radius,colors.gray)
   end
-  if addon.finite(radar.heading) and addon.finite(radar.fov) then
+  local function beam(station)
+    if not addon.finite(station.heading) or not addon.finite(station.fov) or station.running==false then return end
+    local centre=station.position
     local elevations={0}
-    if view.three and addon.finite(radar.verticalFov) then elevations={-radar.verticalFov/2,radar.verticalFov/2} end
+    local heights={0}
+    if view.three and addon.finite(station.halfHeight) then heights={-station.halfHeight,station.halfHeight}
+    elseif view.three and addon.finite(station.verticalFov) then elevations={-station.verticalFov/2,station.verticalFov/2} end
     local rims={}
-    for ring,elevation in ipairs(elevations) do
+    local planes=math.max(#heights,#elevations)
+    for ring=1,planes do
+      local height=heights[ring] or 0
+      local e=math.rad(elevations[ring] or 0)
+      local start={x=centre.x,y=centre.y+height,z=centre.z}
       local previous
-      local e=math.rad(elevation)
       rims[ring]={}
       for step=0,24 do
-        local a=math.rad(radar.heading-radar.fov/2+radar.fov*step/24)
-        local p={x=o.x+math.sin(a)*radar.range*math.cos(e),y=o.y+math.sin(e)*radar.range,z=o.z+math.cos(a)*radar.range*math.cos(e)}
-        if previous then segment(previous,p,colors.green) else segment(o,p,colors.green) end
+        local a=math.rad(station.heading-station.fov/2+station.fov*step/24)
+        local p={x=centre.x+math.sin(a)*station.range*math.cos(e),y=centre.y+height+math.sin(e)*station.range,z=centre.z+math.cos(a)*station.range*math.cos(e)}
+        if previous then segment(previous,p,colors.lime) else segment(start,p,colors.lime) end
+        if step%6==0 then segment(start,p,colors.green) end
         previous=p rims[ring][step+1]=p
       end
-      segment(o,previous,colors.green)
+      segment(start,previous,colors.lime)
     end
-    if rims[2] then for _,index in ipairs({1,13,25}) do segment(rims[1][index],rims[2][index],colors.green) end end
-    local a=math.rad(radar.heading)
-    segment(o,{x=o.x+math.sin(a)*radar.range,y=o.y,z=o.z+math.cos(a)*radar.range},colors.lime)
+    if rims[2] then for _,index in ipairs({1,7,13,19,25}) do segment(rims[1][index],rims[2][index],colors.green) end end
+    local a=math.rad(station.heading)
+    segment(centre,{x=centre.x+math.sin(a)*station.range,y=centre.y,z=centre.z+math.cos(a)*station.range},colors.yellow)
+  end
+    for _,station in ipairs(snap.radars or {}) do if station.position and addon.finite(station.range) then
+      circle(station.position,station.range,station.running==false and colors.gray or station.remote and colors.blue or colors.green)
+      beam(station)
+      local x,y=project(station.position)
+      if x and x>=1 and x<=canvas.width and y>=1 and y<=canvas.height then
+        canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,colors.cyan)
+        if view.network then labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan} end
+      end
+    end end
+  local zone=snap.zone
+  if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
+    circle({x=zone.x,y=zone.y,z=zone.z},zone.radius,colors.orange)
   end
   if not view.three and not view.relative then labels[#labels+1]={x=math.max(1,math.floor(cx/2)),y=1,text="N (-Z)",color=colors.white} end
   for _,target in ipairs(snap.targets or {}) do
@@ -153,6 +147,6 @@ function M.radar(w,h,snap,radarId,selected,view)
   end
   canvas:line(cx-3,cy,cx+3,cy,colors.cyan)
   canvas:line(cx,cy-3,cx,cy+3,colors.cyan)
-  return canvas,hits,labels,string.format("%.0fm | %s",range,view.three and "schematic 3D" or "world 2D")
+  return canvas,hits,labels,string.format("View %.0fm | %s",range,view.three and "schematic 3D" or "world 2D")
 end
 return M

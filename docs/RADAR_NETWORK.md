@@ -1,4 +1,4 @@
-# Radar filters and remote stations - 0.18.2
+# Radar filters and remote stations - 0.18.3
 
 ## Touch controls
 
@@ -30,7 +30,8 @@ pseudos by this OS. Names are displayed when provided by the API, otherwise use 
    calibrated orientation/FOV exist. Local coverage is green; remote coverage blue.
 
 Use a paginated toolbar's arrows when controls do not fit a small window.
-Up to 16 stations and 128 aggregated contacts are supported. Matching IDs are
+Up to 16 stations, 64 radar geometries per station (256 remote geometries total)
+and 128 aggregated contacts are supported. Matching IDs are
 deduplicated; station IDs distinguish sensors. Offline stations stop contributing
 after 5 seconds. Sender-side measurement age is preserved, so retransmission does
 not refresh old data. Remote measurements are never relayed by another station.

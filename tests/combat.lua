@@ -138,3 +138,29 @@ for _,target in ipairs(combat.snapshot().targets) do if target.id=="player-uuid"
 assert(freshRemote.remote and freshRemote.position.z==110 and not freshRemote.stale,"stale local target hid fresh remote observation")
 assert(not combat.solution("mount","player-uuid"),"remote replacement became commandable")
 assert(combat.stop()) net.snapshot=original
+-- Forty compact scanner APIs: one explicit bulk setup, no per-radar coordinates.
+devices={} settings.radars={}
+for i=1,40 do
+  local n=i local id="radar_"..i
+  settings.radars[id]={positionMode="manual",positionX=999,positionY=999,positionZ=999,frame="world",headingFrame="world",headingSign=1,headingOffset=0}
+  devices[id]={getTracks=function() return {} end,getScanGeometry=function()
+    return {version=1,positionFrame="world",headingFrame="world",position={x=n*10,y=70,z=20},range=1000,rotation=10,heading=n*5,fov=80,halfHeight=20,dishCount=2,running=true}
+  end}
+end
+peripheral.getNames=function() local names={} for id in pairs(devices) do names[#names+1]=id end return names end
+peripheral.getType=function() return "create_radar:radar_bearing" end
+combat.start({scheduler=scheduler}) combat.acquire(true)
+assert(#combat.snapshot().radars==40)
+assert(combat.snapshot().radars[1].position.x==999,"manual calibration overwritten without request")
+assert(combat.autoConfigureRadars(actor)) combat.acquire(false)
+for _,radar in ipairs(combat.snapshot().radars) do
+  assert(radar.position.x~=999 and radar.autoGeometry and radar.fov==80 and radar.fovSource=="scanner API")
+  assert(radar.heading and radar.halfHeight==20 and radar.running and not radar.readErrors.getRange)
+end
+assert(combat.configuration().radars.radar_1.positionX==999,"manual backup lost")
+assert(combat.stop())
+devices.radar_1.getScanGeometry=function() return {version=1,positionFrame="world",headingFrame="body",position={x=10,y=70,z=20},range=1000,heading=90,fov=80,halfHeight=20,running=false} end
+combat.start({scheduler=scheduler}) combat.acquire(true)
+for _,radar in ipairs(combat.snapshot().radars) do if radar.id=="radar_1" then assert(radar.heading==nil and radar.running==false,"unconverted body angle treated as world") end end
+assert(combat.stop())
+print("forty radar automatic scanner setup and unknown body heading protection passed")

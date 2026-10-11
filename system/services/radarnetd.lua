@@ -49,7 +49,7 @@ function M.receive(sender,packet,protocol)
   if protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
   if type(packet)~="table" or packet.version~=1 or packet.group~=settings.group or packet.frame~="world" or
     not short(packet.session,80) or not addon.finite(packet.sequence) or packet.sequence<0 or packet.sequence%1~=0 or
-    not short(packet.label,80) or type(packet.radars)~="table" or #packet.radars>16 or
+    not short(packet.label,80) or type(packet.radars)~="table" or #packet.radars>64 or
     type(packet.targets)~="table" or #packet.targets>128 then return false end
   local old=nodes[sender]
   if old and old.session==packet.session and packet.sequence<=old.sequence then return false end
@@ -64,7 +64,12 @@ function M.receive(sender,packet,protocol)
     local id="net:"..sender..":"..radar.id
     node.radars[#node.radars+1]={id=id,name=packet.label.." / "..radar.id,position=pos,range=radar.range,frame="world",remote=true,
       stationId=sender,timestamp=os.clock()-radar.age,heading=addon.finite(radar.heading) and radar.heading or nil,
-      fov=addon.finite(radar.fov) and radar.fov>0 and radar.fov<=360 and radar.fov or nil,fovSource="station calibration",positionSource="remote world"}
+      fov=addon.finite(radar.fov) and radar.fov>0 and radar.fov<=360 and radar.fov or nil,
+      halfHeight=addon.finite(radar.halfHeight) and radar.halfHeight>=0 and radar.halfHeight<=100000 and radar.halfHeight or nil,
+      verticalFov=addon.finite(radar.verticalFov) and radar.verticalFov>0 and radar.verticalFov<=180 and radar.verticalFov or nil,
+      running=type(radar.running)=="boolean" and radar.running or nil,
+      fovSource=short(radar.fovSource,40) or "remote calibration",positionSource="remote world"}
+    if radar.running==false then node.radars[#node.radars].running=false end
   end
   for _,target in ipairs(packet.targets) do
     if type(target)~="table" then return false end
@@ -95,7 +100,7 @@ function M.snapshot()
     result.nodes[#result.nodes+1]={id=id,label=node.label,online=online,age=now-node.received,included=settings.trusted[tostring(id)]==true,radars=#node.radars,targets=#node.targets}
     if online and settings.trusted[tostring(id)] then
       for _,key in ipairs({"radars","targets"}) do for _,row in ipairs(node[key]) do
-        if now-row.timestamp<=5 and #result[key]<128 then result[key][#result[key]+1]=addon.copy(row) end
+        if now-row.timestamp<=5 and #result[key]<(key=="radars" and 256 or 128) then result[key][#result[key]+1]=addon.copy(row) end
       end end
     end
   end
@@ -111,9 +116,10 @@ function M.publish(snapshot)
   local sources={}
   if settings.publish then
     for _,radar in ipairs(snapshot.radars or {}) do
-      if not radar.remote and radar.position and addon.finite(radar.range) and radar.range>0 and now-radar.timestamp<=0.5 and #packet.radars<16 then
+      if not radar.remote and radar.position and addon.finite(radar.range) and radar.range>0 and now-radar.timestamp<=0.5 and #packet.radars<64 then
         sources[radar.id]=true
-        packet.radars[#packet.radars+1]={id=radar.id,position=radar.position,range=radar.range,heading=radar.heading,fov=radar.fov,age=math.max(0,now-radar.timestamp)}
+        packet.radars[#packet.radars+1]={id=radar.id,position=radar.position,range=radar.range,heading=radar.heading,fov=radar.fov,
+          halfHeight=radar.halfHeight,verticalFov=radar.verticalFov,running=radar.running,fovSource=radar.fovSource,age=math.max(0,now-radar.timestamp)}
       end
     end
     for _,target in ipairs(snapshot.targets or {}) do

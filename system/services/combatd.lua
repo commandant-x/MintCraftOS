@@ -13,7 +13,7 @@ local active, firing, uncertain = nil, nil, {}
 local probeResult
 local lastFault
 local cached = { ok = false, status = "waiting for combat", devices = {}, radars = {}, targets = {}, cannons = {}, errors = {}, revision = 0, timestamp = 0 }
-local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", "getRotationSpeed", "getDishCount"},
+local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", "getRotationSpeed", "getDishCount", "getScanGeometry"},
   cannon = {"getInfo", "isComputerControl"}, controller = {"getAngle"} }
 
 local function loadSettings()
@@ -89,18 +89,28 @@ function M.acquire(rescan)
       snap.devices[#snap.devices + 1] = public
       local methods = READS[item.role]
       local radarConfig = item.role=="radar" and settings.radars[item.name]
-      if radarConfig and (radarConfig.positionMode=="manual" or (radarConfig.origin and radarConfig.positionMode==nil)) then
+      if item.role=="radar" and knownRadar(item) and item.set.getScanGeometry then
+        methods={"getTracks","getScanGeometry"}
+      elseif radarConfig and (radarConfig.positionMode=="manual" or (radarConfig.origin and radarConfig.positionMode==nil)) then
         methods = {}
         for _,method in ipairs(READS.radar) do if method~="getPosition" then methods[#methods+1]=method end end
       end
       local values, errors = addon.read(item.device, methods)
+      local scan=type(values.getScanGeometry)=="table" and values.getScanGeometry.version==1 and values.getScanGeometry or nil
+      if scan then
+        values.getPosition,values.getRange,values.getRotation=scan.position,scan.range,scan.rotation
+        values.getRotationSpeed,values.getDishCount=scan.rotationSpeed,scan.dishCount
+      end
       for method, err in pairs(errors) do snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. ": " .. err end
       if item.role == "radar" then
         local cal = settings.radars[item.name] or {}
         local effectiveCal = cal
+        if scan and scan.positionFrame=="world" and cal.positionMode~="manual" and not cal.origin then
+          effectiveCal=addon.copy(cal) effectiveCal.frame="world"
+        end
         -- The documented API returns block coordinates. They are world coordinates
         -- on fixed terrain, not necessarily on a moving sublevel/shipyard.
-        if cal.frame == nil and knownRadar(item) and not sable.status().inSublevel then
+        if not scan and cal.frame == nil and knownRadar(item) and not sable.status().inSublevel then
           effectiveCal = addon.copy(cal)
           effectiveCal.frame = "world"
         end
@@ -116,13 +126,21 @@ function M.acquire(rescan)
           capabilities={tracks=item.set.getTracks==true,position=item.set.getPosition==true,
             range=item.set.getRange==true,rotation=item.set.getRotation==true,dishes=item.set.getDishCount==true},
           trackApi="getTracks", classificationSource="not exposed"}
+        radar.autoGeometry=scan~=nil
+        radar.scanPositionFrame=scan and scan.positionFrame
+        radar.scanHeadingFrame=scan and scan.headingFrame
+        radar.running=scan and scan.running
+        radar.halfHeight=scan and addon.finite(scan.halfHeight) and scan.halfHeight>=0 and scan.halfHeight or nil
+        if scan and addon.finite(scan.fov) and scan.fov>0 and scan.fov<=360 then
+          radar.fov,radar.fovSource=scan.fov,"scanner API"
+        end
         radar.kind=addon.hasType(item,"create_radar:plane_radar") and "fixed" or item.set.getRotation and "rotating" or "unknown"
         radar.apiProfile=cal.apiProfile or "auto"
         radar.positionSource = (cal.origin and cal.positionMode==nil) and "configured world origin" or
           cal.positionMode=="manual" and "configured "..tostring(cal.frame) or "API"
         radar.positionIssue = not pos and frame or nil
         for _, method in ipairs({"getTracks", "getPosition", "getRange"}) do
-          if not item.set[method] and not (method=="getPosition" and pos) then
+          if not item.set[method] and not (method=="getPosition" and pos) and not (scan and values[method]~=nil) then
             radar.readErrors[method] = "method unavailable"
             snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. " unavailable"
           end
@@ -131,7 +149,9 @@ function M.acquire(rescan)
           not radar.position and "position frame required" or
           (not radar.range or radar.range<=0) and "range unavailable" or
           radar.rawTrackCount==0 and "reading OK; no contacts returned" or "reading OK"
-        if cal.headingValidated and radar.rawRotation then
+        if scan and scan.headingFrame=="world" and addon.finite(scan.heading) then
+          radar.heading=scan.heading%360 radar.headingSource="scanner API"
+        elseif cal.headingValidated and radar.rawRotation then
           radar.heading = (radar.rawRotation * (cal.headingSign or 1) + (cal.headingOffset or 0)) % 360
           if cal.headingFrame == "body" then
             local nav = require("system.services.avionicsd").snapshot().measurements or {}
@@ -241,6 +261,24 @@ function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(pr
 function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
 function M.rescan() if runner then runner:rescan() end end
 function M.configuration() return addon.copy(settings) end
+function M.autoConfigureRadars(actor)
+  local ok,err=allowed(actor,"combat.configure") if not ok then return false,err end
+  local updated=addon.copy(settings) local count=0 local missing=0
+  for _,radar in ipairs(cached.radars) do if not radar.remote then
+    if radar.autoGeometry and radar.rawPosition and radar.scanPositionFrame=="world" then
+      local cal=updated.radars[radar.id] or {}
+      cal.positionMode="api" cal.frame="world" cal.apiProfile="auto"
+      -- Retain the old manual origin/coordinates for recovery without using them.
+      if cal.origin then cal.manualOriginBackup=cal.origin cal.origin=nil end
+      updated.radars[radar.id]=cal count=count+1
+    else missing=missing+1 end
+  end end
+  if count==0 then return false,"Scanner API missing; install the Radar API bridge on the source PC" end
+  local saved,why=safeWrite.write("/system/config/combat.cfg",textutils.serialize(updated))
+  if not saved then return false,why end
+  settings=updated M.rescan()
+  return true,tostring(count).." radars on automatic API; "..missing.." without bridge"
+end
 function M.validateRadar(value)
   if type(value)~="table" then return false,"invalid radar configuration" end
   if value.frame~="world" and value.frame~="body" then return false,"Position frame required: world/body" end

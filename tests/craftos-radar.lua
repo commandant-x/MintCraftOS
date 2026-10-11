@@ -101,6 +101,11 @@ local ok,err=pcall(function()
     app.setup=setup.new(combat.snapshot(),'right',combat.configuration(),false,
       function(id,value) return combat.configure({pid=pid},'radars',id,value) end,combat.validateRadar)
     app.setup=nil
+    device.getScanGeometry=function() return native({version=1,position={x=10,y=70,z=20},positionFrame='world',headingFrame='world',
+      heading=(os.clock()*30)%360,rotation=(os.clock()*30)%360,fov=90,halfHeight=60,range=1000,dishCount=4,running=true}) end
+    combat.rescan() sleep(0.5)
+    assert(combat.autoConfigureRadars({pid=pid})) sleep(0.3)
+    assert(app.snapshot.radars[1].autoGeometry and app.snapshot.radars[1].fovSource=='scanner API' and app.snapshot.radars[1].position.x==10,'automatic API did not replace manual setup')
     device.getTracks=function()
       count=count+1
       return native({{id='target',name='Pilot',category='player',entityType='minecraft:player',position={x=100,y=75,z=40},scannedTime=count},
@@ -113,7 +118,7 @@ local ok,err=pcall(function()
     netConfig.x=0 netConfig.y=70 netConfig.z=0 netConfig.radius=400
     assert(radarNet.configure({pid=pid},netConfig))
     local remotePacket={version=1,group='test-world',session='outpost',sequence=1,label='North station',frame='world',
-      radars={{id='remote-radar',position={x=1000,y=70,z=-500},range=600,age=0,heading=45,fov=60}},
+      radars={{id='remote-radar',position={x=1000,y=70,z=-500},range=600,age=0,heading=45,fov=60,halfHeight=60,running=true,fovSource='scanner API'}},
       targets={{id='remote-player',renderName='Remote pilot',category='player',position={x=1100,y=90,z=-450},age=0,radarId='remote-radar'}}}
     os.queueEvent('rednet_message',2,remotePacket,radarNet.protocol)
     sleep(0.3)
@@ -170,8 +175,27 @@ local ok,err=pcall(function()
       assert(process.state=='ready',tostring(process.error))
       if term.screenshot then term.screenshot() sleep(1.05) end
     end
+    netConfig=radarNet.configuration() netConfig.enabled=false
+    assert(radarNet.configure({pid=pid},netConfig))
+    local many,names={},{}
+    for i=1,40 do
+      local n=i local id='radar_'..i names[#names+1]=id
+      many[id]={getTracks=function() return native({}) end,getScanGeometry=function()
+        return native({version=1,positionFrame='world',headingFrame='world',position={x=n*100,y=70,z=0},range=1000,
+          heading=(os.clock()*30+n*5)%360,rotation=0,fov=90,halfHeight=20,running=true,dishCount=2})
+      end}
+    end
+    peripheral.getNames=function() return names end
+    peripheral.getMethods=function(name) local out={} for method in pairs(many[name]) do out[#out+1]=method end return out end
+    peripheral.wrap=function(name) return many[name] end
+    combat.rescan() sleep(1)
+    assert(#combat.snapshot().radars==40,'forty yielding sensors not acquired')
+    assert(os.clock()-combat.snapshot().timestamp<0.5,'forty-sensor worker starved')
+    assert(combat.autoConfigureRadars({pid=pid})) sleep(0.4)
+    app.page='three' app.view.network=true app.canvas=nil draw(118,36)
+    assert(process.state=='ready' and #app.snapshot.radars==40,'forty-sensor view crashed')
   end)
 end)
 local h=assert(fs.open('/radar-result.txt','w'))
-h.write(ok and 'PASS: bearing, setup, four-size filters, 2D/3D selection, remote station aggregation, cached redraw' or 'FAIL: '..tostring(err))
+h.write(ok and 'PASS: bearing, scanner API, four-size views, remote station aggregation, forty yielding radars, cached redraw' or 'FAIL: '..tostring(err))
 h.close() os.shutdown()

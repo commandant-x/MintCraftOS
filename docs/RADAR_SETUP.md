@@ -1,4 +1,4 @@
-# Radar setup / MintCraftOS 0.18.2
+# Radar setup / MintCraftOS 0.18.3
 
 ## Guided setup
 
@@ -13,8 +13,10 @@ Cancel leaves it unchanged. Config remains available for advanced fields/cannon 
 - Monde is the world frame. Sublevel is the actual local/plot coordinate frame and requires
   complete fresh Sable pose for conversion. A fixed manual world position is not accepted
   on a moving sublevel.
-- Orientation remains unverified until explicitly confirmed. FOV stays unknown unless
-  calibrated. Neither a heading nor a cone is invented for a missing API.
+- Legacy orientation remains unverified until explicitly confirmed. FOV stays unknown
+  unless calibrated or exposed by the [read-only API bridge](RADAR_API_BRIDGE.md).
+  Bridge-equipped fixed bearings expose real scan geometry and support bulk Auto setup.
+  Neither a heading nor a cone is invented for a missing API.
 - Small toolbars and field lists page; the global touch keyboard handles coordinate input.
   The wizard never calls peripheral getters from its draw function.
 

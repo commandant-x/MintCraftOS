@@ -13,7 +13,7 @@ local function find(rows,id) if id==nil then return nil end for _,row in ipairs(
 local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
 function M.run(ctx)
   local actor={pid=ctx.pid}
-  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=25},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
+  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=45},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
   local tabs={{id="radar",label="Radar"},{id="three",label="3D"},{id="targets",label="Targets"},{id="cannons",label="Cannons"},{id="fire",label="Fire"},{id="probe",label="Probe"},{id="config",label="Config"}}
   local cfg=combat.configuration()
   tabs[#tabs+1]={id="network",label="Network"}
@@ -75,7 +75,7 @@ function M.run(ctx)
     return rows
   end
   local function actions()
-    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="overview",label=app.view.network and "Local view" or "Overview"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="alias",label="Alias"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="autoRadars",label="Auto setup"},{id="overview",label=app.view.network and "Local view" or "Overview"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="alias",label="Alias"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
     elseif app.page=="network" then local net=radarNet.configuration() return {{id="networkToggle",label=net.enabled and "Network ON" or "Network OFF"},{id="publishToggle",label=net.publish and "Station ON" or "Station OFF"},{id="networkConfig",label="Zone/Group"},{id="networkRescan",label="Discover"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="targets" then return {{id="alias",label="Alias"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="cannons" then return {{id="rescan",label="Rescan"},{id="ack",label="Verify/acknowledge"},{id="previous",label="Up"},{id="next",label="Down"}}
@@ -167,6 +167,13 @@ function M.run(ctx)
         local relative=target and radar and geometry.relative(target.position,radar.position)
         local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Refresh: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
+        if radar then
+          rows[#rows+1]="Heading: "..fmt(radar.heading).." deg"
+          rows[#rows+1]="FOV: "..fmt(radar.fov).." deg"
+          rows[#rows+1]="Range: "..fmt(radar.range).." m"
+          rows[#rows+1]="Scan: "..(radar.running==nil and "unknown" or radar.running and "RUNNING" or "STOPPED")
+          if radar.scanHeadingFrame=="body" and not radar.heading then rows[#rows+1]="Body heading not converted" end
+        end
         for i=1,math.min(#rows,h-6) do renderer.writeAt(x,4+i,renderer.crop(rows[i],panel-2)) end
       end
     elseif self.page=="network" then
@@ -269,6 +276,8 @@ function M.run(ctx)
     elseif id=="networkCancel" then self.page="network" self.configKind="radar" self.barState.first=1 return true
     elseif id=="overview" then self.view.network=not self.view.network self.canvas=nil self.view.zoom=1 return true end
     if id=="rescan" then combat.rescan() return true
+    elseif id=="autoRadars" then
+      confirm("Use automatic scanner API for all local radars?",function() report(combat.autoConfigureRadars(actor)) self.canvas=nil end) return true
     elseif id=="radarConfig" then
       local radar=find(self.snapshot.radars,self.radarId)
       if radar and radar.remote then self.message="Configure this radar on its source station" return true end

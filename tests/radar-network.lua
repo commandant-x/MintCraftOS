@@ -44,5 +44,12 @@ net.checkPerimeter(localSnapshot) assert(alerts==2,"same contact spammed")
 localSnapshot.targets={} net.checkPerimeter(localSnapshot)
 now=now+3 localSnapshot.targets={{id="a",position={x=0,y=0,z=0},timestamp=now}} net.checkPerimeter(localSnapshot) assert(alerts==3)
 assert(not net.configure({pid=99},saved))
+now=now+3 packet.sequence=3 packet.targets={} packet.radars={}
+for i=1,40 do packet.radars[i]={id="radar_"..i,position={x=i*10,y=70,z=0},range=1000,heading=i*3,fov=80,halfHeight=20,running=i~=1,age=0} end
+assert(listener(2,packet,net.protocol))
+snap=net.snapshot() assert(#snap.radars==40 and snap.radars[1].running==false and snap.radars[2].halfHeight==20,"forty geometries/scan band not transported")
+now=now+0.3 packet.sequence=4
+for i=41,65 do packet.radars[i]=packet.radars[1] end
+assert(not listener(2,packet,net.protocol),"unbounded station geometry accepted")
 net.stop() assert(closed==0,"stopping network broke Messenger modem")
 print("radar network pairing, bounded packets, freshness, no relay and perimeter alerts passed")
