@@ -30,7 +30,9 @@ function M.new()
     for i=self.scroll,math.min(#fields,self.scroll+math.max(1,h-6)-1) do
       local field=fields[i]
       local y=4+i-self.scroll
-      ui.input(1,y,w,field.label,field.get(),false)
+      local value=field.get()
+      if field.kind=="boolean" then value=value and "[x]" or "[ ]" end
+      ui.input(1,y,w,field.label,value,false)
       self.boxes[#self.boxes+1]={x=1,y=y,w=w,h=1,field=field}
     end
   end
@@ -55,7 +57,8 @@ function M.new()
     for _,box in ipairs(self.boxes) do
       if ui.hit(box,x,y) then
         local field=box.field
-        if field.options then
+        if field.readOnly then return true
+        elseif field.options and #field.options>0 then
           local at=0
           for i,value in ipairs(field.options) do if value==field.get() then at=i break end end
           field.set(field.options[at%#field.options+1])

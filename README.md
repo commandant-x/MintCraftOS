@@ -2,7 +2,9 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.18.0 base:
+This repository currently contains the V0.18.1 base:
+
+Radar setup and the inspected Radar 5.0 EA read contract: [Radar setup](docs/RADAR_SETUP.md).
 
 - bootloader, splash, recovery and panic handling
 - persistent logs

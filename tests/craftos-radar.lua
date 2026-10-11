@@ -55,8 +55,60 @@ local ok,err=pcall(function()
     local manual=combat.snapshot().radars[1]
     assert(manual.position.x==10 and manual.position.y==70 and not manual.readErrors.getPosition)
     assert(process.window.app.snapshot.radars[1].position, 'map not restored with configured origin')
+    local setup=require('system.navigation.radar_setup')
+    app=process.window.app
+    app.setup=setup.new(combat.snapshot(),'right',combat.configuration(),false,
+      function(id,value) return combat.configure({pid=pid},'radars',id,value) end,combat.validateRadar)
+    local wizard=app.setup
+    for step=1,4 do
+      wizard.step=step
+      for _,size in ipairs({{24,12},{49,15},{80,26},{118,36}}) do
+        local target=window.create(parent,1,1,size[1],size[2],false)
+        local old=term.redirect(target)
+        local before=count
+        app:draw(size[1],size[2])
+        assert(before==count,'setup draw acquired radar')
+        term.redirect(old)
+      end
+    end
+    wizard.step=2
+    wizard.entries.right.text='9 69 19' wizard.entries.right.kind='Bloc'
+    for _=1,3 do
+      local target=window.create(parent,1,1,80,26,false)
+      local old=term.redirect(target)
+      app:draw(80,26)
+      local button
+      for _,box in ipairs(wizard.bar) do if box.id=='next' then button=box end end
+      assert(button)
+      app:handle({name='mouse_click',args={1,button.x,button.y}})
+      term.redirect(old)
+    end
+    assert(not app.setup and combat.configuration().radars.right.positionX==9.5,'wizard confirmation not persisted')
+    app.setup=setup.new(combat.snapshot(),'right',combat.configuration(),false,
+      function() error('cancel must not save') end,combat.validateRadar)
+    app.setup:fields() app.setup.entries.right.text='1 2 3'
+    app.setup.closed=true
+    app:handle({name='key',args={keys.escape}})
+    assert(combat.configuration().radars.right.positionX==9.5)
+    local wizard5=setup.new({radars={{id='plane',kind='fixed',capabilities={position=true},rawPosition={x=1,y=2,z=3}}}},'plane',{radars={}},true,function() end,combat.validateRadar)
+    wizard5:fields() wizard5.drafts.plane.apiProfile='5.0-EA'
+    local target=window.create(parent,1,1,80,26,false)
+    local old=term.redirect(target)
+    wizard5:draw(80,26)
+    for _,box in ipairs(wizard5.bar) do if box.id=='next' then wizard5:handle({name='mouse_click',args={1,box.x,box.y}}) break end end
+    term.redirect(old)
+    assert(wizard5.candidate().frame=='world','EA plane world position would be double transformed')
+    app.setup=setup.new(combat.snapshot(),'right',combat.configuration(),false,
+      function(id,value) return combat.configure({pid=pid},'radars',id,value) end,combat.validateRadar)
+    process.window:toggleMaximize()
+    for step=1,4 do
+      app.setup.step=step
+      os.queueEvent('radar_setup_preview') sleep(0.25)
+      assert(process.state=='ready',tostring(process.error))
+      if term.screenshot then term.screenshot() sleep(1.05) end
+    end
   end)
 end)
 local h=assert(fs.open('/radar-result.txt','w'))
-h.write(ok and 'PASS: bearing reads, native yields, three diagnostic sizes, missing getPosition recovered with configured origin' or 'FAIL: '..tostring(err))
+h.write(ok and 'PASS: bearing reads, manual fallback, wizard at four sizes, save/cancel, EA plane world-frame handling' or 'FAIL: '..tostring(err))
 h.close() os.shutdown()

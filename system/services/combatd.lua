@@ -111,7 +111,12 @@ function M.acquire(rescan)
           verticalFov=addon.finite(cal.verticalFov) and cal.verticalFov or nil,
           rotationSpeed = values.getRotationSpeed, dishCount = values.getDishCount,
           rawTrackCount = type(values.getTracks)=="table" and #values.getTracks or nil,
-          readErrors = addon.copy(errors), timestamp = now}
+          readErrors = addon.copy(errors), timestamp = now,
+          capabilities={tracks=item.set.getTracks==true,position=item.set.getPosition==true,
+            range=item.set.getRange==true,rotation=item.set.getRotation==true,dishes=item.set.getDishCount==true},
+          trackApi="getTracks", classificationSource="not exposed"}
+        radar.kind=addon.hasType(item,"create_radar:plane_radar") and "fixed" or item.set.getRotation and "rotating" or "unknown"
+        radar.apiProfile=cal.apiProfile or "auto"
         radar.positionSource = (cal.origin and cal.positionMode==nil) and "configured world origin" or
           cal.positionMode=="manual" and "configured "..tostring(cal.frame) or "API"
         radar.positionIssue = not pos and frame or nil
@@ -153,6 +158,9 @@ function M.acquire(rescan)
             end
             target.label = settings.aliases[id] or target.renderName or ("ID " .. id:sub(1, 8))
             target.labelSource = settings.aliases[id] and "alias" or target.renderName and "api" or "id"
+            if type(raw.friendly)=="boolean" then target.friendly=raw.friendly else target.friendly=nil end
+            if type(raw.synthetic)=="boolean" then target.synthetic=raw.synthetic else target.synthetic=nil end
+            if type(raw.friendly)=="boolean" or type(raw.synthetic)=="boolean" then radar.classificationSource="API friendly/synthetic" end
             tracks[id] = target
           end
         end
@@ -202,6 +210,25 @@ function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(pr
 function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
 function M.rescan() if runner then runner:rescan() end end
 function M.configuration() return addon.copy(settings) end
+function M.validateRadar(value)
+  if type(value)~="table" then return false,"invalid radar configuration" end
+  if value.frame~="world" and value.frame~="body" then return false,"Position frame required: world/body" end
+  if value.headingFrame~="world" and value.headingFrame~="body" then return false,"heading frame required" end
+  if value.headingSign~=1 and value.headingSign~=-1 then return false,"headingSign must be +1 or -1" end
+  if not addon.finite(value.headingOffset) then return false,"heading offset invalid" end
+  if value.positionMode~=nil and value.positionMode~="api" and value.positionMode~="manual" then return false,"invalid radar position source" end
+  if value.apiProfile~=nil and value.apiProfile~="auto" and value.apiProfile~="4.x" and value.apiProfile~="5.0-EA" then return false,"unknown radar API profile" end
+  if value.positionMode=="manual" then
+    if not addon.vec({x=value.positionX,y=value.positionY,z=value.positionZ}) then return false,"manual position requires finite X/Y/Z" end
+    if value.frame=="world" and sable.status().inSublevel then return false,"moving sublevel requires local body coordinates" end
+  end
+  for _,entry in ipairs({{"fov",360},{"verticalFov",180}}) do
+    local v=value[entry[1]]
+    if v~=nil and (not addon.finite(v) or v<=0 or v>entry[2]) then return false,entry[1].." outside bounds" end
+  end
+  if value.heading~=nil and not addon.finite(value.heading) then return false,"fixed heading invalid" end
+  return true
+end
 function M.configure(actor, section, id, value)
   local ok, err = allowed(actor, "combat.configure")
   if not ok then return false, err end
@@ -243,6 +270,8 @@ end
 function M.solution(cannonId, targetId)
   local cannon, target = find(cached.cannons, cannonId), find(cached.targets, type(targetId)=="table" and targetId.id or targetId)
   if not cannon or not target then return nil, "select cannon and target" end
+  if target.friendly==true then return nil,"API marks target friendly; command blocked" end
+  if target.synthetic==true then return nil,"API marks synthetic contact; command blocked" end
   if target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale" end
   if os.clock()-(cannon.timestamp or 0)>0.5 then return nil,"cannon telemetry stale" end
   local profile = settings.profiles[cannon.id] or {}

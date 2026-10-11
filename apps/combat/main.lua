@@ -4,6 +4,7 @@ local forms=require("system.gui.form")
 local addon=require("system.libraries.addon")
 local geometry=require("system.navigation.geometry")
 local instruments=require("system.navigation.instruments")
+local radarSetup=require("system.navigation.radar_setup")
 local combat=require("system.services.combatd")
 local M={}
 local function find(rows,id) if id==nil then return nil end for _,row in ipairs(rows or {}) do if row.id==id or row.name==id then return row end end end
@@ -16,6 +17,7 @@ function M.run(ctx)
   local win,timer,trackTimer
   local function refresh()
     app.snapshot=combat.snapshot()
+    if app.setup then app.setup:update(app.snapshot) end
     for _,target in ipairs(app.snapshot.targets or {}) do target.stale=not target.freshnessKnown or os.clock()-target.timestamp>5 end
     if not app.radarId and app.snapshot.radars[1] then app.radarId=app.snapshot.radars[1].id end
     if not app.cannonId and app.snapshot.cannons[1] then app.cannonId=app.snapshot.cannons[1].id end
@@ -46,6 +48,7 @@ function M.run(ctx)
     field("frame","Position frame",nil,{"unknown","world","body"})
     field("headingFrame","Mount heading frame",nil,{"world","body"})
     if app.configKind=="radar" then
+      field("apiProfile","Radar API profile",nil,{"auto","4.x","5.0-EA"})
       field("positionMode","Position source",nil,{"api","manual"})
       field("positionX","Radar position X","number")
       field("positionY","Radar position Y","number")
@@ -69,6 +72,7 @@ function M.run(ctx)
     else return {{id="configKind",label="Radar/Cannon"},{id="save",label="Save"},{id="rescan",label="Rescan"}} end
   end
   function app:draw(w,h)
+    if self.setup then self.setup:draw(w,h) return end
     if h<9 then renderer.writeAt(1,1,renderer.crop("Combat: enlarge window",w)) return end
     self.tabs=ui.tabs(1,1,w,tabs,self.page,self.tabState)
     self.bar=ui.toolbar(1,2,w,actions(),self.barState)
@@ -124,7 +128,8 @@ function M.run(ctx)
       self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-listHeight+1)))
       for i=self.scroll,math.min(#rows,self.scroll+listHeight-1) do
         local row=rows[i] local y=4+i-self.scroll
-        local label=self.page=="targets" and (row.label.." | y="..fmt(row.position.y)..(row.stale and " STALE" or "")) or self.page=="cannons" and (row.name.." | yaw="..fmt(row.yaw).." pitch="..fmt(row.pitch).." assembled="..tostring(row.assembled)) or (row.name.." "..row.role)
+        local badge=row.synthetic and " SYNTHETIC" or row.friendly and " FRIENDLY" or ""
+        local label=self.page=="targets" and (row.label..badge.." | y="..fmt(row.position.y)..(row.stale and " STALE" or "")) or self.page=="cannons" and (row.name.." | yaw="..fmt(row.yaw).." pitch="..fmt(row.pitch).." assembled="..tostring(row.assembled)) or (row.name.." "..row.role)
         local selected=self.page=="targets" and self.targetId or self.page=="cannons" and self.cannonId or self.deviceId
         renderer.writeAt(1,y,renderer.crop(label,w),row.id==selected and colors.yellow or colors.white,row.id==selected and colors.gray or nil)
         self.rowHits[#self.rowHits+1]={id=row.id,x=1,y=y,w=w,h=1}
@@ -160,6 +165,14 @@ function M.run(ctx)
     end
   end
   function app:handle(event)
+    if self.setup then
+      self.setup:handle(event)
+      if self.setup.closed then
+        if self.setup.saved then self.radarId=self.setup.id cfg=combat.configuration() self.page="radar" end
+        self.setup=nil
+      end
+      return true
+    end
     if self.confirm then
       if event.name=="mouse_click" then
         local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
@@ -178,7 +191,11 @@ function M.run(ctx)
     for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
     local id=ui.toolbarHit(self.bar,x,y)
     if id=="rescan" then combat.rescan() return true
-    elseif id=="radarConfig" then self.configKind="radar" self.page="config" self.form.scroll=1 self.barState.first=1 return true
+    elseif id=="radarConfig" then
+      self.tracking=false
+      self.setup=radarSetup.new(self.snapshot,self.radarId,combat.configuration(),require("system.services.sabled").status().inSublevel,
+        function(radarId,value) return combat.configure(actor,"radars",radarId,value) end,combat.validateRadar)
+      return true
     elseif id=="radarProbe" then
       self.deviceId=self.radarId self.page="probe" self.scroll=1 self.barState.first=1
       if self.deviceId then report(combat.requestProbe(actor,self.deviceId)) end return true

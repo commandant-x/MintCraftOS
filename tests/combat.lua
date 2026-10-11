@@ -106,4 +106,20 @@ devices.right.getTracks=function() error("radar read failed") end
 combat.acquire(false)
 assert(combat.snapshot().ok==false and combat.snapshot().radars[1].readErrors.getTracks)
 assert(combat.stop())
+devices.right.getTracks=function() return {{id="player-uuid",position={x=0,y=0,z=100},scannedTime=scanTime,friendly=true,synthetic=false}} end
+peripheral.getNames=function() return {"right","mount"} end
+peripheral.getType=function(name) return name=="mount" and "cannon_mount" or "create_radar:radar_bearing" end
+package.loaded["system.services.sabled"].status=function() return {inSublevel=false} end
+combat.start({scheduler=scheduler}) combat.acquire(true)
+assert(combat.snapshot().targets[1].friendly==true and combat.snapshot().targets[1].synthetic==false)
+local _,blocked=combat.solution("mount","player-uuid")
+assert(blocked:find("friendly",1,true),"friendly API target can be commanded")
+-- Classification is retained even when scan time did not change.
+assert(combat.snapshot().radars[1].classificationSource=="API friendly/synthetic")
+devices.right.getTracks=function() return {{id="player-uuid",position={x=0,y=0,z=100},scannedTime=scanTime,friendly=false,synthetic=true}} end
+combat.acquire(false)
+assert(combat.snapshot().targets[1].friendly==false and combat.snapshot().targets[1].synthetic==true)
+local _,syntheticBlocked=combat.solution("mount","player-uuid")
+assert(syntheticBlocked:find("synthetic",1,true),"synthetic API target can be commanded")
+assert(combat.stop())
 print("combat rotating heading, cache, freshness, confirmation and CBC pulse tests passed")

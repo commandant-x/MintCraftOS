@@ -97,7 +97,7 @@ function M.radar(w,h,snap,radarId,selected,view)
   for _,target in ipairs(snap.targets or {}) do
     local x,y=project(target.position)
     if x and x>=2 and y>=2 and x<canvas.width and y<canvas.height then
-      local color=target.stale and colors.gray or target.id==selected and colors.yellow or colors.red
+      local color=target.stale and colors.gray or target.id==selected and colors.yellow or target.synthetic and colors.orange or target.friendly and colors.lime or colors.red
       local previous
       for _,point in ipairs(target.history or {}) do
         if previous then segment(previous,point.position,colors.lightGray) end previous=point.position
