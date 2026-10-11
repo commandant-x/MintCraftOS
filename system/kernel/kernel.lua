@@ -71,7 +71,7 @@ function M.start()
   ctx.services:startAutostart()
   bootApps(ctx)
 
-  local screen = compositor.new()
+  local screen = compositor.new(devices.getTarget)
   ctx.invalidateDisplay = function() screen:invalidate() end
   ctx.renderStats = function() return screen:stats() end
   local lastClock

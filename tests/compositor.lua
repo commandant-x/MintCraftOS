@@ -45,3 +45,8 @@ local beforeRetry = shown
 screen:draw(function() end)
 assert(shown == beforeRetry + h, "partial output failure did not force a repaint")
 print("compositor tests passed")
+local selected = native
+local resolved = require("system.gui.compositor").new(function() return selected end)
+current = {getSize = function() return 10, 5 end}
+resolved:draw(function() end)
+assert(current == native, "compositor used an app terminal instead of the selected screen")

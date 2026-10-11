@@ -1,6 +1,6 @@
 local M = {}
 
-function M.new()
+function M.new(resolveTarget)
   local surface, parent, width, height
   local previous = {}
   local stats = { frames = 0, rows = 0, cells = 0 }
@@ -8,7 +8,7 @@ function M.new()
     invalidate = function() previous = {} end,
     stats = function() return { frames = stats.frames, rows = stats.rows, cells = stats.cells } end,
     draw = function(_, render)
-      local target = term.current()
+      local target = resolveTarget and resolveTarget() or term.current()
       local w, h = target.getSize()
       if parent ~= target then
         parent, width, height = target, w, h

@@ -5,6 +5,7 @@ local M = {
   devices = {},
   redirected = false,
   nativeTerm = nil,
+  displayTerm = nil,
   display = {
     target = "computer",
     scale = nil,
@@ -67,20 +68,38 @@ function M.hasType(kind)
 end
 
 function M.useMonitor()
-  if not peripheral or not peripheral.find then return false end
-  local monitor = peripheral.find("monitor")
-  if not monitor then return false end
-  local side = peripheral.getName(monitor)
-
+  if not peripheral or not peripheral.wrap then return false end
+  local names = {}
+  for name, device in pairs(M.devices) do
+    if device.type == "monitor" or (device.types and device.types.monitor) then
+      names[#names + 1] = name
+    end
+  end
+  table.sort(names, function(a, b)
+    if a == b then return false end
+    if a == M.display.monitorSide then return true end
+    if b == M.display.monitorSide then return false end
+    return a < b
+  end)
   local scale = readScale()
-  if monitor.setTextScale then monitor.setTextScale(scale) end
-  if monitor.setBackgroundColor then monitor.setBackgroundColor(colors.black) end
-  if monitor.clear then monitor.clear() end
-
-  if not M.nativeTerm then M.nativeTerm = term.current() end
+  local monitor, side, w, h
+  for _, name in ipairs(names) do
+    local ok, candidate, width, height = pcall(function()
+      local device = peripheral.wrap(name)
+      if not device then error("Monitor detached") end
+      device.setTextScale(scale)
+      local width, height = device.getSize()
+      if type(width) ~= "number" or type(height) ~= "number" then error("Invalid monitor size") end
+      return device, width, height
+    end)
+    if ok then monitor, side, w, h = candidate, name, width, height break end
+    log.error("deviced", "monitor " .. name .. ": " .. tostring(candidate))
+  end
+  if not monitor then return false end
+  if not M.nativeTerm then M.nativeTerm = term.native and term.native() or term.current() end
+  M.displayTerm = monitor
   term.redirect(monitor)
   M.redirected = true
-  local w, h = term.getSize()
   M.display = {
     target = "monitor",
     scale = scale,
@@ -102,10 +121,11 @@ function M.refreshDisplay()
     ok = false
   end
   if not ok then
-    if M.redirected and M.nativeTerm then
+    if M.nativeTerm then
       term.redirect(M.nativeTerm)
     end
     M.redirected = false
+    M.displayTerm = M.nativeTerm
     M.getDisplay()
   end
 
@@ -118,6 +138,10 @@ end
 
 function M.isRedirected()
   return M.redirected
+end
+
+function M.getTarget()
+  return M.displayTerm or M.nativeTerm or term.current()
 end
 
 function M.getDisplay()
@@ -140,7 +164,7 @@ end
 function M.start(ctx)
   if M.ctx then M.stop() end
   M.ctx = ctx
-  if not M.nativeTerm then M.nativeTerm = term.current() end
+  if not M.nativeTerm then M.nativeTerm = term.native and term.native() or term.current() end
   M.refreshDisplay()
   if ctx and ctx.eventBus then
     table.insert(M.listeners, ctx.eventBus:on("peripheral", function()
@@ -168,6 +192,7 @@ function M.stop()
   if M.redirected and M.nativeTerm then
     term.redirect(M.nativeTerm)
     M.redirected = false
+    M.displayTerm = M.nativeTerm
     M.getDisplay()
   end
 end
