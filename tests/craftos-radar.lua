@@ -46,8 +46,17 @@ local ok,err=pcall(function()
     sleep(0.5)
     assert(combat.snapshot().radars[1].readErrors.getTracks, 'read error hidden')
     assert(process.state=='ready',tostring(process.error))
+    device.getTracks=function() count=count+1 return native({{id='target',position={x=20,y=75,z=40},scannedTime=count}}) end
+    device.getPosition=nil
+    combat.rescan() sleep(0.5)
+    assert(combat.snapshot().radars[1].readErrors.getPosition)
+    assert(combat.configure({pid=pid},'radars','right',{frame='world',positionMode='manual',positionX=10,positionY=70,positionZ=20,headingFrame='world',headingSign=1,headingOffset=0}))
+    sleep(0.5)
+    local manual=combat.snapshot().radars[1]
+    assert(manual.position.x==10 and manual.position.y==70 and not manual.readErrors.getPosition)
+    assert(process.window.app.snapshot.radars[1].position, 'map not restored with configured origin')
   end)
 end)
 local h=assert(fs.open('/radar-result.txt','w'))
-h.write(ok and 'PASS: fresh bearing reads, native yields, unknown-frame diagnostics at three sizes, read error isolation' or 'FAIL: '..tostring(err))
+h.write(ok and 'PASS: bearing reads, native yields, three diagnostic sizes, missing getPosition recovered with configured origin' or 'FAIL: '..tostring(err))
 h.close() os.shutdown()

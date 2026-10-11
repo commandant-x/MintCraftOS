@@ -46,6 +46,10 @@ function M.run(ctx)
     field("frame","Position frame",nil,{"unknown","world","body"})
     field("headingFrame","Mount heading frame",nil,{"world","body"})
     if app.configKind=="radar" then
+      field("positionMode","Position source",nil,{"api","manual"})
+      field("positionX","Radar position X","number")
+      field("positionY","Radar position Y","number")
+      field("positionZ","Radar position Z","number")
       field("headingSign","Rotation sign","number") field("headingOffset","Rotation offset deg","number")
       field("fov","Calibrated FOV deg","number") field("heading","Fixed heading deg (optional)","number")
       field("verticalFov","Calibrated vertical FOV (optional)","number")
@@ -90,7 +94,8 @@ function M.run(ctx)
           "Raw position: "..(p and (fmt(p.x)..", "..fmt(p.y)..", "..fmt(p.z)) or "unavailable"),
           "Range: "..fmt(radar.range).."m | rotation: "..fmt(radar.rawRotation),
           "Dishes: "..tostring(radar.dishCount or "unavailable"),
-          "Setup: verify world/body frame", "Read/Probe: export readings/errors"}
+          "Position source: "..tostring(radar.positionSource),
+          "Position status: "..tostring(radar.positionIssue or "valid")}
         for i=1,math.min(#rows,graphH) do renderer.writeAt(1,3+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
       elseif radar then
         renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation),w),colors.cyan)
@@ -110,7 +115,7 @@ function M.run(ctx)
         local x=graphW+2
         local radar=find(snap.radars,self.radarId)
         local relative=target and radar and geometry.relative(target.position,radar.position)
-        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Cone: "..tostring(radar and radar.fovSource or "unknown")}
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         for i=1,math.min(#rows,h-5) do renderer.writeAt(x,3+i,renderer.crop(rows[i],panel-2)) end
       end
     elseif self.page=="targets" or self.page=="cannons" or self.page=="probe" then

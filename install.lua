@@ -736,6 +736,10 @@ function M.run(ctx)
     field("frame","Position frame",nil,{"unknown","world","body"})
     field("headingFrame","Mount heading frame",nil,{"world","body"})
     if app.configKind=="radar" then
+      field("positionMode","Position source",nil,{"api","manual"})
+      field("positionX","Radar position X","number")
+      field("positionY","Radar position Y","number")
+      field("positionZ","Radar position Z","number")
       field("headingSign","Rotation sign","number") field("headingOffset","Rotation offset deg","number")
       field("fov","Calibrated FOV deg","number") field("heading","Fixed heading deg (optional)","number")
       field("verticalFov","Calibrated vertical FOV (optional)","number")
@@ -780,7 +784,8 @@ function M.run(ctx)
           "Raw position: "..(p and (fmt(p.x)..", "..fmt(p.y)..", "..fmt(p.z)) or "unavailable"),
           "Range: "..fmt(radar.range).."m | rotation: "..fmt(radar.rawRotation),
           "Dishes: "..tostring(radar.dishCount or "unavailable"),
-          "Setup: verify world/body frame", "Read/Probe: export readings/errors"}
+          "Position source: "..tostring(radar.positionSource),
+          "Position status: "..tostring(radar.positionIssue or "valid")}
         for i=1,math.min(#rows,graphH) do renderer.writeAt(1,3+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
       elseif radar then
         renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation),w),colors.cyan)
@@ -800,7 +805,7 @@ function M.run(ctx)
         local x=graphW+2
         local radar=find(snap.radars,self.radarId)
         local relative=target and radar and geometry.relative(target.position,radar.position)
-        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Cone: "..tostring(radar and radar.fovSource or "unknown")}
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         for i=1,math.min(#rows,h-5) do renderer.writeAt(x,3+i,renderer.crop(rows[i],panel-2)) end
       end
     elseif self.page=="targets" or self.page=="cannons" or self.page=="probe" then
@@ -7542,9 +7547,14 @@ end
 local function origin(position, calibration)
   local onShip = sable.status().inSublevel
   local frame = calibration.frame or "unknown"
-  if calibration.origin then
+  if calibration.origin and calibration.positionMode==nil then
     if onShip then return nil,"fixed world origin invalid on moving sublevel" end
     return addon.vec(calibration.origin), "calibrated world"
+  end
+  if calibration.positionMode == "manual" then
+    position = {x=calibration.positionX,y=calibration.positionY,z=calibration.positionZ}
+    if not addon.vec(position) then return nil,"configured radar coordinates incomplete" end
+    if frame == "world" and onShip then return nil,"fixed world coordinates invalid on moving sublevel" end
   end
   if frame == "world" then return addon.vec(position), "world" end
   if frame == "body" then
@@ -7569,7 +7579,13 @@ function M.acquire(rescan)
     if item.role ~= "unknown" then
       local public = {id = item.name, name = item.name, types = item.types, methods = item.methods, role = item.role}
       snap.devices[#snap.devices + 1] = public
-      local values, errors = addon.read(item.device, READS[item.role])
+      local methods = READS[item.role]
+      local radarConfig = item.role=="radar" and settings.radars[item.name]
+      if radarConfig and (radarConfig.positionMode=="manual" or (radarConfig.origin and radarConfig.positionMode==nil)) then
+        methods = {}
+        for _,method in ipairs(READS.radar) do if method~="getPosition" then methods[#methods+1]=method end end
+      end
+      local values, errors = addon.read(item.device, methods)
       for method, err in pairs(errors) do snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. ": " .. err end
       if item.role == "radar" then
         local cal = settings.radars[item.name] or {}
@@ -7589,8 +7605,11 @@ function M.acquire(rescan)
           rotationSpeed = values.getRotationSpeed, dishCount = values.getDishCount,
           rawTrackCount = type(values.getTracks)=="table" and #values.getTracks or nil,
           readErrors = addon.copy(errors), timestamp = now}
+        radar.positionSource = (cal.origin and cal.positionMode==nil) and "configured world origin" or
+          cal.positionMode=="manual" and "configured "..tostring(cal.frame) or "API"
+        radar.positionIssue = not pos and frame or nil
         for _, method in ipairs({"getTracks", "getPosition", "getRange"}) do
-          if not item.set[method] then
+          if not item.set[method] and not (method=="getPosition" and pos) then
             radar.readErrors[method] = "method unavailable"
             snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. " unavailable"
           end
@@ -7690,6 +7709,12 @@ function M.configure(actor, section, id, value)
     local signKeys=section=="profiles" and {"yawSign","pitchSign"} or {"headingSign"}
     for _,key in ipairs(signKeys) do if value[key]~=1 and value[key]~=-1 then return false,key.." must be +1 or -1" end end
     if section=="radars" then
+      if value.positionMode~=nil and value.positionMode~="api" and value.positionMode~="manual" then return false,"invalid radar position source" end
+      if value.positionMode=="manual" then
+        if not addon.vec({x=value.positionX,y=value.positionY,z=value.positionZ}) then return false,"manual position requires finite X/Y/Z" end
+        if value.frame=="unknown" then return false,"manual position requires world/body frame" end
+        if value.frame=="world" and sable.status().inSublevel then return false,"moving sublevel requires local body coordinates" end
+      end
       if value.fov~=nil and (not addon.finite(value.fov) or value.fov<=0 or value.fov>360) then return false,"FOV must be 1..360 deg" end
       if value.verticalFov~=nil and (not addon.finite(value.verticalFov) or value.verticalFov<=0 or value.verticalFov>180) then return false,"vertical FOV must be 1..180 deg" end
       if not addon.finite(value.headingOffset) then return false,"heading offset invalid" end

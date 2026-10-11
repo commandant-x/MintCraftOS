@@ -85,6 +85,23 @@ devices.right.getPosition=nil
 combat.acquire(true)
 bearing=combat.snapshot().radars[1]
 assert(bearing.rawTrackCount==1 and bearing.readErrors.getPosition=="method unavailable", "partial radar silently discarded")
+local manual={positionMode="manual",positionX=10,positionY=70,positionZ=20,frame="world",headingFrame="world",headingSign=1,headingOffset=0}
+manual.origin={x=1,y=2,z=3}
+assert(not combat.configure(actor,"radars","right",manual),"fixed manual coordinates accepted on moving sublevel")
+package.loaded["system.services.sabled"].status=function() return {inSublevel=false} end
+local incomplete=addon.copy(manual) incomplete.positionX=nil
+assert(not combat.configure(actor,"radars","right",incomplete),"missing manual coordinate fabricated")
+assert(combat.configure(actor,"radars","right",manual))
+combat.acquire(false)
+bearing=combat.snapshot().radars[1]
+assert(bearing.position.x==10 and bearing.position.y==70 and bearing.position.z==20)
+assert(not bearing.readErrors.getPosition and combat.snapshot().ok,"manual origin did not resolve missing position method")
+package.loaded["system.services.sabled"].status=function() return {inSublevel=true} end
+package.loaded["system.services.sabled"].snapshot=function() return {timestamp=now,sublevel={logicalPose={position={100,200,300},orientation={0,0,0,1},scale={1,1,1},rotationPoint={0,0,0}}}} end
+manual.frame="body"
+assert(combat.configure(actor,"radars","right",manual)) combat.acquire(false)
+bearing=combat.snapshot().radars[1]
+assert(bearing.position.x==110 and bearing.position.y==270 and bearing.position.z==320,"manual body position not transformed")
 devices.right.getTracks=function() error("radar read failed") end
 combat.acquire(false)
 assert(combat.snapshot().ok==false and combat.snapshot().radars[1].readErrors.getTracks)
