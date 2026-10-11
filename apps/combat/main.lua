@@ -6,25 +6,29 @@ local geometry=require("system.navigation.geometry")
 local instruments=require("system.navigation.instruments")
 local radarSetup=require("system.navigation.radar_setup")
 local combat=require("system.services.combatd")
+local radarNet=require("system.services.radarnetd")
+local filter=require("system.navigation.radar_filter")
 local M={}
 local function find(rows,id) if id==nil then return nil end for _,row in ipairs(rows or {}) do if row.id==id or row.name==id then return row end end end
 local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
 function M.run(ctx)
   local actor={pid=ctx.pid}
-  local app={page="radar",tabState={},barState={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=25},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
+  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=25},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
   local tabs={{id="radar",label="Radar"},{id="three",label="3D"},{id="targets",label="Targets"},{id="cannons",label="Cannons"},{id="fire",label="Fire"},{id="probe",label="Probe"},{id="config",label="Config"}}
   local cfg=combat.configuration()
+  tabs[#tabs+1]={id="network",label="Network"}
   local win,timer,trackTimer
   local function refresh()
     app.snapshot=combat.snapshot()
     if app.setup then app.setup:update(app.snapshot) end
     for _,target in ipairs(app.snapshot.targets or {}) do target.stale=not target.freshnessKnown or os.clock()-target.timestamp>5 end
-    if not app.radarId and app.snapshot.radars[1] then app.radarId=app.snapshot.radars[1].id end
+    if not find(app.snapshot.radars,app.radarId) then app.radarId=app.snapshot.radars[1] and app.snapshot.radars[1].id app.canvas=nil end
+    if app.targetId and not find(app.snapshot.targets,app.targetId) then app.targetId=nil app.tracking=false app.confirm=nil app.solution=nil end
     if not app.cannonId and app.snapshot.cannons[1] then app.cannonId=app.snapshot.cannons[1].id end
   end
   local function report(ok,message) app.message=ok and (type(message)=="number" and "Queued #"..message or message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
-  local function selectTarget(id) app.targetId=id app.confirm=nil app.tracking=false app.solution=nil end
+  local function selectTarget(id) app.targetId=filter.select(app.targetId,id) app.confirm=nil app.tracking=false app.solution=nil app.canvas=nil end
   local function solve()
     local solution,err=combat.solution(app.cannonId,app.targetId)
     app.solution=solution app.message=err or "Estimated vacuum trajectory (no drag)"
@@ -41,6 +45,13 @@ function M.run(ctx)
     return cfg[section][id]
   end
   local function fields()
+    if app.configKind=="network" then
+      local object=app.networkConfig
+      local rows={}
+      for _,entry in ipairs({{"group","World/dimension group","string"},{"x","Zone centre X","number"},{"y","Zone centre Y","number"},{"z","Zone centre Z","number"},{"radius","Zone radius m","number"},{"alerts","Perimeter alerts","boolean"}}) do
+        rows[#rows+1]=forms.field(object,entry[1],entry[2],entry[3])
+      end return rows
+    end
     local object=configObject() local rows={}
     if not object then return rows end
     local function field(key,label,kind,options) rows[#rows+1]=forms.field(object,key,label,kind,options) end
@@ -64,11 +75,13 @@ function M.run(ctx)
     return rows
   end
   local function actions()
-    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="overview",label=app.view.network and "Local view" or "Overview"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="alias",label="Alias"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    elseif app.page=="network" then local net=radarNet.configuration() return {{id="networkToggle",label=net.enabled and "Network ON" or "Network OFF"},{id="publishToggle",label=net.publish and "Station ON" or "Station OFF"},{id="networkConfig",label="Zone/Group"},{id="networkRescan",label="Discover"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="targets" then return {{id="alias",label="Alias"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="cannons" then return {{id="rescan",label="Rescan"},{id="ack",label="Verify/acknowledge"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="fire" then return {{id="solve",label="Solve"},{id="aim",label="Aim once"},{id="track",label=app.tracking and "Stop track" or "Track"},{id="fire",label="Fire"}}
     elseif app.page=="probe" then return {{id="probe",label="Read/export"},{id="rescan",label="Rescan"},{id="previous",label="Up"},{id="next",label="Down"}}
+    elseif app.configKind=="network" then return {{id="networkSave",label="Save"},{id="networkCancel",label="Cancel"}}
     else return {{id="configKind",label="Radar/Cannon"},{id="save",label="Save"},{id="rescan",label="Rescan"}} end
   end
   function app:draw(w,h)
@@ -78,18 +91,26 @@ function M.run(ctx)
     self.bar=ui.toolbar(1,2,w,actions(),self.barState)
     self.rowHits={}
     local snap=self.snapshot
+    if self.page=="radar" or self.page=="three" or self.page=="targets" then
+      local counts={} for _,target in ipairs(snap.targets or {}) do local category=filter.category(target) counts[category]=(counts[category] or 0)+1 end
+      local buttons={{id="all",label=(next(self.filters)==nil and "[x] " or "[ ] ").."All"}}
+      for _,category in ipairs(filter.categories) do buttons[#buttons+1]={id=category.id,label=(self.filters[category.id] and "[x] " or "[ ] ")..category.label.." "..(counts[category.id] or 0)} end
+      self.filterBar=ui.toolbar(1,4,w,buttons,self.filterState)
+    else self.filterBar=nil end
     if self.page=="radar" or self.page=="three" then
       self.view.three=self.page=="three"
+      self.view.filters=self.filters
       local panel=w>=75 and 27 or 0
-      local graphW,graphH=w-panel,math.max(2,h-5)
+      local graphW,graphH=w-panel,math.max(2,h-6)
       local key=table.concat({snap.revision or 0,graphW,graphH,tostring(self.targetId),tostring(self.radarId),self.page,self.view.zoom,self.view.yaw,self.view.pitch},":")
       if not self.canvas or self.graphW~=graphW or self.graphH~=graphH or (key~=self.graphKey and os.clock()-(self.graphAt or -1)>=0.2) then
         self.canvas,self.graphHits,self.labels,self.graphStatus=instruments.radar(graphW,graphH,snap,self.radarId,self.targetId,self.view)
         self.graphW,self.graphH,self.graphKey,self.graphAt=graphW,graphH,key,os.clock()
+        self.labelLayout=nil
       end
       renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..tostring(self.radarId or "No radar"),w),colors.cyan)
       if snap.ok==false and snap.errors and snap.errors[1] then renderer.writeAt(1,3,renderer.crop("Read error: "..snap.errors[1],w),colors.orange) end
-      self.canvas:draw(1,4)
+      self.canvas:draw(1,5)
       local radar=find(snap.radars,self.radarId)
       if radar and (not radar.position or not radar.range or radar.range<=0) then
         local p=radar.rawPosition
@@ -100,41 +121,79 @@ function M.run(ctx)
           "Dishes: "..tostring(radar.dishCount or "unavailable"),
           "Position source: "..tostring(radar.positionSource),
           "Position status: "..tostring(radar.positionIssue or "valid")}
-        for i=1,math.min(#rows,graphH) do renderer.writeAt(1,3+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
+        for i=1,math.min(#rows,graphH) do renderer.writeAt(1,4+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
       elseif radar then
-        renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation),w),colors.cyan)
+        local source=self.view.network and ("All stations | contacts="..#filter.targets(snap.targets,self.filters)) or (radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation))
+        renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..source,w),colors.cyan)
         if snap.ok==false and snap.errors and snap.errors[1] then renderer.writeAt(1,3,renderer.crop("Read error: "..snap.errors[1],w),colors.orange) end
       else
         local unknown=(snap.unknownCombatDevices or {})[1]
-        renderer.writeAt(1,4,renderer.crop(unknown and ("Unsupported: "..unknown.name.."; inspect Probe") or "No radar acquired; Rescan / Probe",graphW),colors.orange,colors.black)
+        renderer.writeAt(1,5,renderer.crop(unknown and ("Unsupported: "..unknown.name.."; inspect Probe") or "No radar acquired; Rescan / Probe",graphW),colors.orange,colors.black)
       end
+      if not self.labelLayout then
+      self.labelLayout={}
       local occupied={}
-      for _,label in ipairs(self.labels or {}) do
-        if label.x<graphW-4 and label.y>=1 and label.y<=graphH and not occupied[label.y] then
-          renderer.writeAt(label.x,3+label.y,renderer.crop(label.text,math.min(22,graphW-label.x+1)),label.color,colors.black) occupied[label.y]=true
+      local labels=addon.copy(self.labels or {})
+      table.sort(labels,function(a,b)
+        local pa=a.id==self.targetId and a.id~=nil and 0 or a.id and 1 or 2
+        local pb=b.id==self.targetId and b.id~=nil and 0 or b.id and 1 or 2
+        if pa~=pb then return pa<pb end return tostring(a.id or a.text)<tostring(b.id or b.text)
+      end)
+      for _,label in ipairs(labels) do
+        local x=math.max(1,math.min(label.x,graphW-4))
+        local width=math.min(#label.text,22,graphW-x+1)
+        for _,offset in ipairs({0,1,-1,2,-2,3,-3,4,-4}) do
+          local y=label.y+offset local clear=y>=1 and y<=graphH
+          for _,box in ipairs(occupied[y] or {}) do if x<box.x+box.w and x+width>box.x then clear=false break end end
+          for _,marker in ipairs(self.graphHits or {}) do
+            if math.abs(y-marker.y)<=1 and x<marker.x+2 and x+width>marker.x-1 then clear=false break end
+          end
+          if clear and width>0 then
+            occupied[y]=occupied[y] or {} occupied[y][#occupied[y]+1]={x=x,w=width}
+            self.labelLayout[#self.labelLayout+1]={id=label.id,x=x,y=4+y,w=width,h=1,text=renderer.crop(label.text,width),color=label.color}
+            break
+          end
         end
+      end
+      end
+      for _,label in ipairs(self.labelLayout) do
+        renderer.writeAt(label.x,label.y,label.text,label.color,colors.black)
+        if label.id then self.rowHits[#self.rowHits+1]=label end
       end
       local target=find(snap.targets,self.targetId)
       if panel>0 then
         local x=graphW+2
         local radar=find(snap.radars,self.radarId)
         local relative=target and radar and geometry.relative(target.position,radar.position)
-        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
-        for i=1,math.min(#rows,h-5) do renderer.writeAt(x,3+i,renderer.crop(rows[i],panel-2)) end
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Refresh: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
+        if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
+        for i=1,math.min(#rows,h-6) do renderer.writeAt(x,4+i,renderer.crop(rows[i],panel-2)) end
       end
+    elseif self.page=="network" then
+      local network=radarNet.snapshot()
+      renderer.writeAt(1,3,renderer.crop(network.error or ((network.modem or "No modem").." | "..radarNet.configuration().group.." | ID "..os.getComputerID()),w),colors.cyan)
+      renderer.writeAt(1,4,renderer.crop("Stations (tap to include/exclude)",w))
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#network.nodes-(h-7)+1)))
+      for i=self.scroll,math.min(#network.nodes,self.scroll+h-8) do
+        local row=network.nodes[i] local y=5+i-self.scroll
+        renderer.writeAt(1,y,renderer.crop((row.included and "[x] " or "[ ] ")..row.label.." #"..row.id.." | "..(row.online and (row.radars.." radars / "..row.targets.." contacts") or "OFFLINE"),w),row.online and colors.white or colors.gray)
+        self.rowHits[#self.rowHits+1]={id=row.id,x=1,y=y,w=w,h=1}
+      end
+      if #network.nodes==0 then renderer.writeAt(1,5,renderer.crop("No station discovered",w),colors.orange) end
+      renderer.writeAt(1,h-1,renderer.crop("Rednet: unencrypted; no remote weapon commands",w),colors.orange)
     elseif self.page=="targets" or self.page=="cannons" or self.page=="probe" then
-      local rows=self.page=="targets" and snap.targets or self.page=="cannons" and snap.cannons or snap.devices
-      local listHeight=self.page=="probe" and math.max(1,math.floor((h-5)/3)) or h-5
+      local rows=self.page=="targets" and filter.targets(snap.targets,self.filters) or self.page=="cannons" and snap.cannons or snap.devices
+      local listHeight=self.page=="probe" and math.max(1,math.floor((h-5)/3)) or h-(self.page=="targets" and 6 or 5)
       self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-listHeight+1)))
       for i=self.scroll,math.min(#rows,self.scroll+listHeight-1) do
-        local row=rows[i] local y=4+i-self.scroll
+        local row=rows[i] local y=(self.page=="targets" and 5 or 4)+i-self.scroll
         local badge=row.synthetic and " SYNTHETIC" or row.friendly and " FRIENDLY" or ""
         local label=self.page=="targets" and (row.label..badge.." | y="..fmt(row.position.y)..(row.stale and " STALE" or "")) or self.page=="cannons" and (row.name.." | yaw="..fmt(row.yaw).." pitch="..fmt(row.pitch).." assembled="..tostring(row.assembled)) or (row.name.." "..row.role)
         local selected=self.page=="targets" and self.targetId or self.page=="cannons" and self.cannonId or self.deviceId
         renderer.writeAt(1,y,renderer.crop(label,w),row.id==selected and colors.yellow or colors.white,row.id==selected and colors.gray or nil)
         self.rowHits[#self.rowHits+1]={id=row.id,x=1,y=y,w=w,h=1}
       end
-      if #rows==0 then renderer.writeAt(1,4,renderer.crop(snap.status or "No peripheral",w),colors.orange) end
+      if #rows==0 then renderer.writeAt(1,self.page=="targets" and 5 or 4,renderer.crop("No visible contacts/peripherals",w),colors.orange) end
       if self.page=="probe" then
         local selected=find(rows,self.deviceId)
         local y=5+listHeight
@@ -184,27 +243,50 @@ function M.run(ctx)
     if event.name=="mouse_scroll" and self.page~="config" then self.scroll=self.scroll+event.args[1] return true end
     if event.name~="mouse_click" then return self.page=="config" and self.form:handle(event) or false end
     local _,x,y=table.unpack(event.args)
+    for _,box in ipairs(self.filterBar or {}) do if ui.hit(box,x,y) then
+      if box.delta then self.filterState.first=math.max(1,(self.filterState.first or 1)+box.delta)
+      else
+        filter.toggle(self.filters,box.id) self.canvas=nil self.scroll=1
+        local target=find(self.snapshot.targets,self.targetId)
+        if target and not filter.visible(target,self.filters) then selectTarget(self.targetId) end
+      end return true
+    end end
     for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
       if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta)
-      else self.page=box.id self.barState.first=1 self.scroll=1 self.tracking=false end return true
+      else self.page=box.id self.barState.first=1 self.scroll=1 self.tracking=false self.canvas=nil end return true
     end end
     for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
     local id=ui.toolbarHit(self.bar,x,y)
+    if id=="networkToggle" or id=="publishToggle" then
+      local value=radarNet.configuration() local key=id=="networkToggle" and "enabled" or "publish"
+      value[key]=not value[key] if key=="publish" and value.publish then value.enabled=true end
+      report(radarNet.configure(actor,value)) return true
+    elseif id=="networkRescan" then radarNet.rescan() return true
+    elseif id=="networkConfig" then self.networkConfig=radarNet.configuration() self.configKind="network" self.page="config" self.form.scroll=1 self.barState.first=1 return true
+    elseif id=="networkSave" then
+      local ok,message=radarNet.configure(actor,self.networkConfig) report(ok,message)
+      if ok then self.page="network" self.configKind="radar" self.barState.first=1 end return true
+    elseif id=="networkCancel" then self.page="network" self.configKind="radar" self.barState.first=1 return true
+    elseif id=="overview" then self.view.network=not self.view.network self.canvas=nil self.view.zoom=1 return true end
     if id=="rescan" then combat.rescan() return true
     elseif id=="radarConfig" then
+      local radar=find(self.snapshot.radars,self.radarId)
+      if radar and radar.remote then self.message="Configure this radar on its source station" return true end
       self.tracking=false
       self.setup=radarSetup.new(self.snapshot,self.radarId,combat.configuration(),require("system.services.sabled").status().inSublevel,
         function(radarId,value) return combat.configure(actor,"radars",radarId,value) end,combat.validateRadar)
       return true
     elseif id=="radarProbe" then
+      local radar=find(self.snapshot.radars,self.radarId)
+      if radar and radar.remote then self.message="Probe runs on the source station" return true end
       self.deviceId=self.radarId self.page="probe" self.scroll=1 self.barState.first=1
       if self.deviceId then report(combat.requestProbe(actor,self.deviceId)) end return true
-    elseif id=="zoomIn" or id=="zoomOut" then self.view.zoom=math.max(0.25,math.min(16,self.view.zoom*(id=="zoomIn" and 1.5 or 1/1.5))) return true
-    elseif id=="left" or id=="right" then self.view.yaw=(self.view.yaw+(id=="right" and 15 or -15))%360 return true
-    elseif id=="up" or id=="down" then self.view.pitch=math.max(-80,math.min(80,self.view.pitch+(id=="up" and 10 or -10))) return true
+    elseif id=="zoomIn" or id=="zoomOut" then self.view.zoom=math.max(0.25,math.min(16,self.view.zoom*(id=="zoomIn" and 1.5 or 1/1.5))) self.canvas=nil return true
+    elseif id=="left" or id=="right" then self.view.yaw=(self.view.yaw+(id=="right" and 15 or -15))%360 self.canvas=nil return true
+    elseif id=="up" or id=="down" then self.view.pitch=math.max(-80,math.min(80,self.view.pitch+(id=="up" and 10 or -10))) self.canvas=nil return true
     elseif id=="radarNext" then
       local index=1 for i,row in ipairs(self.snapshot.radars) do if row.id==self.radarId then index=i break end end
-      if #self.snapshot.radars>0 then self.radarId=self.snapshot.radars[index%#self.snapshot.radars+1].id end return true
+      if #self.snapshot.radars>0 then self.radarId=self.snapshot.radars[index%#self.snapshot.radars+1].id self.canvas=nil end return true
     elseif id=="previous" or id=="next" then self.scroll=math.max(1,self.scroll+(id=="next" and 1 or -1)) return true
     elseif id=="solve" then solve() return true
     elseif id=="aim" then report(combat.requestAim(actor,self.cannonId,self.targetId)) return true
@@ -230,10 +312,15 @@ function M.run(ctx)
       confirm("Save verified "..self.configKind.." calibration?",function() report(combat.configure(actor,section,targetId,value)) end) return true
     end
     for _,box in ipairs(self.rowHits or {}) do if ui.hit(box,x,y) then
-      if self.page=="targets" then selectTarget(box.id) elseif self.page=="cannons" then self.cannonId=box.id self.tracking=false else self.deviceId=box.id end return true
+      if self.page=="network" then
+        local value=radarNet.configuration() local key=tostring(box.id)
+        if value.trusted[key] then value.trusted[key]=nil report(radarNet.configure(actor,value))
+        else confirm("Include station #"..key.."? Same world/dimension required",function() value.trusted[key]=true report(radarNet.configure(actor,value)) end) end
+      elseif self.page=="targets" or self.page=="radar" or self.page=="three" then selectTarget(box.id)
+      elseif self.page=="cannons" then self.cannonId=box.id self.tracking=false else self.deviceId=box.id end return true
     end end
     if self.page=="radar" or self.page=="three" then
-      for _,box in ipairs(self.graphHits or {}) do if ui.hit({x=math.max(1,box.x-1),y=box.y+2,w=box.w,h=box.h},x,y) then selectTarget(box.id) return true end end
+      for _,box in ipairs(self.graphHits or {}) do if ui.hit({x=math.max(1,box.x-1),y=box.y+3,w=box.w,h=box.h},x,y) then selectTarget(box.id) return true end end
     end
     return self.page=="config" and self.form:handle(event) or false
   end

@@ -4,7 +4,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -682,7 +682,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -696,25 +696,29 @@ local geometry=require("system.navigation.geometry")
 local instruments=require("system.navigation.instruments")
 local radarSetup=require("system.navigation.radar_setup")
 local combat=require("system.services.combatd")
+local radarNet=require("system.services.radarnetd")
+local filter=require("system.navigation.radar_filter")
 local M={}
 local function find(rows,id) if id==nil then return nil end for _,row in ipairs(rows or {}) do if row.id==id or row.name==id then return row end end end
 local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
 function M.run(ctx)
   local actor={pid=ctx.pid}
-  local app={page="radar",tabState={},barState={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=25},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
+  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=25},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
   local tabs={{id="radar",label="Radar"},{id="three",label="3D"},{id="targets",label="Targets"},{id="cannons",label="Cannons"},{id="fire",label="Fire"},{id="probe",label="Probe"},{id="config",label="Config"}}
   local cfg=combat.configuration()
+  tabs[#tabs+1]={id="network",label="Network"}
   local win,timer,trackTimer
   local function refresh()
     app.snapshot=combat.snapshot()
     if app.setup then app.setup:update(app.snapshot) end
     for _,target in ipairs(app.snapshot.targets or {}) do target.stale=not target.freshnessKnown or os.clock()-target.timestamp>5 end
-    if not app.radarId and app.snapshot.radars[1] then app.radarId=app.snapshot.radars[1].id end
+    if not find(app.snapshot.radars,app.radarId) then app.radarId=app.snapshot.radars[1] and app.snapshot.radars[1].id app.canvas=nil end
+    if app.targetId and not find(app.snapshot.targets,app.targetId) then app.targetId=nil app.tracking=false app.confirm=nil app.solution=nil end
     if not app.cannonId and app.snapshot.cannons[1] then app.cannonId=app.snapshot.cannons[1].id end
   end
   local function report(ok,message) app.message=ok and (type(message)=="number" and "Queued #"..message or message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
-  local function selectTarget(id) app.targetId=id app.confirm=nil app.tracking=false app.solution=nil end
+  local function selectTarget(id) app.targetId=filter.select(app.targetId,id) app.confirm=nil app.tracking=false app.solution=nil app.canvas=nil end
   local function solve()
     local solution,err=combat.solution(app.cannonId,app.targetId)
     app.solution=solution app.message=err or "Estimated vacuum trajectory (no drag)"
@@ -731,6 +735,13 @@ function M.run(ctx)
     return cfg[section][id]
   end
   local function fields()
+    if app.configKind=="network" then
+      local object=app.networkConfig
+      local rows={}
+      for _,entry in ipairs({{"group","World/dimension group","string"},{"x","Zone centre X","number"},{"y","Zone centre Y","number"},{"z","Zone centre Z","number"},{"radius","Zone radius m","number"},{"alerts","Perimeter alerts","boolean"}}) do
+        rows[#rows+1]=forms.field(object,entry[1],entry[2],entry[3])
+      end return rows
+    end
     local object=configObject() local rows={}
     if not object then return rows end
     local function field(key,label,kind,options) rows[#rows+1]=forms.field(object,key,label,kind,options) end
@@ -754,11 +765,13 @@ function M.run(ctx)
     return rows
   end
   local function actions()
-    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="overview",label=app.view.network and "Local view" or "Overview"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="alias",label="Alias"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    elseif app.page=="network" then local net=radarNet.configuration() return {{id="networkToggle",label=net.enabled and "Network ON" or "Network OFF"},{id="publishToggle",label=net.publish and "Station ON" or "Station OFF"},{id="networkConfig",label="Zone/Group"},{id="networkRescan",label="Discover"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="targets" then return {{id="alias",label="Alias"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="cannons" then return {{id="rescan",label="Rescan"},{id="ack",label="Verify/acknowledge"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="fire" then return {{id="solve",label="Solve"},{id="aim",label="Aim once"},{id="track",label=app.tracking and "Stop track" or "Track"},{id="fire",label="Fire"}}
     elseif app.page=="probe" then return {{id="probe",label="Read/export"},{id="rescan",label="Rescan"},{id="previous",label="Up"},{id="next",label="Down"}}
+    elseif app.configKind=="network" then return {{id="networkSave",label="Save"},{id="networkCancel",label="Cancel"}}
     else return {{id="configKind",label="Radar/Cannon"},{id="save",label="Save"},{id="rescan",label="Rescan"}} end
   end
   function app:draw(w,h)
@@ -768,18 +781,26 @@ function M.run(ctx)
     self.bar=ui.toolbar(1,2,w,actions(),self.barState)
     self.rowHits={}
     local snap=self.snapshot
+    if self.page=="radar" or self.page=="three" or self.page=="targets" then
+      local counts={} for _,target in ipairs(snap.targets or {}) do local category=filter.category(target) counts[category]=(counts[category] or 0)+1 end
+      local buttons={{id="all",label=(next(self.filters)==nil and "[x] " or "[ ] ").."All"}}
+      for _,category in ipairs(filter.categories) do buttons[#buttons+1]={id=category.id,label=(self.filters[category.id] and "[x] " or "[ ] ")..category.label.." "..(counts[category.id] or 0)} end
+      self.filterBar=ui.toolbar(1,4,w,buttons,self.filterState)
+    else self.filterBar=nil end
     if self.page=="radar" or self.page=="three" then
       self.view.three=self.page=="three"
+      self.view.filters=self.filters
       local panel=w>=75 and 27 or 0
-      local graphW,graphH=w-panel,math.max(2,h-5)
+      local graphW,graphH=w-panel,math.max(2,h-6)
       local key=table.concat({snap.revision or 0,graphW,graphH,tostring(self.targetId),tostring(self.radarId),self.page,self.view.zoom,self.view.yaw,self.view.pitch},":")
       if not self.canvas or self.graphW~=graphW or self.graphH~=graphH or (key~=self.graphKey and os.clock()-(self.graphAt or -1)>=0.2) then
         self.canvas,self.graphHits,self.labels,self.graphStatus=instruments.radar(graphW,graphH,snap,self.radarId,self.targetId,self.view)
         self.graphW,self.graphH,self.graphKey,self.graphAt=graphW,graphH,key,os.clock()
+        self.labelLayout=nil
       end
       renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..tostring(self.radarId or "No radar"),w),colors.cyan)
       if snap.ok==false and snap.errors and snap.errors[1] then renderer.writeAt(1,3,renderer.crop("Read error: "..snap.errors[1],w),colors.orange) end
-      self.canvas:draw(1,4)
+      self.canvas:draw(1,5)
       local radar=find(snap.radars,self.radarId)
       if radar and (not radar.position or not radar.range or radar.range<=0) then
         local p=radar.rawPosition
@@ -790,41 +811,79 @@ function M.run(ctx)
           "Dishes: "..tostring(radar.dishCount or "unavailable"),
           "Position source: "..tostring(radar.positionSource),
           "Position status: "..tostring(radar.positionIssue or "valid")}
-        for i=1,math.min(#rows,graphH) do renderer.writeAt(1,3+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
+        for i=1,math.min(#rows,graphH) do renderer.writeAt(1,4+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
       elseif radar then
-        renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation),w),colors.cyan)
+        local source=self.view.network and ("All stations | contacts="..#filter.targets(snap.targets,self.filters)) or (radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation))
+        renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..source,w),colors.cyan)
         if snap.ok==false and snap.errors and snap.errors[1] then renderer.writeAt(1,3,renderer.crop("Read error: "..snap.errors[1],w),colors.orange) end
       else
         local unknown=(snap.unknownCombatDevices or {})[1]
-        renderer.writeAt(1,4,renderer.crop(unknown and ("Unsupported: "..unknown.name.."; inspect Probe") or "No radar acquired; Rescan / Probe",graphW),colors.orange,colors.black)
+        renderer.writeAt(1,5,renderer.crop(unknown and ("Unsupported: "..unknown.name.."; inspect Probe") or "No radar acquired; Rescan / Probe",graphW),colors.orange,colors.black)
       end
+      if not self.labelLayout then
+      self.labelLayout={}
       local occupied={}
-      for _,label in ipairs(self.labels or {}) do
-        if label.x<graphW-4 and label.y>=1 and label.y<=graphH and not occupied[label.y] then
-          renderer.writeAt(label.x,3+label.y,renderer.crop(label.text,math.min(22,graphW-label.x+1)),label.color,colors.black) occupied[label.y]=true
+      local labels=addon.copy(self.labels or {})
+      table.sort(labels,function(a,b)
+        local pa=a.id==self.targetId and a.id~=nil and 0 or a.id and 1 or 2
+        local pb=b.id==self.targetId and b.id~=nil and 0 or b.id and 1 or 2
+        if pa~=pb then return pa<pb end return tostring(a.id or a.text)<tostring(b.id or b.text)
+      end)
+      for _,label in ipairs(labels) do
+        local x=math.max(1,math.min(label.x,graphW-4))
+        local width=math.min(#label.text,22,graphW-x+1)
+        for _,offset in ipairs({0,1,-1,2,-2,3,-3,4,-4}) do
+          local y=label.y+offset local clear=y>=1 and y<=graphH
+          for _,box in ipairs(occupied[y] or {}) do if x<box.x+box.w and x+width>box.x then clear=false break end end
+          for _,marker in ipairs(self.graphHits or {}) do
+            if math.abs(y-marker.y)<=1 and x<marker.x+2 and x+width>marker.x-1 then clear=false break end
+          end
+          if clear and width>0 then
+            occupied[y]=occupied[y] or {} occupied[y][#occupied[y]+1]={x=x,w=width}
+            self.labelLayout[#self.labelLayout+1]={id=label.id,x=x,y=4+y,w=width,h=1,text=renderer.crop(label.text,width),color=label.color}
+            break
+          end
         end
+      end
+      end
+      for _,label in ipairs(self.labelLayout) do
+        renderer.writeAt(label.x,label.y,label.text,label.color,colors.black)
+        if label.id then self.rowHits[#self.rowHits+1]=label end
       end
       local target=find(snap.targets,self.targetId)
       if panel>0 then
         local x=graphW+2
         local radar=find(snap.radars,self.radarId)
         local relative=target and radar and geometry.relative(target.position,radar.position)
-        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
-        for i=1,math.min(#rows,h-5) do renderer.writeAt(x,3+i,renderer.crop(rows[i],panel-2)) end
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Refresh: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
+        if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
+        for i=1,math.min(#rows,h-6) do renderer.writeAt(x,4+i,renderer.crop(rows[i],panel-2)) end
       end
+    elseif self.page=="network" then
+      local network=radarNet.snapshot()
+      renderer.writeAt(1,3,renderer.crop(network.error or ((network.modem or "No modem").." | "..radarNet.configuration().group.." | ID "..os.getComputerID()),w),colors.cyan)
+      renderer.writeAt(1,4,renderer.crop("Stations (tap to include/exclude)",w))
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#network.nodes-(h-7)+1)))
+      for i=self.scroll,math.min(#network.nodes,self.scroll+h-8) do
+        local row=network.nodes[i] local y=5+i-self.scroll
+        renderer.writeAt(1,y,renderer.crop((row.included and "[x] " or "[ ] ")..row.label.." #"..row.id.." | "..(row.online and (row.radars.." radars / "..row.targets.." contacts") or "OFFLINE"),w),row.online and colors.white or colors.gray)
+        self.rowHits[#self.rowHits+1]={id=row.id,x=1,y=y,w=w,h=1}
+      end
+      if #network.nodes==0 then renderer.writeAt(1,5,renderer.crop("No station discovered",w),colors.orange) end
+      renderer.writeAt(1,h-1,renderer.crop("Rednet: unencrypted; no remote weapon commands",w),colors.orange)
     elseif self.page=="targets" or self.page=="cannons" or self.page=="probe" then
-      local rows=self.page=="targets" and snap.targets or self.page=="cannons" and snap.cannons or snap.devices
-      local listHeight=self.page=="probe" and math.max(1,math.floor((h-5)/3)) or h-5
+      local rows=self.page=="targets" and filter.targets(snap.targets,self.filters) or self.page=="cannons" and snap.cannons or snap.devices
+      local listHeight=self.page=="probe" and math.max(1,math.floor((h-5)/3)) or h-(self.page=="targets" and 6 or 5)
       self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-listHeight+1)))
       for i=self.scroll,math.min(#rows,self.scroll+listHeight-1) do
-        local row=rows[i] local y=4+i-self.scroll
+        local row=rows[i] local y=(self.page=="targets" and 5 or 4)+i-self.scroll
         local badge=row.synthetic and " SYNTHETIC" or row.friendly and " FRIENDLY" or ""
         local label=self.page=="targets" and (row.label..badge.." | y="..fmt(row.position.y)..(row.stale and " STALE" or "")) or self.page=="cannons" and (row.name.." | yaw="..fmt(row.yaw).." pitch="..fmt(row.pitch).." assembled="..tostring(row.assembled)) or (row.name.." "..row.role)
         local selected=self.page=="targets" and self.targetId or self.page=="cannons" and self.cannonId or self.deviceId
         renderer.writeAt(1,y,renderer.crop(label,w),row.id==selected and colors.yellow or colors.white,row.id==selected and colors.gray or nil)
         self.rowHits[#self.rowHits+1]={id=row.id,x=1,y=y,w=w,h=1}
       end
-      if #rows==0 then renderer.writeAt(1,4,renderer.crop(snap.status or "No peripheral",w),colors.orange) end
+      if #rows==0 then renderer.writeAt(1,self.page=="targets" and 5 or 4,renderer.crop("No visible contacts/peripherals",w),colors.orange) end
       if self.page=="probe" then
         local selected=find(rows,self.deviceId)
         local y=5+listHeight
@@ -874,27 +933,50 @@ function M.run(ctx)
     if event.name=="mouse_scroll" and self.page~="config" then self.scroll=self.scroll+event.args[1] return true end
     if event.name~="mouse_click" then return self.page=="config" and self.form:handle(event) or false end
     local _,x,y=table.unpack(event.args)
+    for _,box in ipairs(self.filterBar or {}) do if ui.hit(box,x,y) then
+      if box.delta then self.filterState.first=math.max(1,(self.filterState.first or 1)+box.delta)
+      else
+        filter.toggle(self.filters,box.id) self.canvas=nil self.scroll=1
+        local target=find(self.snapshot.targets,self.targetId)
+        if target and not filter.visible(target,self.filters) then selectTarget(self.targetId) end
+      end return true
+    end end
     for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
       if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta)
-      else self.page=box.id self.barState.first=1 self.scroll=1 self.tracking=false end return true
+      else self.page=box.id self.barState.first=1 self.scroll=1 self.tracking=false self.canvas=nil end return true
     end end
     for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
     local id=ui.toolbarHit(self.bar,x,y)
+    if id=="networkToggle" or id=="publishToggle" then
+      local value=radarNet.configuration() local key=id=="networkToggle" and "enabled" or "publish"
+      value[key]=not value[key] if key=="publish" and value.publish then value.enabled=true end
+      report(radarNet.configure(actor,value)) return true
+    elseif id=="networkRescan" then radarNet.rescan() return true
+    elseif id=="networkConfig" then self.networkConfig=radarNet.configuration() self.configKind="network" self.page="config" self.form.scroll=1 self.barState.first=1 return true
+    elseif id=="networkSave" then
+      local ok,message=radarNet.configure(actor,self.networkConfig) report(ok,message)
+      if ok then self.page="network" self.configKind="radar" self.barState.first=1 end return true
+    elseif id=="networkCancel" then self.page="network" self.configKind="radar" self.barState.first=1 return true
+    elseif id=="overview" then self.view.network=not self.view.network self.canvas=nil self.view.zoom=1 return true end
     if id=="rescan" then combat.rescan() return true
     elseif id=="radarConfig" then
+      local radar=find(self.snapshot.radars,self.radarId)
+      if radar and radar.remote then self.message="Configure this radar on its source station" return true end
       self.tracking=false
       self.setup=radarSetup.new(self.snapshot,self.radarId,combat.configuration(),require("system.services.sabled").status().inSublevel,
         function(radarId,value) return combat.configure(actor,"radars",radarId,value) end,combat.validateRadar)
       return true
     elseif id=="radarProbe" then
+      local radar=find(self.snapshot.radars,self.radarId)
+      if radar and radar.remote then self.message="Probe runs on the source station" return true end
       self.deviceId=self.radarId self.page="probe" self.scroll=1 self.barState.first=1
       if self.deviceId then report(combat.requestProbe(actor,self.deviceId)) end return true
-    elseif id=="zoomIn" or id=="zoomOut" then self.view.zoom=math.max(0.25,math.min(16,self.view.zoom*(id=="zoomIn" and 1.5 or 1/1.5))) return true
-    elseif id=="left" or id=="right" then self.view.yaw=(self.view.yaw+(id=="right" and 15 or -15))%360 return true
-    elseif id=="up" or id=="down" then self.view.pitch=math.max(-80,math.min(80,self.view.pitch+(id=="up" and 10 or -10))) return true
+    elseif id=="zoomIn" or id=="zoomOut" then self.view.zoom=math.max(0.25,math.min(16,self.view.zoom*(id=="zoomIn" and 1.5 or 1/1.5))) self.canvas=nil return true
+    elseif id=="left" or id=="right" then self.view.yaw=(self.view.yaw+(id=="right" and 15 or -15))%360 self.canvas=nil return true
+    elseif id=="up" or id=="down" then self.view.pitch=math.max(-80,math.min(80,self.view.pitch+(id=="up" and 10 or -10))) self.canvas=nil return true
     elseif id=="radarNext" then
       local index=1 for i,row in ipairs(self.snapshot.radars) do if row.id==self.radarId then index=i break end end
-      if #self.snapshot.radars>0 then self.radarId=self.snapshot.radars[index%#self.snapshot.radars+1].id end return true
+      if #self.snapshot.radars>0 then self.radarId=self.snapshot.radars[index%#self.snapshot.radars+1].id self.canvas=nil end return true
     elseif id=="previous" or id=="next" then self.scroll=math.max(1,self.scroll+(id=="next" and 1 or -1)) return true
     elseif id=="solve" then solve() return true
     elseif id=="aim" then report(combat.requestAim(actor,self.cannonId,self.targetId)) return true
@@ -920,10 +1002,15 @@ function M.run(ctx)
       confirm("Save verified "..self.configKind.." calibration?",function() report(combat.configure(actor,section,targetId,value)) end) return true
     end
     for _,box in ipairs(self.rowHits or {}) do if ui.hit(box,x,y) then
-      if self.page=="targets" then selectTarget(box.id) elseif self.page=="cannons" then self.cannonId=box.id self.tracking=false else self.deviceId=box.id end return true
+      if self.page=="network" then
+        local value=radarNet.configuration() local key=tostring(box.id)
+        if value.trusted[key] then value.trusted[key]=nil report(radarNet.configure(actor,value))
+        else confirm("Include station #"..key.."? Same world/dimension required",function() value.trusted[key]=true report(radarNet.configure(actor,value)) end) end
+      elseif self.page=="targets" or self.page=="radar" or self.page=="three" then selectTarget(box.id)
+      elseif self.page=="cannons" then self.cannonId=box.id self.tracking=false else self.deviceId=box.id end return true
     end end
     if self.page=="radar" or self.page=="three" then
-      for _,box in ipairs(self.graphHits or {}) do if ui.hit({x=math.max(1,box.x-1),y=box.y+2,w=box.w,h=box.h},x,y) then selectTarget(box.id) return true end end
+      for _,box in ipairs(self.graphHits or {}) do if ui.hit({x=math.max(1,box.x-1),y=box.y+3,w=box.w,h=box.h},x,y) then selectTarget(box.id) return true end end
     end
     return self.page=="config" and self.form:handle(event) or false
   end
@@ -953,7 +1040,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1317,7 +1404,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1403,7 +1490,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1629,7 +1716,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1987,7 +2074,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2066,7 +2153,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2185,7 +2272,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2406,7 +2493,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2487,7 +2574,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2880,7 +2967,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -2995,7 +3082,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3123,7 +3210,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.1",
+  version = "0.18.2",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3556,7 +3643,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.1",
+  version = "0.18.2",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4029,7 +4116,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.1",
+    version = "0.18.2",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4308,6 +4395,19 @@ return M
   },
 }
 ]=],
+  ["system/config/radarnet.cfg"] = [=[
+{
+  enabled = false,
+  publish = false,
+  group = "overworld-local",
+  trusted = {},
+  alerts = false,
+  x = 0,
+  y = 0,
+  z = 0,
+  radius = 100,
+}
+]=],
   ["system/config/security.cfg"] = [=[
 {
   enabled = true,
@@ -4319,7 +4419,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.1",
+  version = "0.18.2",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -5769,21 +5869,21 @@ local compositor = require("system.gui.compositor")
 local M = {}
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.1", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.1", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.1", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.1", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.1", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.1", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.1", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.1", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.1", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.1", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.1", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.1", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.1", permissions = { "devices.list", "peripheral.probe" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.1", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.1", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.2", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.2", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.2", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.2", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.2", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.2", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.2", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.2", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.2", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.2", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.2", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.2", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.2", permissions = { "devices.list", "peripheral.probe" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.2", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.2", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -5819,6 +5919,7 @@ function M.start()
   ctx.services:register("avionicsd", "system.services.avionicsd", true)
   ctx.services:register("flightd", "system.services.flightd", true)
   ctx.services:register("combatd", "system.services.combatd", true)
+  ctx.services:register("radarnetd", "system.services.radarnetd", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
   ctx.services:startAutostart()
@@ -6207,7 +6308,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.1",
+    version = meta.version or "0.18.2",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -6674,7 +6775,9 @@ return M
 local pixels=require("system.gui.subpixel")
 local geometry=require("system.navigation.geometry")
 local addon=require("system.libraries.addon")
+local filters=require("system.navigation.radar_filter")
 local M={}
+local categoryPalette={players=colors.lightBlue,mobs=colors.orange,vessels=colors.white,projectiles=colors.red,other=colors.lightGray}
 function M.horizon(w,h,pitch,roll)
   local canvas=pixels.new(w,h,colors.black)
   if not addon.finite(pitch) or not addon.finite(roll) then return canvas end
@@ -6704,6 +6807,16 @@ function M.radar(w,h,snap,radarId,selected,view)
   local radar
   for _,row in ipairs(snap.radars or {}) do if row.id==radarId then radar=row break end end
   radar=radar or (snap.radars or {})[1]
+  if view.network then
+    local minX,maxX,minZ,maxZ,altitude
+    for _,row in ipairs(snap.radars or {}) do if row.position and addon.finite(row.range) and row.range>0 then
+      local p,r=row.position,row.range
+      minX=math.min(minX or math.huge,p.x-r) maxX=math.max(maxX or -math.huge,p.x+r)
+      minZ=math.min(minZ or math.huge,p.z-r) maxZ=math.max(maxZ or -math.huge,p.z+r)
+      altitude=altitude or p.y
+    end end
+    if minX then radar={position={x=(minX+maxX)/2,y=altitude,z=(minZ+maxZ)/2},range=math.max(maxX-minX,maxZ-minZ)/2} end
+  end
   local hits,labels={},{}
   if not radar or not radar.position or not addon.finite(radar.range) or radar.range<=0 then return canvas,hits,labels,"Radar world frame/range unavailable" end
   local cx,cy=(canvas.width+1)/2,(canvas.height+1)/2
@@ -6732,6 +6845,36 @@ function M.radar(w,h,snap,radarId,selected,view)
     if x1 and x2 then canvas:line(x1,y1,x2,y2,color) end
   end
   local o=radar.position
+  local function circle(position,r,color)
+    local previous
+    for step=0,48 do local a=step*math.pi/24
+      local p={x=position.x+math.sin(a)*r,y=position.y,z=position.z+math.cos(a)*r}
+      if previous then segment(previous,p,color) end previous=p
+    end
+  end
+  if view.network then
+    for _,station in ipairs(snap.radars or {}) do if station.position and addon.finite(station.range) then
+      circle(station.position,station.range,station.remote and colors.blue or colors.green)
+      if addon.finite(station.heading) and addon.finite(station.fov) then
+        local previous
+        for step=0,24 do
+          local a=math.rad(station.heading-station.fov/2+station.fov*step/24)
+          local p={x=station.position.x+math.sin(a)*station.range,y=station.position.y,z=station.position.z+math.cos(a)*station.range}
+          segment(previous or station.position,p,colors.lime) previous=p
+        end
+        segment(previous,station.position,colors.lime)
+      end
+      local x,y=project(station.position)
+      if x and x>=1 and x<=canvas.width and y>=1 and y<=canvas.height then
+        canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,colors.cyan)
+        labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan}
+      end
+    end end
+  end
+  local zone=snap.zone
+  if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
+    circle({x=zone.x,y=zone.y,z=zone.z},zone.radius,colors.orange)
+  end
   if view.three then
     for _,d in ipairs({{range,0,0},{0,range,0},{0,0,range}}) do segment(o,{x=o.x+d[1],y=o.y+d[2],z=o.z+d[3]},colors.gray) end
   else
@@ -6768,16 +6911,18 @@ function M.radar(w,h,snap,radarId,selected,view)
   end
   if not view.three and not view.relative then labels[#labels+1]={x=math.max(1,math.floor(cx/2)),y=1,text="N (-Z)",color=colors.white} end
   for _,target in ipairs(snap.targets or {}) do
+    if filters.visible(target,view.filters) then
     local x,y=project(target.position)
     if x and x>=2 and y>=2 and x<canvas.width and y<canvas.height then
-      local color=target.stale and colors.gray or target.id==selected and colors.yellow or target.synthetic and colors.orange or target.friendly and colors.lime or colors.red
+      local color=target.stale and colors.gray or target.id==selected and colors.yellow or target.synthetic and colors.orange or target.friendly and colors.lime or categoryPalette[filters.category(target)]
       local previous
       for _,point in ipairs(target.history or {}) do
         if previous then segment(previous,point.position,colors.lightGray) end previous=point.position
       end
       canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,color)
       hits[#hits+1]={id=target.id,x=math.ceil(x/2),y=math.ceil(y/3),w=3,h=2}
-      labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=target.label,color=color}
+      labels[#labels+1]={id=target.id,x=math.ceil(x/2)+2,y=math.ceil(y/3),text=target.label,color=color}
+    end
     end
   end
   canvas:line(cx-3,cy,cx+3,cy,colors.cyan)
@@ -6800,6 +6945,32 @@ function M.step(state, gains, error, rate, dt)
   state.output = value
   return value
 end
+return M
+]=],
+  ["system/navigation/radar_filter.lua"] = [=[
+local M={}
+M.categories={{id="players",label="Players"},{id="mobs",label="Mobs"},{id="vessels",label="Vessels"},{id="projectiles",label="Projectiles"},{id="other",label="Other"}}
+function M.category(target)
+  local category=tostring(target.category or ""):lower()
+  if target.entityType=="minecraft:player" or category=="player" then return "players" end
+  if category=="sable" or category=="ship" or category=="contraption" then return "vessels" end
+  if category=="mob" or category=="hostile" or category=="animal" then return "mobs" end
+  if category=="projectile" or category=="missile" then return "projectiles" end
+  -- Legacy 'entity' does not tell us whether this is a mob or an item.
+  return "other"
+end
+function M.visible(target,filters)
+  return not filters or next(filters)==nil or filters[M.category(target)]==true
+end
+function M.toggle(filters,id)
+  if id=="all" then for key in pairs(filters) do filters[key]=nil end
+  else filters[id]=not filters[id] or nil end
+end
+function M.targets(rows,filters)
+  local out={} for _,row in ipairs(rows or {}) do if M.visible(row,filters) then out[#out+1]=row end end
+  return out
+end
+function M.select(current,id) if current==id then return nil end return id end
 return M
 ]=],
   ["system/navigation/radar_setup.lua"] = [=[
@@ -7671,6 +7842,7 @@ local safeWrite = require("system.libraries.safe_write")
 local permissions = require("system.security.permissions")
 local sable = require("system.services.sabled")
 local log = require("system.libraries.log")
+local radarNet = require("system.services.radarnetd")
 local M = {}
 local ctx, runner, inventory, settings = nil, nil, {}, {}
 local tracks, revision, pending, tokens, serial = {}, 0, {}, {}, 0
@@ -7824,6 +7996,8 @@ function M.acquire(rescan)
             end
             target.label = settings.aliases[id] or target.renderName or ("ID " .. id:sub(1, 8))
             target.labelSource = settings.aliases[id] and "alias" or target.renderName and "api" or "id"
+            target.sources=target.sources or {}
+            target.sources[item.name]=now
             if type(raw.friendly)=="boolean" then target.friendly=raw.friendly else target.friendly=nil end
             if type(raw.synthetic)=="boolean" then target.synthetic=raw.synthetic else target.synthetic=nil end
             if type(raw.friendly)=="boolean" or type(raw.synthetic)=="boolean" then radar.classificationSource="API friendly/synthetic" end
@@ -7850,10 +8024,37 @@ function M.acquire(rescan)
   for _,key in ipairs({"devices","radars","cannons","controllers"}) do table.sort(snap[key],function(a,b) return a.name<b.name end) end
   for token,entry in pairs(tokens) do if now>entry.expires then tokens[token]=nil end end
   for id, target in pairs(tracks) do
+    for source,time in pairs(target.sources or {}) do if now-time>5 then target.sources[source]=nil end end
     target.stale = not target.freshnessKnown or now - target.timestamp > 5
     target.measurements={position=addon.measure(target.position,"m","world",target.radarId,target.timestamp),velocity=addon.measure(target.velocity,target.velocityUnit,"world",target.radarId,target.timestamp)}
     for _,measurement in pairs(target.measurements) do if target.stale then measurement.valid=false end end
     if now - target.timestamp > 10 then tracks[id] = nil else snap.targets[#snap.targets + 1] = addon.copy(target) end
+  end
+  local mesh=radarNet.snapshot()
+  snap.network=mesh
+  snap.zone=radarNet.configuration()
+  local byId={} for _,target in ipairs(snap.targets) do byId[target.id]=target end
+  for _,radar in ipairs(mesh.radars) do snap.radars[#snap.radars+1]=radar end
+  for _,target in ipairs(mesh.targets) do
+    local existing=byId[target.id]
+    if not existing and #snap.targets<settings.radar.maxTargets then
+      target.label=settings.aliases[target.id] or target.renderName or ("ID "..target.id:sub(1,8))
+      target.labelSource=settings.aliases[target.id] and "alias" or target.renderName and "api" or "id"
+      target.stale=now-target.timestamp>5
+      snap.targets[#snap.targets+1]=target byId[target.id]=target
+    elseif existing then
+      existing.sources=existing.sources or {[existing.radarId]=existing.timestamp}
+      existing.sources[target.radarId]=target.timestamp
+      -- Remote data never upgrades a local contact into a commandable target.
+      if (existing.remote or existing.stale) and target.timestamp>existing.timestamp then
+        local sources=existing.sources
+        for key in pairs(existing) do existing[key]=nil end
+        for key,value in pairs(target) do existing[key]=addon.copy(value) end
+        existing.sources=sources existing.remote=true existing.stale=false
+        existing.label=settings.aliases[existing.id] or existing.renderName or ("ID "..existing.id:sub(1,8))
+        existing.labelSource=settings.aliases[existing.id] and "alias" or existing.renderName and "api" or "id"
+      end
+    end
   end
   local prefixes={}
   for _,target in ipairs(snap.targets) do if target.labelSource=="id" then local prefix=target.id:sub(1,8) prefixes[prefix]=(prefixes[prefix] or 0)+1 end end
@@ -7870,6 +8071,7 @@ function M.acquire(rescan)
   snap.status = snap.available and "combat peripherals ready" or "no supported combat peripheral"
   snap.ok=#snap.errors==0
   cached = snap
+  radarNet.checkPerimeter(snap)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
@@ -7936,6 +8138,7 @@ end
 function M.solution(cannonId, targetId)
   local cannon, target = find(cached.cannons, cannonId), find(cached.targets, type(targetId)=="table" and targetId.id or targetId)
   if not cannon or not target then return nil, "select cannon and target" end
+  if target.remote then return nil,"remote Rednet contact: display/alerts only" end
   if target.friendly==true then return nil,"API marks target friendly; command blocked" end
   if target.synthetic==true then return nil,"API marks synthetic contact; command blocked" end
   if target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale" end
@@ -9020,6 +9223,178 @@ function Notifd:draw()
 end
 
 return Notifd
+]=],
+  ["system/services/radarnetd.lua"] = [=[
+local addon=require("system.libraries.addon")
+local config=require("system.libraries.config")
+local safeWrite=require("system.libraries.safe_write")
+local permissions=require("system.security.permissions")
+local M={protocol="mintcraft.radar.v1"}
+local ctx,runner,listener,modem,problem
+local nodes,settings,sequence={}, {},0
+local session=tostring(os.epoch and os.epoch("utc") or os.clock())
+local announced,lastAlert={},-math.huge
+local function short(value,limit)
+  return type(value)=="string" and #value<=limit and not value:find("[%c]") and value or nil
+end
+local function validId(id) return addon.finite(id) and id>=0 and id%1==0 end
+local function save(value)
+  local ok,err=safeWrite.write("/system/config/radarnet.cfg",textutils.serialize(value))
+  if ok then settings=addon.copy(value) end return ok,err
+end
+function M.configuration() return addon.copy(settings) end
+function M.configure(actor,value)
+  local process=ctx and actor and ctx.scheduler.processes[actor.pid]
+  if not process or process.state~="ready" then return false,"owner not running" end
+  local ok,err=permissions.require({pid=actor.pid,appId=process.meta.appId,permissions=process.permissions},"combat.configure")
+  if not ok then return false,err end
+  if type(value)~="table" or not short(value.group,40) or value.group=="" then return false,"Network group required (same world/dimension)" end
+  if type(value.trusted)~="table" then return false,"invalid station list" end
+  local count=0 for id,enabled in pairs(value.trusted) do
+    if not validId(tonumber(id)) or type(enabled)~="boolean" then return false,"invalid station ID" end count=count+1
+  end
+  if count>16 then return false,"maximum 16 stations" end
+  if not addon.finite(value.radius) or value.radius<=0 or value.radius>100000 then return false,"Zone radius must be 1..100000m" end
+  if not addon.vec({x=value.x,y=value.y,z=value.z}) then return false,"Zone requires world X/Y/Z" end
+  for _,key in ipairs({"enabled","publish","alerts"}) do if type(value[key])~="boolean" then return false,"invalid "..key end end
+  local changed=value.group~=settings.group or value.enabled~=settings.enabled
+  local saved,why=save(value)
+  if saved then if changed then nodes={} end if runner then runner:rescan() end end
+  return saved,why
+end
+local function open()
+  modem=nil
+  if not settings.enabled then problem="Disabled" return end
+  for _,row in ipairs(addon.inventory()) do if addon.hasType(row,"modem") then
+    local ok=pcall(function() if not rednet.isOpen(row.name) then rednet.open(row.name) end end)
+    if ok then modem=row.name problem=nil return end
+  end end
+  problem="No modem; connect a wired/wireless modem"
+end
+-- Accept only bounded primitive measurement fields. Packets cannot request commands.
+function M.receive(sender,packet,protocol)
+  if protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
+  if type(packet)~="table" or packet.version~=1 or packet.group~=settings.group or packet.frame~="world" or
+    not short(packet.session,80) or not addon.finite(packet.sequence) or packet.sequence<0 or packet.sequence%1~=0 or
+    not short(packet.label,80) or type(packet.radars)~="table" or #packet.radars>16 or
+    type(packet.targets)~="table" or #packet.targets>128 then return false end
+  local old=nodes[sender]
+  if old and old.session==packet.session and packet.sequence<=old.sequence then return false end
+  if old and os.clock()-old.received<0.15 then return false end
+  if not old then local count=0 for _ in pairs(nodes) do count=count+1 end if count>=16 then return false end end
+  local node={id=sender,label=packet.label,session=packet.session,sequence=packet.sequence,received=os.clock(),radars={},targets={}}
+  for _,radar in ipairs(packet.radars) do
+    if type(radar)~="table" then return false end
+    local pos=addon.vec(radar.position)
+    if not short(radar.id,128) or not pos or not addon.finite(radar.range) or radar.range<=0 or radar.range>100000 or
+      not addon.finite(radar.age) or radar.age<0 or radar.age>5 then return false end
+    local id="net:"..sender..":"..radar.id
+    node.radars[#node.radars+1]={id=id,name=packet.label.." / "..radar.id,position=pos,range=radar.range,frame="world",remote=true,
+      stationId=sender,timestamp=os.clock()-radar.age,heading=addon.finite(radar.heading) and radar.heading or nil,
+      fov=addon.finite(radar.fov) and radar.fov>0 and radar.fov<=360 and radar.fov or nil,fovSource="station calibration",positionSource="remote world"}
+  end
+  for _,target in ipairs(packet.targets) do
+    if type(target)~="table" then return false end
+    if not short(target.id,128) or not addon.vec(target.position) or not addon.finite(target.age) or target.age<0 or target.age>5 then return false end
+    local source=short(target.radarId,128)
+    if not source then return false end
+    local present=false for _,radar in ipairs(node.radars) do if radar.id=="net:"..sender..":"..source then present=true break end end
+    if not present then return false end
+    local history={}
+    if old then for _,previous in ipairs(old.targets) do if previous.id==target.id then history=addon.copy(previous.history) break end end end
+    local timestamp=os.clock()-target.age
+    if #history==0 or timestamp>history[#history].timestamp+0.05 then
+      history[#history+1]={position=addon.vec(target.position),timestamp=timestamp}
+      if #history>20 then table.remove(history,1) end
+    end
+    node.targets[#node.targets+1]={id=target.id,position=addon.vec(target.position),velocity=addon.vec(target.velocity),
+      category=short(target.category,40),entityType=short(target.entityType,128),renderName=short(target.renderName,80),
+      friendly=target.friendly==true,synthetic=target.synthetic==true,remote=true,stationId=sender,
+      timestamp=timestamp,freshnessKnown=true,frame="world",radarId="net:"..sender..":"..source,history=history}
+  end
+  nodes[sender]=node return true
+end
+function M.snapshot()
+  local result={nodes={},radars={},targets={},enabled=settings.enabled,modem=modem,error=problem}
+  local now=os.clock()
+  for id,node in pairs(nodes) do
+    local online=now-node.received<=5
+    result.nodes[#result.nodes+1]={id=id,label=node.label,online=online,age=now-node.received,included=settings.trusted[tostring(id)]==true,radars=#node.radars,targets=#node.targets}
+    if online and settings.trusted[tostring(id)] then
+      for _,key in ipairs({"radars","targets"}) do for _,row in ipairs(node[key]) do
+        if now-row.timestamp<=5 and #result[key]<128 then result[key][#result[key]+1]=addon.copy(row) end
+      end end
+    end
+  end
+  table.sort(result.nodes,function(a,b) return a.id<b.id end)
+  return result
+end
+function M.status() local snap=M.snapshot() return {enabled=snap.enabled,modem=snap.modem,error=snap.error,stations=#snap.nodes} end
+function M.rescan() if runner then runner:rescan() end end
+function M.publish(snapshot)
+  local now=os.clock()
+  sequence=sequence+1
+  local packet={version=1,group=settings.group,frame="world",session=session,sequence=sequence,label=(os.getComputerLabel() or "Station "..os.getComputerID()):sub(1,80),radars={},targets={}}
+  local sources={}
+  if settings.publish then
+    for _,radar in ipairs(snapshot.radars or {}) do
+      if not radar.remote and radar.position and addon.finite(radar.range) and radar.range>0 and now-radar.timestamp<=0.5 and #packet.radars<16 then
+        sources[radar.id]=true
+        packet.radars[#packet.radars+1]={id=radar.id,position=radar.position,range=radar.range,heading=radar.heading,fov=radar.fov,age=math.max(0,now-radar.timestamp)}
+      end
+    end
+    for _,target in ipairs(snapshot.targets or {}) do
+      if not target.remote and sources[target.radarId] and not target.stale and #packet.targets<128 then
+        packet.targets[#packet.targets+1]={id=target.id,position=target.position,velocity=target.velocity,radarId=target.radarId,
+          category=target.category,entityType=target.entityType,renderName=target.renderName,friendly=target.friendly,synthetic=target.synthetic,age=math.max(0,now-target.timestamp)}
+      end
+    end
+  end
+  return packet
+end
+function M.checkPerimeter(snapshot)
+  if not settings.enabled or not settings.alerts then announced={} return end
+  local now=os.clock() local inside={}
+  for _,target in ipairs(snapshot.targets or {}) do
+    local p=target.position
+    if p and not target.stale and not target.synthetic and not target.friendly and (p.x-settings.x)^2+(p.z-settings.z)^2<=settings.radius^2 then
+      inside[target.id]=true
+      if not announced[target.id] and now-lastAlert>=2 then
+        lastAlert=now announced[target.id]=true
+        if ctx and ctx.notifications then ctx.notifications:push("warn","Radar perimeter",target.label or target.id,5) end
+        require("system.libraries.log").warn("radarnet","Contact in zone: "..target.id)
+      end
+    end
+  end
+  for id in pairs(announced) do if not inside[id] then announced[id]=nil end end
+end
+function M.tick(rescan)
+  if rescan then open() end
+  local now=os.clock() for id,node in pairs(nodes) do if now-node.received>60 then nodes[id]=nil end end
+  if settings.enabled and modem then
+    local ok,err=pcall(rednet.broadcast,M.publish(require("system.services.combatd").snapshot()),M.protocol)
+    if not ok then problem=tostring(err) end
+  end
+end
+function M.start(context)
+  M.stop() ctx=context nodes={} announced={}
+  settings=config.load("/system/config/radarnet.cfg",{})
+  if type(settings)~="table" then settings={} end
+  settings.enabled=settings.enabled==true settings.publish=settings.publish==true settings.alerts=settings.alerts==true
+  settings.group=short(settings.group,40) or "overworld-local"
+  settings.trusted=type(settings.trusted)=="table" and settings.trusted or {}
+  for _,key in ipairs({"x","y","z"}) do if not addon.finite(settings[key]) then settings[key]=0 end end
+  if not addon.finite(settings.radius) or settings.radius<=0 then settings.radius=100 end
+  listener=ctx.eventBus:on("rednet_message",M.receive)
+  runner=addon.periodic(ctx,"radarnetd",0.2,M.tick)
+end
+function M.stop()
+  if runner then runner:stop() runner=nil end
+  if ctx and listener then ctx.eventBus:off(listener) end
+  ctx=nil listener=nil modem=nil nodes={}
+  -- Shared Rednet modems belong to Messenger too: never close them here.
+end
+return M
 ]=],
   ["system/services/sabled.lua"] = [=[
 local log = require("system.libraries.log")
@@ -10329,7 +10704,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.1
+0.18.2
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

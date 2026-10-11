@@ -1,4 +1,4 @@
-# Radar setup / MintCraftOS 0.18.1
+# Radar setup / MintCraftOS 0.18.2
 
 ## Guided setup
 

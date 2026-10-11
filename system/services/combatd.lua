@@ -5,6 +5,7 @@ local safeWrite = require("system.libraries.safe_write")
 local permissions = require("system.security.permissions")
 local sable = require("system.services.sabled")
 local log = require("system.libraries.log")
+local radarNet = require("system.services.radarnetd")
 local M = {}
 local ctx, runner, inventory, settings = nil, nil, {}, {}
 local tracks, revision, pending, tokens, serial = {}, 0, {}, {}, 0
@@ -158,6 +159,8 @@ function M.acquire(rescan)
             end
             target.label = settings.aliases[id] or target.renderName or ("ID " .. id:sub(1, 8))
             target.labelSource = settings.aliases[id] and "alias" or target.renderName and "api" or "id"
+            target.sources=target.sources or {}
+            target.sources[item.name]=now
             if type(raw.friendly)=="boolean" then target.friendly=raw.friendly else target.friendly=nil end
             if type(raw.synthetic)=="boolean" then target.synthetic=raw.synthetic else target.synthetic=nil end
             if type(raw.friendly)=="boolean" or type(raw.synthetic)=="boolean" then radar.classificationSource="API friendly/synthetic" end
@@ -184,10 +187,37 @@ function M.acquire(rescan)
   for _,key in ipairs({"devices","radars","cannons","controllers"}) do table.sort(snap[key],function(a,b) return a.name<b.name end) end
   for token,entry in pairs(tokens) do if now>entry.expires then tokens[token]=nil end end
   for id, target in pairs(tracks) do
+    for source,time in pairs(target.sources or {}) do if now-time>5 then target.sources[source]=nil end end
     target.stale = not target.freshnessKnown or now - target.timestamp > 5
     target.measurements={position=addon.measure(target.position,"m","world",target.radarId,target.timestamp),velocity=addon.measure(target.velocity,target.velocityUnit,"world",target.radarId,target.timestamp)}
     for _,measurement in pairs(target.measurements) do if target.stale then measurement.valid=false end end
     if now - target.timestamp > 10 then tracks[id] = nil else snap.targets[#snap.targets + 1] = addon.copy(target) end
+  end
+  local mesh=radarNet.snapshot()
+  snap.network=mesh
+  snap.zone=radarNet.configuration()
+  local byId={} for _,target in ipairs(snap.targets) do byId[target.id]=target end
+  for _,radar in ipairs(mesh.radars) do snap.radars[#snap.radars+1]=radar end
+  for _,target in ipairs(mesh.targets) do
+    local existing=byId[target.id]
+    if not existing and #snap.targets<settings.radar.maxTargets then
+      target.label=settings.aliases[target.id] or target.renderName or ("ID "..target.id:sub(1,8))
+      target.labelSource=settings.aliases[target.id] and "alias" or target.renderName and "api" or "id"
+      target.stale=now-target.timestamp>5
+      snap.targets[#snap.targets+1]=target byId[target.id]=target
+    elseif existing then
+      existing.sources=existing.sources or {[existing.radarId]=existing.timestamp}
+      existing.sources[target.radarId]=target.timestamp
+      -- Remote data never upgrades a local contact into a commandable target.
+      if (existing.remote or existing.stale) and target.timestamp>existing.timestamp then
+        local sources=existing.sources
+        for key in pairs(existing) do existing[key]=nil end
+        for key,value in pairs(target) do existing[key]=addon.copy(value) end
+        existing.sources=sources existing.remote=true existing.stale=false
+        existing.label=settings.aliases[existing.id] or existing.renderName or ("ID "..existing.id:sub(1,8))
+        existing.labelSource=settings.aliases[existing.id] and "alias" or existing.renderName and "api" or "id"
+      end
+    end
   end
   local prefixes={}
   for _,target in ipairs(snap.targets) do if target.labelSource=="id" then local prefix=target.id:sub(1,8) prefixes[prefix]=(prefixes[prefix] or 0)+1 end end
@@ -204,6 +234,7 @@ function M.acquire(rescan)
   snap.status = snap.available and "combat peripherals ready" or "no supported combat peripheral"
   snap.ok=#snap.errors==0
   cached = snap
+  radarNet.checkPerimeter(snap)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
@@ -270,6 +301,7 @@ end
 function M.solution(cannonId, targetId)
   local cannon, target = find(cached.cannons, cannonId), find(cached.targets, type(targetId)=="table" and targetId.id or targetId)
   if not cannon or not target then return nil, "select cannon and target" end
+  if target.remote then return nil,"remote Rednet contact: display/alerts only" end
   if target.friendly==true then return nil,"API marks target friendly; command blocked" end
   if target.synthetic==true then return nil,"API marks synthetic contact; command blocked" end
   if target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale" end

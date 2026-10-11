@@ -123,3 +123,18 @@ local _,syntheticBlocked=combat.solution("mount","player-uuid")
 assert(syntheticBlocked:find("synthetic",1,true),"synthetic API target can be commanded")
 assert(combat.stop())
 print("combat rotating heading, cache, freshness, confirmation and CBC pulse tests passed")
+local net=require("system.services.radarnetd")
+local original=net.snapshot
+net.snapshot=function() return {radars={{id="net:2:radar",name="Remote",position={x=0,y=0,z=0},range=1000,remote=true}},targets={
+  {id="remote-only",position={x=0,y=0,z=100},timestamp=now,freshnessKnown=true,remote=true,radarId="net:2:radar"},
+  {id="player-uuid",position={x=0,y=0,z=110},timestamp=now,freshnessKnown=true,remote=true,radarId="net:2:radar"}}} end
+combat.start({scheduler=scheduler}) combat.acquire(true)
+assert(#combat.snapshot().targets==2,"same ID duplicated across stations")
+local _,remoteBlocked=combat.solution("mount","remote-only")
+assert(remoteBlocked:find("remote",1,true),"remote station enabled weapon commands")
+now=now+6 combat.acquire(false)
+local freshRemote
+for _,target in ipairs(combat.snapshot().targets) do if target.id=="player-uuid" then freshRemote=target end end
+assert(freshRemote.remote and freshRemote.position.z==110 and not freshRemote.stale,"stale local target hid fresh remote observation")
+assert(not combat.solution("mount","player-uuid"),"remote replacement became commandable")
+assert(combat.stop()) net.snapshot=original

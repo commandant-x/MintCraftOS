@@ -2,9 +2,10 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.18.1 base:
+This repository currently contains the V0.18.2 base:
 
 Radar setup and the inspected Radar 5.0 EA read contract: [Radar setup](docs/RADAR_SETUP.md).
+Touch filters, remote radar stations and perimeter alerts: [Radar network](docs/RADAR_NETWORK.md).
 
 - bootloader, splash, recovery and panic handling
 - persistent logs
@@ -34,6 +35,9 @@ Radar setup and the inspected Radar 5.0 EA read contract: [Radar setup](docs/RAD
 - Navigation: measured horizon, altitude, heading, vertical speed, environment, hybrid output mapping and calibrated PID control
 - Native coroutine workers: flight telemetry/control at 10 Hz, radar at 5 Hz and slow Avionics diagnostics at 1 Hz
 - Combat: subpixel 2D/3D schematic scopes, measured/calibrated radar heading, bounded trails, persistent target IDs and local aliases
+- Shared category filters and second-tap deselection; immediate touch redraw with 5 Hz cached instruments
+- Optional Rednet station discovery/inclusion, aggregated contacts, multi-radar overview and explicitly enabled perimeter alerts
+- Remote contacts are display/alert only: unauthenticated Rednet never authorizes weapon control
 - CC:CBC 1.1.1 mount adapter: calibrated ballistic estimates, mechanical limits, asynchronous aiming/tracking and separately confirmed fire pulses
 - No simulated radar sweep, fabricated name, origin, angle or fallback target position; unknown coordinate frames block control
 - Navigation gains start at zero and arming requires output tests, direction/hover/manual/rescue confirmation and fresh selected sensors

@@ -100,9 +100,72 @@ local ok,err=pcall(function()
     assert(wizard5.candidate().frame=='world','EA plane world position would be double transformed')
     app.setup=setup.new(combat.snapshot(),'right',combat.configuration(),false,
       function(id,value) return combat.configure({pid=pid},'radars',id,value) end,combat.validateRadar)
+    app.setup=nil
+    device.getTracks=function()
+      count=count+1
+      return native({{id='target',name='Pilot',category='player',entityType='minecraft:player',position={x=100,y=75,z=40},scannedTime=count},
+        {id='vessel',category='sable',position={x=400,y=100,z=100},scannedTime=count},
+        {id='mob',category='mob',position={x=-300,y=75,z=-200},scannedTime=count}})
+    end
+    sleep(0.5)
+    local radarNet=require('system.services.radarnetd')
+    local netConfig=radarNet.configuration() netConfig.enabled=true netConfig.group='test-world' netConfig.trusted['2']=true
+    netConfig.x=0 netConfig.y=70 netConfig.z=0 netConfig.radius=400
+    assert(radarNet.configure({pid=pid},netConfig))
+    local remotePacket={version=1,group='test-world',session='outpost',sequence=1,label='North station',frame='world',
+      radars={{id='remote-radar',position={x=1000,y=70,z=-500},range=600,age=0,heading=45,fov=60}},
+      targets={{id='remote-player',renderName='Remote pilot',category='player',position={x=1100,y=90,z=-450},age=0,radarId='remote-radar'}}}
+    os.queueEvent('rednet_message',2,remotePacket,radarNet.protocol)
+    sleep(0.3)
+    assert(#app.snapshot.radars==2 and #app.snapshot.targets==4,'remote station did not aggregate')
+    local function draw(width,height)
+      local surface=window.create(parent,1,1,width,height,false)
+      local old=term.redirect(surface) local before=count
+      app:draw(width,height) assert(count==before,'draw performed acquisition')
+      term.redirect(old)
+      return surface
+    end
+    for _,page in ipairs({'radar','three','targets','network'}) do
+      app.page=page app.canvas=nil
+      for _,size in ipairs({{24,12},{49,15},{80,26},{118,36}}) do draw(size[1],size[2]) end
+    end
+    app.page='radar' app.view.network=true app.canvas=nil draw(118,36)
+    local players
+    for _,box in ipairs(app.filterBar) do if box.id=='players' then players=box end end
+    assert(players,'filter inaccessible')
+    app:handle({name='mouse_click',args={1,players.x,players.y}}) draw(118,36)
+    assert(app.filters.players and #app.graphHits==2,'player filter did not affect 2D')
+    local marker=app.graphHits[1]
+    app:handle({name='mouse_click',args={1,marker.x,marker.y+4}})
+    assert(app.targetId==marker.id,'marker hitbox offset')
+    draw(118,36)
+    app:handle({name='mouse_click',args={1,marker.x,marker.y+4}})
+    assert(app.targetId==nil,'second tap did not deselect')
+    app.page='three' app.canvas=nil draw(118,36) assert(#app.graphHits==2,'3D filters differ')
+    app:handle({name='mouse_click',args={1,players.x,players.y}}) draw(118,36)
+    assert(next(app.filters)==nil and #app.graphHits==4,'second category tap did not reset')
+    app.page='targets' draw(118,36)
+    local remoteRow
+    for _,box in ipairs(app.rowHits) do if box.id=='remote-player' then remoteRow=box end end
+    app:handle({name='mouse_click',args={1,remoteRow.x,remoteRow.y}})
+    assert(app.targetId=='remote-player')
+    app:handle({name='mouse_click',args={1,remoteRow.x,remoteRow.y}}) assert(app.targetId==nil)
+    app.page='network' draw(118,36)
+    local function clickAction(id)
+      for _,box in ipairs(app.bar) do if box.id==id then app:handle({name='mouse_click',args={1,box.x,box.y}}) return end end
+      error('missing action '..id)
+    end
+    clickAction('networkConfig') assert(app.page=='config')
+    app.networkConfig.radius=0 draw(118,36) clickAction('networkSave')
+    assert(app.page=='config','invalid zone dismissed configuration')
+    app.networkConfig.radius=400 app.networkConfig.alerts=true draw(118,36) clickAction('networkSave')
+    assert(app.page=='network' and app.configKind=='radar','saved network form trapped advanced config')
+    sleep(0.3) assert(app.snapshot.zone.alerts)
     process.window:toggleMaximize()
-    for step=1,4 do
-      app.setup.step=step
+    for _,page in ipairs({'radar','three','targets','network'}) do
+      remotePacket.sequence=remotePacket.sequence+1
+      os.queueEvent('rednet_message',2,remotePacket,radarNet.protocol)
+      app.page=page app.canvas=nil
       os.queueEvent('radar_setup_preview') sleep(0.25)
       assert(process.state=='ready',tostring(process.error))
       if term.screenshot then term.screenshot() sleep(1.05) end
@@ -110,5 +173,5 @@ local ok,err=pcall(function()
   end)
 end)
 local h=assert(fs.open('/radar-result.txt','w'))
-h.write(ok and 'PASS: bearing reads, manual fallback, wizard at four sizes, save/cancel, EA plane world-frame handling' or 'FAIL: '..tostring(err))
+h.write(ok and 'PASS: bearing, setup, four-size filters, 2D/3D selection, remote station aggregation, cached redraw' or 'FAIL: '..tostring(err))
 h.close() os.shutdown()
