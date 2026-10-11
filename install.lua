@@ -723,7 +723,8 @@ function M.run(ctx)
     local id=app.configKind=="radar" and app.radarId or app.cannonId
     if not id then return end
     if not cfg[section][id] then
-      cfg[section][id]=app.configKind=="radar" and {frame="unknown",headingFrame="world",headingSign=1,headingOffset=0,headingValidated=false} or {frame="unknown",headingFrame="world",yawSign=1,pitchSign=1,yawOffset=0,pitchOffset=0,validated=false}
+      local radar=find(app.snapshot.radars,id)
+      cfg[section][id]=app.configKind=="radar" and {frame=radar and radar.frame=="world" and "world" or "unknown",headingFrame="world",headingSign=1,headingOffset=0,headingValidated=false} or {frame="unknown",headingFrame="world",yawSign=1,pitchSign=1,yawOffset=0,pitchOffset=0,validated=false}
     end
     return cfg[section][id]
   end
@@ -746,7 +747,7 @@ function M.run(ctx)
     return rows
   end
   local function actions()
-    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="radarNext",label="Radar"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
+    if app.page=="radar" or app.page=="three" then return {{id="rescan",label="Rescan"},{id="radarNext",label="Radar"},{id="radarConfig",label="Setup"},{id="radarProbe",label="Read/Probe"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="left",label="Rotate-"},{id="right",label="Rotate+"},{id="up",label="Tilt+"},{id="down",label="Tilt-"}}
     elseif app.page=="targets" then return {{id="alias",label="Alias"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="cannons" then return {{id="rescan",label="Rescan"},{id="ack",label="Verify/acknowledge"},{id="previous",label="Up"},{id="next",label="Down"}}
     elseif app.page=="fire" then return {{id="solve",label="Solve"},{id="aim",label="Aim once"},{id="track",label=app.tracking and "Stop track" or "Track"},{id="fire",label="Fire"}}
@@ -771,6 +772,23 @@ function M.run(ctx)
       renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..tostring(self.radarId or "No radar"),w),colors.cyan)
       if snap.ok==false and snap.errors and snap.errors[1] then renderer.writeAt(1,3,renderer.crop("Read error: "..snap.errors[1],w),colors.orange) end
       self.canvas:draw(1,4)
+      local radar=find(snap.radars,self.radarId)
+      if radar and (not radar.position or not radar.range or radar.range<=0) then
+        local p=radar.rawPosition
+        local rows={"Radar: "..radar.name,radar.readStatus or "Waiting for readings",
+          "Contacts returned: "..tostring(radar.rawTrackCount or "unavailable"),
+          "Raw position: "..(p and (fmt(p.x)..", "..fmt(p.y)..", "..fmt(p.z)) or "unavailable"),
+          "Range: "..fmt(radar.range).."m | rotation: "..fmt(radar.rawRotation),
+          "Dishes: "..tostring(radar.dishCount or "unavailable"),
+          "Setup: verify world/body frame", "Read/Probe: export readings/errors"}
+        for i=1,math.min(#rows,graphH) do renderer.writeAt(1,3+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
+      elseif radar then
+        renderer.writeAt(1,3,renderer.crop((self.graphStatus or "").." | "..radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation),w),colors.cyan)
+        if snap.ok==false and snap.errors and snap.errors[1] then renderer.writeAt(1,3,renderer.crop("Read error: "..snap.errors[1],w),colors.orange) end
+      else
+        local unknown=(snap.unknownCombatDevices or {})[1]
+        renderer.writeAt(1,4,renderer.crop(unknown and ("Unsupported: "..unknown.name.."; inspect Probe") or "No radar acquired; Rescan / Probe",graphW),colors.orange,colors.black)
+      end
       local occupied={}
       for _,label in ipairs(self.labels or {}) do
         if label.x<graphW-4 and label.y>=1 and label.y<=graphH and not occupied[label.y] then
@@ -845,6 +863,10 @@ function M.run(ctx)
     for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
     local id=ui.toolbarHit(self.bar,x,y)
     if id=="rescan" then combat.rescan() return true
+    elseif id=="radarConfig" then self.configKind="radar" self.page="config" self.form.scroll=1 self.barState.first=1 return true
+    elseif id=="radarProbe" then
+      self.deviceId=self.radarId self.page="probe" self.scroll=1 self.barState.first=1
+      if self.deviceId then report(combat.requestProbe(actor,self.deviceId)) end return true
     elseif id=="zoomIn" or id=="zoomOut" then self.view.zoom=math.max(0.25,math.min(16,self.view.zoom*(id=="zoomIn" and 1.5 or 1/1.5))) return true
     elseif id=="left" or id=="right" then self.view.yaw=(self.view.yaw+(id=="right" and 15 or -15))%360 return true
     elseif id=="up" or id=="down" then self.view.pitch=math.max(-80,math.min(80,self.view.pitch+(id=="up" and 10 or -10))) return true
@@ -7499,11 +7521,17 @@ end
 
 local function role(row)
   if addon.hasType(row, "cannon_mount") and row.set.getInfo and row.set.setTargetAngles then return "cannon" end
-  if row.set.getTracks and row.set.getPosition and row.set.getRange then return "radar" end
+  if row.set.getTracks then return "radar" end
   for _, value in ipairs(row.types) do
     if value == "create_radar:yaw_controller" or value == "create_radar:pitch_controller" or value == "create_radar:fire_controller" then return "controller" end
   end
   return "unknown"
+end
+
+local function knownRadar(row)
+  return addon.hasType(row, "create_radar:radar")
+    or addon.hasType(row, "create_radar:radar_bearing")
+    or addon.hasType(row, "create_radar:plane_radar")
 end
 
 local function find(rows, id)
@@ -7545,13 +7573,32 @@ function M.acquire(rescan)
       for method, err in pairs(errors) do snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. ": " .. err end
       if item.role == "radar" then
         local cal = settings.radars[item.name] or {}
-        local pos, frame = origin(values.getPosition, cal)
+        local effectiveCal = cal
+        -- The documented API returns block coordinates. They are world coordinates
+        -- on fixed terrain, not necessarily on a moving sublevel/shipyard.
+        if cal.frame == nil and knownRadar(item) and not sable.status().inSublevel then
+          effectiveCal = addon.copy(cal)
+          effectiveCal.frame = "world"
+        end
+        local pos, frame = origin(values.getPosition, effectiveCal)
         local radar = {id = item.name, name = item.name, position = pos, frame = frame, rawPosition = addon.vec(values.getPosition),
           range = addon.finite(values.getRange) and values.getRange or nil, heading = nil,
           rawRotation = addon.finite(values.getRotation) and values.getRotation or nil,
           fov = addon.finite(cal.fov) and cal.fov or nil, fovSource = cal.fov and "calibrated" or "unknown",
           verticalFov=addon.finite(cal.verticalFov) and cal.verticalFov or nil,
-          rotationSpeed = values.getRotationSpeed, timestamp = now}
+          rotationSpeed = values.getRotationSpeed, dishCount = values.getDishCount,
+          rawTrackCount = type(values.getTracks)=="table" and #values.getTracks or nil,
+          readErrors = addon.copy(errors), timestamp = now}
+        for _, method in ipairs({"getTracks", "getPosition", "getRange"}) do
+          if not item.set[method] then
+            radar.readErrors[method] = "method unavailable"
+            snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. " unavailable"
+          end
+        end
+        radar.readStatus = next(radar.readErrors) and "read failed/incomplete" or
+          not radar.position and "position frame required" or
+          (not radar.range or radar.range<=0) and "range unavailable" or
+          radar.rawTrackCount==0 and "reading OK; no contacts returned" or "reading OK"
         if cal.headingValidated and radar.rawRotation then
           radar.heading = (radar.rawRotation * (cal.headingSign or 1) + (cal.headingOffset or 0)) % 360
           if cal.headingFrame == "body" then

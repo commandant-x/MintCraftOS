@@ -33,11 +33,17 @@ end
 
 local function role(row)
   if addon.hasType(row, "cannon_mount") and row.set.getInfo and row.set.setTargetAngles then return "cannon" end
-  if row.set.getTracks and row.set.getPosition and row.set.getRange then return "radar" end
+  if row.set.getTracks then return "radar" end
   for _, value in ipairs(row.types) do
     if value == "create_radar:yaw_controller" or value == "create_radar:pitch_controller" or value == "create_radar:fire_controller" then return "controller" end
   end
   return "unknown"
+end
+
+local function knownRadar(row)
+  return addon.hasType(row, "create_radar:radar")
+    or addon.hasType(row, "create_radar:radar_bearing")
+    or addon.hasType(row, "create_radar:plane_radar")
 end
 
 local function find(rows, id)
@@ -79,13 +85,32 @@ function M.acquire(rescan)
       for method, err in pairs(errors) do snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. ": " .. err end
       if item.role == "radar" then
         local cal = settings.radars[item.name] or {}
-        local pos, frame = origin(values.getPosition, cal)
+        local effectiveCal = cal
+        -- The documented API returns block coordinates. They are world coordinates
+        -- on fixed terrain, not necessarily on a moving sublevel/shipyard.
+        if cal.frame == nil and knownRadar(item) and not sable.status().inSublevel then
+          effectiveCal = addon.copy(cal)
+          effectiveCal.frame = "world"
+        end
+        local pos, frame = origin(values.getPosition, effectiveCal)
         local radar = {id = item.name, name = item.name, position = pos, frame = frame, rawPosition = addon.vec(values.getPosition),
           range = addon.finite(values.getRange) and values.getRange or nil, heading = nil,
           rawRotation = addon.finite(values.getRotation) and values.getRotation or nil,
           fov = addon.finite(cal.fov) and cal.fov or nil, fovSource = cal.fov and "calibrated" or "unknown",
           verticalFov=addon.finite(cal.verticalFov) and cal.verticalFov or nil,
-          rotationSpeed = values.getRotationSpeed, timestamp = now}
+          rotationSpeed = values.getRotationSpeed, dishCount = values.getDishCount,
+          rawTrackCount = type(values.getTracks)=="table" and #values.getTracks or nil,
+          readErrors = addon.copy(errors), timestamp = now}
+        for _, method in ipairs({"getTracks", "getPosition", "getRange"}) do
+          if not item.set[method] then
+            radar.readErrors[method] = "method unavailable"
+            snap.errors[#snap.errors + 1] = item.name .. ": " .. method .. " unavailable"
+          end
+        end
+        radar.readStatus = next(radar.readErrors) and "read failed/incomplete" or
+          not radar.position and "position frame required" or
+          (not radar.range or radar.range<=0) and "range unavailable" or
+          radar.rawTrackCount==0 and "reading OK; no contacts returned" or "reading OK"
         if cal.headingValidated and radar.rawRotation then
           radar.heading = (radar.rawRotation * (cal.headingSign or 1) + (cal.headingOffset or 0)) % 360
           if cal.headingFrame == "body" then

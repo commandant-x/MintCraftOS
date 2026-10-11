@@ -64,4 +64,29 @@ scanTime=21 combat.acquire(false) assert(not combat.snapshot().targets[1].stale)
 assert(combat.configure(actor,"aliases","player-uuid","Local alias")) combat.acquire(false)
 assert(combat.snapshot().targets[1].label=="Local alias" and combat.snapshot().targets[1].labelSource=="alias")
 assert(combat.stop())
+settings.radars={}
+devices.right=devices.radar
+devices.right.getDishCount=function() return 4 end
+peripheral.getNames=function() return {"right"} end
+peripheral.getType=function() return "create_radar:radar_bearing" end
+combat.start({scheduler=scheduler}) combat.acquire(true)
+local bearing=combat.snapshot().radars[1]
+assert(bearing.position and bearing.frame=="world", "fresh fixed bearing hidden until manual config")
+assert(bearing.rawTrackCount==1 and bearing.dishCount==4 and bearing.rawRotation==30)
+settings.radars.right={frame="unknown"}
+combat.start({scheduler=scheduler}) combat.acquire(true)
+bearing=combat.snapshot().radars[1]
+assert(not bearing.position and bearing.rawPosition and bearing.readStatus=="position frame required", "explicit unknown frame overridden")
+settings.radars={}
+package.loaded["system.services.sabled"].status=function() return {inSublevel=true} end
+combat.start({scheduler=scheduler}) combat.acquire(true)
+assert(not combat.snapshot().radars[1].position, "moving sublevel treated as fixed terrain")
+devices.right.getPosition=nil
+combat.acquire(true)
+bearing=combat.snapshot().radars[1]
+assert(bearing.rawTrackCount==1 and bearing.readErrors.getPosition=="method unavailable", "partial radar silently discarded")
+devices.right.getTracks=function() error("radar read failed") end
+combat.acquire(false)
+assert(combat.snapshot().ok==false and combat.snapshot().radars[1].readErrors.getTracks)
+assert(combat.stop())
 print("combat rotating heading, cache, freshness, confirmation and CBC pulse tests passed")
