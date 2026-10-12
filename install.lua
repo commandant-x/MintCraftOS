@@ -4,7 +4,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -682,7 +682,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1049,7 +1049,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1413,7 +1413,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1499,7 +1499,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1725,7 +1725,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2083,7 +2083,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2162,7 +2162,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2281,7 +2281,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2502,7 +2502,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2583,7 +2583,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2599,11 +2599,13 @@ local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
+local profile = require("system.libraries.profile")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { page = "system", scroll = 1, mode = nil, input = "", keyboard = {} }
+  local app = { page = ctx.args and ctx.args.page=="apps" and "apps" or "system", scroll = 1, mode = nil, input = "", keyboard = {}, appMessage="" }
+  if app.page=="apps" then app.tabState={first=8} end
 
   local pages = {
     { id = "system", label = "System" },
@@ -2790,14 +2792,23 @@ function M.run(ctx)
         renderer.writeAt(1, 14 + i, renderer.crop((item.active and "* " or "  ") .. item.name .. "  " .. item.role .. "  " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
       end
     elseif self.page == "apps" then
-      local rows = ctx.apps.list()
-      renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)
-      for i = 1, math.min(#rows, h - 4) do
+      local rows = ctx.apps.list(true,true)
+      self.appBarState=self.appBarState or {}
+      self.appBar=ui.toolbar(1,2,w,{{id="full",label="Full"},{id="pocket",label="Pocket"},{id="auto",label="Auto"}},self.appBarState)
+      renderer.writeAt(1,3,renderer.crop("Profile: "..profile.mode(),w),colors.black,colors.gray)
+      self.appRows={}
+      local height=math.max(1,h-5)
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-height+1)))
+      for i = 1, math.min(#rows, height) do
         local item = rows[self.scroll + i - 1]
         if item then
-          renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category .. "   " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
+          local essential=profile.isCore(item.id)
+          renderer.writeAt(1,i+3,renderer.crop((profile.appEnabled(item.id) and "[x] " or "[ ] ")..item.name..(essential and " *" or ""),w),essential and colors.gray or colors.black,colors.lightGray)
+          self.appRows[#self.appRows+1]={id=item.id,x=1,y=i+3,w=w,h=1}
         end
       end
+      self.appPager=ui.toolbar(1,h-1,8,{{id="up",label="^"},{id="down",label="v"}})
+      renderer.writeAt(9,h-1,renderer.crop(self.appMessage,math.max(1,w-8)),colors.gray,colors.lightGray)
     elseif self.page == "packages" then
       local rows = ctx.system.packages.installed()
       renderer.writeAt(1, 3, renderer.crop("PACKAGE          VERSION", w), colors.black, colors.gray)
@@ -2867,6 +2878,28 @@ function M.run(ctx)
     end
     if event.name ~= "mouse_click" then return false end
     local _, x, y = table.unpack(event.args)
+    if self.page=="apps" and y~=1 then
+      local action=ui.toolbarHit(self.appBar,x,y) or ui.toolbarHit(self.appPager,x,y)
+      for _,box in ipairs(self.appBar or {}) do if box.delta and ui.hit(box,x,y) then self.appBarState.first=math.max(1,(self.appBarState.first or 1)+box.delta) return true end end
+      if action=="up" or action=="down" then self.scroll=math.max(1,self.scroll+(action=="down" and 1 or -1)) return true end
+      local value=profile.configuration()
+      local changed=false
+      if action=="full" or action=="pocket" or action=="auto" then
+        value.mode=action=="full" and "desktop" or action value.apps={} changed=true
+      else
+        for _,box in ipairs(self.appRows or {}) do if ui.hit(box,x,y) then
+          if profile.isCore(box.id) then self.appMessage="Essential app" return true end
+          value.apps[box.id]=not profile.appEnabled(box.id) changed=true break
+        end end
+      end
+      if changed then
+        local allowed,reason=ctx.security.require("system.config","app selection")
+        if not allowed then self.appMessage=tostring(reason) return true end
+        local ok,message=profile.configure(value)
+        self.appMessage=ok and "Saved" or tostring(message)
+        return true
+      end
+    end
     if y == 1 then
       for _, page in ipairs(self.tabBoxes or {}) do
         if ui.hit(page, x, y) then
@@ -2976,7 +3009,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3091,7 +3124,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3219,7 +3252,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.3",
+  version = "0.18.4",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3652,7 +3685,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.3",
+  version = "0.18.4",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4125,7 +4158,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.3",
+    version = "0.18.4",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4428,7 +4461,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.3",
+  version = "0.18.4",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -4982,6 +5015,7 @@ local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local keyboard = require("system.gui.keyboard")
 local iconRenderer = require("system.gui.icon")
+local ui = require("system.gui.components")
 
 local M = {
   apps = nil,
@@ -5003,43 +5037,38 @@ function M.setNotifications(notifications) M.notifications = notifications end
 
 local function drawIcons()
   local w, h = term.getSize()
-  local labels = {
-    { app = "terminal" },
-    { app = "navigation" },
-    { app = "combat" },
-    { app = "browser" },
-    { app = "messenger" },
-    { app = "files" },
-    { app = "settings" },
-    { app = "devices" },
-    { app = "taskmanager" },
-    { app = "update" },
-  }
+  local labels=M.apps and M.apps.list() or {}
+  local compact=w<40 or h<18
+  local iconW,iconH=compact and 4 or 7,compact and 3 or 6
+  local cellH=iconH+2
+  local columns=math.max(1,math.floor((w-2)/12))
+  local rows=math.max(1,math.floor((h-3)/cellH))
+  local cellW=math.max(1,math.floor((w-2)/columns))
+  local capacity=columns*rows
+  M.pageCount=math.max(1,math.ceil(#labels/capacity))
+  M.page=math.max(1,math.min(M.page or 1,M.pageCount))
   local icons = {}
-  local x, y = 2, 2
-  local columns = math.max(1, math.floor((w - 2) / 12))
-  local cellW, cellH = math.max(1, math.floor((w - 2) / columns)), 8
-  for _, item in ipairs(labels) do
-    local meta = M.apps and M.apps.get(item.app) or nil
-    table.insert(icons, {
-      x = x,
-      y = y,
-      label = meta and meta.name or item.app,
-      icon = meta and meta.icon or "[]",
-      iconPath = meta and meta.iconPath,
-      app = item.app,
-    })
-    y = y + cellH
-    if y > h - 8 then
-      y = 2
-      x = x + cellW
+  for index=(M.page-1)*capacity+1,math.min(#labels,M.page*capacity) do
+    local item=labels[index] local offset=index-(M.page-1)*capacity-1
+    local x=2+math.floor(offset/rows)*cellW local y=2+(offset%rows)*cellH
+    if x+iconW-1<=w and y+iconH<h-1 then
+      icons[#icons+1]={x=x,y=y,w=cellW-1,h=cellH-1,label=item.name,icon=item.icon,iconPath=item.iconPath,app=item.id}
     end
   end
 
   M.icons = icons
   for _, icon in ipairs(icons) do
-    iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"))
-    renderer.writeAt(icon.x, icon.y + 6, renderer.crop(icon.label, math.min(12, w - icon.x + 1)), colors.white, theme.get("desktopBg"))
+    iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"),iconW,iconH)
+    renderer.writeAt(icon.x, icon.y + iconH, renderer.crop(icon.label, math.min(icon.w, w - icon.x + 1)), colors.white, theme.get("desktopBg"))
+  end
+  M.pageHits={}
+  if w>=18 and h>=8 then
+    if M.pageCount>1 then
+      M.pageHits.previous=ui.button(1,h-1,3,"<",false)
+      renderer.writeAt(5,h-1,tostring(M.page).."/"..M.pageCount,colors.white,theme.get("desktopBg"))
+      M.pageHits.next=ui.button(11,h-1,3,">",false)
+    end
+    M.pageHits.apps=ui.button(w-6,h-1,7,"Apps",false)
   end
 end
 
@@ -5112,11 +5141,18 @@ local function drawMenu()
   renderer.fill(1, h - height, menuW, height, colors.lightGray)
   renderer.writeAt(2, h - height, renderer.crop("MintCraft OS", menuW - 2), colors.black, colors.lightGray)
   renderer.writeAt(2, h - height + 1, renderer.crop("Search: " .. M.search, menuW - 2), colors.gray, colors.lightGray)
-  for i, app in ipairs(appList) do
-    if i <= height - 2 then
-      renderer.writeAt(2, h - height + i + 1, renderer.crop(app.icon .. " " .. app.name .. " [" .. app.category .. "]", menuW - 2), colors.black, colors.lightGray)
+  local capacity=math.max(1,height-3)
+  M.menuScroll=math.max(1,math.min(M.menuScroll or 1,math.max(1,#appList-capacity+1)))
+  M.menuRows={} M.menuPager={}
+  for i=1,capacity do
+    local app=appList[M.menuScroll+i-1]
+    if app then
+      local y=h-height+i+1
+      renderer.writeAt(2,y,renderer.crop(app.name,menuW-2),colors.black,colors.lightGray)
+      M.menuRows[#M.menuRows+1]={app=app.id,x=1,y=y,w=menuW,h=1}
     end
   end
+  if #appList>capacity then M.menuPager=ui.toolbar(1,h-1,menuW,{{id="up",label="^"},{id="down",label="v"}}) end
 end
 
 function M.draw()
@@ -5133,13 +5169,14 @@ function M.drawOverlays()
 end
 
 function M.captures(event)
+  if event.name=="mouse_scroll" and M.menuOpen then return true end
   if M.searchFocused and (event.name == "char" or event.name == "key" or event.name == "paste") then return true end
   return event.name == "mouse_click" and (M.menuOpen or M.contextMenu ~= nil or M.searchFocused)
 end
 
-local function launch(appId)
+local function launch(appId,args)
   if not M.apps then return end
-  local ok, result = M.apps.launch(appId)
+  local ok, result = M.apps.launch(appId,args)
   if not ok and M.notifications then
     M.notifications:push("error", "Launch failed", result, 5)
   end
@@ -5221,6 +5258,11 @@ end
 M.keyboard.onTab = M.keyboard.onEnter
 
 function M.handle(event)
+  if event.name=="mouse_scroll" then
+    if M.menuOpen then M.menuScroll=math.max(1,(M.menuScroll or 1)+event.args[1])
+    else M.page=math.max(1,math.min(M.pageCount or 1,(M.page or 1)+event.args[1])) end
+    return true
+  end
   if event.name == "paste" and M.searchFocused then
     M.search = M.search .. event.args[1]
     M.menuOpen = true
@@ -5288,26 +5330,11 @@ function M.handle(event)
   end
 
   if M.menuOpen then
-    local appList = M.apps and M.apps.list() or {}
-    if M.search ~= "" then
-      local filtered = {}
-      local query = M.search:lower()
-      for _, app in ipairs(appList) do
-        if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
-          table.insert(filtered, app)
-        end
-      end
-      appList = filtered
-    end
-    local menuBottom = M.searchFocused and math.max(3, h - keyboard.height()) or h
-    local menuTop = menuBottom - math.min(#appList + 3, menuBottom - 2)
-    local index = y - menuTop - 1
-    if x <= math.min(32, w) and y < menuBottom and index >= 1 and appList[index] then
-      M.menuOpen = false
-      M.searchFocused = false
-      launch(appList[index].id)
-      return true
-    end
+    local action=ui.toolbarHit(M.menuPager,x,y)
+    if action then M.menuScroll=math.max(1,(M.menuScroll or 1)+(action=="down" and 1 or -1)) return true end
+    for _,box in ipairs(M.menuRows or {}) do if ui.hit(box,x,y) then
+      M.menuOpen=false M.searchFocused=false launch(box.app) return true
+    end end
     M.menuOpen = false
     M.searchFocused = false
     return true
@@ -5329,8 +5356,12 @@ function M.handle(event)
   end
 
   if button == 1 then
+    local pager=M.pageHits or {}
+    if ui.hit(pager.apps,x,y) then launch("settings",{page="apps"}) return true end
+    if ui.hit(pager.previous,x,y) then M.page=math.max(1,M.page-1) return true end
+    if ui.hit(pager.next,x,y) then M.page=math.min(M.pageCount,M.page+1) return true end
     for _, icon in ipairs(M.icons or {}) do
-      if x >= icon.x and x <= icon.x + 12 and y >= icon.y and y <= icon.y + 6 then
+      if ui.hit(icon,x,y) then
         launch(icon.app)
         return true
       end
@@ -5435,7 +5466,7 @@ local function fallback(x, y, label, bg)
   renderer.writeAt(x, y, "[" .. renderer.crop(label or "?", 2) .. "]", colors.white, bg or colors.black)
 end
 
-function M.draw(path, x, y, fallbackLabel, bg)
+function M.draw(path, x, y, fallbackLabel, bg, columns, rows)
   bg = bg or colors.black
   if path and paintutils and paintutils.loadImage and cache[path] == nil then
     local finePath = path:gsub("%.nfp$", ".spx")
@@ -5445,23 +5476,33 @@ function M.draw(path, x, y, fallbackLabel, bg)
   end
   local asset = path and cache[path]
   if asset then
-    local canvas = asset.variants[bg]
+    local key=tostring(bg)..":"..tostring(columns)..":"..tostring(rows)
+    local canvas = asset.variants[key]
     if not canvas then
       local image, width = asset.image, 0
       for _, row in ipairs(image) do width = math.max(width, #row) end
       if width == 0 or #image == 0 then fallback(x, y, fallbackLabel, bg) return false end
       local subpixel = require("system.gui.subpixel")
-      canvas = subpixel.new(asset.fine and math.ceil(width / 2) or width,
-        asset.fine and math.ceil(#image / 3) or #image, bg)
-      for py, row in ipairs(image) do
-        for px, color in ipairs(row) do
-          if color ~= 0 then
-            if asset.fine then canvas:pixel(px, py, color)
-            else canvas:rect(px * 2 - 1, py * 3 - 2, 2, 3, color) end
-          end
+      local nativeW,nativeH=asset.fine and math.ceil(width/2) or width,asset.fine and math.ceil(#image/3) or #image
+      canvas=subpixel.new(columns or nativeW,rows or nativeH,bg)
+      for py=1,canvas.height do for px=1,canvas.width do
+        local left=math.min(width,math.floor((px-1)*width/canvas.width)+1)
+        local top=math.min(#image,math.floor((py-1)*#image/canvas.height)+1)
+        local right=math.min(width,math.max(left,math.floor(px*width/canvas.width)))
+        local bottom=math.min(#image,math.max(top,math.floor(py*#image/canvas.height)))
+        local counts={} local color,score=0,-1
+        for sy=top,bottom do for sx=left,right do
+          local value=(image[sy] or {})[sx] or 0
+          counts[value]=(counts[value] or 0)+1
+        end end
+        -- Preserve thin white glyphs when reducing the original bitmap.
+        for value,count in pairs(counts) do
+          local weight=count*(value==colors.white and 3 or 1)
+          if weight>score or weight==score and value==colors.white then color,score=value,weight end
         end
-      end
-      asset.variants[bg] = canvas
+        if color and color~=0 then canvas:pixel(px,py,color) end
+      end end
+      asset.variants[key] = canvas
     end
     canvas:draw(x, y)
     return true
@@ -5730,7 +5771,7 @@ return M
 local M = {}
 
 function M.layout(width)
-  local searchWidth = width >= 70 and 16 or 8
+  local searchWidth = width >= 70 and 16 or width < 40 and 2 or 8
   local first = 10 + searchWidth + 1
   return {searchX = 10, searchWidth = searchWidth, first = first, last = width - 7}
 end
@@ -5878,21 +5919,21 @@ local compositor = require("system.gui.compositor")
 local M = {}
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.3", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.3", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.3", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.3", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.3", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.3", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.3", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.3", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.3", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.3", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.3", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.3", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.3", permissions = { "devices.list", "peripheral.probe" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.3", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.3", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.4", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.4", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.4", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.4", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.4", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.4", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.4", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.4", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.4", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.4", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.4", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.4", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.4", permissions = { "devices.list", "peripheral.probe" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.4", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.4", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -6308,7 +6349,6 @@ function M.setContext(ctx)
 end
 
 function M.register(id, name, module, meta)
-  if not profile.appEnabled(id) then return end
   meta = meta or {}
   M.registry[id] = {
     id = id,
@@ -6317,7 +6357,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.3",
+    version = meta.version or "0.18.4",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -6327,20 +6367,26 @@ function M.get(id)
   return M.registry[id]
 end
 
-function M.list(includeHidden)
+function M.list(includeHidden,includeDisabled)
   local rows = {}
   for _, app in pairs(M.registry) do
-    if includeHidden or not app.hidden then table.insert(rows, app) end
+    if (includeHidden or not app.hidden) and (includeDisabled or profile.appEnabled(app.id)) then table.insert(rows, app) end
   end
   table.sort(rows, function(a, b) return a.name < b.name end)
   return rows
 end
 
 function M.launch(id, args)
-  if not profile.appEnabled(id) then return false, "Integration deferred: " .. tostring(id) end
+  if not profile.appEnabled(id) then return false, "App disabled; enable it in Settings / Apps: " .. tostring(id) end
   local app = M.registry[id]
   if not app then return false, "Unknown app: " .. tostring(id) end
   if not M.ctx then return false, "App context not ready" end
+  if M.ctx.services and profile.dependencies then
+    for _,service in ipairs(profile.dependencies(id)) do
+      local ok,err=M.ctx.services:start(service)
+      if not ok then return false,"Service "..service..": "..tostring(err) end
+    end
+  end
 
   local ok, mod = pcall(require, app.module)
   if ok and (type(mod) ~= "table" or type(mod.run) ~= "function") then
@@ -6613,20 +6659,52 @@ end
 return M
 ]=],
   ["system/libraries/profile.lua"] = [=[
--- Integrations are staged after the CC:Tweaked foundation is validated.
-local M = { name = "MintCraftOS addons" }
-
-local deferredApps = {}
-local deferredServices = {}
-
+local M={name="MintCraftOS apps"}
+local settings
+local core={settings=true,editor=true}
+local mobile={settings=true,terminal=true,files=true,editor=true,update=true,messenger=true,devices=true}
+local function load()
+  if settings then return end
+  local ok,value=pcall(function() return require("system.libraries.config").load("/system/config/profile.cfg",{}) end)
+  settings=ok and type(value)=="table" and value or {}
+  if settings.mode~="desktop" and settings.mode~="pocket" then settings.mode="auto" end
+  settings.apps=type(settings.apps)=="table" and settings.apps or {}
+end
+function M.mode()
+  load() if settings.mode=="auto" then return pocket and "pocket" or "desktop" end return settings.mode
+end
 function M.appEnabled(id)
-  return not deferredApps[id]
+  load() if core[id] then return true end
+  if type(settings.apps[id])=="boolean" then return settings.apps[id] end
+  return M.mode()=="desktop" or mobile[id]==true
 end
-
+function M.isCore(id) return core[id]==true end
+function M.configuration() load() return require("system.libraries.addon").copy(settings) end
+function M.configure(value)
+  if type(value)~="table" or (value.mode~="auto" and value.mode~="desktop" and value.mode~="pocket") or type(value.apps)~="table" then return false,"Invalid app profile" end
+  for id,enabled in pairs(value.apps) do
+    if type(id)~="string" or type(enabled)~="boolean" then return false,"Invalid app choice" end
+    if core[id] and not enabled then return false,"Essential app: "..id end
+  end
+  local ok,err=require("system.libraries.safe_write").write("/system/config/profile.cfg",textutils.serialize(value))
+  if ok then settings=require("system.libraries.addon").copy(value) end
+  return ok,err
+end
 function M.serviceEnabled(id)
-  return not deferredServices[id]
+  if id=="sabled" or id=="avionicsd" then return M.appEnabled("navigation") or M.appEnabled("combat") end
+  if id=="flightd" then return M.appEnabled("navigation") end
+  if id=="combatd" or id=="radarnetd" then return M.appEnabled("combat") end
+  if id=="messaged" then return M.appEnabled("messenger") end
+  if id=="updated" then return M.appEnabled("update") end
+  return true
 end
-
+function M.dependencies(id)
+  if id=="navigation" then return {"sabled","avionicsd","flightd"} end
+  if id=="combat" then return {"sabled","avionicsd","combatd","radarnetd"} end
+  if id=="messenger" then return {"messaged"} end
+  if id=="update" then return {"updated"} end
+  return {}
+end
 return M
 ]=],
   ["system/libraries/safe_write.lua"] = [=[
@@ -9750,7 +9828,6 @@ function ServiceManager.new(ctx)
 end
 
 function ServiceManager:register(name, moduleName, autostart)
-  if not profile.serviceEnabled(name) then return end
   if not self.services[name] then table.insert(self.order, name) end
   self.services[name] = {
     name = name,
@@ -9764,6 +9841,7 @@ function ServiceManager:start(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
   if service.state == "running" then return true end
+  if not profile.serviceEnabled(name) then return false,"Disabled by app profile" end
 
   local ok, mod = pcall(require, service.moduleName)
   if not ok then
@@ -9813,7 +9891,7 @@ end
 function ServiceManager:startAutostart()
   for _, name in ipairs(self.order) do
     local service = self.services[name]
-    if service.autostart then self:start(name) end
+    if service.autostart and profile.serviceEnabled(name) then self:start(name) end
   end
 end
 
@@ -10751,7 +10829,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.3
+0.18.4
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

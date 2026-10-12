@@ -8,11 +8,13 @@ local securityd = require("system.services.securityd")
 local audiod = require("system.services.audiod")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
+local profile = require("system.libraries.profile")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { page = "system", scroll = 1, mode = nil, input = "", keyboard = {} }
+  local app = { page = ctx.args and ctx.args.page=="apps" and "apps" or "system", scroll = 1, mode = nil, input = "", keyboard = {}, appMessage="" }
+  if app.page=="apps" then app.tabState={first=8} end
 
   local pages = {
     { id = "system", label = "System" },
@@ -199,14 +201,23 @@ function M.run(ctx)
         renderer.writeAt(1, 14 + i, renderer.crop((item.active and "* " or "  ") .. item.name .. "  " .. item.role .. "  " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
       end
     elseif self.page == "apps" then
-      local rows = ctx.apps.list()
-      renderer.writeAt(1, 3, renderer.crop("APP              VERSION   CATEGORY   PERMISSIONS", w), colors.black, colors.gray)
-      for i = 1, math.min(#rows, h - 4) do
+      local rows = ctx.apps.list(true,true)
+      self.appBarState=self.appBarState or {}
+      self.appBar=ui.toolbar(1,2,w,{{id="full",label="Full"},{id="pocket",label="Pocket"},{id="auto",label="Auto"}},self.appBarState)
+      renderer.writeAt(1,3,renderer.crop("Profile: "..profile.mode(),w),colors.black,colors.gray)
+      self.appRows={}
+      local height=math.max(1,h-5)
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-height+1)))
+      for i = 1, math.min(#rows, height) do
         local item = rows[self.scroll + i - 1]
         if item then
-          renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. tostring(item.version) .. "   " .. item.category .. "   " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
+          local essential=profile.isCore(item.id)
+          renderer.writeAt(1,i+3,renderer.crop((profile.appEnabled(item.id) and "[x] " or "[ ] ")..item.name..(essential and " *" or ""),w),essential and colors.gray or colors.black,colors.lightGray)
+          self.appRows[#self.appRows+1]={id=item.id,x=1,y=i+3,w=w,h=1}
         end
       end
+      self.appPager=ui.toolbar(1,h-1,8,{{id="up",label="^"},{id="down",label="v"}})
+      renderer.writeAt(9,h-1,renderer.crop(self.appMessage,math.max(1,w-8)),colors.gray,colors.lightGray)
     elseif self.page == "packages" then
       local rows = ctx.system.packages.installed()
       renderer.writeAt(1, 3, renderer.crop("PACKAGE          VERSION", w), colors.black, colors.gray)
@@ -276,6 +287,28 @@ function M.run(ctx)
     end
     if event.name ~= "mouse_click" then return false end
     local _, x, y = table.unpack(event.args)
+    if self.page=="apps" and y~=1 then
+      local action=ui.toolbarHit(self.appBar,x,y) or ui.toolbarHit(self.appPager,x,y)
+      for _,box in ipairs(self.appBar or {}) do if box.delta and ui.hit(box,x,y) then self.appBarState.first=math.max(1,(self.appBarState.first or 1)+box.delta) return true end end
+      if action=="up" or action=="down" then self.scroll=math.max(1,self.scroll+(action=="down" and 1 or -1)) return true end
+      local value=profile.configuration()
+      local changed=false
+      if action=="full" or action=="pocket" or action=="auto" then
+        value.mode=action=="full" and "desktop" or action value.apps={} changed=true
+      else
+        for _,box in ipairs(self.appRows or {}) do if ui.hit(box,x,y) then
+          if profile.isCore(box.id) then self.appMessage="Essential app" return true end
+          value.apps[box.id]=not profile.appEnabled(box.id) changed=true break
+        end end
+      end
+      if changed then
+        local allowed,reason=ctx.security.require("system.config","app selection")
+        if not allowed then self.appMessage=tostring(reason) return true end
+        local ok,message=profile.configure(value)
+        self.appMessage=ok and "Saved" or tostring(message)
+        return true
+      end
+    end
     if y == 1 then
       for _, page in ipairs(self.tabBoxes or {}) do
         if ui.hit(page, x, y) then

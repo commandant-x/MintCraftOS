@@ -9,7 +9,6 @@ function ServiceManager.new(ctx)
 end
 
 function ServiceManager:register(name, moduleName, autostart)
-  if not profile.serviceEnabled(name) then return end
   if not self.services[name] then table.insert(self.order, name) end
   self.services[name] = {
     name = name,
@@ -23,6 +22,7 @@ function ServiceManager:start(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
   if service.state == "running" then return true end
+  if not profile.serviceEnabled(name) then return false,"Disabled by app profile" end
 
   local ok, mod = pcall(require, service.moduleName)
   if not ok then
@@ -72,7 +72,7 @@ end
 function ServiceManager:startAutostart()
   for _, name in ipairs(self.order) do
     local service = self.services[name]
-    if service.autostart then self:start(name) end
+    if service.autostart and profile.serviceEnabled(name) then self:start(name) end
   end
 end
 

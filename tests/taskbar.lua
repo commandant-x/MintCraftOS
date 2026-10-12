@@ -14,7 +14,7 @@ for i = 1, 12 do
   win.minimized = true
   win.draw = function() end
 end
-for _, size in ipairs({39, 51, 80, 120}) do
+for _, size in ipairs({26, 39, 51, 80, 120}) do
   width = size
   manager.taskPage = 1
   local seen = {}

@@ -12,7 +12,6 @@ function M.setContext(ctx)
 end
 
 function M.register(id, name, module, meta)
-  if not profile.appEnabled(id) then return end
   meta = meta or {}
   M.registry[id] = {
     id = id,
@@ -21,7 +20,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.3",
+    version = meta.version or "0.18.4",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -31,20 +30,26 @@ function M.get(id)
   return M.registry[id]
 end
 
-function M.list(includeHidden)
+function M.list(includeHidden,includeDisabled)
   local rows = {}
   for _, app in pairs(M.registry) do
-    if includeHidden or not app.hidden then table.insert(rows, app) end
+    if (includeHidden or not app.hidden) and (includeDisabled or profile.appEnabled(app.id)) then table.insert(rows, app) end
   end
   table.sort(rows, function(a, b) return a.name < b.name end)
   return rows
 end
 
 function M.launch(id, args)
-  if not profile.appEnabled(id) then return false, "Integration deferred: " .. tostring(id) end
+  if not profile.appEnabled(id) then return false, "App disabled; enable it in Settings / Apps: " .. tostring(id) end
   local app = M.registry[id]
   if not app then return false, "Unknown app: " .. tostring(id) end
   if not M.ctx then return false, "App context not ready" end
+  if M.ctx.services and profile.dependencies then
+    for _,service in ipairs(profile.dependencies(id)) do
+      local ok,err=M.ctx.services:start(service)
+      if not ok then return false,"Service "..service..": "..tostring(err) end
+    end
+  end
 
   local ok, mod = pcall(require, app.module)
   if ok and (type(mod) ~= "table" or type(mod.run) ~= "function") then

@@ -2,6 +2,7 @@ local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
 local keyboard = require("system.gui.keyboard")
 local iconRenderer = require("system.gui.icon")
+local ui = require("system.gui.components")
 
 local M = {
   apps = nil,
@@ -23,43 +24,38 @@ function M.setNotifications(notifications) M.notifications = notifications end
 
 local function drawIcons()
   local w, h = term.getSize()
-  local labels = {
-    { app = "terminal" },
-    { app = "navigation" },
-    { app = "combat" },
-    { app = "browser" },
-    { app = "messenger" },
-    { app = "files" },
-    { app = "settings" },
-    { app = "devices" },
-    { app = "taskmanager" },
-    { app = "update" },
-  }
+  local labels=M.apps and M.apps.list() or {}
+  local compact=w<40 or h<18
+  local iconW,iconH=compact and 4 or 7,compact and 3 or 6
+  local cellH=iconH+2
+  local columns=math.max(1,math.floor((w-2)/12))
+  local rows=math.max(1,math.floor((h-3)/cellH))
+  local cellW=math.max(1,math.floor((w-2)/columns))
+  local capacity=columns*rows
+  M.pageCount=math.max(1,math.ceil(#labels/capacity))
+  M.page=math.max(1,math.min(M.page or 1,M.pageCount))
   local icons = {}
-  local x, y = 2, 2
-  local columns = math.max(1, math.floor((w - 2) / 12))
-  local cellW, cellH = math.max(1, math.floor((w - 2) / columns)), 8
-  for _, item in ipairs(labels) do
-    local meta = M.apps and M.apps.get(item.app) or nil
-    table.insert(icons, {
-      x = x,
-      y = y,
-      label = meta and meta.name or item.app,
-      icon = meta and meta.icon or "[]",
-      iconPath = meta and meta.iconPath,
-      app = item.app,
-    })
-    y = y + cellH
-    if y > h - 8 then
-      y = 2
-      x = x + cellW
+  for index=(M.page-1)*capacity+1,math.min(#labels,M.page*capacity) do
+    local item=labels[index] local offset=index-(M.page-1)*capacity-1
+    local x=2+math.floor(offset/rows)*cellW local y=2+(offset%rows)*cellH
+    if x+iconW-1<=w and y+iconH<h-1 then
+      icons[#icons+1]={x=x,y=y,w=cellW-1,h=cellH-1,label=item.name,icon=item.icon,iconPath=item.iconPath,app=item.id}
     end
   end
 
   M.icons = icons
   for _, icon in ipairs(icons) do
-    iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"))
-    renderer.writeAt(icon.x, icon.y + 6, renderer.crop(icon.label, math.min(12, w - icon.x + 1)), colors.white, theme.get("desktopBg"))
+    iconRenderer.draw(icon.iconPath, icon.x, icon.y, icon.icon, theme.get("desktopBg"),iconW,iconH)
+    renderer.writeAt(icon.x, icon.y + iconH, renderer.crop(icon.label, math.min(icon.w, w - icon.x + 1)), colors.white, theme.get("desktopBg"))
+  end
+  M.pageHits={}
+  if w>=18 and h>=8 then
+    if M.pageCount>1 then
+      M.pageHits.previous=ui.button(1,h-1,3,"<",false)
+      renderer.writeAt(5,h-1,tostring(M.page).."/"..M.pageCount,colors.white,theme.get("desktopBg"))
+      M.pageHits.next=ui.button(11,h-1,3,">",false)
+    end
+    M.pageHits.apps=ui.button(w-6,h-1,7,"Apps",false)
   end
 end
 
@@ -132,11 +128,18 @@ local function drawMenu()
   renderer.fill(1, h - height, menuW, height, colors.lightGray)
   renderer.writeAt(2, h - height, renderer.crop("MintCraft OS", menuW - 2), colors.black, colors.lightGray)
   renderer.writeAt(2, h - height + 1, renderer.crop("Search: " .. M.search, menuW - 2), colors.gray, colors.lightGray)
-  for i, app in ipairs(appList) do
-    if i <= height - 2 then
-      renderer.writeAt(2, h - height + i + 1, renderer.crop(app.icon .. " " .. app.name .. " [" .. app.category .. "]", menuW - 2), colors.black, colors.lightGray)
+  local capacity=math.max(1,height-3)
+  M.menuScroll=math.max(1,math.min(M.menuScroll or 1,math.max(1,#appList-capacity+1)))
+  M.menuRows={} M.menuPager={}
+  for i=1,capacity do
+    local app=appList[M.menuScroll+i-1]
+    if app then
+      local y=h-height+i+1
+      renderer.writeAt(2,y,renderer.crop(app.name,menuW-2),colors.black,colors.lightGray)
+      M.menuRows[#M.menuRows+1]={app=app.id,x=1,y=y,w=menuW,h=1}
     end
   end
+  if #appList>capacity then M.menuPager=ui.toolbar(1,h-1,menuW,{{id="up",label="^"},{id="down",label="v"}}) end
 end
 
 function M.draw()
@@ -153,13 +156,14 @@ function M.drawOverlays()
 end
 
 function M.captures(event)
+  if event.name=="mouse_scroll" and M.menuOpen then return true end
   if M.searchFocused and (event.name == "char" or event.name == "key" or event.name == "paste") then return true end
   return event.name == "mouse_click" and (M.menuOpen or M.contextMenu ~= nil or M.searchFocused)
 end
 
-local function launch(appId)
+local function launch(appId,args)
   if not M.apps then return end
-  local ok, result = M.apps.launch(appId)
+  local ok, result = M.apps.launch(appId,args)
   if not ok and M.notifications then
     M.notifications:push("error", "Launch failed", result, 5)
   end
@@ -241,6 +245,11 @@ end
 M.keyboard.onTab = M.keyboard.onEnter
 
 function M.handle(event)
+  if event.name=="mouse_scroll" then
+    if M.menuOpen then M.menuScroll=math.max(1,(M.menuScroll or 1)+event.args[1])
+    else M.page=math.max(1,math.min(M.pageCount or 1,(M.page or 1)+event.args[1])) end
+    return true
+  end
   if event.name == "paste" and M.searchFocused then
     M.search = M.search .. event.args[1]
     M.menuOpen = true
@@ -308,26 +317,11 @@ function M.handle(event)
   end
 
   if M.menuOpen then
-    local appList = M.apps and M.apps.list() or {}
-    if M.search ~= "" then
-      local filtered = {}
-      local query = M.search:lower()
-      for _, app in ipairs(appList) do
-        if app.name:lower():find(query, 1, true) or app.id:lower():find(query, 1, true) then
-          table.insert(filtered, app)
-        end
-      end
-      appList = filtered
-    end
-    local menuBottom = M.searchFocused and math.max(3, h - keyboard.height()) or h
-    local menuTop = menuBottom - math.min(#appList + 3, menuBottom - 2)
-    local index = y - menuTop - 1
-    if x <= math.min(32, w) and y < menuBottom and index >= 1 and appList[index] then
-      M.menuOpen = false
-      M.searchFocused = false
-      launch(appList[index].id)
-      return true
-    end
+    local action=ui.toolbarHit(M.menuPager,x,y)
+    if action then M.menuScroll=math.max(1,(M.menuScroll or 1)+(action=="down" and 1 or -1)) return true end
+    for _,box in ipairs(M.menuRows or {}) do if ui.hit(box,x,y) then
+      M.menuOpen=false M.searchFocused=false launch(box.app) return true
+    end end
     M.menuOpen = false
     M.searchFocused = false
     return true
@@ -349,8 +343,12 @@ function M.handle(event)
   end
 
   if button == 1 then
+    local pager=M.pageHits or {}
+    if ui.hit(pager.apps,x,y) then launch("settings",{page="apps"}) return true end
+    if ui.hit(pager.previous,x,y) then M.page=math.max(1,M.page-1) return true end
+    if ui.hit(pager.next,x,y) then M.page=math.min(M.pageCount,M.page+1) return true end
     for _, icon in ipairs(M.icons or {}) do
-      if x >= icon.x and x <= icon.x + 12 and y >= icon.y and y <= icon.y + 6 then
+      if ui.hit(icon,x,y) then
         launch(icon.app)
         return true
       end
