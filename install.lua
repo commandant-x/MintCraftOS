@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -725,7 +725,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -733,6 +733,7 @@ return M
   ["apps/combat/main.lua"] = [=[
 local renderer=require("system.gui.renderer")
 local ui=require("system.gui.components")
+local menus=require("system.gui.action_menu")
 local forms=require("system.gui.form")
 local addon=require("system.libraries.addon")
 local geometry=require("system.navigation.geometry")
@@ -746,13 +747,14 @@ local function find(rows,id) if id==nil then return nil end for _,row in ipairs(
 local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
 function M.run(ctx)
   local actor={pid=ctx.pid}
-  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=45},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
+  local app={page="radar",tabState={},barState={},filterState={},pages=menus.new(),commands=menus.new(),categories=menus.new(),filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=45},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
   local tabs={{id="radar",label="Radar"},{id="three",label="3D"},{id="targets",label="Targets"},{id="cannons",label="Cannons"},{id="fire",label="Fire"},{id="probe",label="Probe"},{id="config",label="Config"}}
   local cfg=combat.configuration()
   tabs[#tabs+1]={id="network",label="Network"}
   local win,timer,trackTimer
   local function refresh()
-    app.snapshot=combat.snapshot()
+    local status=combat.status()
+    if not app.snapshot.radars or app.snapshot.revision~=status.revision then app.snapshot=combat.snapshot() end
     if app.setup then app.setup:update(app.snapshot) end
     for _,target in ipairs(app.snapshot.targets or {}) do target.stale=not target.freshnessKnown or os.clock()-target.timestamp>5 end
     if not find(app.snapshot.radars,app.radarId) then app.radarId=app.snapshot.radars[1] and app.snapshot.radars[1].id app.canvas=nil end
@@ -820,23 +822,32 @@ function M.run(ctx)
   function app:draw(w,h)
     if self.setup then self.setup:draw(w,h) return end
     if h<9 then renderer.writeAt(1,1,renderer.crop("Combat: enlarge window",w)) return end
-    self.tabs=ui.tabs(1,1,w,tabs,self.page,self.tabState)
-    self.bar=ui.toolbar(1,2,w,actions(),self.barState)
+    local title="Combat"
+    for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
+    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Combat views",selected=self.page})
+    local commands=actions()
+    for _,command in ipairs(commands) do
+      command.primary=command.id=="overview" or command.id=="radarConfig" or command.id=="zoomIn" or command.id=="zoomOut" or command.id=="solve" or command.id=="aim" or command.id=="fire" or command.id=="save" or command.id=="probe" or command.id=="alias" or command.id=="networkToggle" or command.id=="networkRescan" or command.id=="networkSave" or command.id=="networkCancel" or command.id=="rescan"
+      command.danger=command.id=="fire"
+    end
+    self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
     self.rowHits={}
     local snap=self.snapshot
     if self.page=="radar" or self.page=="three" or self.page=="targets" then
       local counts={} for _,target in ipairs(snap.targets or {}) do local category=filter.category(target) counts[category]=(counts[category] or 0)+1 end
       local buttons={{id="all",label=(next(self.filters)==nil and "[x] " or "[ ] ").."All"}}
       for _,category in ipairs(filter.categories) do buttons[#buttons+1]={id=category.id,label=(self.filters[category.id] and "[x] " or "[ ] ")..category.label.." "..(counts[category.id] or 0)} end
-      self.filterBar=ui.toolbar(1,4,w,buttons,self.filterState)
-    else self.filterBar=nil end
+      local selected={}
+      for _,category in ipairs(filter.categories) do if self.filters[category.id] then selected[#selected+1]=category.label end end
+      menus.bar(self.categories,1,4,w,buttons,{selector=true,label="Show: "..(#selected==0 and "All contacts" or table.concat(selected,", ")),title="Contact filters",keepOpen=true})
+    else self.filterBar=nil self.categories.open=false self.categories.trigger=nil end
     if self.page=="radar" or self.page=="three" then
       self.view.three=self.page=="three"
       self.view.filters=self.filters
       local panel=w>=75 and 27 or 0
       local graphW,graphH=w-panel,math.max(2,h-6)
       local key=table.concat({snap.revision or 0,graphW,graphH,tostring(self.targetId),tostring(self.radarId),self.page,self.view.zoom,self.view.yaw,self.view.pitch},":")
-      if not self.canvas or self.graphW~=graphW or self.graphH~=graphH or (key~=self.graphKey and os.clock()-(self.graphAt or -1)>=0.2) then
+      if not self.canvas or self.graphW~=graphW or self.graphH~=graphH or (key~=self.graphKey and os.clock()-(self.graphAt or -1)>=0.05) then
         self.canvas,self.graphHits,self.labels,self.graphStatus=instruments.radar(graphW,graphH,snap,self.radarId,self.targetId,self.view)
         self.graphW,self.graphH,self.graphKey,self.graphAt=graphW,graphH,key,os.clock()
         self.labelLayout=nil
@@ -898,7 +909,7 @@ function M.run(ctx)
         local x=graphW+2
         local radar=find(snap.radars,self.radarId)
         local relative=target and radar and geometry.relative(target.position,radar.position)
-        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Refresh: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Display: 20 Hz / read: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
         if radar then
           rows[#rows+1]="Heading: "..fmt(radar.heading).." deg"
@@ -962,6 +973,7 @@ function M.run(ctx)
       renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
       self.confirmBar=ui.toolbar(1,6,w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
     end
+    if not self.confirm and not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) menus.overlay(self.categories,w,h) end
   end
   function app:handle(event)
     if self.setup then
@@ -980,23 +992,25 @@ function M.run(ctx)
       end return true
     end
     if self.form.edit then return self.form:handle(event) end
+    local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands},{name="categories",state=self.categories}},event)
+    if handled then
+      if section=="pages" then
+        if command then self.page=command self.scroll=1 self.tracking=false self.canvas=nil end
+        return true
+      elseif section=="categories" then
+        if command then
+          filter.toggle(self.filters,command) self.canvas=nil self.scroll=1
+          local target=find(self.snapshot.targets,self.targetId)
+          if target and not filter.visible(target,self.filters) then selectTarget(self.targetId) end
+        end
+        return true
+      end
+      if not command then return true end
+    end
     if event.name=="mouse_scroll" and self.page~="config" then self.scroll=self.scroll+event.args[1] return true end
-    if event.name~="mouse_click" then return self.page=="config" and self.form:handle(event) or false end
+    if event.name~="mouse_click" and not command then return self.page=="config" and self.form:handle(event) or false end
     local _,x,y=table.unpack(event.args)
-    for _,box in ipairs(self.filterBar or {}) do if ui.hit(box,x,y) then
-      if box.delta then self.filterState.first=math.max(1,(self.filterState.first or 1)+box.delta)
-      else
-        filter.toggle(self.filters,box.id) self.canvas=nil self.scroll=1
-        local target=find(self.snapshot.targets,self.targetId)
-        if target and not filter.visible(target,self.filters) then selectTarget(self.targetId) end
-      end return true
-    end end
-    for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
-      if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta)
-      else self.page=box.id self.barState.first=1 self.scroll=1 self.tracking=false self.canvas=nil end return true
-    end end
-    for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
-    local id=ui.toolbarHit(self.bar,x,y)
+    local id=command
     if id=="networkToggle" or id=="publishToggle" then
       local value=radarNet.configuration() local key=id=="networkToggle" and "enabled" or "publish"
       value[key]=not value[key] if key=="publish" and value.publish then value.enabled=true end
@@ -1070,11 +1084,12 @@ function M.run(ctx)
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Combat",w=math.min(120,w-2),h=math.min(38,h-2),x=2,y=2,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end if trackTimer then os.cancelTimer(trackTimer) end combat.release(ctx.pid) end)
-  timer=os.startTimer(0.2) trackTimer=os.startTimer(0.5)
+  timer=os.startTimer(0.05) trackTimer=os.startTimer(0.5)
   while not win.closed do
     local event=ctx.pullEvent()
     if event.name=="timer" and event.args[1]==timer then
-      if not win.minimized then refresh() end timer=os.startTimer(0.2)
+      if not win.minimized then refresh() end
+      timer=os.startTimer(win.minimized and 1 or (app.page=="radar" or app.page=="three") and 0.05 or 0.2)
     elseif event.name=="timer" and event.args[1]==trackTimer then
       if app.tracking and not win.minimized and not app.confirm then
         local ok,err=combat.requestAim(actor,app.cannonId,app.targetId)
@@ -1092,7 +1107,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1456,7 +1471,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1542,7 +1557,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1768,7 +1783,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2126,7 +2141,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2205,7 +2220,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2324,7 +2339,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2332,6 +2347,7 @@ return M
   ["apps/navigation/main.lua"] = [=[
 local renderer=require("system.gui.renderer")
 local ui=require("system.gui.components")
+local menus=require("system.gui.action_menu")
 local forms=require("system.gui.form")
 local addon=require("system.libraries.addon")
 local instruments=require("system.navigation.instruments")
@@ -2349,8 +2365,8 @@ function M.run(ctx)
   local actor={pid=ctx.pid}
   local draft=flight.configuration()
   local original=config.load("/system/config/navigation.cfg",{})
-  local app={page="flight",tabState={},barState={},form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
-  local tabs={{id="flight",label="Flight"},{id="control",label="Control"},{id="mapping",label="Map"},{id="gains",label="PID"},{id="sensors",label="Sensors"},{id="manual",label="Manual"},{id="calibration",label="Calibrate"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
+  local tabs={{id="flight",label="Flight"},{id="control",label="Control"},{id="mapping",label="Outputs"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
@@ -2414,8 +2430,15 @@ function M.run(ctx)
   end
   function app:draw(w,h)
     if h<9 then renderer.writeAt(1,1,renderer.crop("Navigation: enlarge window",w)) return end
-    self.tabs=ui.tabs(1,1,w,tabs,self.page,self.tabState)
-    self.bar=ui.toolbar(1,2,w,actions(),self.barState)
+    local title="Navigation"
+    for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
+    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
+    local commands=actions()
+    for _,command in ipairs(commands) do
+      command.primary=command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.danger=command.id=="arm"
+    end
+    self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
     if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | 6 independent PC sides") or "Configuration draft",w),colors.cyan) end
@@ -2473,6 +2496,7 @@ function M.run(ctx)
       renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
       self.confirmBar=ui.toolbar(1,math.min(h-1,6),w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
     end
+    if not self.confirm and not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
   function app:handle(event)
     if self.confirm then
@@ -2484,15 +2508,18 @@ function M.run(ctx)
       return true
     end
     if self.form.edit then return self.form:handle(event) end
-    if event.name=="mouse_scroll" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" then self.scroll=self.scroll+event.args[1] return true end
-    if event.name=="mouse_click" then
-      local _,x,y=table.unpack(event.args)
-      for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
-        if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta) else self.page=box.id self.barState.first=1 self.form.scroll=1 self.scroll=1 end
+    local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
+    if handled then
+      if section=="pages" then
+        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil end
         return true
-      end end
-      for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
-      local id=ui.toolbarHit(self.bar,x,y)
+      end
+      if not command then return true end
+    end
+    if event.name=="mouse_scroll" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_click" or command then
+      local _,x,y=table.unpack(event.args)
+      local id=command
       if id=="previous" or id=="next" then
         if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%4+1
         else self.index=math.max(1,math.min(self.page=="manual" and #draft.manualInputs or #draft.channels,self.index+(id=="next" and 1 or -1))) end
@@ -2545,7 +2572,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2626,7 +2653,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3052,7 +3079,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3167,7 +3194,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3295,7 +3322,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.5",
+  version = "0.18.6",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3728,7 +3755,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.5",
+  version = "0.18.6",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4205,7 +4232,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.5",
+    version = "0.18.6",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4508,7 +4535,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.5",
+  version = "0.18.6",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -4910,6 +4937,132 @@ function M.playDfPWM(path, side)
 end
 
 M.scan()
+
+return M
+]=],
+  ["system/gui/action_menu.lua"] = [=[
+local renderer=require("system.gui.renderer")
+local theme=require("system.gui.theme")
+local ui=require("system.gui.components")
+local M={}
+
+function M.new()
+  return {open=false,first=1,boxes={}}
+end
+
+local function button(box,selected)
+  local bg=box.danger and colors.red or selected and theme.get("accent") or theme.get("buttonBg")
+  local fg=box.danger and colors.white or selected and theme.get("titleFg") or theme.get("buttonFg")
+  renderer.fill(box.x,box.y,box.w,box.h or 1,bg)
+  local text=" "..box.label
+  if (box.h or 1)>1 and #text>box.w then
+    local cut=text:sub(1,box.w):match("^.*() ") or box.w
+    renderer.writeAt(box.x,box.y,renderer.crop(text:sub(1,cut),box.w),fg,bg)
+    renderer.writeAt(box.x,box.y+1,renderer.crop(" "..text:sub(cut+1),box.w),fg,bg)
+  else renderer.writeAt(box.x,box.y,renderer.crop(text,box.w),fg,bg) end
+end
+
+function M.bar(state,x,y,w,items,options)
+  options=options or {}
+  state.items=items state.title=options.title or "Actions" state.selected=options.selected
+  state.keepOpen=options.keepOpen
+  state.boxes={} state.w=w
+  local cursor=x
+  local menuWidth=math.min(w,#(options.label or "More")+2)
+  if options.selector then
+    state.trigger={x=x,y=y,w=w,h=1,label=options.label or "Views"}
+  else
+    for _,item in ipairs(items) do
+      if item.primary~=false then
+        local width=#item.label+2
+        if cursor+width>x+w-menuWidth-1 then break end
+        local box={id=item.id,label=item.label,x=cursor,y=y,w=width,h=1,danger=item.danger}
+        state.boxes[#state.boxes+1]=box button(box,item.active)
+        cursor=cursor+width+1
+      end
+    end
+    state.trigger={x=x+w-menuWidth,y=y,w=menuWidth,h=1,label=options.label or "More"}
+  end
+  button(state.trigger,state.open)
+  return state.boxes
+end
+
+function M.overlay(state,w,h)
+  if not state.open then return end
+  local top=math.min(state.trigger.y+1,math.max(1,h-4))
+  local available=h-top
+  local columns=w>=44 and 3 or w>=24 and 2 or 1
+  local stride=available>=5 and 3 or 2
+  local rows=math.max(1,math.floor((available-2)/stride))
+  local capacity=columns*rows
+  local visibleRows=math.min(rows,math.ceil(#state.items/columns))
+  local height=math.min(available,2+visibleRows*stride)
+  state.first=math.max(1,math.min(state.first,math.max(1,#state.items-capacity+1)))
+  state.capacity=capacity state.menuBoxes={}
+  renderer.fill(1,top,w,height,theme.get("windowBg"))
+  renderer.writeAt(1,top,renderer.crop(state.title,math.max(1,w-7)),theme.get("titleFg"),theme.get("titleBg"))
+  state.close={x=math.max(1,w-5),y=top,w=math.min(6,w),h=1,label="Close"}
+  button(state.close)
+  local track=math.floor(w/columns)
+  for slot=0,capacity-1 do
+    local item=state.items[state.first+slot]
+    if not item then break end
+    local column=slot%columns local row=math.floor(slot/columns)
+    local box={id=item.id,label=item.menuLabel or item.label,x=1+column*track,y=top+1+row*stride,
+      w=(column==columns-1 and w-column*track or track)-1,h=2,danger=item.danger}
+    box.w=math.max(1,box.w)
+    state.menuBoxes[#state.menuBoxes+1]=box
+    button(box,item.id==state.selected or item.active)
+  end
+  state.pager={}
+  if #state.items>capacity then
+    for index,label in ipairs({"Previous","Next"}) do
+      local width=math.min(10,math.floor(w/2))
+      local box={x=index==1 and 1 or w-width+1,y=top+height-1,w=width,h=1,label=label,delta=index==1 and -capacity or capacity}
+      state.pager[#state.pager+1]=box button(box)
+    end
+  end
+end
+
+function M.handle(state,event)
+  if state.open then
+    if event.name=="key" and event.args[1]==keys.escape then state.open=false return nil,true end
+    if event.name=="mouse_scroll" then state.first=math.max(1,state.first+event.args[1]*(state.capacity or 1)) return nil,true end
+    if event.name=="mouse_click" then
+      local _,x,y=table.unpack(event.args)
+      if ui.hit(state.close,x,y) or ui.hit(state.trigger,x,y) then state.open=false return nil,true end
+      for _,box in ipairs(state.pager or {}) do if ui.hit(box,x,y) then state.first=math.max(1,state.first+box.delta) return nil,true end end
+      for _,box in ipairs(state.menuBoxes or {}) do if ui.hit(box,x,y) then state.open=state.keepOpen==true return box.id,true end end
+      state.open=false
+    end
+    return nil,true
+  end
+  if event.name~="mouse_click" then return nil,false end
+  local _,x,y=table.unpack(event.args)
+  if ui.hit(state.trigger,x,y) then state.open=true state.first=1 return nil,true end
+  for _,box in ipairs(state.boxes or {}) do if ui.hit(box,x,y) then return box.id,true end end
+  return nil,false
+end
+
+function M.dismiss(...)
+  for _,state in ipairs({...}) do state.open=false end
+end
+
+function M.route(entries,event)
+  -- The open overlay owns input before any underlying strip or app hitbox.
+  for _,entry in ipairs(entries) do if entry.state.open then
+    local id,handled=M.handle(entry.state,event)
+    return entry.name,id,handled
+  end end
+  for _,entry in ipairs(entries) do
+    local id,handled=M.handle(entry.state,event)
+    if handled then
+      for _,other in ipairs(entries) do if other~=entry then other.state.open=false end end
+      return entry.name,id,true
+    end
+  end
+  return nil,nil,false
+end
 
 return M
 ]=],
@@ -5966,21 +6119,21 @@ local compositor = require("system.gui.compositor")
 local M = {}
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.5", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.5", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.5", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.5", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.5", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.5", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.5", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.5", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.5", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.5", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.5", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.5", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.5", permissions = { "devices.list", "peripheral.probe" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.5", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.5", permissions = { "network.http", "system.update" } })
+  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.6", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
+  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.6", permissions = { "network.http" } })
+  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.6", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.6", permissions = { "rednet.send", "rednet.receive" } })
+  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.6", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.6", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.6", permissions = { "filesystem.read", "filesystem.write" } })
+  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.6", permissions = { "system.config", "audio.control", "system.auth" } })
+  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.6", permissions = { "process.list", "process.kill" } })
+  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.6", permissions = { "logs.read" } })
+  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.6", permissions = { "services.list", "services.control" } })
+  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.6", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.6", permissions = { "devices.list", "peripheral.probe" } })
+  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.6", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.6", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -6439,7 +6592,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.5",
+    version = meta.version or "0.18.6",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
   }
@@ -8272,7 +8425,7 @@ function M.acquire(rescan)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
-function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.status() return {available=cached.available,status=cached.status,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
 function M.rescan() if runner then runner:rescan() end end
 function M.configuration() return addon.copy(settings) end
 function M.autoConfigureRadars(actor)
@@ -10965,7 +11118,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.5
+0.18.6
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

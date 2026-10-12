@@ -1,5 +1,6 @@
 local renderer=require("system.gui.renderer")
 local ui=require("system.gui.components")
+local menus=require("system.gui.action_menu")
 local forms=require("system.gui.form")
 local addon=require("system.libraries.addon")
 local instruments=require("system.navigation.instruments")
@@ -17,8 +18,8 @@ function M.run(ctx)
   local actor={pid=ctx.pid}
   local draft=flight.configuration()
   local original=config.load("/system/config/navigation.cfg",{})
-  local app={page="flight",tabState={},barState={},form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
-  local tabs={{id="flight",label="Flight"},{id="control",label="Control"},{id="mapping",label="Map"},{id="gains",label="PID"},{id="sensors",label="Sensors"},{id="manual",label="Manual"},{id="calibration",label="Calibrate"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
+  local tabs={{id="flight",label="Flight"},{id="control",label="Control"},{id="mapping",label="Outputs"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
@@ -82,8 +83,15 @@ function M.run(ctx)
   end
   function app:draw(w,h)
     if h<9 then renderer.writeAt(1,1,renderer.crop("Navigation: enlarge window",w)) return end
-    self.tabs=ui.tabs(1,1,w,tabs,self.page,self.tabState)
-    self.bar=ui.toolbar(1,2,w,actions(),self.barState)
+    local title="Navigation"
+    for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
+    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
+    local commands=actions()
+    for _,command in ipairs(commands) do
+      command.primary=command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.danger=command.id=="arm"
+    end
+    self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
     if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | 6 independent PC sides") or "Configuration draft",w),colors.cyan) end
@@ -141,6 +149,7 @@ function M.run(ctx)
       renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
       self.confirmBar=ui.toolbar(1,math.min(h-1,6),w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
     end
+    if not self.confirm and not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
   function app:handle(event)
     if self.confirm then
@@ -152,15 +161,18 @@ function M.run(ctx)
       return true
     end
     if self.form.edit then return self.form:handle(event) end
-    if event.name=="mouse_scroll" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" then self.scroll=self.scroll+event.args[1] return true end
-    if event.name=="mouse_click" then
-      local _,x,y=table.unpack(event.args)
-      for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
-        if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta) else self.page=box.id self.barState.first=1 self.form.scroll=1 self.scroll=1 end
+    local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
+    if handled then
+      if section=="pages" then
+        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil end
         return true
-      end end
-      for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
-      local id=ui.toolbarHit(self.bar,x,y)
+      end
+      if not command then return true end
+    end
+    if event.name=="mouse_scroll" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_click" or command then
+      local _,x,y=table.unpack(event.args)
+      local id=command
       if id=="previous" or id=="next" then
         if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%4+1
         else self.index=math.max(1,math.min(self.page=="manual" and #draft.manualInputs or #draft.channels,self.index+(id=="next" and 1 or -1))) end

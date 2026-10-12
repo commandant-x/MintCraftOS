@@ -1,5 +1,6 @@
 local renderer=require("system.gui.renderer")
 local ui=require("system.gui.components")
+local menus=require("system.gui.action_menu")
 local forms=require("system.gui.form")
 local addon=require("system.libraries.addon")
 local geometry=require("system.navigation.geometry")
@@ -13,13 +14,14 @@ local function find(rows,id) if id==nil then return nil end for _,row in ipairs(
 local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
 function M.run(ctx)
   local actor={pid=ctx.pid}
-  local app={page="radar",tabState={},barState={},filterState={},filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=45},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
+  local app={page="radar",tabState={},barState={},filterState={},pages=menus.new(),commands=menus.new(),categories=menus.new(),filters={},form=forms.new(),scroll=1,snapshot={},view={zoom=1,yaw=30,pitch=45},message="Semi-auto; manual fire confirmation",configKind="radar",tracking=false}
   local tabs={{id="radar",label="Radar"},{id="three",label="3D"},{id="targets",label="Targets"},{id="cannons",label="Cannons"},{id="fire",label="Fire"},{id="probe",label="Probe"},{id="config",label="Config"}}
   local cfg=combat.configuration()
   tabs[#tabs+1]={id="network",label="Network"}
   local win,timer,trackTimer
   local function refresh()
-    app.snapshot=combat.snapshot()
+    local status=combat.status()
+    if not app.snapshot.radars or app.snapshot.revision~=status.revision then app.snapshot=combat.snapshot() end
     if app.setup then app.setup:update(app.snapshot) end
     for _,target in ipairs(app.snapshot.targets or {}) do target.stale=not target.freshnessKnown or os.clock()-target.timestamp>5 end
     if not find(app.snapshot.radars,app.radarId) then app.radarId=app.snapshot.radars[1] and app.snapshot.radars[1].id app.canvas=nil end
@@ -87,23 +89,32 @@ function M.run(ctx)
   function app:draw(w,h)
     if self.setup then self.setup:draw(w,h) return end
     if h<9 then renderer.writeAt(1,1,renderer.crop("Combat: enlarge window",w)) return end
-    self.tabs=ui.tabs(1,1,w,tabs,self.page,self.tabState)
-    self.bar=ui.toolbar(1,2,w,actions(),self.barState)
+    local title="Combat"
+    for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
+    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Combat views",selected=self.page})
+    local commands=actions()
+    for _,command in ipairs(commands) do
+      command.primary=command.id=="overview" or command.id=="radarConfig" or command.id=="zoomIn" or command.id=="zoomOut" or command.id=="solve" or command.id=="aim" or command.id=="fire" or command.id=="save" or command.id=="probe" or command.id=="alias" or command.id=="networkToggle" or command.id=="networkRescan" or command.id=="networkSave" or command.id=="networkCancel" or command.id=="rescan"
+      command.danger=command.id=="fire"
+    end
+    self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
     self.rowHits={}
     local snap=self.snapshot
     if self.page=="radar" or self.page=="three" or self.page=="targets" then
       local counts={} for _,target in ipairs(snap.targets or {}) do local category=filter.category(target) counts[category]=(counts[category] or 0)+1 end
       local buttons={{id="all",label=(next(self.filters)==nil and "[x] " or "[ ] ").."All"}}
       for _,category in ipairs(filter.categories) do buttons[#buttons+1]={id=category.id,label=(self.filters[category.id] and "[x] " or "[ ] ")..category.label.." "..(counts[category.id] or 0)} end
-      self.filterBar=ui.toolbar(1,4,w,buttons,self.filterState)
-    else self.filterBar=nil end
+      local selected={}
+      for _,category in ipairs(filter.categories) do if self.filters[category.id] then selected[#selected+1]=category.label end end
+      menus.bar(self.categories,1,4,w,buttons,{selector=true,label="Show: "..(#selected==0 and "All contacts" or table.concat(selected,", ")),title="Contact filters",keepOpen=true})
+    else self.filterBar=nil self.categories.open=false self.categories.trigger=nil end
     if self.page=="radar" or self.page=="three" then
       self.view.three=self.page=="three"
       self.view.filters=self.filters
       local panel=w>=75 and 27 or 0
       local graphW,graphH=w-panel,math.max(2,h-6)
       local key=table.concat({snap.revision or 0,graphW,graphH,tostring(self.targetId),tostring(self.radarId),self.page,self.view.zoom,self.view.yaw,self.view.pitch},":")
-      if not self.canvas or self.graphW~=graphW or self.graphH~=graphH or (key~=self.graphKey and os.clock()-(self.graphAt or -1)>=0.2) then
+      if not self.canvas or self.graphW~=graphW or self.graphH~=graphH or (key~=self.graphKey and os.clock()-(self.graphAt or -1)>=0.05) then
         self.canvas,self.graphHits,self.labels,self.graphStatus=instruments.radar(graphW,graphH,snap,self.radarId,self.targetId,self.view)
         self.graphW,self.graphH,self.graphKey,self.graphAt=graphW,graphH,key,os.clock()
         self.labelLayout=nil
@@ -165,7 +176,7 @@ function M.run(ctx)
         local x=graphW+2
         local radar=find(snap.radars,self.radarId)
         local relative=target and radar and geometry.relative(target.position,radar.position)
-        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Refresh: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Display: 20 Hz / read: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
         if radar then
           rows[#rows+1]="Heading: "..fmt(radar.heading).." deg"
@@ -229,6 +240,7 @@ function M.run(ctx)
       renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
       self.confirmBar=ui.toolbar(1,6,w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
     end
+    if not self.confirm and not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) menus.overlay(self.categories,w,h) end
   end
   function app:handle(event)
     if self.setup then
@@ -247,23 +259,25 @@ function M.run(ctx)
       end return true
     end
     if self.form.edit then return self.form:handle(event) end
+    local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands},{name="categories",state=self.categories}},event)
+    if handled then
+      if section=="pages" then
+        if command then self.page=command self.scroll=1 self.tracking=false self.canvas=nil end
+        return true
+      elseif section=="categories" then
+        if command then
+          filter.toggle(self.filters,command) self.canvas=nil self.scroll=1
+          local target=find(self.snapshot.targets,self.targetId)
+          if target and not filter.visible(target,self.filters) then selectTarget(self.targetId) end
+        end
+        return true
+      end
+      if not command then return true end
+    end
     if event.name=="mouse_scroll" and self.page~="config" then self.scroll=self.scroll+event.args[1] return true end
-    if event.name~="mouse_click" then return self.page=="config" and self.form:handle(event) or false end
+    if event.name~="mouse_click" and not command then return self.page=="config" and self.form:handle(event) or false end
     local _,x,y=table.unpack(event.args)
-    for _,box in ipairs(self.filterBar or {}) do if ui.hit(box,x,y) then
-      if box.delta then self.filterState.first=math.max(1,(self.filterState.first or 1)+box.delta)
-      else
-        filter.toggle(self.filters,box.id) self.canvas=nil self.scroll=1
-        local target=find(self.snapshot.targets,self.targetId)
-        if target and not filter.visible(target,self.filters) then selectTarget(self.targetId) end
-      end return true
-    end end
-    for _,box in ipairs(self.tabs or {}) do if ui.hit(box,x,y) then
-      if box.delta then self.tabState.first=math.max(1,(self.tabState.first or 1)+box.delta)
-      else self.page=box.id self.barState.first=1 self.scroll=1 self.tracking=false self.canvas=nil end return true
-    end end
-    for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
-    local id=ui.toolbarHit(self.bar,x,y)
+    local id=command
     if id=="networkToggle" or id=="publishToggle" then
       local value=radarNet.configuration() local key=id=="networkToggle" and "enabled" or "publish"
       value[key]=not value[key] if key=="publish" and value.publish then value.enabled=true end
@@ -337,11 +351,12 @@ function M.run(ctx)
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Combat",w=math.min(120,w-2),h=math.min(38,h-2),x=2,y=2,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end if trackTimer then os.cancelTimer(trackTimer) end combat.release(ctx.pid) end)
-  timer=os.startTimer(0.2) trackTimer=os.startTimer(0.5)
+  timer=os.startTimer(0.05) trackTimer=os.startTimer(0.5)
   while not win.closed do
     local event=ctx.pullEvent()
     if event.name=="timer" and event.args[1]==timer then
-      if not win.minimized then refresh() end timer=os.startTimer(0.2)
+      if not win.minimized then refresh() end
+      timer=os.startTimer(win.minimized and 1 or (app.page=="radar" or app.page=="three") and 0.05 or 0.2)
     elseif event.name=="timer" and event.args[1]==trackTimer then
       if app.tracking and not win.minimized and not app.confirm then
         local ok,err=combat.requestAim(actor,app.cannonId,app.targetId)

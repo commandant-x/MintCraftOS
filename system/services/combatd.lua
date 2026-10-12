@@ -258,7 +258,7 @@ function M.acquire(rescan)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
-function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.status() return {available=cached.available,status=cached.status,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
 function M.rescan() if runner then runner:rescan() end end
 function M.configuration() return addon.copy(settings) end
 function M.autoConfigureRadars(actor)
