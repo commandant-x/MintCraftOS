@@ -1,4 +1,4 @@
-# Per-computer app selection / 0.18.4
+# Per-computer app selection / 0.18.5
 
 Desktop > Apps opens Settings directly on the Apps selector. Tap a checkbox to
 enable/disable an app. Apps remain installed: no user files, app modules or addon

@@ -24,14 +24,14 @@ bus:on("http_success", function() delivered=delivered+1 end)
 local function response(v)
   return {readAll=function() return v end,close=function() closed=closed+1 end}
 end
-bus:emit("http_success", "https://raw.githubusercontent.com/owner/repo/main/VERSION", response("1.1.0"))
+bus:emit("http_success", "https://raw.githubusercontent.com/owner/repo/main/VERSION?mintcraft_auto=1", response("1.1.0"))
 assert(closed==1 and delivered==1, "listener cleanup skipped another subscriber")
 assert(updated.status.updateAvailable and notices==1)
 updated.start(ctx)
 bus:emit("timer", timer)
 assert(updated.status.message=="Update check timed out")
 updated.start(ctx)
-bus:emit("http_success", "https://raw.githubusercontent.com/owner/repo/main/VERSION", response("0.9.0"))
+bus:emit("http_success", "https://raw.githubusercontent.com/owner/repo/main/VERSION?mintcraft_auto=1", response("0.9.0"))
 assert(not updated.status.updateAvailable and notices==1)
 http=nil
 updated.start(ctx)

@@ -43,11 +43,11 @@ local function request(method, url, opts)
   if not M.available() then return nil, "HTTP_DISABLED: HTTP API disabled" end
 
   log.info("http", tostring(method or "GET") .. " " .. url)
-  local ok, handle
+  local ok, handle,problem,failureHandle
   if method == "POST" and http.post then
-    ok, handle = pcall(http.post, url, opts.body or "", opts.headers)
+    ok, handle,problem,failureHandle = pcall(http.post, url, opts.body or "", opts.headers)
   else
-    ok, handle = pcall(http.get, url, opts.headers)
+    ok, handle,problem,failureHandle = pcall(http.get, url, opts.headers)
   end
   if not ok then
     local err = classifyHttpFailure(handle)
@@ -55,22 +55,21 @@ local function request(method, url, opts)
     return nil, err
   end
   if not handle then
-    local err = "REQUEST_FAILED: no response handle for " .. url
+    if failureHandle and failureHandle.close then pcall(failureHandle.close) end
+    local err = "REQUEST_FAILED: "..classifyHttpFailure(problem or ("no response handle for "..url))
     log.warn("http", err)
     return nil, err
   end
 
-  local body = handle.readAll() or ""
-  local code = handle.getResponseCode and handle.getResponseCode() or 200
-  local headers = handle.getResponseHeaders and handle.getResponseHeaders() or {}
-  handle.close()
-  return {
-    url = url,
-    code = code,
-    headers = headers,
-    body = body,
-    size = #body,
-  }
+  local readOK,result=pcall(function()
+    local body=handle.readAll() or ""
+    assert(type(body)=="string","Invalid response body")
+    return {url=url,code=handle.getResponseCode and handle.getResponseCode() or 200,
+      headers=handle.getResponseHeaders and handle.getResponseHeaders() or {},body=body,size=#body}
+  end)
+  pcall(handle.close)
+  if not readOK then return nil,"RESPONSE_READ_FAILED: "..tostring(result) end
+  return result
 end
 
 function M.get(url, opts)

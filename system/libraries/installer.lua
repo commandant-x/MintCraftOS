@@ -21,8 +21,14 @@ end
 local function preserved(path)
   return path:match("^system/config/") or path:match("^home/") or path:match("^packages/")
 end
+local function identical(path,content)
+  if not fs.exists(path) or fs.isDir(path) then return false end
+  local h=assert(fs.open(path,"r"),"Cannot read "..path)
+  local ok,data=pcall(h.readAll) pcall(h.close)
+  assert(ok,tostring(data)) return data==content
+end
 
-function M.install(files)
+function M.install(files,options)
   -- A retained transaction may contain the only backup after an interrupted write.
   if fs.exists(root) then error("Unfinished installation: recover " .. root .. " before retrying") end
   local paths = {}
@@ -32,18 +38,27 @@ function M.install(files)
     table.insert(paths, path)
   end
   table.sort(paths)
+  local plan={changed={},stageBytes=0,backupBytes=0,version=files.VERSION}
+  for _,path in ipairs(paths) do
+    local target="/"..path
+    if not (preserved(path) and fs.exists(target)) and not identical(target,files[path]) then
+      assert(not fs.exists(target) or not fs.isDir(target),"Destination is a directory: "..path)
+      if path:match("%.lua$") then local fn,problem=load(files[path],"@"..path,"t",_ENV) assert(fn,tostring(problem)) end
+      plan.changed[#plan.changed+1]=path plan.stageBytes=plan.stageBytes+#files[path]
+      if fs.exists(target) and fs.getSize then plan.backupBytes=plan.backupBytes+fs.getSize(target) end
+    end
+  end
+  if options and options.beforeInstall then options.beforeInstall(plan) end
   local changed, touched = {}, {}
   local ok, err = pcall(function()
     fs.makeDir(root)
-    for _, path in ipairs(paths) do
-      if not (preserved(path) and fs.exists("/" .. path)) then
+    for _, path in ipairs(plan.changed) do
         write(root .. "/stage/" .. path, files[path])
         if path:match("%.lua$") then
           local fn, problem = loadfile(root .. "/stage/" .. path)
           assert(fn, tostring(problem))
         end
         table.insert(changed, path)
-      end
     end
     local entries = {}
     for _, path in ipairs(changed) do

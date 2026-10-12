@@ -47,6 +47,7 @@ bundle["boot.lua"] = "invalid ! lua"
 assert(not pcall(installer.install, bundle))
 assert(files["/boot.lua"] == "return 'new'", "validation changed live files")
 bundle["boot.lua"] = "return 'next'"
+bundle["system/new.lua"] = "return false"
 failAt = "/system/new.lua"
 assert(not pcall(installer.install, bundle))
 assert(files["/boot.lua"] == "return 'new'", "failed installation did not restore boot")

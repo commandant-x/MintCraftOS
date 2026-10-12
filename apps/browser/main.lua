@@ -4,6 +4,7 @@ local ui = require("system.gui.components")
 local config = require("system.libraries.config")
 local log = require("system.libraries.log")
 local httpClient = require("system.network.http_client")
+local appWorker = require("system.libraries.app_worker")
 
 local M = {}
 
@@ -49,13 +50,13 @@ local function readFile(path)
 end
 
 local function writeFile(path, data)
-  local dir = fs.getDir(path)
-  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-  local handle = fs.open(path, "w")
-  if not handle then return false end
-  handle.write(data)
-  handle.close()
-  return true
+  local ok,result=pcall(function()
+    local dir=fs.getDir(path)
+    if dir~="" and not fs.exists(dir) then fs.makeDir(dir) end
+    local handle=fs.open(path,"w") if not handle then return false end
+    local wrote=pcall(handle.write,data) pcall(handle.close) return wrote
+  end)
+  return ok and result==true
 end
 
 local function loadData(path, fallback)
@@ -256,6 +257,7 @@ end
 
 local function classifyError(err)
   local text = tostring(err or ""):lower()
+  if text:find("response_read_failed",1,true) then return "BRW-002" end
   if text:find("http api disabled", 1, true) then return "BRW-001" end
   if text:find("permission", 1, true) or text:find("blocked", 1, true) then return "BRW-003" end
   if text:find("redirect", 1, true) then return "BRW-004" end
@@ -269,7 +271,17 @@ end
 function M.run(ctx)
   ensureDirs()
   local settings = config.load(SETTINGS, defaultSettings())
-  for k, v in pairs(defaultSettings()) do if settings[k] == nil then settings[k] = v end end
+  if type(settings)~="table" then settings=defaultSettings() end
+  for k,v in pairs(defaultSettings()) do if type(settings[k])~=type(v) then settings[k]=v end end
+  settings.maxRedirects=math.max(0,math.min(5,math.floor(settings.maxRedirects)))
+  local function list(value,fields,limit)
+    local out={}
+    if type(value)=="table" then for i=1,math.min(#value,limit) do
+      local row=value[i] local valid=type(row)=="table"
+      if valid then for _,key in ipairs(fields) do if type(row[key])~="string" then valid=false end end end
+      if valid then out[#out+1]=row end
+    end end return out
+  end
 
   local app = {
     tabs = { newTab((ctx.args and ctx.args.url and ctx.args.url ~= "") and ctx.args.url or settings.home) },
@@ -288,6 +300,14 @@ function M.run(ctx)
     downloads = loadData(DOWNLOADS, {}),
     linkBoxes = {},
   }
+  app.history=list(app.history,{"title","url"},80)
+  app.bookmarks=list(app.bookmarks,{"title","url"},64)
+  app.downloads=list(app.downloads,{"filename","status"},80)
+  local worker
+  local function enqueue(action,value)
+    local ok,err=worker:submit({action=action,value=value,index=app.active})
+    app.status=ok and "Loading..." or tostring(err)
+  end
 
   local function tab() return app.tabs[app.active] end
 
@@ -385,8 +405,8 @@ function M.run(ctx)
     end
   end
 
-  local function loadUrl(url, addToHistory)
-    local t = tab()
+  local function loadUrl(url, addToHistory,target)
+    local t = target or tab()
     url = normalizeAddress(url, settings.search)
     if url:match("^mint://crafttube") then
       local query = queryParam(url, "q")
@@ -453,6 +473,7 @@ function M.run(ctx)
     end
 
     local previous = t.url
+    t.url=url
     local current = url
     local response, err
     for redirects = 0, settings.maxRedirects do
@@ -485,6 +506,10 @@ function M.run(ctx)
       end
     end
 
+    if #response.body>524288 then
+      t.page=errorPage("BRW-000","Page exceeds the 512 KiB reader limit",current) t.title=t.page.title
+      app.status="Page too large" return
+    end
     if settings.cache and response and response.code == 200 then
       writeFile(CACHE .. "/" .. cacheKey(current) .. ".html", response.body)
     end
@@ -504,16 +529,16 @@ function M.run(ctx)
   end
 
   local function submitAddress()
-    loadUrl(app.address ~= "" and app.address or tab().url, true)
+    enqueue("load",{url=app.address ~= "" and app.address or tab().url,history=true})
     app.focusAddress = false
   end
 
-  local function goHistory(delta)
-    local t = tab()
+  local function goHistory(delta,target)
+    local t = target or tab()
     local nextIndex = t.historyIndex + delta
     if nextIndex >= 1 and nextIndex <= #t.history then
       t.historyIndex = nextIndex
-      loadUrl(t.history[t.historyIndex], false)
+      loadUrl(t.history[t.historyIndex], false,t)
     end
   end
 
@@ -524,15 +549,15 @@ function M.run(ctx)
     app.status = "Bookmark added"
   end
 
-  local function download(url)
-    url = url or tab().url
+  local function download(url,target)
+    url = url or (target or tab()).url
     local allowed, denied = ctx.security.require("network.http", url)
     if not allowed then app.status = "BRW-003 " .. tostring(denied) return end
     local response, err = httpClient.get(url, { headers = headersFor(url, tab().url) })
     if not response then app.status = classifyError(err) .. " " .. tostring(err) return end
     local filename = filenameFromUrl(url)
     local path = fs.combine(settings.downloadDir, filename)
-    writeFile(path, response.body)
+    if not writeFile(path, response.body) then app.status="BRW-008 Cannot save download" return end
     table.insert(app.downloads, 1, { url = url, filename = filename, path = path, status = "done", received = response.size, startedAt = now() })
     saveData(DOWNLOADS, app.downloads)
     app.status = "Downloaded " .. filename
@@ -545,7 +570,7 @@ function M.run(ctx)
     elseif tostring(link.url):match("^mint://settings") then
       ctx.apps.launch("settings")
     else
-      loadUrl(link.url, true)
+      enqueue("load",{url=link.url,history=true})
     end
   end
 
@@ -557,6 +582,8 @@ function M.run(ctx)
     self.lastW = w
     local t = tab()
     self.linkBoxes = {}
+    for _,item in ipairs(self.tabs) do item.tabX=nil end
+    for _,b in ipairs(self.bookmarks) do b.x=nil end
     renderer.fill(1, 1, w, 1, colors.gray)
     local x = 1
     for i, item in ipairs(self.tabs) do
@@ -611,7 +638,7 @@ function M.run(ctx)
     renderer.writeAt(1, h - kbH, renderer.crop("Status: " .. self.status, w), colors.white, colors.gray)
     if self.focusAddress then
       self.keyboard.x = 1
-      self.keyboard.y = h - kbH + 1
+      self.keyboard.y = math.max(1,h - kbH + 1)
       self.keyboard.hint = "Address/Search"
       keyboard.draw(1, self.keyboard.y, w, self.keyboard)
     end
@@ -633,22 +660,25 @@ function M.run(ctx)
       local _, x, y = table.unpack(event.args)
       if self.focusAddress and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
       if y == 1 then
-        if x >= self.lastW - 2 then table.insert(self.tabs, newTab(settings.home)) self.active = #self.tabs loadUrl(settings.home, false) return true end
+        if x >= self.lastW - 2 then
+          if #self.tabs>=16 then self.status="Tab limit reached" return true end
+          table.insert(self.tabs,newTab(settings.home)) self.active=#self.tabs enqueue("load",{url=settings.home,history=false}) return true
+        end
         for i, item in ipairs(self.tabs) do
           if item.tabX and x >= item.tabX and x < item.tabX + item.tabW then self.active = i return true end
         end
       elseif y == 2 then
-        if x == 1 then goHistory(-1) return true end
-        if x == 3 then goHistory(1) return true end
-        if x == 5 then loadUrl(t.url, false) return true end
-        if x == 7 then loadUrl(settings.home, true) return true end
+        if x == 1 then enqueue("history",-1) return true end
+        if x == 3 then enqueue("history",1) return true end
+        if x == 5 then enqueue("load",{url=t.url,history=false}) return true end
+        if x == 7 then enqueue("load",{url=settings.home,history=true}) return true end
         if x == 9 then addBookmark() return true end
-        if x == 11 then download(t.url) return true end
+        if x == 11 then enqueue("download",t.url) return true end
         if x == 13 or x == 14 then openCraftTube(youtubeQuery(t.url)) return true end
         if x >= 16 then self.focusAddress = true self.address = t.url return true end
       elseif settings.showBookmarks and y == 3 then
         for _, b in ipairs(self.bookmarks) do
-          if b.x and x >= b.x and x < b.x + b.w then loadUrl(b.url, true) return true end
+          if b.x and x >= b.x and x < b.x + b.w then enqueue("load",{url=b.url,history=true}) return true end
         end
       end
       for _, box in ipairs(self.linkBoxes or {}) do
@@ -658,9 +688,21 @@ function M.run(ctx)
     return false
   end
 
-  loadUrl(tab().url, false)
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Browser", w = math.min(82, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
+  worker=appWorker.new(ctx,"Browser requests",function(request)
+    local target=app.tabs[request.index]
+    if request.action=="load" then loadUrl(request.value.url,request.value.history,target)
+    elseif request.action=="history" then goHistory(request.value,target)
+    elseif request.action=="download" then download(request.value,target) end
+  end,function(request,ok,err)
+    if not ok then
+      local target=app.tabs[request.index]
+      target.page=errorPage(classifyError(err),tostring(err),target.url) target.title=target.page.title
+      target.loading=false app.status=tostring(err) pcall(log.warn,"browser",app.status)
+    elseif app.status=="Loading..." then app.status="Ready" end
+  end,20)
+  enqueue("load",{url=tab().url,history=false})
   while not win.closed do ctx.pullEvent() end
 end
 

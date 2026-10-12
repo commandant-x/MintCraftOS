@@ -1,4 +1,4 @@
-# Radar 5 EA read-only API bridge - MintCraftOS 0.18.4
+# Radar 5 EA read-only API bridge - MintCraftOS 0.18.5
 
 The exact user-provided `create_radar-5.0-EA-3.0.0-1.21.1.jar` has a bearing
 `getPosition` method whose receiver is mistakenly StationaryRadarBlockEntity.
@@ -50,7 +50,7 @@ to treat this as world heading without a verified transform/calibration.
 
 ## One bulk action
 
-Install MintCraftOS 0.18.4, then Combat > Rescan > Auto setup > Confirm on each
+Install MintCraftOS 0.18.5, then Combat > Rescan > Auto setup > Confirm on each
 source computer. All local bearings with the bridge switch to automatic world
 positions in one write. Existing manual coordinates/calibrations remain as backups.
 No manual coordinate entry is required for fixed bearings, including 40 wired sensors.
