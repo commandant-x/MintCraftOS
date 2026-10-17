@@ -200,12 +200,29 @@ function M.run(ctx)
       elseif id=="altDown" or id=="altUp" then report(flight.manual(actor,"altitude",id=="altUp" and 1 or -1)) return true
       elseif id=="yawLeft" or id=="yawRight" then report(flight.manual(actor,"heading",id=="yawRight" and 1 or -1)) return true
       elseif id=="test" then
-        if self.dirty then self.message="Save changes first" return true end
+        local function setup()
+          self.page="mapping" self.form.scroll=1 self.scroll=1
+        end
+        if self.dirty then
+          self.message="Save changes before testing"
+          confirm("Unsaved configuration. Open Outputs to save?",setup)
+          return true
+        end
         local channel=draft.channels[self.index]
         if channel then
           self.testValue=self.testValue or {value=channel.neutral}
+          if self.testValue.value==channel.neutral or self.testValue.value==channel.rescue then
+            confirm("Test signal equals neutral/rescue. Edit signal?",function()
+              self.form.edit=forms.field(self.testValue,"value","Test signal","number")
+              self.form.text=tostring(self.testValue.value)
+            end)
+            return true
+          end
           confirm("Test "..channel.id.." at signal "..tostring(self.testValue.value).."?",function() report(flight.testOutput(actor,channel.id,self.testValue.value,true)) end)
-        else self.message="Add and save outputs in Outputs first" end return true
+        else
+          self.message="No saved output to test"
+          confirm("No saved output. Open Outputs setup?",setup)
+        end return true
       elseif id=="channel" or id=="hover" or id=="manual" or id=="rescue" or id=="rescueConfirm" then
         if self.dirty then self.message="Save changes first" return true end
         local channel=draft.channels[self.index]

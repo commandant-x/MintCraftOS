@@ -48,6 +48,20 @@ local ok,err=pcall(function()
     assert(m and m.frame=="unknown","COM frame invented")
     assert(not combat.solution("mount","target"),"unverified first scan authorized")
     local launched,navPid=apps.launch("navigation") assert(launched,tostring(navPid))
+    local initialApp=apps.ctx.scheduler.processes[navPid].window.app
+    initialApp.page="calibration" initialApp:draw(80,28)
+    local testButton
+    for _,box in ipairs(initialApp.commands.boxes) do if box.id=="test" then testButton=box end end
+    assert(testButton,"Test button missing")
+    initialApp:handle({name="mouse_click",args={1,testButton.x,testButton.y}})
+    assert(initialApp.confirm,"Test with no outputs silently did nothing")
+    initialApp.confirm.callback() initialApp.confirm=nil
+    assert(initialApp.page=="mapping","missing-output dialog did not open setup")
+    initialApp.page="calibration" initialApp.dirty=true initialApp:draw(80,28)
+    initialApp:handle({name="mouse_click",args={1,testButton.x,testButton.y}})
+    assert(initialApp.confirm,"unsaved configuration silently blocked Test")
+    initialApp.confirm.callback() initialApp.confirm=nil initialApp.dirty=false
+    assert(initialApp.page=="mapping")
     local t=require("system.services.avionicsd").flightTelemetry({gimbal="gimbal",altitude="altitude",nav="nav"})
     assert(t.pitch==0 and t.roll==0 and t.altitude==198 and t.heading==0,"slim native flight telemetry missing")
     assert(#flight.endpoints()==1 and flight.endpoints()[1].backend=="relay")
@@ -74,8 +88,8 @@ local ok,err=pcall(function()
       for _,box in ipairs(app.confirmBar) do if box.id=="confirm" then click(box) return end end
       error("confirmation button missing")
     end
-    draw() click({x=2,y=4})
-    assert(app.form.edit,"test signal field cannot be edited")
+    command("test")
+    assert(app.form.edit,"neutral/rescue test signal did not offer editing")
     app.form.text="7" app:handle({name="key",args={keys.enter}})
     command("test")
     for _=1,30 do if signals.top==15 then break end sleep(0.1) end
