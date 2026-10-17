@@ -4,6 +4,7 @@ local store=require("system.nexus.storage")
 local bootstrap=require("system.nexus.bootstrap")
 local automation=require("system.nexus.automation")
 local tasks=require("system.nexus.tasks")
+local keygen=require("system.nexus.keygen")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
 local M={version=wire.version}
@@ -50,7 +51,7 @@ local function scan()
         local old=rows[id] or {}
         found[id]={id=id,name=name,label=type(label)=="string" and label:sub(1,64) or "Computer "..id,
           powered=okOn and on==true,seenAt=old.seenAt,version=old.version,peripherals=old.peripherals,
-          error=old.error,capabilities=old.capabilities,deployAt=old.deployAt,deployRelease=old.deployRelease,release=old.release}
+          error=old.error,capabilities=old.capabilities,deployAt=old.deployAt,deployRelease=old.deployRelease,release=old.release,provisionToken=old.provisionToken}
       end
     elseif ok and kind=="drive" then
       local okPath,path=pcall(disk.getMountPath,name)
@@ -111,7 +112,7 @@ if selected and manifest.master~=os.getComputerID() then
 end
 if fs.exists('/startup.lua') then shell.run('/startup.lua') end
 ]=]
-local function prepare(driveName,ids)
+local function prepare(driveName,ids,resetToken)
   assert(config.role=="master","Configure MASTER first")
   assert(#ids>0,"No authorized computers in this group")
   local mount
@@ -126,7 +127,7 @@ local function prepare(driveName,ids)
   for _,id in ipairs(ids) do
     local member=assert(config.members[tostring(id)],"Computer not authorized")
     assert(id~=ownId(),"Cannot deploy on MASTER")
-    manifest.nodes[tostring(id)]={group=member.group,key=wire.nodeKey(config.key,id)}
+    manifest.nodes[tostring(id)]={group=member.group,key=wire.nodeKey(config.key,id),resetToken=resetToken}
   end
   local paths=addon.copy(bootstrap.files) paths[#paths+1]="system/nexus/bootstrap.lua"
   for _,path in ipairs(paths) do
@@ -160,8 +161,8 @@ end
 function M.request(actor,action,args)
   local ok,err=actorAllowed(actor) if not ok then return false,err end
   if #actions>=8 then return false,"NEXUS action queue full" end
-  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="groupMission" and action~="assign" and action~="reboot" and action~="shutdown" and action~="auto" and action~="pause" then return false,"Unknown NEXUS action" end
-  if action~="scan" and config.role~="master" then return false,"Configure MASTER first" end
+  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="groupMission" and action~="assign" and action~="reboot" and action~="shutdown" and action~="auto" and action~="resetAuto" and action~="setupAuto" and action~="pause" then return false,"Unknown NEXUS action" end
+  if action~="scan" and action~="setupAuto" and config.role~="master" then return false,"Configure MASTER first" end
   args=type(args)=="table" and addon.copy(args) or {}
   actions[#actions+1]={actor={pid=actor.pid},action=action,args=args}
   return true,"Queued: "..action
@@ -195,10 +196,21 @@ end
 local function execute(action)
   local permitted,err=actorAllowed(action.actor) assert(permitted,err)
   local args=action.args
-  if action.action=="auto" then
+  if action.action=="setupAuto" then
+    if config.role=="master" then
+      local ok,err=M.setup(action.actor,"",args.group or config.group) assert(ok,err)
+    else
+      local key=keygen.generate()
+      local ok,err=M.setup(action.actor,key,args.group or "factory") assert(ok,err)
+    end
+  elseif action.action=="auto" or action.action=="resetAuto" then
     scan()
     local ids=selectedIds(args.group or config.group)
     assert(#ids>0,"Authorize owned computers first")
+    if action.action=="resetAuto" then
+      assert(type(args.ids)=='table' and #args.ids==#ids,'Reset selection changed; confirm again')
+      for i,id in ipairs(ids) do assert(tostring(args.ids[i])==tostring(id),'Reset selection changed; confirm again') end
+    end
     local drive=args.drive
     if not drive then
       for _,value in ipairs(drives) do if value.mount and not fs.isReadOnly(value.mount) then
@@ -208,6 +220,9 @@ local function execute(action)
     assert(drive,"Insert a writable provisioning disk")
     local nextValue=addon.copy(config)
     nextValue.automation={enabled=true,ids=ids,group=args.group or config.group,drive=drive,attempts={},holds={}}
+    if action.action=="resetAuto" then
+      nextValue.automation.resetToken=wire.hash(config.key..":reset:"..nextId()):sub(1,40)
+    end
     saveConfig(nextValue) publish("Automatic deployment enabled for "..#ids.." explicitly authorized computers")
   elseif action.action=="pause" then
     local nextValue=addon.copy(config)
@@ -274,7 +289,7 @@ local function automaticTick()
   local step=automation.plan(policy,view,config.members,M.release,os.epoch("utc"))
   if not step then return end
   if step.kind=="deploy" then
-    local manifest=prepare(policy.drive,policy.ids)
+    local manifest=prepare(policy.drive,policy.ids,policy.resetToken)
     local nextValue=addon.copy(config)
     nextValue.automation.attempts=nextValue.automation.attempts or {}
     nextValue.automation.attempts[tostring(step.id)]={release=manifest.release,count=step.count,at=os.epoch("utc")}
@@ -316,6 +331,7 @@ local function receive(item)
     local row=rows[id] or {id=id,label="Agent "..id}
     row.seenAt=os.clock() row.version=body.version:sub(1,32) row.error=nil
     row.release=type(body.release)=="string" and body.release:sub(1,64) or nil
+    row.provisionToken=type(body.provisionToken)=="string" and body.provisionToken:sub(1,100) or nil
     row.label=type(body.label)=="string" and body.label:sub(1,64) or row.label
     row.peripherals=body.peripherals row.capabilities=body.capabilities rows[id]=row revision=revision+1
     send(id,"ack",{heartbeat=message.id})

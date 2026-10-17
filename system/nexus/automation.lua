@@ -6,10 +6,11 @@ function M.plan(policy,rows,members,release,now)
     local member=members[tostring(id)]
     local row=rows[id]
     if not member or member.group~=policy.group then return {kind="blocked",message="Authorization changed; renew automatic deployment"} end
-    if not row or not row.seenAt or row.age>15 or row.release~=release then
+    local resetNeeded=policy.resetToken and (not row or row.provisionToken~=policy.resetToken)
+    if not row or not row.seenAt or row.age>15 or row.release~=release or resetNeeded then
       complete=false
       local attempt=(policy.attempts or {})[tostring(id)] or {}
-      if not (policy.holds or {})[tostring(id)] and row and row.name and row.release~=release and policy.sealedRelease~=release then
+      if not (policy.holds or {})[tostring(id)] and row and row.name and (row.release~=release or resetNeeded) and policy.sealedRelease~=release then
         local count=attempt.release==release and (attempt.count or 0) or 0
         if count<2 and (not attempt.at or now-attempt.at>=60000) then return {kind="deploy",id=id,count=count+1} end
       end

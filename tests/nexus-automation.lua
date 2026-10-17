@@ -21,4 +21,9 @@ members["1"]=nil
 assert(auto.plan(p,rows,members,"new",200000).kind=="blocked")
 p.enabled=false
 assert(auto.plan(p,rows,members,"new",200000)==nil)
+p.enabled=true members['1']={group='factory'} p.sealedRelease=nil p.holds={} p.attempts={}
+rows[1].age=0 rows[2].age=0 p.resetToken=string.rep('r',40)
+assert(auto.plan(p,rows,members,'new',200000).kind=='deploy','Reset skipped agent already on current release')
+for id=1,2 do rows[id].provisionToken=p.resetToken end
+assert(auto.plan(p,rows,members,'new',200000).kind=='seal','Reset sealed before operation-specific acknowledgements')
 print("NEXUS automation: frozen scope, retries, cooldown, holds and sealing OK")

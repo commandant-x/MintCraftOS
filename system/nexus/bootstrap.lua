@@ -19,6 +19,20 @@ if not ok then
   end
 end
 ]=]
+local function eraseInternal(mount)
+  assert(type(fs.getDrive)=="function" and type(fs.isReadOnly)=="function","Cannot identify internal storage safely")
+  local drive=fs.getDrive('/')
+  assert(drive=='hdd' and fs.getDrive(mount)~=drive and not fs.isReadOnly('/'),"Reset requires a separate boot disk and writable internal hdd")
+  local function erase(path)
+    if fs.getDrive(path)~=drive or fs.isReadOnly(path) then return end
+    if fs.isDir(path) then
+      for _,name in ipairs(fs.list(path)) do erase('/'..fs.combine(path,name):gsub('^/+','')) end
+      if #fs.list(path)>0 then return end
+    end
+    fs.delete(path)
+  end
+  for _,name in ipairs(fs.list('/')) do erase('/'..name) end
+end
 function M.install(mount,options)
   local manifest=assert(store.load(fs.combine(mount,"nexus/manifest.cfg")),"NEXUS manifest missing")
   assert(manifest.schema==1 and type(manifest.release)=="string" and manifest.release:match("^[%w_-]+$") and #manifest.release<=64,"Invalid NEXUS release")
@@ -26,8 +40,21 @@ function M.install(mount,options)
   local association=type(manifest.nodes)=="table" and manifest.nodes[tostring(id)]
   if not association or manifest.master==id then return false,"Computer not selected" end
   assert(wire.validKey(association.key) and type(association.group)=="string","Invalid bootstrap association")
+  local source=fs.combine(mount,"nexus/payload")
+  for _,path in ipairs(M.files) do
+    local data=assert(store.read(fs.combine(source,path)),"Missing payload: "..path)
+    assert(type(manifest.hashes)=="table" and manifest.hashes[path]==wire.hash(data),"Payload integrity mismatch: "..path)
+    assert(load(data,"nexus/"..path,"t",{}),"Invalid Lua payload: "..path)
+  end
   store.recover("/nexus/config.cfg")
   local existing=store.load("/nexus/config.cfg")
+  local reset=association.resetToken
+  if reset~=nil then
+    assert(type(reset)=='string' and #reset>=16 and #reset<=100 and reset:match('^[%w_-]+$'),"Invalid reset authorization")
+    local completed=existing and existing.role=='agent' and existing.id==id and existing.master==manifest.master
+      and existing.key==association.key and existing.provisionToken==reset
+    if not completed then eraseInternal(mount) existing=nil end
+  end
   local startup=store.read("/startup.lua")
   if startup and startup:sub(1,#M.marker)~=M.marker then return false,"Existing startup protected; use an explicitly provisioned blank computer" end
   if fs.exists("/startup") or fs.exists("/system") or fs.exists("/boot.lua") then return false,"Existing installation protected" end
@@ -40,12 +67,6 @@ function M.install(mount,options)
     assert(existing.role=="agent" and startup and startup:sub(1,#M.marker)==M.marker,"Only an existing NEXUS agent can be reassociated")
   end
   local root="/nexus/versions/"..manifest.release
-  local source=fs.combine(mount,"nexus/payload")
-  for _,path in ipairs(M.files) do
-    local data=assert(store.read(fs.combine(source,path)),"Missing payload: "..path)
-    assert(type(manifest.hashes)=="table" and manifest.hashes[path]==wire.hash(data),"Payload integrity mismatch: "..path)
-    assert(load(data,"nexus/"..path,"t",{}),"Invalid Lua payload: "..path)
-  end
   if existing and not changed and existing.active==manifest.release then
     for _,path in ipairs(M.files) do assert(wire.hash(assert(store.read(fs.combine(root,path)),"Installed payload missing"))==manifest.hashes[path],"Installed payload corrupt; prepare a repair disk") end
     if not fs.exists('/nexus/uninstall.lua') then store.write('/nexus/uninstall.lua',assert(store.read(fs.combine(root,'system/nexus/uninstall.lua')))) end
@@ -76,6 +97,7 @@ function M.install(mount,options)
   store.save("/nexus/config.cfg",cfg)
   store.write('/nexus/uninstall.lua',assert(store.read(fs.combine(root,'system/nexus/uninstall.lua'))))
   store.write("/startup.lua",M.launcher)
+  if reset then cfg.provisionToken=reset store.save('/nexus/config.cfg',cfg) end
   return true,"Installed"
 end
 return M

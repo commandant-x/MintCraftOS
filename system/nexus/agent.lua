@@ -18,7 +18,7 @@ function M.new(cfg)
   function self:tick()
     if os.clock()-self.lastScan>=10 then self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock() end
     if self.modems>0 and os.clock()>=self.nextHeartbeat then
-      self:send("heartbeat",{version=wire.version,release=cfg.active,label=tostring(os.getComputerLabel() or "Agent "..cfg.id):sub(1,64),
+      self:send("heartbeat",{version=wire.version,release=cfg.active,provisionToken=cfg.provisionToken,label=tostring(os.getComputerLabel() or "Agent "..cfg.id):sub(1,64),
         group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum"}})
       self.nextHeartbeat=os.clock()+5
     end

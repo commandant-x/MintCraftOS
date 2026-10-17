@@ -21,7 +21,7 @@ function M.run(ctx,args)
   local function actions()
     if app.page=="setup" then return {{id="setup",label="Save MASTER"},{id="scan",label="Rescan"}} end
     if app.page=="computers" then return {{id="scan",label="Rescan"},{id="drive",label="Disk"},{id="prepare",label="Prepare disk"},
-      {id="auto",label="Automate"},{id="pause",label="Pause automation"},
+      {id="auto",label="Automate"},{id="resetAuto",label="Erase & provision"},{id="pause",label="Pause automation"},
       {id="deploy",label="Deploy selected"},{id="seal",label="Seal disk"},{id="reboot",label="Restart agent"},{id="shutdown",label="Power off"}} end
     if app.page=="missions" then return {{id="groupPing",label="Ping group"},{id="groupInventory",label="Inventory group"},
       {id="groupStorage",label="Storage group"},{id="assign",label="Auto assign check"}} end
@@ -37,7 +37,7 @@ function M.run(ctx,args)
     renderer.writeAt(1,3,renderer.crop("MASTER "..s.master.." | "..s.online.." online / "..s.managed.." managed",w),theme.get("accent"))
     self.boxes={}
     if self.page=="setup" then
-      self.form:draw(w,h,{forms.field(self.settings,"group","Deployment group","string"),forms.field(self.settings,"key","Private MASTER key (32+ chars)","secret")})
+      self.form:draw(w,h,{forms.field(self.settings,"group","Deployment group","string"),forms.field(self.settings,"key","Key (empty = automatic HTTPS)","secret")})
     elseif self.page=="computers" then
       local drive=s.drives[self.driveIndex or 1]
       renderer.writeAt(1,4,renderer.crop("Disk: "..(drive and (drive.name.." / "..tostring(drive.mount or "no data disk")) or "none").." | group "..self.settings.group,w))
@@ -137,7 +137,10 @@ function M.run(ctx,args)
     if handled and section=="pages" then if id then self.page=id self.scroll=1 end return true end
     if handled and id then
       local s=self.snapshot local drive=s.drives[self.driveIndex or 1]
-      if id=="setup" then report(nexus.setup(actor,self.settings.key,self.settings.group)) self.settings.key="" self.snapshot=nexus.snapshot()
+      if id=="setup" then
+        if self.settings.key=="" and s.role~="master" then request("setupAuto",{group=self.settings.group})
+        else report(nexus.setup(actor,self.settings.key,self.settings.group)) end
+        self.settings.key="" self.snapshot=nexus.snapshot()
       elseif id=="scan" then request("scan")
       elseif id=="groupPing" or id=="groupInventory" or id=="groupStorage" then
         local kinds={groupPing="ping",groupInventory="inventory",groupStorage="storage"}
@@ -148,6 +151,16 @@ function M.run(ctx,args)
       elseif id=="auto" then
         confirm("Allow background deployment/restarts of currently authorized group "..self.settings.group.." (max 2 attempts/node), then seal disk? Unknown PCs excluded.",function()
           request("auto",{drive=drive and drive.name,group=self.settings.group})
+        end)
+      elseif id=="resetAuto" then
+        local ids={}
+        for _,row in ipairs(s.computers) do if row.authorized and row.group==self.settings.group then ids[#ids+1]=tostring(row.id) end end
+        if #ids==0 then self.message="Authorize owned computers in this group first" return true end
+        local scope=table.concat(ids,", ")
+        confirm("ERASE ALL INTERNAL FILES on agents ["..scope.."]? No backup. MASTER, ROM and disks excluded. This disk can reset these selected computers automatically.",function()
+          confirm("FINAL CONFIRMATION: permanently erase internal storage of IDs ["..scope.."] and install NEXUS?",function()
+            request("resetAuto",{drive=drive and drive.name,group=self.settings.group,ids=ids})
+          end)
         end)
       elseif id=="prepare" or id=="deploy" then
         if not drive then self.message="Connect a shared drive with a data disk" return true end

@@ -65,4 +65,21 @@ local box=app.confirmBar[1]
 app:handle({name='mouse_click',args={1,box.x,box.y}})
 assert(calls[#calls].action=='deploy' and calls[#calls].args.group=='factory')
 assert(not app.confirm)
+app.commands.open=true app:draw(width,height)
+for _,candidate in ipairs(app.commands.menuBoxes) do if candidate.id=='resetAuto' then target=candidate end end
+assert(target.id=='resetAuto')
+app:handle({name='mouse_click',args={1,target.x,target.y}})
+previous=#calls
+for stage=1,2 do
+ assert(app.confirm,'Missing destructive confirmation stage '..stage)
+ for _=1,100 do
+  app:draw(width,height)
+  local button=app.confirmBar[1]
+  local more=button.id=='more'
+  app:handle({name='mouse_click',args={1,button.x,button.y}})
+  if not more then break end
+ end
+ if stage==1 then assert(#calls==previous,'Reset executed before final confirmation') end
+end
+assert(calls[#calls].action=='resetAuto' and #calls[#calls].args.ids==64,'Frozen destructive scope missing')
 print('NEXUS UI: responsive 2D network, 64-node touch paging/selection, bounds, deployment confirmation and modal isolation passed')
