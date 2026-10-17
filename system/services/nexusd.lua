@@ -104,7 +104,7 @@ local h=fs.open(fs.combine(mount,'nexus/manifest.cfg'),'r')
 local manifest=h and textutils.unserialize(h.readAll()) if h then h.close() end
 local selected=type(manifest)=='table' and type(manifest.nodes)=='table' and manifest.nodes[tostring(os.getComputerID())]
 if selected and manifest.master~=os.getComputerID() then
-  package.path=fs.combine(mount,'nexus/payload/?.lua')..';'..package.path
+  package.path='/'..fs.combine(mount,'nexus/payload/?.lua'):gsub('^/+','')..';'..package.path
   local ok,result,err=pcall(function() return require('system.nexus.bootstrap').install(mount) end)
   if not ok or not result then printError('NEXUS bootstrap: '..tostring(ok and err or result)) end
 end

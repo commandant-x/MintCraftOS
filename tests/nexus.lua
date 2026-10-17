@@ -63,7 +63,9 @@ for id=1,8 do
   switch(id)
   for path,data in pairs(diskNodes) do machines[id].nodes[path]=data end
   local ranLocal=false
-  local bootEnv=setmetatable({package={path='?.lua'},shell={getRunningProgram=function() return 'disk/startup.lua' end,
+  local bootFs=setmetatable({combine=function(a,b) return fs.combine(a,b):gsub('^/+','') end,
+    open=function(path,mode) return fs.open('/'..path:gsub('^/+',''),mode) end},{__index=fs})
+  local bootEnv=setmetatable({fs=bootFs,package={path='?.lua'},shell={getRunningProgram=function() return 'disk/startup.lua' end,
     run=function(path) assert(path=='/startup.lua') ranLocal=true end},printError=function(err) error(err) end},{__index=_ENV})
   bootEnv.require=function(name)
     assert(name=='system.nexus.bootstrap' and bootEnv.package.path:sub(1,1)=='/','Disk bootstrap uses a relative module path')
