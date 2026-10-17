@@ -26,6 +26,36 @@ function M.actuator(value)
   a.geometryVerified=a.geometryVerified==true
   return a
 end
+function M.import(profile,snapshot)
+  if type(snapshot)~="table" or not snapshot.ok or not snapshot.complete or snapshot.frame~="body_plot" or not addon.vec(snapshot.centerOfMass) then
+    return nil,"Complete fresh body-frame bridge geometry required"
+  end
+  local p=M.profile(profile)
+  p.com=addon.copy(snapshot.centerOfMass) p.comVerified=true
+  p.bridgeVehicleId=snapshot.vehicleId p.bridgeFrame=snapshot.frame
+  p.bridgeUnits=addon.copy(snapshot.units) p.bridgeRevision=snapshot.sourceRevision
+  p.bridgeInertia=addon.copy(snapshot.inertia)
+  p.bridgeMass=snapshot.mass p.bridgeLinks=addon.copy(snapshot.links)
+  p.bridgeActuators={}
+  local lift=0
+  for _,row in ipairs(snapshot.actuators) do
+    if row.geometryValid then
+      if row.suggestedRole=="lift" then lift=lift+1 end
+      p.bridgeActuators[#p.bridgeActuators+1]={id=row.id,block=row.block,
+        actuator={role=row.suggestedRole,position=addon.copy(row.position),direction=addon.copy(row.direction),
+          geometryVerified=true,source="mintcraft_vehicle",controlBindingKnown=false}}
+    end
+  end
+  p.rotorCount=lift
+  if p.type=="unknown" then
+    p.type=({[1]="monocopter",[2]="bicopter",[3]="tricopter",[4]="quadcopter",[6]="hexacopter",[8]="octocopter"})[lift] or "unknown"
+    p.typeSource="orientation-based suggestion; confirm vehicle forward axes"
+  end
+  if p.name=="Vehicle" then p.name=snapshot.name end
+  -- Raw game units are not silently relabelled as kilograms.
+  if snapshot.units.mass=="kg" and addon.finite(snapshot.mass) then p.massKg=snapshot.mass end
+  return p
+end
 -- Body frame: +X right, +Y up, +Z forward. Torque is r cross F.
 -- Geometry alone is not a measured transfer function or a PID tuning.
 function M.analyze(profile,channels)
@@ -34,7 +64,12 @@ function M.analyze(profile,channels)
   if profile.type=="unknown" then out.warnings[#out.warnings+1]="Vehicle type missing" end
   if profile.massKg<=0 then out.warnings[#out.warnings+1]="Mass missing; force estimates unavailable" end
   if not profile.comVerified then out.warnings[#out.warnings+1]="Body-frame COM unverified; torque unavailable" end
-  for _,channel in ipairs(channels or {}) do
+  local geometry=profile.bridgeActuators or channels or {}
+  if profile.bridgeActuators then
+    out.frame="Sable plot axes; vehicle forward not inferred"
+    out.warnings[#out.warnings+1]="Imported physical model; command bindings remain unverified"
+  end
+  for _,channel in ipairs(geometry) do
     local a=M.actuator(channel.actuator)
     local row={id=channel.id,role=a.role,frequency=channel.frequency,verified=a.geometryVerified}
     if a.role=="unknown" then out.warnings[#out.warnings+1]=tostring(channel.id)..": role missing" end

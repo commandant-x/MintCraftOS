@@ -7,6 +7,7 @@ local instruments=require("system.navigation.instruments")
 local attitude=require("system.navigation.attitude")
 local vehicle=require("system.navigation.vehicle")
 local vehicleDiagram=require("system.navigation.vehicle_diagram")
+local vehicleBridge=require("system.services.vehiclebridged")
 local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
@@ -29,6 +30,7 @@ function M.run(ctx)
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
+    app.bridge=vehicleBridge.snapshot()
   end
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
@@ -42,7 +44,7 @@ function M.run(ctx)
     if app.page=="vehicle" then
       field(draft.vehicle,"name","Vehicle name","string")
       field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
-      field(draft.vehicle,"rotorCount","Independent rotors (0 = unknown)","number")
+      field(draft.vehicle,"rotorCount","Lift rotor count (0 = unknown)","number")
       field(draft.vehicle,"massKg","Mass (kg)","number")
       for _,axis in ipairs({"x","y","z"}) do field(draft.vehicle.com,axis,"COM body "..axis.." (blocks)","number") end
       field(draft.vehicle,"comVerified","COM body frame verified","boolean")
@@ -64,6 +66,19 @@ function M.run(ctx)
       for _,axis in ipairs(axes) do field(channel.mix,axis,"Mix "..axis,"number") end
       field(channel,"frequency","Create frequency (label)","string")
       if not channel.actuator then channel.actuator=vehicle.actuator() end
+      if draft.vehicle.bridgeActuators and #draft.vehicle.bridgeActuators>0 then
+        local options={"Manual"}
+        for i=1,#draft.vehicle.bridgeActuators do options[#options+1]=i end
+        rows[#rows+1]={label="Measured actuator #",options=options,get=function()
+          for i,row in ipairs(draft.vehicle.bridgeActuators) do if channel.actuator.bridgeId==row.id then return i end end
+          return "Manual"
+        end,set=function(index)
+          local measured=draft.vehicle.bridgeActuators[index]
+          if measured then channel.actuator=vehicle.actuator(measured.actuator) channel.actuator.bridgeId=measured.id
+          else channel.actuator.bridgeId=nil end
+          app.dirty=true
+        end}
+      end
       field(channel.actuator,"role","Actuator role",nil,vehicle.roles)
       for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.position,axis,"Position body "..axis.." (blocks)","number") end
       for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.direction,axis,"Thrust direction "..axis,"number") end
@@ -95,7 +110,7 @@ function M.run(ctx)
   end
   local function actions()
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
-    elseif app.page=="vehicle" then return {{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
     elseif app.page=="context" then return {{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
     elseif app.page=="diagram" then return {{id="analysis",label="Analysis"},{id="top",label="Top"},{id="side",label="Side"},{id="outputs",label="Actuators"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
@@ -111,7 +126,7 @@ function M.run(ctx)
     menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
     local commands=actions()
     for _,command in ipairs(commands) do
-      command.primary=command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.primary=command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
       command.danger=command.id=="arm"
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
@@ -124,6 +139,10 @@ function M.run(ctx)
     elseif self.page=="context" then
       local analysis=vehicle.analyze(draft.vehicle,draft.channels)
       local rows={analysis.frame,draft.vehicle.type.." | "..fmt(draft.vehicle.massKg," kg")}
+      rows[#rows+1]="Bridge: "..tostring(self.bridge and self.bridge.status or "waiting")
+      rows[#rows+1]="Physical rotors: "..tostring(#(draft.vehicle.bridgeActuators or {})).." | mapped commands: "..tostring(#draft.channels)
+      if draft.vehicle.bridgeMass then rows[#rows+1]="Bridge mass: "..fmt(draft.vehicle.bridgeMass).." "..tostring((draft.vehicle.bridgeUnits or {}).mass) end
+      for _,link in ipairs(draft.vehicle.bridgeLinks or {}) do rows[#rows+1]=(link.receiver and "RX " or "TX ")..link.first.item.." + "..link.second.item.." | motor link unknown" end
       rows[#rows+1]="Detected propellers: "..tostring(#(self.av.propeller or {})).." | signal endpoints: "..tostring(#flight.endpoints())
       for _,row in ipairs(analysis.rows) do
         rows[#rows+1]=tostring(row.id).." | "..row.role
@@ -226,6 +245,22 @@ function M.run(ctx)
         self.index=#draft.channels return true
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
       elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
+      elseif id=="discover" then
+        local snapshot=vehicleBridge.snapshot()
+        local imported,err=vehicle.import(draft.vehicle,snapshot)
+        if not imported then
+          self.message=err..": "..tostring(snapshot.status)
+          confirm(renderer.crop("Bridge unavailable: "..tostring(snapshot.status)..". Open Logs?",100),function() ctx.apps.launch("logs") end)
+        else
+          confirm("Import measured geometry? Outputs stay unchanged.",function()
+            local latest=vehicleBridge.snapshot()
+            if latest.vehicleId~=snapshot.vehicleId then report(false,"Vehicle changed; Discover again") return end
+            local current,problem=vehicle.import(draft.vehicle,latest)
+            if not current then report(false,problem) return end
+            draft.vehicle=current self.dirty=true self.page="context"
+            self.message="Geometry imported into draft; confirm type/axes, then Save"
+          end)
+        end return true
       elseif id=="mass" then
         local mass=self.sub.measurements and self.sub.measurements.mass
         if mass and mass.valid and addon.finite(mass.value) and mass.value>0 and mass.validUntil and os.clock()<=mass.validUntil then
@@ -236,7 +271,7 @@ function M.run(ctx)
       elseif id=="top" or id=="side" then self.diagramSide=id=="side" return true
       elseif id=="vehicle" then self.page="vehicle" return true
       elseif id=="outputs" then self.page="mapping" return true
-      elseif id=="rescan" then avionics.rescan() sable.rescan() return true
+      elseif id=="rescan" then avionics.rescan() sable.rescan() vehicleBridge.rescan() return true
       elseif id=="devices" or id=="logs" then ctx.apps.launch(id) return true
       elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm("Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
       elseif id=="disarm" then report(flight.disarm(actor)) refresh() return true

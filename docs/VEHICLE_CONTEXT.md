@@ -25,6 +25,14 @@ discovery, not from drawing-time calls or from guessing Create frequency links.
 
 ## Aeronautics diagram boundary
 
+V0.18.14 adds an optional [standalone Java bridge](../addons/vehicle-bridge/README.md).
+It reads the containing Sable plot's COM/inertia, loaded Aeronautics propellers
+and Create redstone-link frequencies. Discover imports measured geometry into
+the draft model, without altering command channels. Raw game mass is displayed
+separately, not silently converted into the profile's user kg calibration.
+The earlier no-export finding below concerns stock Avionics; the new bridge does
+not claim to export every force or child sublevel from the Aeronautics Diagram.
+
 The installed Avionics 0.6.0 peripheral classes and their base interfaces were
 inspected read-only. Propeller bearings expose thrust vectors and scalar thrust;
 physics assemblers expose mass, COM and inertia. No complete Aeronautics Diagram

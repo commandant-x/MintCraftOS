@@ -30,6 +30,7 @@ function M.configure(value)
   return ok,err
 end
 function M.serviceEnabled(id)
+  if id=="vehiclebridged" then return M.appEnabled("navigation") end
   if id=="sabled" or id=="avionicsd" then return M.appEnabled("navigation") or M.appEnabled("combat") end
   if id=="flightd" then return M.appEnabled("navigation") end
   if id=="combatd" or id=="radarnetd" then return M.appEnabled("combat") end
@@ -38,7 +39,7 @@ function M.serviceEnabled(id)
   return true
 end
 function M.dependencies(id)
-  if id=="navigation" then return {"sabled","avionicsd","flightd"} end
+  if id=="navigation" then return {"sabled","avionicsd","vehiclebridged","flightd"} end
   if id=="combat" then return {"sabled","avionicsd","combatd","radarnetd"} end
   if id=="messenger" then return {"messaged"} end
   if id=="update" then return {"updated"} end

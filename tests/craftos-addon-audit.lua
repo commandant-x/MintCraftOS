@@ -19,6 +19,17 @@ local ok,err=pcall(function()
     pressureCalls=pressureCalls+1 return native(0.69)
   end}
   _G.sublevel,_G.aero=sublevel,aero
+  local bridgeCalls=0
+  mintcraft_vehicle={snapshot=function()
+    bridgeCalls=bridgeCalls+1
+    local motors={}
+    for i=1,6 do motors[i]={id="measured-rotor-"..i,block="aeronautics:propeller",suggestedRole="lift",active=false,thrust=0,
+      position={x=math.cos(i*math.pi/3)*4,y=0,z=math.sin(i*math.pi/3)*4},direction={x=0,y=1,z=0}} end
+    return native({schema=1,readOnly=true,ok=true,complete=true,frame="body_plot",vehicleId="native-ship",name="Measured Hexa",
+      revision=math.floor(os.clock()*20),ageTicks=0,units={position="block",mass="sable_mass"},mass=126093,
+      centerOfMass={x=0,y=0,z=0},actuators=motors,links={}})
+  end}
+  _G.mintcraft_vehicle=mintcraft_vehicle
   local scan=1
   local yaw,pitch=0,0
   local signals,shots={},{}
@@ -63,6 +74,25 @@ local ok,err=pcall(function()
     assert(saveButton) initialApp:handle({name="mouse_click",args={1,saveButton.x,saveButton.y}})
     assert(flight.configuration().vehicle.type=="hexacopter","vehicle profile not persisted")
     assert(flight.configuration().vehicle.massKg==130000,"numeric edit lost during redraw")
+    for _=1,30 do if require("system.services.vehiclebridged").snapshot().ok then break end sleep(0.1) end
+    initialApp.page="vehicle" initialApp:draw(80,28)
+    local discoverButton
+    for _,box in ipairs(initialApp.commands.boxes) do if box.id=="discover" then discoverButton=box end end
+    assert(discoverButton,"Discover hidden")
+    initialApp:handle({name="mouse_click",args={1,discoverButton.x,discoverButton.y}})
+    assert(initialApp.confirm,"geometry import lacks confirmation")
+    initialApp.confirm.callback() initialApp.confirm=nil
+    assert(initialApp.page=="context")
+    local before=bridgeCalls
+    initialApp:draw(80,28)
+    initialApp.page="diagram" initialApp:draw(80,28)
+    assert(bridgeCalls==before,"draw acquired bridge data")
+    initialApp.page="vehicle" initialApp:draw(80,28)
+    for _,box in ipairs(initialApp.commands.boxes) do if box.id=="save" then initialApp:handle({name="mouse_click",args={1,box.x,box.y}}) break end end
+    local imported=flight.configuration()
+    assert(#imported.vehicle.bridgeActuators==6 and imported.vehicle.comVerified,"measured geometry not imported")
+    assert(#imported.channels==0,"Discover created live output mappings")
+    assert(imported.vehicle.massKg==130000,"raw bridge mass overwrote kg calibration")
     initialApp.page="calibration" initialApp:draw(80,28)
     local testButton
     for _,box in ipairs(initialApp.commands.boxes) do if box.id=="test" then testButton=box end end
@@ -81,13 +111,22 @@ local ok,err=pcall(function()
     assert(#flight.endpoints()==1 and flight.endpoints()[1].backend=="relay")
     local cfg=flight.configuration()
     cfg.channels={{id="relay-test",backend="relay",name="relay",side="top",min=0,max=15,neutral=15,rescue=15,mix={}}}
-    cfg.vehicle={type="hexacopter",massKg=126093,com={x=0,y=0,z=0},comVerified=true}
+    cfg.vehicle=imported.vehicle
     cfg.channels[1].actuator={role="lift",position={x=2,y=0,z=3},direction={x=0,y=1,z=0},geometryVerified=true}
     cfg.sensors={gimbal="gimbal",altitude="altitude",nav="nav"}
     assert(flight.configure({pid=navPid},cfg))
     apps.ctx.scheduler:kill(navPid)
     launched,navPid=apps.launch("navigation") assert(launched,tostring(navPid))
     local app=apps.ctx.scheduler.processes[navPid].window.app
+    app.page="mapping" app:draw(80,28)
+    local binding
+    for _,field in ipairs(app.form.fields) do if field.label=="Measured actuator #" then binding=field end end
+    assert(binding,"measured actuator picker missing") binding.set(2)
+    app:draw(80,28)
+    for _,box in ipairs(app.commands.boxes) do if box.id=="save" then app:handle({name="mouse_click",args={1,box.x,box.y}}) break end end
+    local linked=flight.configuration().channels[1]
+    assert(linked.actuator.bridgeId==imported.vehicle.bridgeActuators[2].id,"measured geometry not associated")
+    assert(linked.backend=="relay" and linked.name=="relay" and linked.side=="top","geometry picker altered output wiring")
     for _,page in ipairs({"vehicle","context","diagram"}) do
       app.page=page
       for _,size in ipairs({{20,10},{26,17},{80,28}}) do app:draw(size[1],size[2]) end

@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2738,6 +2738,7 @@ local instruments=require("system.navigation.instruments")
 local attitude=require("system.navigation.attitude")
 local vehicle=require("system.navigation.vehicle")
 local vehicleDiagram=require("system.navigation.vehicle_diagram")
+local vehicleBridge=require("system.services.vehiclebridged")
 local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
@@ -2760,6 +2761,7 @@ function M.run(ctx)
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
+    app.bridge=vehicleBridge.snapshot()
   end
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
@@ -2773,7 +2775,7 @@ function M.run(ctx)
     if app.page=="vehicle" then
       field(draft.vehicle,"name","Vehicle name","string")
       field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
-      field(draft.vehicle,"rotorCount","Independent rotors (0 = unknown)","number")
+      field(draft.vehicle,"rotorCount","Lift rotor count (0 = unknown)","number")
       field(draft.vehicle,"massKg","Mass (kg)","number")
       for _,axis in ipairs({"x","y","z"}) do field(draft.vehicle.com,axis,"COM body "..axis.." (blocks)","number") end
       field(draft.vehicle,"comVerified","COM body frame verified","boolean")
@@ -2795,6 +2797,19 @@ function M.run(ctx)
       for _,axis in ipairs(axes) do field(channel.mix,axis,"Mix "..axis,"number") end
       field(channel,"frequency","Create frequency (label)","string")
       if not channel.actuator then channel.actuator=vehicle.actuator() end
+      if draft.vehicle.bridgeActuators and #draft.vehicle.bridgeActuators>0 then
+        local options={"Manual"}
+        for i=1,#draft.vehicle.bridgeActuators do options[#options+1]=i end
+        rows[#rows+1]={label="Measured actuator #",options=options,get=function()
+          for i,row in ipairs(draft.vehicle.bridgeActuators) do if channel.actuator.bridgeId==row.id then return i end end
+          return "Manual"
+        end,set=function(index)
+          local measured=draft.vehicle.bridgeActuators[index]
+          if measured then channel.actuator=vehicle.actuator(measured.actuator) channel.actuator.bridgeId=measured.id
+          else channel.actuator.bridgeId=nil end
+          app.dirty=true
+        end}
+      end
       field(channel.actuator,"role","Actuator role",nil,vehicle.roles)
       for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.position,axis,"Position body "..axis.." (blocks)","number") end
       for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.direction,axis,"Thrust direction "..axis,"number") end
@@ -2826,7 +2841,7 @@ function M.run(ctx)
   end
   local function actions()
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
-    elseif app.page=="vehicle" then return {{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
     elseif app.page=="context" then return {{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
     elseif app.page=="diagram" then return {{id="analysis",label="Analysis"},{id="top",label="Top"},{id="side",label="Side"},{id="outputs",label="Actuators"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
@@ -2842,7 +2857,7 @@ function M.run(ctx)
     menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
     local commands=actions()
     for _,command in ipairs(commands) do
-      command.primary=command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.primary=command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
       command.danger=command.id=="arm"
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
@@ -2855,6 +2870,10 @@ function M.run(ctx)
     elseif self.page=="context" then
       local analysis=vehicle.analyze(draft.vehicle,draft.channels)
       local rows={analysis.frame,draft.vehicle.type.." | "..fmt(draft.vehicle.massKg," kg")}
+      rows[#rows+1]="Bridge: "..tostring(self.bridge and self.bridge.status or "waiting")
+      rows[#rows+1]="Physical rotors: "..tostring(#(draft.vehicle.bridgeActuators or {})).." | mapped commands: "..tostring(#draft.channels)
+      if draft.vehicle.bridgeMass then rows[#rows+1]="Bridge mass: "..fmt(draft.vehicle.bridgeMass).." "..tostring((draft.vehicle.bridgeUnits or {}).mass) end
+      for _,link in ipairs(draft.vehicle.bridgeLinks or {}) do rows[#rows+1]=(link.receiver and "RX " or "TX ")..link.first.item.." + "..link.second.item.." | motor link unknown" end
       rows[#rows+1]="Detected propellers: "..tostring(#(self.av.propeller or {})).." | signal endpoints: "..tostring(#flight.endpoints())
       for _,row in ipairs(analysis.rows) do
         rows[#rows+1]=tostring(row.id).." | "..row.role
@@ -2957,6 +2976,22 @@ function M.run(ctx)
         self.index=#draft.channels return true
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
       elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
+      elseif id=="discover" then
+        local snapshot=vehicleBridge.snapshot()
+        local imported,err=vehicle.import(draft.vehicle,snapshot)
+        if not imported then
+          self.message=err..": "..tostring(snapshot.status)
+          confirm(renderer.crop("Bridge unavailable: "..tostring(snapshot.status)..". Open Logs?",100),function() ctx.apps.launch("logs") end)
+        else
+          confirm("Import measured geometry? Outputs stay unchanged.",function()
+            local latest=vehicleBridge.snapshot()
+            if latest.vehicleId~=snapshot.vehicleId then report(false,"Vehicle changed; Discover again") return end
+            local current,problem=vehicle.import(draft.vehicle,latest)
+            if not current then report(false,problem) return end
+            draft.vehicle=current self.dirty=true self.page="context"
+            self.message="Geometry imported into draft; confirm type/axes, then Save"
+          end)
+        end return true
       elseif id=="mass" then
         local mass=self.sub.measurements and self.sub.measurements.mass
         if mass and mass.valid and addon.finite(mass.value) and mass.value>0 and mass.validUntil and os.clock()<=mass.validUntil then
@@ -2967,7 +3002,7 @@ function M.run(ctx)
       elseif id=="top" or id=="side" then self.diagramSide=id=="side" return true
       elseif id=="vehicle" then self.page="vehicle" return true
       elseif id=="outputs" then self.page="mapping" return true
-      elseif id=="rescan" then avionics.rescan() sable.rescan() return true
+      elseif id=="rescan" then avionics.rescan() sable.rescan() vehicleBridge.rescan() return true
       elseif id=="devices" or id=="logs" then ctx.apps.launch(id) return true
       elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm("Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
       elseif id=="disarm" then report(flight.disarm(actor)) refresh() return true
@@ -3032,7 +3067,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3116,7 +3151,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3426,7 +3461,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3541,7 +3576,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3683,7 +3718,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.13",
+  version = "0.18.14",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4133,7 +4168,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.13",
+  version = "0.18.14",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4675,7 +4710,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.13",
+    version = "0.18.14",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5053,7 +5088,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.13",
+  version = "0.18.14",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -6694,21 +6729,21 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.13", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.13", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.13", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.13", permissions = { "rednet.send", "rednet.receive" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.13", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.13", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.13", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.13", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.13", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.13", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.13", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.13", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.13", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.13", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.13", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.14", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.14", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.14", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.14", permissions = { "rednet.send", "rednet.receive" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.14", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.14", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.14", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.14", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.14", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.14", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.14", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.14", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.14", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.14", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.14", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -6742,6 +6777,7 @@ function M.start()
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("sabled", "system.services.sabled", true)
   ctx.services:register("avionicsd", "system.services.avionicsd", true)
+  ctx.services:register("vehiclebridged", "system.services.vehiclebridged", true)
   ctx.services:register("flightd", "system.services.flightd", true)
   ctx.services:register("combatd", "system.services.combatd", true)
   ctx.services:register("radarnetd", "system.services.radarnetd", true)
@@ -7467,7 +7503,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.13",
+    version = meta.version or "0.18.14",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -8222,6 +8258,7 @@ function M.configure(value)
   return ok,err
 end
 function M.serviceEnabled(id)
+  if id=="vehiclebridged" then return M.appEnabled("navigation") end
   if id=="sabled" or id=="avionicsd" then return M.appEnabled("navigation") or M.appEnabled("combat") end
   if id=="flightd" then return M.appEnabled("navigation") end
   if id=="combatd" or id=="radarnetd" then return M.appEnabled("combat") end
@@ -8230,7 +8267,7 @@ function M.serviceEnabled(id)
   return true
 end
 function M.dependencies(id)
-  if id=="navigation" then return {"sabled","avionicsd","flightd"} end
+  if id=="navigation" then return {"sabled","avionicsd","vehiclebridged","flightd"} end
   if id=="combat" then return {"sabled","avionicsd","combatd","radarnetd"} end
   if id=="messenger" then return {"messaged"} end
   if id=="update" then return {"updated"} end
@@ -9094,6 +9131,36 @@ function M.actuator(value)
   a.geometryVerified=a.geometryVerified==true
   return a
 end
+function M.import(profile,snapshot)
+  if type(snapshot)~="table" or not snapshot.ok or not snapshot.complete or snapshot.frame~="body_plot" or not addon.vec(snapshot.centerOfMass) then
+    return nil,"Complete fresh body-frame bridge geometry required"
+  end
+  local p=M.profile(profile)
+  p.com=addon.copy(snapshot.centerOfMass) p.comVerified=true
+  p.bridgeVehicleId=snapshot.vehicleId p.bridgeFrame=snapshot.frame
+  p.bridgeUnits=addon.copy(snapshot.units) p.bridgeRevision=snapshot.sourceRevision
+  p.bridgeInertia=addon.copy(snapshot.inertia)
+  p.bridgeMass=snapshot.mass p.bridgeLinks=addon.copy(snapshot.links)
+  p.bridgeActuators={}
+  local lift=0
+  for _,row in ipairs(snapshot.actuators) do
+    if row.geometryValid then
+      if row.suggestedRole=="lift" then lift=lift+1 end
+      p.bridgeActuators[#p.bridgeActuators+1]={id=row.id,block=row.block,
+        actuator={role=row.suggestedRole,position=addon.copy(row.position),direction=addon.copy(row.direction),
+          geometryVerified=true,source="mintcraft_vehicle",controlBindingKnown=false}}
+    end
+  end
+  p.rotorCount=lift
+  if p.type=="unknown" then
+    p.type=({[1]="monocopter",[2]="bicopter",[3]="tricopter",[4]="quadcopter",[6]="hexacopter",[8]="octocopter"})[lift] or "unknown"
+    p.typeSource="orientation-based suggestion; confirm vehicle forward axes"
+  end
+  if p.name=="Vehicle" then p.name=snapshot.name end
+  -- Raw game units are not silently relabelled as kilograms.
+  if snapshot.units.mass=="kg" and addon.finite(snapshot.mass) then p.massKg=snapshot.mass end
+  return p
+end
 -- Body frame: +X right, +Y up, +Z forward. Torque is r cross F.
 -- Geometry alone is not a measured transfer function or a PID tuning.
 function M.analyze(profile,channels)
@@ -9102,7 +9169,12 @@ function M.analyze(profile,channels)
   if profile.type=="unknown" then out.warnings[#out.warnings+1]="Vehicle type missing" end
   if profile.massKg<=0 then out.warnings[#out.warnings+1]="Mass missing; force estimates unavailable" end
   if not profile.comVerified then out.warnings[#out.warnings+1]="Body-frame COM unverified; torque unavailable" end
-  for _,channel in ipairs(channels or {}) do
+  local geometry=profile.bridgeActuators or channels or {}
+  if profile.bridgeActuators then
+    out.frame="Sable plot axes; vehicle forward not inferred"
+    out.warnings[#out.warnings+1]="Imported physical model; command bindings remain unverified"
+  end
+  for _,channel in ipairs(geometry) do
     local a=M.actuator(channel.actuator)
     local row={id=channel.id,role=a.role,frequency=channel.frequency,verified=a.geometryVerified}
     if a.role=="unknown" then out.warnings[#out.warnings+1]=tostring(channel.id)..": role missing" end
@@ -13545,6 +13617,110 @@ end
 
 return M
 ]=],
+  ["system/services/vehiclebridged.lua"] = [=[
+local addon=require("system.libraries.addon")
+local M={}
+local runner
+local cached={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing",revision=0}
+local serial=0
+local function boundedVector(value)
+  local v=addon.vec(value)
+  if not v or math.max(math.abs(v.x),math.abs(v.y),math.abs(v.z))>1000000 then return nil end
+  return v
+end
+function M.normalize(raw)
+  if type(raw)~="table" or raw.schema~=1 or raw.readOnly~=true then return nil,"unsupported bridge schema" end
+  if raw.ok~=true then return nil,tostring(raw.error or raw.code or "bridge read failed") end
+  if raw.frame~="body_plot" or type(raw.vehicleId)~="string" or #raw.vehicleId>128 or raw.vehicleId=="" then return nil,"unknown vehicle frame/identity" end
+  if type(raw.units)~="table" or raw.units.position~="block" then return nil,"unknown geometry units" end
+  if not addon.finite(raw.revision) or not addon.finite(raw.ageTicks) or raw.ageTicks<0 then return nil,"missing bridge sample clock" end
+  if type(raw.actuators)~="table" or #raw.actuators>256 or type(raw.links)~="table" or #raw.links>256 then return nil,"bridge inventory limit exceeded" end
+  local out={available=true,ok=true,vehicleId=raw.vehicleId,name=tostring(raw.name or "Vehicle"):sub(1,128),
+    frame=raw.frame,units=addon.copy(raw.units),sourceRevision=raw.revision,ageTicks=raw.ageTicks,
+    complete=raw.complete==true,actuators={},links={},centerOfMass=boundedVector(raw.centerOfMass),mass=raw.mass,
+    controlBindingsKnown=false}
+  local seen={}
+  if type(raw.inertia)=="table" and #raw.inertia==3 then
+    local matrix,valid={},true
+    for i=1,3 do
+      matrix[i]={}
+      for j=1,3 do
+        local v=type(raw.inertia[i])=="table" and raw.inertia[i][j]
+        if not addon.finite(v) then valid=false else matrix[i][j]=v end
+      end
+    end
+    if valid then out.inertia=matrix end
+  end
+  for _,row in ipairs(raw.actuators) do
+    if type(row)~="table" or type(row.id)~="string" or #row.id>192 or seen[row.id] then return nil,"invalid/duplicate actuator identity" end
+    local position,direction=boundedVector(row.position),boundedVector(row.direction)
+    if not position or not direction then return nil,"invalid actuator geometry" end
+    local norm=math.sqrt(direction.x^2+direction.y^2+direction.z^2)
+    local valid=norm>1e-8
+    if not valid then out.complete=false end
+    if valid then direction={x=direction.x/norm,y=direction.y/norm,z=direction.z/norm} end
+    seen[row.id]=true
+    out.actuators[#out.actuators+1]={id=row.id,block=tostring(row.block or "unknown"):sub(1,128),
+      position=position,direction=direction,geometryValid=valid,active=row.active==true,
+      thrust=addon.finite(row.thrust) and row.thrust or nil,suggestedRole=tostring(row.suggestedRole or "unknown"),
+      controlBindingKnown=false}
+  end
+  for _,row in ipairs(raw.links) do
+    if type(row)~="table" or type(row.id)~="string" or #row.id>192 then return nil,"invalid link" end
+    local position=boundedVector(row.position)
+    if not position then return nil,"invalid link position" end
+    local function frequency(value)
+      if type(value)~="table" or type(value.item)~="string" or #value.item>128 then return nil end
+      return {item=value.item,dyedColor=addon.finite(value.dyedColor) and value.dyedColor or nil}
+    end
+    local first,second=frequency(row.first),frequency(row.second)
+    if not first or not second then return nil,"invalid frequency" end
+    out.links[#out.links+1]={id=row.id,position=position,receiver=row.receiver==true,first=first,second=second,
+      signal=addon.finite(row.signal) and row.signal or nil,actuatorBindingKnown=false}
+  end
+  if not out.centerOfMass then out.complete=false end
+  return out
+end
+function M.acquire()
+  local api=rawget(_G,"mintcraft_vehicle")
+  serial=serial+1
+  if type(api)~="table" or type(api.snapshot)~="function" then
+    cached={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing",revision=serial}
+    return
+  end
+  local values,errors=addon.read(api,{"snapshot"},0.5,{priority="diagnostics"})
+  local nextValue,err=M.normalize(values.snapshot)
+  if not nextValue then
+    cached={available=true,ok=false,status="Vehicle bridge unavailable",error=errors.snapshot or err,revision=serial}
+    return
+  end
+  local unchanged=cached.vehicleId==nextValue.vehicleId and cached.sourceRevision==nextValue.sourceRevision
+  nextValue.observedAt=unchanged and cached.observedAt or os.clock()-nextValue.ageTicks*0.05
+  nextValue.validUntil=nextValue.observedAt+2
+  nextValue.ok=os.clock()<=nextValue.validUntil
+  nextValue.status=nextValue.ok and (nextValue.complete and "Vehicle geometry ready" or "Partial vehicle inventory") or "Vehicle geometry stale"
+  nextValue.revision=serial cached=nextValue
+end
+function M.snapshot()
+  local out=addon.copy(cached)
+  if out.validUntil and os.clock()>out.validUntil then out.ok=false out.status="Vehicle geometry stale" end
+  return out
+end
+function M.status()
+  local s=M.snapshot()
+  return {available=s.available,ok=s.ok,status=s.status,error=s.error,revision=s.revision,
+    actuatorCount=#(s.actuators or {}),linkCount=#(s.links or {}),complete=s.complete}
+end
+function M.health() return M.status() end
+function M.rescan() if runner then runner:rescan() end end
+function M.start(ctx)
+  M.stop()
+  runner=addon.periodic(ctx,"vehiclebridged",1,M.acquire)
+  runner.onError=function(err) cached.ok=false cached.error=tostring(err) cached.status="Vehicle bridge worker failed" end
+end
+function M.stop() if runner then runner:stop() runner=nil end end
+return M
+]=],
   ["system/themes/icons/browser.nfp"] = [=[
 6666666
 6fffff6
@@ -14177,7 +14353,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.13
+0.18.14
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

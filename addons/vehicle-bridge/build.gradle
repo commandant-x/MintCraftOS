@@ -1,0 +1,42 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.143'
+}
+group = 'io.github.commandantx.mintcraft'
+version = '0.1.0'
+base { archivesName = 'mintcraft-vehicle-bridge-1.21.1' }
+java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
+neoForge { version = '21.1.244' }
+repositories { mavenCentral() }
+def modsDir = providers.gradleProperty('modsDir')
+if (!modsDir.isPresent()) throw new GradleException('Pass -PmodsDir=<read-only installed mods directory>')
+def prepare = tasks.register('prepareLocalDependencies') {
+    def bundle = file("${modsDir.get()}/create-aeronautics-bundled-1.21.1-1.3.2.jar")
+    def create = file("${modsDir.get()}/create-1.21.1-6.0.10.jar")
+    def sable = file("${modsDir.get()}/sable-neoforge-1.21.1-2.0.5.jar")
+    inputs.files(bundle, create, sable)
+    outputs.dir(layout.buildDirectory.dir('local-deps'))
+    doLast {
+        [bundle, create, sable].each { source ->
+            copy { from zipTree(source); include 'META-INF/jarjar/*.jar'; into layout.buildDirectory.dir('local-deps') }
+        }
+    }
+}
+dependencies {
+    compileOnly files("${modsDir.get()}/cc-tweaked-1.21.1-forge-1.120.2.jar",
+        "${modsDir.get()}/sable-neoforge-1.21.1-2.0.5.jar",
+        "${modsDir.get()}/create-1.21.1-6.0.10.jar")
+    compileOnly fileTree(layout.buildDirectory.dir('local-deps')) { include '**/*.jar' }
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'org.ow2.asm:asm:9.8'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+tasks.named('compileJava') { dependsOn prepare }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
+tasks.named('test', Test) { useJUnitPlatform() }
+tasks.named('jar', Jar) {
+    from('../../LICENSE') { into 'META-INF' }
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    manifest { attributes('Implementation-Version': project.version) }
+}
