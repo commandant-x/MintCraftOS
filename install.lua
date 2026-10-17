@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3162,7 +3162,7 @@ return M
 {
   id = "nexus",
   name = "NEXUS OVERMIND",
-  version = "0.1.0",
+  version = "0.2.0",
   module = "apps.nexus.main",
   category = "Network",
   iconPath = "/system/themes/icons/nexus.nfp",
@@ -3175,7 +3175,6 @@ local theme=require("system.gui.theme")
 local ui=require("system.gui.components")
 local menus=require("system.gui.action_menu")
 local forms=require("system.gui.form")
-local pixels=require("system.gui.subpixel")
 local nexus=require("system.services.nexusd")
 local M={}
 function M.run(ctx,args)
@@ -3196,11 +3195,14 @@ function M.run(ctx,args)
     if app.page=="computers" then return {{id="scan",label="Rescan"},{id="drive",label="Disk"},{id="prepare",label="Prepare disk"},
       {id="auto",label="Automate"},{id="pause",label="Pause automation"},
       {id="deploy",label="Deploy selected"},{id="seal",label="Seal disk"},{id="reboot",label="Restart agent"},{id="shutdown",label="Power off"}} end
+    if app.page=="missions" then return {{id="groupPing",label="Ping group"},{id="groupInventory",label="Inventory group"},
+      {id="groupStorage",label="Storage group"},{id="assign",label="Auto assign check"}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
   function app:draw(w,h)
     if w<18 or h<9 then renderer.writeAt(1,1,renderer.crop("NEXUS: enlarge window",w)) return end
-    menus.bar(self.pages,1,1,w,pages,{selector=true,label="NEXUS / "..self.page,title="NEXUS OVERMIND",selected=self.page})
+    local pageLabel=self.page for _,page in ipairs(pages) do if page.id==self.page then pageLabel=page.label end end
+    menus.bar(self.pages,1,1,w,pages,{selector=true,label="NEXUS / "..pageLabel,title="NEXUS OVERMIND",selected=self.page})
     local buttons=actions() for _,button in ipairs(buttons) do button.primary=true end
     menus.bar(self.commands,1,2,w,buttons,{title="NEXUS actions"})
     local s=self.snapshot
@@ -3219,37 +3221,53 @@ function M.run(ctx,args)
         self.boxes[#self.boxes+1]={x=1,y=y,w=w,h=1,row=row}
       end
     elseif self.page=="map" then
-      local height=math.max(1,h-6)
-      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#s.computers-15)))
-      local key=tostring(s.revision)..":"..w..":"..height..":"..self.scroll
-      if key~=self.mapKey then
-        local canvas=pixels.new(w,height,colors.black)
-        local cx,cy=math.floor(canvas.width/2),math.floor(canvas.height/2)
-        local count=math.min(16,#s.computers-self.scroll+1)
-        self.mapLabels={}
-        for i=1,count do
-          local angle=(i-1)/math.max(1,count)*math.pi*2
-          local x=math.floor(cx+math.cos(angle)*math.max(2,cx-10))
-          local y=math.floor(cy+math.sin(angle)*math.max(2,cy-5))
-          local row=s.computers[self.scroll+i-1]
-          local color=row.state=="ONLINE" and colors.lime or (row.authorized and colors.orange or colors.gray)
-          canvas:line(cx,cy,x,y,colors.gray)
-          for dx=-1,1 do for dy=-1,1 do canvas:pixel(x+dx,y+dy,color) end end
-          self.mapLabels[#self.mapLabels+1]={x=math.max(1,math.min(w-4,math.floor(x/2))),y=math.max(4,math.min(h-3,4+math.floor(y/3))),id=row.id,row=row}
-        end
-        for dx=-2,2 do for dy=-2,2 do canvas:pixel(cx+dx,cy+dy,colors.cyan) end end
-        self.map,self.mapKey=canvas,key
+      local wide=w>=64 and h>=16
+      local compact=h<12
+      local listW=wide and math.floor(w*0.62) or w
+      local pageSize=math.max(1,math.floor((h-8)/3))
+      local page=math.floor((math.max(1,self.scroll)-1)/pageSize)
+      local pages=math.max(1,math.ceil(#s.computers/pageSize))
+      page=math.min(page,pages-1) self.scroll=page*pageSize+1
+      renderer.fill(1,4,listW,h-5,colors.black)
+      renderer.writeAt(2,4,renderer.crop("MASTER #"..s.master.."  /  "..tostring(s.group or "unassigned"),listW-2),colors.cyan,colors.black)
+      local selected
+      for _,row in ipairs(s.computers) do if row.id==self.selected then selected=row end end
+      for index=self.scroll,math.min(#s.computers,self.scroll+pageSize-1) do
+        local row=s.computers[index] local y=(compact and 5 or 6)+(index-self.scroll)*3
+        local focused=row.id==self.selected
+        local bg=focused and colors.gray or colors.black
+        local status=row.state=="ONLINE" and colors.lime or (row.state=="DISCOVERED" and colors.lightGray or colors.orange)
+        renderer.fill(2,y,listW-3,compact and 1 or 2,bg)
+        renderer.writeAt(2,y,renderer.crop((focused and "> " or "  ").."#"..row.id.." "..row.label,listW-3),colors.white,bg)
+        if not compact then renderer.writeAt(4,y+1,renderer.crop(row.state.." | "..(row.authorized and (row.group or "managed") or "not managed"),listW-5),status,bg) end
+        self.boxes[#self.boxes+1]={x=2,y=y,w=listW-3,h=compact and 1 or 2,row=row}
       end
-      self.map:draw(1,4)
-      for _,label in ipairs(self.mapLabels or {}) do
-        local text=renderer.crop(tostring(label.id),w-label.x+1)
-        renderer.writeAt(label.x,label.y,text,colors.white,colors.black)
-        self.boxes[#self.boxes+1]={x=label.x,y=label.y,w=#text,h=1,row=label.row}
+      self.networkBar=ui.toolbar(1,h-2,listW,{{id="prev",label="Prev"},{id="next",label="Next"}})
+      if listW>=26 then renderer.writeAt(17,h-2,renderer.crop((page+1).." / "..pages,listW-16),colors.lightGray,colors.black) end
+      self.networkPageSize=pageSize self.networkPages=pages
+      if wide then
+        local x=listW+2 local dw=w-x+1
+        renderer.fill(x,4,dw,h-5,theme.get("windowBg"))
+        renderer.writeAt(x,4,renderer.crop("AGENT DETAILS",dw),theme.get("accent"))
+        local lines=selected and {"#"..selected.id.." "..selected.label,selected.state,
+          "Group: "..tostring(selected.group or "unmanaged"),"Agent: "..tostring(selected.version or "unknown"),
+          "Last seen: "..(selected.lastSeenSeconds and math.floor(selected.lastSeenSeconds).."s" or "never"),
+          "Tasks: "..(selected.activeMissions or 0),"Link: "..(selected.name and "wired peripheral" or "Rednet only"),"Peripherals:"} or {"Select an agent"}
+        if selected then
+          for _,device in ipairs(selected.peripherals or {}) do lines[#lines+1]=tostring(device.name or "?").." / "..tostring(device.type or "?") end
+          lines[#lines+1]="Capabilities:"
+          for _,cap in ipairs(selected.capabilities or {}) do lines[#lines+1]=tostring(cap) end
+          if selected.error then lines[#lines+1]=selected.error end
+        end
+        for i=1,math.min(#lines,h-7) do renderer.writeAt(x,5+i,renderer.crop(lines[i],dw),theme.get("windowFg"),theme.get("windowBg")) end
+      else
+        renderer.writeAt(1,h-3,renderer.crop(selected and ("#"..selected.id.." "..selected.state.." / "..(selected.activeMissions or 0).." tasks") or "Select an agent",w))
       end
     else
       local lines={}
       if self.page=="missions" then
-        for _,job in ipairs(s.jobs) do
+        lines[#lines+1]="Group: "..self.settings.group.." | newest first"
+        for index=#s.jobs,1,-1 do local job=s.jobs[index]
           lines[#lines+1]=job.type.." -> "..job.node.." | "..job.state
           if job.result then lines[#lines+1]=textutils.serialize(job.result,{compact=true}) end
         end
@@ -3293,6 +3311,10 @@ function M.run(ctx,args)
       local s=self.snapshot local drive=s.drives[self.driveIndex or 1]
       if id=="setup" then report(nexus.setup(actor,self.settings.key,self.settings.group)) self.settings.key="" self.snapshot=nexus.snapshot()
       elseif id=="scan" then request("scan")
+      elseif id=="groupPing" or id=="groupInventory" or id=="groupStorage" then
+        local kinds={groupPing="ping",groupInventory="inventory",groupStorage="storage"}
+        request("groupMission",{type=kinds[id],group=self.settings.group})
+      elseif id=="assign" then request("assign",{type="storage",group=self.settings.group})
       elseif id=="drive" then self.driveIndex=(self.driveIndex or 1)%math.max(1,#s.drives)+1
       elseif id=="pause" then request("pause")
       elseif id=="auto" then
@@ -3313,8 +3335,15 @@ function M.run(ctx,args)
       return true
     elseif handled then return true end
     if self.page=="setup" then return self.form:handle(event) end
-    if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1]*(self.page=="map" and (self.networkPageSize or 1) or 1) return true end
     if event.name=="mouse_click" then
+      if self.page=="map" then
+        local direction=ui.toolbarHit(self.networkBar,event.args[2],event.args[3])
+        if direction then
+          self.scroll=math.max(1,math.min(self.scroll+(direction=="next" and 1 or -1)*(self.networkPageSize or 1),1+((self.networkPages or 1)-1)*(self.networkPageSize or 1)))
+          return true
+        end
+      end
       for _,box in ipairs(self.boxes) do if ui.hit(box,event.args[2],event.args[3]) then
         self.selected=box.row.id
         if self.page=="computers" and event.args[2]<=4 then report(nexus.select(actor,box.row.id,not box.row.authorized,self.settings.group)) self.snapshot=nexus.snapshot() end
@@ -3341,7 +3370,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3425,7 +3454,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3735,7 +3764,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3850,7 +3879,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3992,7 +4021,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.20",
+  version = "0.18.21",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4448,7 +4477,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.20",
+  version = "0.18.21",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4990,7 +5019,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.20",
+    version = "0.18.21",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5368,7 +5397,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.20",
+  version = "0.18.21",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -7009,22 +7038,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.20", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.20", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.20", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.20", permissions = { "rednet.send", "rednet.receive" } })
-  register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.1.0", permissions = { "system.security.admin" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.20", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.20", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.20", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.20", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.20", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.20", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.20", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.20", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.20", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.20", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.20", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.21", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.21", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.21", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.21", permissions = { "rednet.send", "rednet.receive" } })
+  register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.2.0", permissions = { "system.security.admin" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.21", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.21", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.21", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.21", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.21", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.21", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.21", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.21", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.21", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.21", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.21", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7785,7 +7814,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.20",
+    version = meta.version or "0.18.21",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -9786,6 +9815,8 @@ function M.new(cfg)
   local self={cfg=cfg,seen={},sequence=0,nextHeartbeat=os.clock()+(cfg.id%20)*0.25,boot=tostring(os.epoch("utc")),inventory={},lastScan=-math.huge}
   store.recover("/nexus/receipts.cfg")
   self.receipts=store.load("/nexus/receipts.cfg",{})
+  store.recover("/nexus/receipt-expiry.cfg")
+  self.expiry=store.load("/nexus/receipt-expiry.cfg",{})
   function self:send(kind,body)
     self.sequence=self.sequence+1
     local packet=wire.sign(cfg.key,cfg.id,cfg.master,kind,cfg.id..":"..self.boot..":"..self.sequence,body)
@@ -9806,6 +9837,13 @@ function M.new(cfg)
     if not message or message.kind~="mission" then return false end
     local task=message.body
     if type(task.id)~="string" or #task.id>80 then return false end
+    local now=os.epoch("utc")
+    if task.expiresAt~=nil and (type(task.expiresAt)~="number" or task.expiresAt~=task.expiresAt or task.expiresAt<=now or task.expiresAt>now+300000) then return false end
+    local pruned=false
+    for id,deadline in pairs(self.expiry) do
+      if type(deadline)=="number" and deadline<=now then self.receipts[id]=nil self.expiry[id]=nil pruned=true end
+    end
+    if pruned then store.save("/nexus/receipts.cfg",self.receipts) store.save("/nexus/receipt-expiry.cfg",self.expiry) end
     local result=self.receipts[task.id]
     if not result then
       if task.type=="ping" then result={ok=true,type="ping",id=cfg.id}
@@ -9815,7 +9853,11 @@ function M.new(cfg)
       else result={ok=false,error="Mission not in read-only allowlist"} end
       local count=0 for _ in pairs(self.receipts) do count=count+1 end
       if count>=128 then result={ok=false,error="Receipt journal full; archive/reprovision locally before more missions"}
-      else self.receipts[task.id]=result store.save("/nexus/receipts.cfg",self.receipts) end
+      else
+        -- Persist expiry first: a crash may leak a receipt, never erase a live one.
+        if task.expiresAt then self.expiry[task.id]=task.expiresAt store.save("/nexus/receipt-expiry.cfg",self.expiry) end
+        self.receipts[task.id]=result store.save("/nexus/receipts.cfg",self.receipts)
+      end
     end
     self:send("result",{id=task.id,result=result})
     return true
@@ -9934,7 +9976,7 @@ return M
 ]==],
   ["system/nexus/protocol.lua"] = [=[
 local crypto=require("system.libraries.password_crypto")
-local M={name="mintcraft.nexus.v1",version="0.1.0",maxPayload=8192}
+local M={name="mintcraft.nexus.v1",version="0.2.0",maxPayload=8192}
 local function integer(x) return type(x)=="number" and x==x and x>=0 and x<2147483647 and x%1==0 end
 local function utc() assert(os.epoch,"UTC clock required") return os.epoch("utc") end
 function M.hash(text) return (crypto.digest(text):gsub(".",function(c) return string.format("%02x",c:byte()) end)) end
@@ -10021,6 +10063,42 @@ end
 function M.save(path,value) return M.write(path,textutils.serialize(value)) end
 function M.recover(path)
   if not fs.exists(path) and fs.exists(path..".backup") then fs.move(path..".backup",path) end
+end
+return M
+]=],
+  ["system/nexus/tasks.lua"] = [=[
+local M={}
+M.allowed={ping=true,inventory=true,storage=true,sum=true}
+function M.capable(row,kind)
+  if type(row.capabilities)~="table" then return false end
+  for _,cap in ipairs(row.capabilities) do if cap==kind then return true end end
+  return false
+end
+function M.targets(rows,members,jobs,group,kind,now,all)
+  local candidates={}
+  for id,row in pairs(rows) do
+    local member=members[tostring(id)]
+    if member and member.group==group and row.seenAt and now-row.seenAt<=15 and M.capable(row,kind) then
+      local load=0
+      for _,job in ipairs(jobs) do if job.node==id and (job.state=="queued" or job.state=="sent") then load=load+1 end end
+      candidates[#candidates+1]={id=id,load=load}
+    end
+  end
+  table.sort(candidates,function(a,b) return a.load==b.load and a.id<b.id or a.load<b.load end)
+  local result={}
+  for _,candidate in ipairs(candidates) do result[#result+1]=candidate.id if not all then break end end
+  return result
+end
+function M.prune(jobs,limit)
+  local kept,archived={},{}
+  for _,job in ipairs(jobs) do
+    if job.state=="queued" or job.state=="sent" then kept[#kept+1]=job else archived[#archived+1]=job end
+  end
+  local recent=math.max(0,limit-#kept)
+  local first=math.max(1,#archived-recent+1)
+  for i=first,#archived do kept[#kept+1]=archived[i] end
+  local removed={} for i=1,first-1 do removed[#removed+1]=archived[i] end
+  return kept,removed
 end
 return M
 ]=],
@@ -12761,6 +12839,7 @@ local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local bootstrap=require("system.nexus.bootstrap")
 local automation=require("system.nexus.automation")
+local tasks=require("system.nexus.tasks")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
 local M={version=wire.version}
@@ -12901,7 +12980,7 @@ end
 function M.request(actor,action,args)
   local ok,err=actorAllowed(actor) if not ok then return false,err end
   if #actions>=8 then return false,"NEXUS action queue full" end
-  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="reboot" and action~="shutdown" and action~="auto" and action~="pause" then return false,"Unknown NEXUS action" end
+  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="groupMission" and action~="assign" and action~="reboot" and action~="shutdown" and action~="auto" and action~="pause" then return false,"Unknown NEXUS action" end
   if action~="scan" and config.role~="master" then return false,"Configure MASTER first" end
   args=type(args)=="table" and addon.copy(args) or {}
   actions[#actions+1]={actor={pid=actor.pid},action=action,args=args}
@@ -12917,9 +12996,20 @@ end
 local function mission(args)
   local id=args.id
   assert(validId(id) and config.members[tostring(id)],"Agent not authorized")
-  assert(args.type=="ping" or args.type=="inventory" or args.type=="storage" or args.type=="sum","Read-only mission type required")
+  assert(tasks.allowed[args.type],"Read-only mission type required")
+  if #jobs>=96 then
+    local kept,removed=tasks.prune(jobs,64)
+    if #removed>0 then
+      local archive=store.load("/var/nexus/job-history.cfg",{})
+      for _,job in ipairs(removed) do archive[#archive+1]={id=job.id,node=job.node,type=job.type,state=job.state} end
+      while #archive>128 do table.remove(archive,1) end
+      store.save("/var/nexus/job-history.cfg",archive)
+      jobs=kept
+    end
+  end
   assert(#jobs<128,"Mission history full")
-  local job={id=nextId(),type=args.type,node=id,state="queued",priority=1,capability=args.type,count=args.count or 100,lastAttempt=-1000000000,attempts=0}
+  local job={id=nextId(),type=args.type,node=id,state="queued",priority=1,capability=args.type,count=args.count or 100,
+    createdAt=os.epoch("utc"),expiresAt=os.epoch("utc")+120000,lastAttempt=-1000000000,attempts=0}
   jobs[#jobs+1]=job store.save("/var/nexus/jobs.cfg",jobs)
 end
 local function execute(action)
@@ -12972,6 +13062,14 @@ local function execute(action)
       local old=path..suffix if fs.exists(old) then fs.delete(old) end
     end
     publish("Provisioning credentials removed from this disk; installed agents are independent")
+  elseif action.action=="groupMission" or action.action=="assign" then
+    assert(tasks.allowed[args.type],"Read-only mission type required")
+    local ids=tasks.targets(rows,config.members,jobs,args.group or config.group,args.type,os.clock(),action.action=="groupMission")
+    assert(#ids>0,"No online authorized agent advertising this capability")
+    local active=0 for _,job in ipairs(jobs) do if job.state=="queued" or job.state=="sent" then active=active+1 end end
+    assert(active+#ids<=128,"Too many active missions; wait for results")
+    for _,id in ipairs(ids) do mission({id=id,type=args.type,count=args.count}) end
+    publish(#ids.." read-only missions assigned to available agents in "..(args.group or config.group))
   elseif action.action=="mission" then mission(args) publish("Read-only mission queued")
   else
     if config.automation then
@@ -13060,9 +13158,10 @@ function M.tick()
   end
   for _,job in ipairs(jobs) do
     if (job.state=="queued" or job.state=="sent") and os.clock()-job.lastAttempt>=5 then
-      if not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
+      if job.expiresAt and os.epoch("utc")>=job.expiresAt then job.state="failed" job.result={error="Mission deadline expired"}
+      elseif not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
       elseif job.attempts>=3 then job.state="failed" job.result={error="Timeout; no confirmed result"}
-      else job.attempts=job.attempts+1 job.lastAttempt=os.clock() job.state="sent" send(job.node,"mission",{id=job.id,type=job.type,count=job.count}) end
+      else job.attempts=job.attempts+1 job.lastAttempt=os.clock() job.state="sent" send(job.node,"mission",{id=job.id,type=job.type,count=job.count,expiresAt=job.expiresAt}) end
       store.save("/var/nexus/jobs.cfg",jobs) revision=revision+1 break
     end
   end
@@ -13074,6 +13173,9 @@ function M.snapshot()
   for id,row in pairs(rows) do
     local value=addon.copy(row) local member=config.members[tostring(id)]
     value.authorized=member~=nil value.group=member and member.group or nil
+    value.lastSeenSeconds=value.seenAt and math.max(0,os.clock()-value.seenAt) or nil
+    value.activeMissions=0
+    for _,job in ipairs(jobs) do if job.node==id and (job.state=="queued" or job.state=="sent") then value.activeMissions=value.activeMissions+1 end end
     value.state=value.seenAt and os.clock()-value.seenAt<=15 and "ONLINE" or (value.deployAt and os.clock()-value.deployAt<30 and "INSTALLING" or (member and "OFFLINE" or "DISCOVERED"))
     if value.deployRelease and value.release~=value.deployRelease then
       if value.deployAt and os.clock()-value.deployAt<30 then value.state="INSTALLING"
@@ -13107,6 +13209,7 @@ function M.start(ctx)
   for _,job in ipairs(jobs) do
     if type(job)=="table" and type(job.id)=="string" and #job.id<=80 and validId(job.node) and type(job.type)=="string"
       and type(job.attempts)=="number" and job.attempts>=0 and job.attempts<=3 and type(job.state)=="string" then
+      if type(job.expiresAt)~="number" or job.expiresAt~=job.expiresAt or job.expiresAt==math.huge then job.expiresAt=os.epoch("utc")+120000 end
       if job.state=="sent" then job.state="queued" end
       job.lastAttempt=-1000000000 validJobs[#validJobs+1]=job
     end
@@ -15445,7 +15548,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.20
+0.18.21
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

@@ -125,6 +125,15 @@ assert(store.load('/nexus/receipts.cfg').exec.ok==false,"Arbitrary code mission 
 local seen={} local signed=wire.sign(cfg.key,0,1,"mission","unique",{id="probe",type="ping"})
 assert(wire.verify(cfg.key,0,1,signed,seen)) assert(not wire.verify(cfg.key,0,1,signed,seen))
 now=now+31 assert(not wire.verify(cfg.key,0,1,signed),"Expired packet accepted")
+local deadline=os.epoch('utc')+2000
+local expiring=wire.sign(cfg.key,0,1,'mission','expires-one',{id='expiring',type='ping',expiresAt=deadline})
+assert(agents[1]:receive(0,expiring,wire.name))
+now=now+3
+local retryExpired=wire.sign(cfg.key,0,1,'mission','expires-two',{id='expiring',type='ping',expiresAt=deadline})
+assert(not agents[1]:receive(0,retryExpired,wire.name),'Expired task reran')
+local fresh=wire.sign(cfg.key,0,1,'mission','expires-three',{id='fresh',type='ping',expiresAt=os.epoch('utc')+2000})
+assert(agents[1]:receive(0,fresh,wire.name))
+assert(not store.load('/nexus/receipts.cfg').expiring,'Expired receipt not reclaimed')
 switch(0) assert(service.snapshot().online==0,"Offline agents remained online")
 assert(service.request(actor,'seal',{drive='drive_0'})) service.tick()
 assert(not fs.exists('/disk/nexus/manifest.cfg') and not fs.exists('/disk/nexus/manifest.cfg.backup') and not fs.exists('/disk/startup.lua'),'Provisioning credentials not sealed')
@@ -145,6 +154,12 @@ assert(store.read('/keep.txt')=='unrelated user data','Uninstall deleted unrelat
 switch(0)
 for id=1,7 do switch(id) agents[id]:tick() end
 switch(0) deliverMaster()
+for _=1,8 do service.tick() end
+local before=#service.snapshot().jobs
+assert(service.request(actor,'groupMission',{group='factory',type='storage'})) service.tick()
+assert(#service.snapshot().jobs==before+7,'Collective mission did not cover seven agents: '..#service.snapshot().jobs..' / '..before..' '..service.snapshot().message)
+assert(service.request(actor,'assign',{group='factory',type='inventory'})) service.tick()
+assert(#service.snapshot().jobs==before+8,'Automatic mission assignment missing')
 assert(service.request(actor,'auto',{group='factory'})) service.tick()
 assert(service.snapshot().automation.enabled,'Automation consent not persisted')
 local policy=store.load('/system/config/nexus.cfg').automation

@@ -3,6 +3,7 @@ local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local bootstrap=require("system.nexus.bootstrap")
 local automation=require("system.nexus.automation")
+local tasks=require("system.nexus.tasks")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
 local M={version=wire.version}
@@ -143,7 +144,7 @@ end
 function M.request(actor,action,args)
   local ok,err=actorAllowed(actor) if not ok then return false,err end
   if #actions>=8 then return false,"NEXUS action queue full" end
-  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="reboot" and action~="shutdown" and action~="auto" and action~="pause" then return false,"Unknown NEXUS action" end
+  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="groupMission" and action~="assign" and action~="reboot" and action~="shutdown" and action~="auto" and action~="pause" then return false,"Unknown NEXUS action" end
   if action~="scan" and config.role~="master" then return false,"Configure MASTER first" end
   args=type(args)=="table" and addon.copy(args) or {}
   actions[#actions+1]={actor={pid=actor.pid},action=action,args=args}
@@ -159,9 +160,20 @@ end
 local function mission(args)
   local id=args.id
   assert(validId(id) and config.members[tostring(id)],"Agent not authorized")
-  assert(args.type=="ping" or args.type=="inventory" or args.type=="storage" or args.type=="sum","Read-only mission type required")
+  assert(tasks.allowed[args.type],"Read-only mission type required")
+  if #jobs>=96 then
+    local kept,removed=tasks.prune(jobs,64)
+    if #removed>0 then
+      local archive=store.load("/var/nexus/job-history.cfg",{})
+      for _,job in ipairs(removed) do archive[#archive+1]={id=job.id,node=job.node,type=job.type,state=job.state} end
+      while #archive>128 do table.remove(archive,1) end
+      store.save("/var/nexus/job-history.cfg",archive)
+      jobs=kept
+    end
+  end
   assert(#jobs<128,"Mission history full")
-  local job={id=nextId(),type=args.type,node=id,state="queued",priority=1,capability=args.type,count=args.count or 100,lastAttempt=-1000000000,attempts=0}
+  local job={id=nextId(),type=args.type,node=id,state="queued",priority=1,capability=args.type,count=args.count or 100,
+    createdAt=os.epoch("utc"),expiresAt=os.epoch("utc")+120000,lastAttempt=-1000000000,attempts=0}
   jobs[#jobs+1]=job store.save("/var/nexus/jobs.cfg",jobs)
 end
 local function execute(action)
@@ -214,6 +226,14 @@ local function execute(action)
       local old=path..suffix if fs.exists(old) then fs.delete(old) end
     end
     publish("Provisioning credentials removed from this disk; installed agents are independent")
+  elseif action.action=="groupMission" or action.action=="assign" then
+    assert(tasks.allowed[args.type],"Read-only mission type required")
+    local ids=tasks.targets(rows,config.members,jobs,args.group or config.group,args.type,os.clock(),action.action=="groupMission")
+    assert(#ids>0,"No online authorized agent advertising this capability")
+    local active=0 for _,job in ipairs(jobs) do if job.state=="queued" or job.state=="sent" then active=active+1 end end
+    assert(active+#ids<=128,"Too many active missions; wait for results")
+    for _,id in ipairs(ids) do mission({id=id,type=args.type,count=args.count}) end
+    publish(#ids.." read-only missions assigned to available agents in "..(args.group or config.group))
   elseif action.action=="mission" then mission(args) publish("Read-only mission queued")
   else
     if config.automation then
@@ -302,9 +322,10 @@ function M.tick()
   end
   for _,job in ipairs(jobs) do
     if (job.state=="queued" or job.state=="sent") and os.clock()-job.lastAttempt>=5 then
-      if not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
+      if job.expiresAt and os.epoch("utc")>=job.expiresAt then job.state="failed" job.result={error="Mission deadline expired"}
+      elseif not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
       elseif job.attempts>=3 then job.state="failed" job.result={error="Timeout; no confirmed result"}
-      else job.attempts=job.attempts+1 job.lastAttempt=os.clock() job.state="sent" send(job.node,"mission",{id=job.id,type=job.type,count=job.count}) end
+      else job.attempts=job.attempts+1 job.lastAttempt=os.clock() job.state="sent" send(job.node,"mission",{id=job.id,type=job.type,count=job.count,expiresAt=job.expiresAt}) end
       store.save("/var/nexus/jobs.cfg",jobs) revision=revision+1 break
     end
   end
@@ -316,6 +337,9 @@ function M.snapshot()
   for id,row in pairs(rows) do
     local value=addon.copy(row) local member=config.members[tostring(id)]
     value.authorized=member~=nil value.group=member and member.group or nil
+    value.lastSeenSeconds=value.seenAt and math.max(0,os.clock()-value.seenAt) or nil
+    value.activeMissions=0
+    for _,job in ipairs(jobs) do if job.node==id and (job.state=="queued" or job.state=="sent") then value.activeMissions=value.activeMissions+1 end end
     value.state=value.seenAt and os.clock()-value.seenAt<=15 and "ONLINE" or (value.deployAt and os.clock()-value.deployAt<30 and "INSTALLING" or (member and "OFFLINE" or "DISCOVERED"))
     if value.deployRelease and value.release~=value.deployRelease then
       if value.deployAt and os.clock()-value.deployAt<30 then value.state="INSTALLING"
@@ -349,6 +373,7 @@ function M.start(ctx)
   for _,job in ipairs(jobs) do
     if type(job)=="table" and type(job.id)=="string" and #job.id<=80 and validId(job.node) and type(job.type)=="string"
       and type(job.attempts)=="number" and job.attempts>=0 and job.attempts<=3 and type(job.state)=="string" then
+      if type(job.expiresAt)~="number" or job.expiresAt~=job.expiresAt or job.expiresAt==math.huge then job.expiresAt=os.epoch("utc")+120000 end
       if job.state=="sent" then job.state="queued" end
       job.lastAttempt=-1000000000 validJobs[#validJobs+1]=job
     end

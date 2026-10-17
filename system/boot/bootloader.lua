@@ -48,7 +48,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.20",
+    version = "0.18.21",
     theme = "mint",
     displayScale = 0.5,
     debug = true,

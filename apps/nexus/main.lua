@@ -3,7 +3,6 @@ local theme=require("system.gui.theme")
 local ui=require("system.gui.components")
 local menus=require("system.gui.action_menu")
 local forms=require("system.gui.form")
-local pixels=require("system.gui.subpixel")
 local nexus=require("system.services.nexusd")
 local M={}
 function M.run(ctx,args)
@@ -24,11 +23,14 @@ function M.run(ctx,args)
     if app.page=="computers" then return {{id="scan",label="Rescan"},{id="drive",label="Disk"},{id="prepare",label="Prepare disk"},
       {id="auto",label="Automate"},{id="pause",label="Pause automation"},
       {id="deploy",label="Deploy selected"},{id="seal",label="Seal disk"},{id="reboot",label="Restart agent"},{id="shutdown",label="Power off"}} end
+    if app.page=="missions" then return {{id="groupPing",label="Ping group"},{id="groupInventory",label="Inventory group"},
+      {id="groupStorage",label="Storage group"},{id="assign",label="Auto assign check"}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
   function app:draw(w,h)
     if w<18 or h<9 then renderer.writeAt(1,1,renderer.crop("NEXUS: enlarge window",w)) return end
-    menus.bar(self.pages,1,1,w,pages,{selector=true,label="NEXUS / "..self.page,title="NEXUS OVERMIND",selected=self.page})
+    local pageLabel=self.page for _,page in ipairs(pages) do if page.id==self.page then pageLabel=page.label end end
+    menus.bar(self.pages,1,1,w,pages,{selector=true,label="NEXUS / "..pageLabel,title="NEXUS OVERMIND",selected=self.page})
     local buttons=actions() for _,button in ipairs(buttons) do button.primary=true end
     menus.bar(self.commands,1,2,w,buttons,{title="NEXUS actions"})
     local s=self.snapshot
@@ -47,37 +49,53 @@ function M.run(ctx,args)
         self.boxes[#self.boxes+1]={x=1,y=y,w=w,h=1,row=row}
       end
     elseif self.page=="map" then
-      local height=math.max(1,h-6)
-      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#s.computers-15)))
-      local key=tostring(s.revision)..":"..w..":"..height..":"..self.scroll
-      if key~=self.mapKey then
-        local canvas=pixels.new(w,height,colors.black)
-        local cx,cy=math.floor(canvas.width/2),math.floor(canvas.height/2)
-        local count=math.min(16,#s.computers-self.scroll+1)
-        self.mapLabels={}
-        for i=1,count do
-          local angle=(i-1)/math.max(1,count)*math.pi*2
-          local x=math.floor(cx+math.cos(angle)*math.max(2,cx-10))
-          local y=math.floor(cy+math.sin(angle)*math.max(2,cy-5))
-          local row=s.computers[self.scroll+i-1]
-          local color=row.state=="ONLINE" and colors.lime or (row.authorized and colors.orange or colors.gray)
-          canvas:line(cx,cy,x,y,colors.gray)
-          for dx=-1,1 do for dy=-1,1 do canvas:pixel(x+dx,y+dy,color) end end
-          self.mapLabels[#self.mapLabels+1]={x=math.max(1,math.min(w-4,math.floor(x/2))),y=math.max(4,math.min(h-3,4+math.floor(y/3))),id=row.id,row=row}
-        end
-        for dx=-2,2 do for dy=-2,2 do canvas:pixel(cx+dx,cy+dy,colors.cyan) end end
-        self.map,self.mapKey=canvas,key
+      local wide=w>=64 and h>=16
+      local compact=h<12
+      local listW=wide and math.floor(w*0.62) or w
+      local pageSize=math.max(1,math.floor((h-8)/3))
+      local page=math.floor((math.max(1,self.scroll)-1)/pageSize)
+      local pages=math.max(1,math.ceil(#s.computers/pageSize))
+      page=math.min(page,pages-1) self.scroll=page*pageSize+1
+      renderer.fill(1,4,listW,h-5,colors.black)
+      renderer.writeAt(2,4,renderer.crop("MASTER #"..s.master.."  /  "..tostring(s.group or "unassigned"),listW-2),colors.cyan,colors.black)
+      local selected
+      for _,row in ipairs(s.computers) do if row.id==self.selected then selected=row end end
+      for index=self.scroll,math.min(#s.computers,self.scroll+pageSize-1) do
+        local row=s.computers[index] local y=(compact and 5 or 6)+(index-self.scroll)*3
+        local focused=row.id==self.selected
+        local bg=focused and colors.gray or colors.black
+        local status=row.state=="ONLINE" and colors.lime or (row.state=="DISCOVERED" and colors.lightGray or colors.orange)
+        renderer.fill(2,y,listW-3,compact and 1 or 2,bg)
+        renderer.writeAt(2,y,renderer.crop((focused and "> " or "  ").."#"..row.id.." "..row.label,listW-3),colors.white,bg)
+        if not compact then renderer.writeAt(4,y+1,renderer.crop(row.state.." | "..(row.authorized and (row.group or "managed") or "not managed"),listW-5),status,bg) end
+        self.boxes[#self.boxes+1]={x=2,y=y,w=listW-3,h=compact and 1 or 2,row=row}
       end
-      self.map:draw(1,4)
-      for _,label in ipairs(self.mapLabels or {}) do
-        local text=renderer.crop(tostring(label.id),w-label.x+1)
-        renderer.writeAt(label.x,label.y,text,colors.white,colors.black)
-        self.boxes[#self.boxes+1]={x=label.x,y=label.y,w=#text,h=1,row=label.row}
+      self.networkBar=ui.toolbar(1,h-2,listW,{{id="prev",label="Prev"},{id="next",label="Next"}})
+      if listW>=26 then renderer.writeAt(17,h-2,renderer.crop((page+1).." / "..pages,listW-16),colors.lightGray,colors.black) end
+      self.networkPageSize=pageSize self.networkPages=pages
+      if wide then
+        local x=listW+2 local dw=w-x+1
+        renderer.fill(x,4,dw,h-5,theme.get("windowBg"))
+        renderer.writeAt(x,4,renderer.crop("AGENT DETAILS",dw),theme.get("accent"))
+        local lines=selected and {"#"..selected.id.." "..selected.label,selected.state,
+          "Group: "..tostring(selected.group or "unmanaged"),"Agent: "..tostring(selected.version or "unknown"),
+          "Last seen: "..(selected.lastSeenSeconds and math.floor(selected.lastSeenSeconds).."s" or "never"),
+          "Tasks: "..(selected.activeMissions or 0),"Link: "..(selected.name and "wired peripheral" or "Rednet only"),"Peripherals:"} or {"Select an agent"}
+        if selected then
+          for _,device in ipairs(selected.peripherals or {}) do lines[#lines+1]=tostring(device.name or "?").." / "..tostring(device.type or "?") end
+          lines[#lines+1]="Capabilities:"
+          for _,cap in ipairs(selected.capabilities or {}) do lines[#lines+1]=tostring(cap) end
+          if selected.error then lines[#lines+1]=selected.error end
+        end
+        for i=1,math.min(#lines,h-7) do renderer.writeAt(x,5+i,renderer.crop(lines[i],dw),theme.get("windowFg"),theme.get("windowBg")) end
+      else
+        renderer.writeAt(1,h-3,renderer.crop(selected and ("#"..selected.id.." "..selected.state.." / "..(selected.activeMissions or 0).." tasks") or "Select an agent",w))
       end
     else
       local lines={}
       if self.page=="missions" then
-        for _,job in ipairs(s.jobs) do
+        lines[#lines+1]="Group: "..self.settings.group.." | newest first"
+        for index=#s.jobs,1,-1 do local job=s.jobs[index]
           lines[#lines+1]=job.type.." -> "..job.node.." | "..job.state
           if job.result then lines[#lines+1]=textutils.serialize(job.result,{compact=true}) end
         end
@@ -121,6 +139,10 @@ function M.run(ctx,args)
       local s=self.snapshot local drive=s.drives[self.driveIndex or 1]
       if id=="setup" then report(nexus.setup(actor,self.settings.key,self.settings.group)) self.settings.key="" self.snapshot=nexus.snapshot()
       elseif id=="scan" then request("scan")
+      elseif id=="groupPing" or id=="groupInventory" or id=="groupStorage" then
+        local kinds={groupPing="ping",groupInventory="inventory",groupStorage="storage"}
+        request("groupMission",{type=kinds[id],group=self.settings.group})
+      elseif id=="assign" then request("assign",{type="storage",group=self.settings.group})
       elseif id=="drive" then self.driveIndex=(self.driveIndex or 1)%math.max(1,#s.drives)+1
       elseif id=="pause" then request("pause")
       elseif id=="auto" then
@@ -141,8 +163,15 @@ function M.run(ctx,args)
       return true
     elseif handled then return true end
     if self.page=="setup" then return self.form:handle(event) end
-    if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1]*(self.page=="map" and (self.networkPageSize or 1) or 1) return true end
     if event.name=="mouse_click" then
+      if self.page=="map" then
+        local direction=ui.toolbarHit(self.networkBar,event.args[2],event.args[3])
+        if direction then
+          self.scroll=math.max(1,math.min(self.scroll+(direction=="next" and 1 or -1)*(self.networkPageSize or 1),1+((self.networkPages or 1)-1)*(self.networkPageSize or 1)))
+          return true
+        end
+      end
       for _,box in ipairs(self.boxes) do if ui.hit(box,event.args[2],event.args[3]) then
         self.selected=box.row.id
         if self.page=="computers" and event.args[2]<=4 then report(nexus.select(actor,box.row.id,not box.row.authorized,self.settings.group)) self.snapshot=nexus.snapshot() end

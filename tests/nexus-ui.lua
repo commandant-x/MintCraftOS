@@ -32,6 +32,25 @@ for _,size in ipairs({{18,9},{26,20},{100,35}}) do
   app.page=page app:draw(width,height)
  end
 end
+snapshot.computers={}
+for i=1,64 do snapshot.computers[i]={id=i,label='Agent '..i,state='ONLINE',authorized=true,group='factory'} end
+width,height=26,20 app.page='map' app.scroll=1
+local visited={} local previousCalls=#calls
+for _=1,64 do
+ app:draw(width,height)
+ for _,box in ipairs(app.boxes) do
+  assert(box.y+box.h-1<height-3,'Agent overlaps details or paging controls')
+  visited[box.row.id]=true
+ end
+ local box=app.networkBar[2]
+ app:handle({name='mouse_click',args={1,box.x,box.y}})
+end
+for i=1,64 do assert(visited[i],'Network pagination hid agent '..i) end
+assert(#calls==previousCalls,'Network paging changed authorization')
+app:draw(width,height)
+local node=app.boxes[1]
+app:handle({name='mouse_click',args={1,node.x,node.y}})
+assert(app.selected==node.row.id and #calls==previousCalls,'Network selection issued a command')
 width,height=100,30 app.page='computers'
 app.commands.open=true app:draw(width,height)
 local target
@@ -46,4 +65,4 @@ local box=app.confirmBar[1]
 app:handle({name='mouse_click',args={1,box.x,box.y}})
 assert(calls[#calls].action=='deploy' and calls[#calls].args.group=='factory')
 assert(not app.confirm)
-print('NEXUS UI: deployment arguments, responsive views, subpixel map, bounds, explicit deployment confirmation and modal isolation passed')
+print('NEXUS UI: responsive 2D network, 64-node touch paging/selection, bounds, deployment confirmation and modal isolation passed')

@@ -7,6 +7,8 @@ function M.new(cfg)
   local self={cfg=cfg,seen={},sequence=0,nextHeartbeat=os.clock()+(cfg.id%20)*0.25,boot=tostring(os.epoch("utc")),inventory={},lastScan=-math.huge}
   store.recover("/nexus/receipts.cfg")
   self.receipts=store.load("/nexus/receipts.cfg",{})
+  store.recover("/nexus/receipt-expiry.cfg")
+  self.expiry=store.load("/nexus/receipt-expiry.cfg",{})
   function self:send(kind,body)
     self.sequence=self.sequence+1
     local packet=wire.sign(cfg.key,cfg.id,cfg.master,kind,cfg.id..":"..self.boot..":"..self.sequence,body)
@@ -27,6 +29,13 @@ function M.new(cfg)
     if not message or message.kind~="mission" then return false end
     local task=message.body
     if type(task.id)~="string" or #task.id>80 then return false end
+    local now=os.epoch("utc")
+    if task.expiresAt~=nil and (type(task.expiresAt)~="number" or task.expiresAt~=task.expiresAt or task.expiresAt<=now or task.expiresAt>now+300000) then return false end
+    local pruned=false
+    for id,deadline in pairs(self.expiry) do
+      if type(deadline)=="number" and deadline<=now then self.receipts[id]=nil self.expiry[id]=nil pruned=true end
+    end
+    if pruned then store.save("/nexus/receipts.cfg",self.receipts) store.save("/nexus/receipt-expiry.cfg",self.expiry) end
     local result=self.receipts[task.id]
     if not result then
       if task.type=="ping" then result={ok=true,type="ping",id=cfg.id}
@@ -36,7 +45,11 @@ function M.new(cfg)
       else result={ok=false,error="Mission not in read-only allowlist"} end
       local count=0 for _ in pairs(self.receipts) do count=count+1 end
       if count>=128 then result={ok=false,error="Receipt journal full; archive/reprovision locally before more missions"}
-      else self.receipts[task.id]=result store.save("/nexus/receipts.cfg",self.receipts) end
+      else
+        -- Persist expiry first: a crash may leak a receipt, never erase a live one.
+        if task.expiresAt then self.expiry[task.id]=task.expiresAt store.save("/nexus/receipt-expiry.cfg",self.expiry) end
+        self.receipts[task.id]=result store.save("/nexus/receipts.cfg",self.receipts)
+      end
     end
     self:send("result",{id=task.id,result=result})
     return true
