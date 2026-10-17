@@ -2,9 +2,9 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.21:
+This repository currently contains V0.18.22:
 
-V0.18.21 adds NEXUS OVERMIND 0.2.0: a paginated 2D network roster,
+V0.18.22 adds NEXUS OVERMIND 0.2.0: a paginated 2D network roster,
 capability-aware group missions, balanced assignment and bounded task journals.
 Authorized shared-disk deployment and authenticated agents remain compatible.
 Start with `nexus deploy` in Terminal. This is an incremental HIVE foundation,
@@ -54,7 +54,7 @@ selection automatically chooses a unique device; ambiguous setups require an
 explicit selection. Calibration shows arming blockers and retains confirmed
 progress in the current configuration draft. No safety prerequisites are bypassed.
 
-V0.18.21 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
+V0.18.22 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
 
 CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 

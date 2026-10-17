@@ -138,6 +138,22 @@ local function prepare(driveName,ids)
   for _,path in ipairs(paths) do fingerprint[#fingerprint+1]=path..":"..manifest.hashes[path] end
   manifest.release=wire.hash(table.concat(fingerprint,"\n")):sub(1,40)
   store.save(fs.combine(mount,"nexus/manifest.cfg"),manifest)
+  store.write(fs.combine(mount,"nexus/reassociate.lua"),[=[
+local mount='/'..fs.getDir(fs.getDir(shell.getRunningProgram())):gsub('^/+','')
+package.path='/'..fs.combine(mount,'nexus/payload/?.lua'):gsub('^/+','')..';'..package.path
+local h=assert(fs.open(fs.combine(mount,'nexus/manifest.cfg'),'r'),'Prepare the NEXUS disk first')
+local manifest=textutils.unserialize(h.readAll()) h.close()
+local id=os.getComputerID()
+assert(type(manifest)=='table' and type(manifest.nodes)=='table' and manifest.nodes[tostring(id)] and manifest.master~=id,'This agent is not selected')
+local phrase='REASSOCIATE '..id..' MASTER '..manifest.master
+print('Local reassociation replaces the agent key; old association is backed up.')
+print('Only continue if you own this computer and trust this disk.')
+print('Type exactly: '..phrase)
+local confirmation=read()
+if confirmation~=phrase then print('Cancelled; no changes') return end
+local ok,err=require('system.nexus.bootstrap').install(mount,{confirmation=confirmation})
+assert(ok,err) print('Association replaced. Eject the disk, then reboot.')
+]=])
   store.write(startupPath,diskStartup)
   return manifest
 end

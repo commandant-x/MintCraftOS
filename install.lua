@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3370,7 +3370,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3454,7 +3454,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3764,7 +3764,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3879,7 +3879,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4021,7 +4021,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.21",
+  version = "0.18.22",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4477,7 +4477,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.21",
+  version = "0.18.22",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5019,7 +5019,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.21",
+    version = "0.18.22",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5397,7 +5397,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.21",
+  version = "0.18.22",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -7038,22 +7038,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.21", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.21", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.21", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.21", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.22", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.22", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.22", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.22", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.2.0", permissions = { "system.security.admin" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.21", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.21", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.21", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.21", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.21", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.21", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.21", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.21", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.21", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.21", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.21", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.22", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.22", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.22", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.22", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.22", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.22", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.22", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.22", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.22", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.22", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.22", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7814,7 +7814,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.21",
+    version = meta.version or "0.18.22",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -9929,7 +9929,7 @@ if not ok then
   end
 end
 ]=]
-function M.install(mount)
+function M.install(mount,options)
   local manifest=assert(store.load(fs.combine(mount,"nexus/manifest.cfg")),"NEXUS manifest missing")
   assert(manifest.schema==1 and type(manifest.release)=="string" and manifest.release:match("^[%w_-]+$") and #manifest.release<=64,"Invalid NEXUS release")
   local id=os.getComputerID()
@@ -9941,7 +9941,14 @@ function M.install(mount)
   local startup=store.read("/startup.lua")
   if startup and startup:sub(1,#M.marker)~=M.marker then return false,"Existing startup protected; use an explicitly provisioned blank computer" end
   if fs.exists("/startup") or fs.exists("/system") or fs.exists("/boot.lua") then return false,"Existing installation protected" end
-  if existing and (existing.master~=manifest.master or existing.id~=id or existing.key~=association.key) then return false,"Existing NEXUS association protected" end
+  local changed=existing and (existing.master~=manifest.master or existing.id~=id or existing.key~=association.key)
+  if changed then
+    local reason=existing.master~=manifest.master and "MASTER changed" or (existing.id~=id and "agent ID changed" or "association key changed")
+    if not options or options.confirmation~=("REASSOCIATE "..id.." MASTER "..manifest.master) then
+      return false,"Existing NEXUS association protected: "..reason..". On this agent run: "..fs.combine(mount,"nexus/reassociate.lua")
+    end
+    assert(existing.role=="agent" and startup and startup:sub(1,#M.marker)==M.marker,"Only an existing NEXUS agent can be reassociated")
+  end
   local root="/nexus/versions/"..manifest.release
   local source=fs.combine(mount,"nexus/payload")
   for _,path in ipairs(M.files) do
@@ -9949,13 +9956,14 @@ function M.install(mount)
     assert(type(manifest.hashes)=="table" and manifest.hashes[path]==wire.hash(data),"Payload integrity mismatch: "..path)
     assert(load(data,"nexus/"..path,"t",{}),"Invalid Lua payload: "..path)
   end
-  if existing and existing.active==manifest.release then
+  if existing and not changed and existing.active==manifest.release then
     for _,path in ipairs(M.files) do assert(wire.hash(assert(store.read(fs.combine(root,path)),"Installed payload missing"))==manifest.hashes[path],"Installed payload corrupt; prepare a repair disk") end
     if not fs.exists('/nexus/uninstall.lua') then store.write('/nexus/uninstall.lua',assert(store.read(fs.combine(root,'system/nexus/uninstall.lua')))) end
     if not startup then store.write('/startup.lua',M.launcher) end
     return true,"Already installed"
   end
   local stage="/nexus/staging/"..manifest.release
+  if changed and existing.active==manifest.release then return false,"Reassociation requires a newly prepared release" end
   if fs.exists(stage) then fs.delete(stage) end
   for _,path in ipairs(M.files) do
     local data=assert(store.read(fs.combine(source,path)))
@@ -9965,6 +9973,14 @@ function M.install(mount)
   if fs.exists(root) then fs.delete(root) end
   fs.move(stage,root)
   local cfg=existing or {role="agent",id=id,master=manifest.master,key=association.key,group=association.group}
+  if changed then
+    store.save('/nexus/previous-association.cfg',existing)
+    cfg={role="agent",id=id,master=manifest.master,key=association.key,group=association.group,active=existing.active}
+    for _,name in ipairs({'receipts.cfg','receipt-expiry.cfg'}) do
+      local path='/nexus/'..name
+      if fs.exists(path) then store.write(path..'.previous-association',assert(store.read(path))) fs.delete(path) end
+    end
+  end
   cfg.previous,cfg.active=cfg.active,manifest.release
   cfg.group=association.group
   store.save("/nexus/config.cfg",cfg)
@@ -12974,6 +12990,22 @@ local function prepare(driveName,ids)
   for _,path in ipairs(paths) do fingerprint[#fingerprint+1]=path..":"..manifest.hashes[path] end
   manifest.release=wire.hash(table.concat(fingerprint,"\n")):sub(1,40)
   store.save(fs.combine(mount,"nexus/manifest.cfg"),manifest)
+  store.write(fs.combine(mount,"nexus/reassociate.lua"),[=[
+local mount='/'..fs.getDir(fs.getDir(shell.getRunningProgram())):gsub('^/+','')
+package.path='/'..fs.combine(mount,'nexus/payload/?.lua'):gsub('^/+','')..';'..package.path
+local h=assert(fs.open(fs.combine(mount,'nexus/manifest.cfg'),'r'),'Prepare the NEXUS disk first')
+local manifest=textutils.unserialize(h.readAll()) h.close()
+local id=os.getComputerID()
+assert(type(manifest)=='table' and type(manifest.nodes)=='table' and manifest.nodes[tostring(id)] and manifest.master~=id,'This agent is not selected')
+local phrase='REASSOCIATE '..id..' MASTER '..manifest.master
+print('Local reassociation replaces the agent key; old association is backed up.')
+print('Only continue if you own this computer and trust this disk.')
+print('Type exactly: '..phrase)
+local confirmation=read()
+if confirmation~=phrase then print('Cancelled; no changes') return end
+local ok,err=require('system.nexus.bootstrap').install(mount,{confirmation=confirmation})
+assert(ok,err) print('Association replaced. Eject the disk, then reboot.')
+]=])
   store.write(startupPath,diskStartup)
   return manifest
 end
@@ -15548,7 +15580,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.21
+0.18.22
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))
