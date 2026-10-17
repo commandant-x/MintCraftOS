@@ -13,9 +13,9 @@ function M.run(ctx,args)
   if app.snapshot.role~="master" then app.page="setup" end
   if not args.group and app.snapshot.group then app.settings.group=app.snapshot.group end
   local pages={{id="dashboard",label="Dashboard"},{id="computers",label="Deploy"},{id="map",label="Network"},
-    {id="missions",label="Missions"},{id="setup",label="Setup"}}
+    {id="missions",label="Missions"},{id="fleet",label="Infrastructure"},{id="setup",label="Setup"}}
   local win,timer
-  local function report(ok,err) app.message=ok and (err or "Done") or tostring(err) end
+  local function report(ok,err) app.message=ok and "" or tostring(err) end
   local function request(action,options) report(nexus.request(actor,action,options)) end
   local function confirm(title,fn) app.confirm={title=title,fn=fn} end
   local function actions()
@@ -23,6 +23,7 @@ function M.run(ctx,args)
     if app.page=="computers" then return {{id="auto",label="Automate"},{id="pause",label="Pause"}} end
     if app.page=="missions" then return {{id="groupPing",label="Ping group"},{id="groupInventory",label="Inventory group"},
       {id="groupStorage",label="Storage group"},{id="assign",label="Auto assign check"}} end
+    if app.page=='fleet' then return {{id='scan',label='Rescan'}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
   function app:draw(w,h)
@@ -91,7 +92,22 @@ function M.run(ctx,args)
       end
     else
       local lines={}
-      if self.page=="missions" then
+      if self.page=='fleet' then
+        lines[#lines+1]='Coordination: '..(s.automation and s.automation.enabled and 'running' or 'paused')
+        lines[#lines+1]='Endpoints: '..#(s.assets or {})
+        if s.resources then
+          lines[#lines+1]='Fresh totals: '..s.resources.items..' items | '..s.resources.energy..' energy | '..s.resources.fluid..' mB'..(s.resources.partial and ' (partial)' or '')
+        end
+        for _,asset in ipairs(s.assets or {}) do
+          local data=asset.result or {}
+          lines[#lines+1]=asset.endpoint..' | agent '..asset.owner..' | '..(asset.stale and 'STALE' or (data.ok==false and 'ERROR' or 'LIVE'))
+          local value=data.ok==false and (data.error or 'Measurement failed') or data.items and ('Items '..data.items..' / slots used '..(data.used or 0))
+            or (data.energy and ('Energy '..data.energy..' / '..(data.capacity or '?')))
+            or (data.amount and ('Fluid '..data.amount..' mB')) or data.error or 'Awaiting first measurement'
+          lines[#lines+1]=value..(data.partial and ' (partial)' or '')
+          lines[#lines+1]=asset.kind..' | age '..(asset.age and math.floor(asset.age)..'s' or '?')
+        end
+      elseif self.page=="missions" then
         lines[#lines+1]="Group: "..self.settings.group.." | newest first"
         for index=#s.jobs,1,-1 do local job=s.jobs[index]
           lines[#lines+1]=job.type.." -> "..job.node.." | "..job.state
@@ -99,7 +115,7 @@ function M.run(ctx,args)
         end
       else
         lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
-          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,
+          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,"Monitored endpoints: "..#(s.assets or {}),
           "Automation: "..((s.automation and s.automation.enabled) and "ON" or "OFF"),
           s.automation and s.automation.message or ""}
         for _,row in ipairs(s.computers) do if row.authorized then
@@ -107,10 +123,13 @@ function M.run(ctx,args)
           if row.error then lines[#lines+1]=row.error end
         end end
       end
-      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#lines-h+6)))
-      for index=self.scroll,math.min(#lines,self.scroll+h-6) do renderer.writeAt(1,4+index-self.scroll,renderer.crop(tostring(lines[index]),w)) end
+      self.contentPageSize=math.max(1,h-7) self.contentMax=math.max(1,#lines-self.contentPageSize+1)
+      self.scroll=math.max(1,math.min(self.scroll,self.contentMax))
+      for index=self.scroll,math.min(#lines,self.scroll+self.contentPageSize-1) do renderer.writeAt(1,4+index-self.scroll,renderer.crop(tostring(lines[index]),w)) end
+      self.contentBar=ui.toolbar(1,h-2,w,{{id='prev',label='Prev'},{id='next',label='Next'}})
     end
-    renderer.writeAt(1,h,renderer.crop(self.message~="" and self.message or s.message,w),colors.white,colors.gray)
+    local status=self.page=='computers' and s.automation and s.automation.enabled and s.automation.message or s.message
+    renderer.writeAt(1,h,renderer.crop(self.message~="" and self.message or status,w),colors.white,colors.gray)
     if self.confirm then
       renderer.fill(1,3,w,h-3,colors.gray)
       local text=self.confirm.title
@@ -162,6 +181,10 @@ function M.run(ctx,args)
     if self.page=="setup" then return self.form:handle(event) end
     if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1]*(self.page=="map" and (self.networkPageSize or 1) or 1) return true end
     if event.name=="mouse_click" then
+      if self.page=='fleet' or self.page=='missions' or self.page=='dashboard' then
+        local direction=ui.toolbarHit(self.contentBar,event.args[2],event.args[3])
+        if direction then self.scroll=math.max(1,math.min(self.contentMax,self.scroll+(direction=='next' and 1 or -1)*self.contentPageSize)) return true end
+      end
       if self.page=="map" then
         local direction=ui.toolbarHit(self.networkBar,event.args[2],event.args[3])
         if direction then

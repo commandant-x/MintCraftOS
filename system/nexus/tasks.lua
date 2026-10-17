@@ -1,5 +1,5 @@
 local M={}
-M.allowed={ping=true,inventory=true,storage=true,sum=true}
+M.allowed={ping=true,inventory=true,storage=true,sum=true,observe=true}
 function M.capable(row,kind)
   if type(row.capabilities)~="table" then return false end
   for _,cap in ipairs(row.capabilities) do if cap==kind then return true end end

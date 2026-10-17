@@ -12,6 +12,8 @@ package.loaded['system.gui.renderer']=renderer
 package.loaded['system.gui.theme']={get=function(key) return key=='windowBg' and colors.black or colors.white end}
 local calls={}
 local snapshot={role='master',master=0,group='factory',online=2,managed=2,discovered=3,revision=1,message='Ready',
+ assets={{endpoint='chest_0',kind='inventory',owner=1,age=3,result={ok=true,items=128,used=2}},
+ {endpoint='battery_0',kind='energy_storage',owner=2,age=65,stale=true,result={ok=true,energy=50,capacity=100}}},
  drives={{name='drive_0',mount='/disk'}},jobs={{type='ping',node=1,state='completed',result={ok=true}}},
  computers={{id=1,label='factory pump',state='ONLINE',authorized=true,powered=true},{id=2,label='furnace',state='ONLINE',authorized=true,powered=true},
  {id=3,label='unmanaged',state='DISCOVERED',authorized=false,powered=false}}}
@@ -28,7 +30,7 @@ local co=coroutine.create(function() require('apps.nexus.main').run(ctx) end)
 assert(coroutine.resume(co)) assert(app and app.page=='computers')
 for _,size in ipairs({{18,9},{26,20},{100,35}}) do
  width,height=table.unpack(size)
- for _,page in ipairs({'dashboard','computers','map','missions','setup'}) do
+ for _,page in ipairs({'dashboard','computers','map','missions','fleet','setup'}) do
   app.page=page app:draw(width,height)
  end
 end
@@ -51,6 +53,14 @@ app:draw(width,height)
 local node=app.boxes[1]
 app:handle({name='mouse_click',args={1,node.x,node.y}})
 assert(app.selected==node.row.id and #calls==previousCalls,'Network selection issued a command')
+app.page='fleet' app.scroll=1
+for i=3,64 do snapshot.assets[i]={endpoint='chest_'..i,owner=1,kind='inventory',age=2,result={ok=true,items=64,used=1}} end
+for _=1,100 do
+ app:draw(width,height)
+ local button=app.contentBar[2]
+ app:handle({name='mouse_click',args={1,button.x,button.y}})
+end
+assert(app.scroll==app.contentMax and #calls==previousCalls,'Infrastructure touch paging inaccessible or issued a command')
 width,height=100,30 app.page='computers'
 app.commands.open=true app:draw(width,height)
 local target

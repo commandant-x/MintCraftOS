@@ -1,14 +1,14 @@
 local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local M={marker="-- MintCraft NEXUS bootstrap v1"}
-M.files={"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}
+M.files={"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}
 M.launcher=M.marker.."\n"..[=[
 if not fs.exists('/nexus/config.cfg') and fs.exists('/nexus/config.cfg.backup') then fs.move('/nexus/config.cfg.backup','/nexus/config.cfg') end
 local h=assert(fs.open('/nexus/config.cfg','r')) local cfg=textutils.unserialize(h.readAll()) h.close()
 assert(type(cfg)=='table' and type(cfg.active)=='string' and cfg.active:match('^[%w_-]+$'),'Invalid NEXUS slot')
 local function run(slot)
   package.path='/nexus/versions/'..slot..'/?.lua;'..package.path
-  for _,name in ipairs({'system.nexus.protocol','system.nexus.agent','system.nexus.storage','system.libraries.password_crypto'}) do package.loaded[name]=nil end
+  for _,name in ipairs({'system.nexus.protocol','system.nexus.agent','system.nexus.storage','system.nexus.observe','system.libraries.password_crypto'}) do package.loaded[name]=nil end
   return require('system.nexus.agent').run()
 end
 local ok,err=pcall(run,cfg.active)
@@ -41,14 +41,31 @@ function M.install(mount,options)
   if not association or manifest.master==id then return false,"Computer not selected" end
   assert(wire.validKey(association.key) and type(association.group)=="string","Invalid bootstrap association")
   local source=fs.combine(mount,"nexus/payload")
+  local payload={}
   for _,path in ipairs(M.files) do
     local data=assert(store.read(fs.combine(source,path)),"Missing payload: "..path)
     assert(type(manifest.hashes)=="table" and manifest.hashes[path]==wire.hash(data),"Payload integrity mismatch: "..path)
     assert(load(data,"nexus/"..path,"t",{}),"Invalid Lua payload: "..path)
+    payload[path]=data
   end
   store.recover("/nexus/config.cfg")
   local existing=store.load("/nexus/config.cfg")
   local reset=association.resetToken
+  if not reset and association.forceToken then
+    local startup=store.read('/startup.lua')
+    local conflict=(startup and startup:sub(1,#M.marker)~=M.marker) or fs.exists('/startup') or fs.exists('/system') or fs.exists('/boot.lua')
+      or (fs.exists('/nexus') and not existing)
+      or (existing and (existing.role~='agent' or existing.id~=id or existing.master~=manifest.master or existing.key~=association.key))
+    if existing and existing.active==manifest.release and not conflict then
+      for _,path in ipairs(M.files) do
+        local data=store.read('/nexus/versions/'..manifest.release..'/'..path)
+        if not data or wire.hash(data)~=manifest.hashes[path] then conflict=true break end
+      end
+    end
+    -- A trusted provisioning disk can authorize local recovery even when the
+    -- old agent's key prevents it from reporting a failure to this MASTER.
+    if conflict then reset=association.forceToken end
+  end
   if reset~=nil then
     assert(type(reset)=='string' and #reset>=16 and #reset<=100 and reset:match('^[%w_-]+$'),"Invalid reset authorization")
     local completed=existing and existing.role=='agent' and existing.id==id and existing.master==manifest.master
@@ -77,8 +94,7 @@ function M.install(mount,options)
   if changed and existing.active==manifest.release then return false,"Reassociation requires a newly prepared release" end
   if fs.exists(stage) then fs.delete(stage) end
   for _,path in ipairs(M.files) do
-    local data=assert(store.read(fs.combine(source,path)))
-    assert(wire.hash(data)==manifest.hashes[path],"Payload changed during installation")
+    local data=payload[path]
     store.write(fs.combine(stage,path),data)
   end
   if fs.exists(root) then fs.delete(root) end

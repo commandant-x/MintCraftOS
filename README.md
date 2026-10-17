@@ -2,18 +2,23 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.24:
+This repository currently contains V0.18.25:
+
+V0.18.25 / NEXUS 0.3 dispatches a complete boot wave without an intentional
+inter-start delay, reuses verified package bytes and adds automatic coordinated
+inventory/energy/fluid observation with persistent owner assignments.
+See [deployment performance and infrastructure coordination](docs/NEXUS-FLEET.md).
 
 Deploy now exposes only Automate and Pause. Approved automatic recovery resets
 only an agent with a confirmed failed update, never simply an offline agent.
 See [the unified workflow and destructive recovery limits](docs/NEXUS-AUTOMATE.md).
 
-V0.18.24 adds explicitly confirmed internal-disk reset provisioning for selected
+V0.18.25 adds explicitly confirmed internal-disk reset provisioning for selected
 agents, with one-shot completion tokens and protected external mounts. Empty-key
 MASTER setup now generates a key via HTTPS once and preserves existing keys.
 See [destructive provisioning and key management](docs/NEXUS-RESET.md).
 
-V0.18.24 adds NEXUS OVERMIND 0.2.0: a paginated 2D network roster,
+V0.18.25 adds NEXUS OVERMIND 0.2.0: a paginated 2D network roster,
 capability-aware group missions, balanced assignment and bounded task journals.
 Authorized shared-disk deployment and authenticated agents remain compatible.
 Start with `nexus deploy` in Terminal. This is an incremental HIVE foundation,
@@ -63,7 +68,7 @@ selection automatically chooses a unique device; ambiguous setups require an
 explicit selection. Calibration shows arming blockers and retains confirmed
 progress in the current configuration draft. No safety prerequisites are bypassed.
 
-V0.18.24 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
+V0.18.25 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
 
 CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 

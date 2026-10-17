@@ -2,7 +2,7 @@ package.path="./?.lua;"..package.path
 local testRoot=fs and fs.exists('/source/tests/storage-fixture.lua') and '/source/' or ''
 local fixture=dofile(testRoot.."tests/storage-fixture.lua")
 local source={}
-for _,path in ipairs({"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/bootstrap.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}) do
+for _,path in ipairs({"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/nexus/bootstrap.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}) do
   local h=assert(io.open(testRoot..path,"rb")) source[path]=h:read("*a") h:close()
 end
 os.epoch=os.epoch or function() return 1700000000000 end
@@ -28,6 +28,8 @@ os.getComputerLabel=function() return "node-"..current end
 os.clock=function() return now end
 os.epoch=function() return 1700000000000+now*1000 end
 local powered,queue,callbacks={}, {},{}
+local powerEvents={}
+local suspendPower,waveStart=false,0
 peripheral={
   getNames=function() return {"pc1","pc2","pc3","pc4","pc5","pc6","pc7","drive_0","back"} end,
   getType=function(name) return name:match("^pc") and "computer" or (name=="back" and "modem" or "drive") end,
@@ -35,8 +37,13 @@ peripheral={
   call=function(name,method)
     local id=tonumber(name:match("pc(%d+)")) assert(id,"Unexpected peripheral")
     if method=="getID" then return id elseif method=="getLabel" then return "node-"..id
-    elseif method=="isOn" then return powered[id]==true elseif method=="reboot" then powered[id]=true
-    elseif method=="shutdown" then powered[id]=false elseif method=="turnOn" then powered[id]=true else error("Unexpected control method") end
+    elseif method=="isOn" then return powered[id]==true elseif method=="reboot" or method=="turnOn" then
+      powered[id]=true powerEvents[#powerEvents+1]={id=id,at=now}
+      if suspendPower then
+        os.queueEvent('nexus_power_complete') coroutine.yield('nexus_power_complete')
+        assert(#powerEvents-waveStart+1==7,'A yielding power call delayed the other starts')
+      end
+    elseif method=="shutdown" then powered[id]=false else error("Unexpected control method") end
   end,
 }
 disk={getMountPath=function(name) if name=="drive_0" then return "/disk" end end}
@@ -197,6 +204,20 @@ assert(store.load('/system/config/nexus.cfg').automation.resets['1'],'Failed upd
 now=now+2 service.tick()
 local recoveryManifest=store.load('/disk/nexus/manifest.cfg')
 assert(recoveryManifest.nodes['1'].resetToken and not recoveryManifest.nodes['2'].resetToken,'Recovery erased non-failed agents')
+service.start(ctx)
+fs.delete('/disk/nexus/payload')
+local writes={}
+machines[0].hook=function(action,path) if action=='write' and path:find('/disk/nexus/payload/',1,true)==1 then writes[path]=(writes[path] or 0)+1 end end
+local firstPower=#powerEvents+1
+waveStart=firstPower suspendPower=parallel and parallel.waitForAll and os.queueEvent
+assert(service.request(actor,'auto',{group='factory',allowReset=true,ids={'1','2','3','4','5','6','7'}})) service.tick()
+suspendPower=false
+machines[0].hook=nil
+assert(#powerEvents-firstPower+1==7,'Not all seven starts were dispatched in one wave')
+assert(powerEvents[firstPower].at==powerEvents[#powerEvents].at,'An artificial inter-start delay remains')
+local written=0
+for _,count in pairs(writes) do written=written+1 assert(count==1,'Agent payload recopied for every target') end
+assert(written==#bootstrap.files+1,'Payload instrumentation did not cover the complete deployment')
 machines[0].config('/system/config/nexus.cfg',{role='master',key=string.rep('k',64),group='factory',members={['1']=42}})
 service.start(ctx)
 assert(service.snapshot().role=='off','Malformed authorization registry did not fail closed')

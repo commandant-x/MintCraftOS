@@ -43,6 +43,15 @@ setup() state.put('/disk/nexus/payload/'..bootstrap.files[1],'corrupt')
 assert(not pcall(bootstrap.install,'/disk') and fs.exists('/personal.txt'),'Reset began before payload verification')
 setup() fs.getDrive=function() return 'hdd' end
 assert(not pcall(bootstrap.install,'/disk') and fs.exists('/personal.txt'),'Internal bootstrap accepted for reset')
+setup() manifest.nodes['1'].resetToken=nil manifest.nodes['1'].forceToken=string.rep('f',40)
+state.config('/disk/nexus/manifest.cfg',manifest)
+assert(bootstrap.install('/disk'),'Locally confirmed failure did not force install')
+assert(not fs.exists('/personal.txt') and store.load('/nexus/config.cfg').provisionToken==string.rep('f',40))
+state.put('/after-force.txt','keep')
+assert(bootstrap.install('/disk') and fs.exists('/after-force.txt'),'Local recovery repeated after success')
+setup() manifest.nodes['1'].resetToken=nil manifest.nodes['1'].forceToken=string.rep('f',40)
+state.config('/disk/nexus/manifest.cfg',manifest) state.put('/disk/nexus/payload/'..bootstrap.files[1],'corrupt')
+assert(not pcall(bootstrap.install,'/disk') and fs.exists('/personal.txt'),'Force recovery erased before payload verification')
 setup()
 local cuts=0 state.hook=function(action) if action=='delete' or action=='move' or action=='write' then cuts=cuts+1 end end
 assert(bootstrap.install('/disk')) state.hook=nil

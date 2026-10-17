@@ -1,5 +1,5 @@
 local crypto=require("system.libraries.password_crypto")
-local M={name="mintcraft.nexus.v1",version="0.2.0",maxPayload=8192}
+local M={name="mintcraft.nexus.v1",version="0.3.0",maxPayload=8192}
 local function integer(x) return type(x)=="number" and x==x and x>=0 and x<2147483647 and x%1==0 end
 local function utc() assert(os.epoch,"UTC clock required") return os.epoch("utc") end
 function M.hash(text) return (crypto.digest(text):gsub(".",function(c) return string.format("%02x",c:byte()) end)) end
@@ -36,15 +36,20 @@ function M.verify(key,sender,recipient,packet,seen)
   return value
 end
 function M.inventory()
-  local rows={}
+  local rows,priority={},{}
+  local observe=require('system.nexus.observe')
   local names=peripheral.getNames()
   table.sort(names)
-  for i=1,math.min(24,#names) do
+  for i=1,math.min(128,#names) do
     local name=names[i]
     local ok,kind=pcall(peripheral.getType,name)
-    rows[#rows+1]={name=tostring(name):sub(1,64),type=ok and tostring(kind):sub(1,64) or "unavailable"}
+    local category=observe.kind(name)
+    local target=category and priority or rows
+    target[#target+1]={name=tostring(name):sub(1,64),type=ok and tostring(kind):sub(1,64) or "unavailable",kind=category}
   end
-  return rows
+  local result={}
+  for _,group in ipairs({priority,rows}) do for _,row in ipairs(group) do if #result<24 then result[#result+1]=row end end end
+  return result
 end
 function M.openModems()
   local count=0

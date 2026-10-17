@@ -2,7 +2,11 @@
 local ok,err=pcall(function()
   shell.setDir('/') assert(shell.run('/source/install.lua'))
   local snapshot={role='master',master=38,group='factory',online=7,managed=7,discovered=7,
-    revision=1,message='HIVE ready',jobs={},drives={},computers={}}
+    revision=1,message='HIVE ready',jobs={},drives={},computers={},automation={enabled=true,message='Coordinating observations'},
+    resources={items=1024,energy=800000,fluid=12000,partial=false},
+    assets={{endpoint='minecraft:chest_0',owner=28,kind='inventory',age=2,result={ok=true,items=1024,used=16}},
+      {endpoint='battery_0',owner=29,kind='energy_storage',age=3,result={ok=true,energy=800000,capacity=1000000}},
+      {endpoint='tank_0',owner=30,kind='fluid_storage',age=4,result={ok=true,amount=12000}}}}
   for id=28,34 do snapshot.computers[#snapshot.computers+1]={id=id,label='Factory '..id,
     group='factory',state='ONLINE',authorized=true,version='0.2.0',name='computer_'..id,
     activeMissions=id%3,lastSeenSeconds=id%5,capabilities={'ping','inventory','storage','sum'},
@@ -15,6 +19,7 @@ local ok,err=pcall(function()
   assert(coroutine.resume(co))
   app.page='map' app.selected=30
   local renderer=require('system.gui.renderer')
+  for _,page in ipairs({'map','fleet'}) do app.page=page app.scroll=1
   for _,size in ipairs({{100,34},{26,20},{18,9}}) do
     local target=window.create(term.current(),1,1,size[1],size[2],true)
     local old=term.redirect(target)
@@ -22,9 +27,10 @@ local ok,err=pcall(function()
     app:draw(size[1],size[2])
     local frame={}
     for y=1,size[2] do local text,fg,bg=target.getLine(y) frame[y]={text=text,fg=fg,bg=bg} end
-    local h=assert(fs.open('/network-frame-'..size[1]..'.json','w')) h.write(textutils.serializeJSON(frame)) h.close()
+    local h=assert(fs.open('/'..page..'-frame-'..size[1]..'.json','w')) h.write(textutils.serializeJSON(frame)) h.close()
     term.redirect(old)
     if term.screenshot then term.screenshot() end
+  end
   end
 end)
 local h=assert(fs.open('/network-result.txt','w')) h.write(ok and 'PASS: native 2D network desktop/pocket/minimum layouts' or 'FAIL: '..tostring(err)) h.close()
