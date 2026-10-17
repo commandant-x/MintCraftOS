@@ -27,3 +27,16 @@ assert(auto.plan(p,rows,members,'new',200000).kind=='deploy','Reset skipped agen
 for id=1,2 do rows[id].provisionToken=p.resetToken end
 assert(auto.plan(p,rows,members,'new',200000).kind=='seal','Reset sealed before operation-specific acknowledgements')
 print("NEXUS automation: frozen scope, retries, cooldown, holds and sealing OK")
+local policy={enabled=true,ids={1},group='factory',allowReset=true,attempts={['1']={release='new',count=2,at=100000}}}
+local fleet={[1]={name='pc1',release='old',age=999}}
+assert(auto.plan(policy,fleet,members,'new',200000).kind=='waiting','Missing heartbeat caused destructive recovery')
+fleet[1].updateFailure=true
+assert(auto.plan(policy,fleet,members,'new',120000).kind=='waiting','Recovery ignored cooldown')
+assert(auto.plan(policy,fleet,members,'new',200000).kind=='reset','Confirmed failed update did not escalate')
+policy.allowReset=false
+assert(auto.plan(policy,fleet,members,'new',200000).kind=='waiting','Legacy consent escalated to erase')
+policy.allowReset=true policy.resets={['1']={release='new',token=string.rep('r',40)}}
+local recovery=auto.plan(policy,fleet,members,'new',200000)
+assert(recovery.kind=='deploy' and recovery.phase=='reset' and recovery.count==1)
+policy.attempts['1']={release='new',phase='reset',count=2,at=100000}
+assert(auto.plan(policy,fleet,members,'new',200000).kind=='waiting','Destructive recovery loop is unbounded')

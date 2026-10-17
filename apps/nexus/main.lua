@@ -20,9 +20,7 @@ function M.run(ctx,args)
   local function confirm(title,fn) app.confirm={title=title,fn=fn} end
   local function actions()
     if app.page=="setup" then return {{id="setup",label="Save MASTER"},{id="scan",label="Rescan"}} end
-    if app.page=="computers" then return {{id="scan",label="Rescan"},{id="drive",label="Disk"},{id="prepare",label="Prepare disk"},
-      {id="auto",label="Automate"},{id="resetAuto",label="Erase & provision"},{id="pause",label="Pause automation"},
-      {id="deploy",label="Deploy selected"},{id="seal",label="Seal disk"},{id="reboot",label="Restart agent"},{id="shutdown",label="Power off"}} end
+    if app.page=="computers" then return {{id="auto",label="Automate"},{id="pause",label="Pause"}} end
     if app.page=="missions" then return {{id="groupPing",label="Ping group"},{id="groupInventory",label="Inventory group"},
       {id="groupStorage",label="Storage group"},{id="assign",label="Auto assign check"}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
@@ -149,29 +147,15 @@ function M.run(ctx,args)
       elseif id=="drive" then self.driveIndex=(self.driveIndex or 1)%math.max(1,#s.drives)+1
       elseif id=="pause" then request("pause")
       elseif id=="auto" then
-        confirm("Allow background deployment/restarts of currently authorized group "..self.settings.group.." (max 2 attempts/node), then seal disk? Unknown PCs excluded.",function()
-          request("auto",{drive=drive and drive.name,group=self.settings.group})
-        end)
-      elseif id=="resetAuto" then
         local ids={}
         for _,row in ipairs(s.computers) do if row.authorized and row.group==self.settings.group then ids[#ids+1]=tostring(row.id) end end
         if #ids==0 then self.message="Authorize owned computers in this group first" return true end
         local scope=table.concat(ids,", ")
-        confirm("ERASE ALL INTERNAL FILES on agents ["..scope.."]? No backup. MASTER, ROM and disks excluded. This disk can reset these selected computers automatically.",function()
-          confirm("FINAL CONFIRMATION: permanently erase internal storage of IDs ["..scope.."] and install NEXUS?",function()
-            request("resetAuto",{drive=drive and drive.name,group=self.settings.group,ids=ids})
+        confirm("Automate deployment and updates of IDs ["..scope.."]? Failed updates trigger AUTOMATIC INTERNAL DISK ERASURE, without backup. MASTER, ROM and disks excluded.",function()
+          confirm("Authorize restarts and automatic destructive recovery for IDs ["..scope.."]? Offline status alone does not trigger erasure.",function()
+            request("auto",{group=self.settings.group,ids=ids,allowReset=true})
           end)
         end)
-      elseif id=="prepare" or id=="deploy" then
-        if not drive then self.message="Connect a shared drive with a data disk" return true end
-        confirm(id=="deploy" and "Prepare trusted disk and RESTART every authorized computer in group "..self.settings.group.."? Blank machines only; existing startups are protected." or "Prepare selected disk for authorized computers? Provisioning secrets will be readable on this shared disk; eject it after deployment.",function()
-          request(id,{drive=drive.name,group=self.settings.group})
-        end)
-      elseif id=="reboot" or id=="shutdown" then
-        confirm(id.." authorized computer "..tostring(self.selected).."?",function() request(id,{id=self.selected}) end)
-      elseif id=="seal" then
-        if not drive then self.message="No bootstrap disk" return true end
-        confirm("Remove NEXUS provisioning keys and startup from this disk? Verify all selected agents are ONLINE first.",function() request("seal",{drive=drive.name}) end)
       else request("mission",{id=self.selected,type=id}) end
       return true
     elseif handled then return true end

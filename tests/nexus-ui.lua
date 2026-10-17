@@ -54,22 +54,16 @@ assert(app.selected==node.row.id and #calls==previousCalls,'Network selection is
 width,height=100,30 app.page='computers'
 app.commands.open=true app:draw(width,height)
 local target
-for _,box in ipairs(app.commands.menuBoxes) do if box.id=='deploy' then target=box end end
+for _,box in ipairs(app.commands.menuBoxes) do
+ assert(box.id=='auto' or box.id=='pause','Obsolete deployment button retained')
+ if box.id=='auto' then target=box end
+end
 assert(target)
 app:handle({name='mouse_click',args={1,target.x,target.y}})
 assert(app.confirm,'Deployment skipped explicit confirmation')
 local previous=#calls app:draw(width,height)
 app:handle({name='mouse_click',args={1,1,5}})
 assert(#calls==previous,'Confirmation click leaked into computer selection')
-local box=app.confirmBar[1]
-app:handle({name='mouse_click',args={1,box.x,box.y}})
-assert(calls[#calls].action=='deploy' and calls[#calls].args.group=='factory')
-assert(not app.confirm)
-app.commands.open=true app:draw(width,height)
-for _,candidate in ipairs(app.commands.menuBoxes) do if candidate.id=='resetAuto' then target=candidate end end
-assert(target.id=='resetAuto')
-app:handle({name='mouse_click',args={1,target.x,target.y}})
-previous=#calls
 for stage=1,2 do
  assert(app.confirm,'Missing destructive confirmation stage '..stage)
  for _=1,100 do
@@ -81,5 +75,5 @@ for stage=1,2 do
  end
  if stage==1 then assert(#calls==previous,'Reset executed before final confirmation') end
 end
-assert(calls[#calls].action=='resetAuto' and #calls[#calls].args.ids==64,'Frozen destructive scope missing')
+assert(calls[#calls].action=='auto' and calls[#calls].args.allowReset and #calls[#calls].args.ids==64,'Frozen destructive recovery scope missing')
 print('NEXUS UI: responsive 2D network, 64-node touch paging/selection, bounds, deployment confirmation and modal isolation passed')

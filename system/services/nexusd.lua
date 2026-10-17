@@ -108,11 +108,22 @@ local selected=type(manifest)=='table' and type(manifest.nodes)=='table' and man
 if selected and manifest.master~=os.getComputerID() then
   package.path='/'..fs.combine(mount,'nexus/payload/?.lua'):gsub('^/+','')..';'..package.path
   local ok,result,err=pcall(function() return require('system.nexus.bootstrap').install(mount) end)
-  if not ok or not result then printError('NEXUS bootstrap: '..tostring(ok and err or result)) end
+  if not ok or not result then
+    local reason=tostring(ok and err or result)
+    printError('NEXUS bootstrap: '..reason)
+    pcall(function()
+      local wire=require('system.nexus.protocol') local store=require('system.nexus.storage')
+      local eligible=reason:find('Existing NEXUS association protected',1,true) or reason:find('Existing startup protected',1,true)
+        or reason:find('Existing installation protected',1,true) or reason:find('Installed payload corrupt',1,true) or reason:find('Installed payload missing',1,true)
+      local id=os.getComputerID()
+      store.save(fs.combine(mount,'nexus/failures/'..id..'.cfg'),wire.sign(selected.key,id,manifest.master,'bootstrap_failure',
+        'failure:'..id..':'..os.epoch('utc'),{release=manifest.release,eligible=not not eligible,error=reason:sub(1,200)}))
+    end)
+  end
 end
 if fs.exists('/startup.lua') then shell.run('/startup.lua') end
 ]=]
-local function prepare(driveName,ids,resetToken)
+local function prepare(driveName,ids,resetToken,resets)
   assert(config.role=="master","Configure MASTER first")
   assert(#ids>0,"No authorized computers in this group")
   local mount
@@ -138,6 +149,10 @@ local function prepare(driveName,ids,resetToken)
   local fingerprint={}
   for _,path in ipairs(paths) do fingerprint[#fingerprint+1]=path..":"..manifest.hashes[path] end
   manifest.release=wire.hash(table.concat(fingerprint,"\n")):sub(1,40)
+  for id,node in pairs(manifest.nodes) do
+    local recovery=resets and resets[id]
+    if recovery and recovery.release==manifest.release then node.resetToken=recovery.token end
+  end
   store.save(fs.combine(mount,"nexus/manifest.cfg"),manifest)
   store.write(fs.combine(mount,"nexus/reassociate.lua"),[=[
 local mount='/'..fs.getDir(fs.getDir(shell.getRunningProgram())):gsub('^/+','')
@@ -207,7 +222,7 @@ local function execute(action)
     scan()
     local ids=selectedIds(args.group or config.group)
     assert(#ids>0,"Authorize owned computers first")
-    if action.action=="resetAuto" then
+    if action.action=="resetAuto" or args.allowReset==true then
       assert(type(args.ids)=='table' and #args.ids==#ids,'Reset selection changed; confirm again')
       for i,id in ipairs(ids) do assert(tostring(args.ids[i])==tostring(id),'Reset selection changed; confirm again') end
     end
@@ -220,6 +235,7 @@ local function execute(action)
     assert(drive,"Insert a writable provisioning disk")
     local nextValue=addon.copy(config)
     nextValue.automation={enabled=true,ids=ids,group=args.group or config.group,drive=drive,attempts={},holds={}}
+    nextValue.automation.allowReset=args.allowReset==true
     if action.action=="resetAuto" then
       nextValue.automation.resetToken=wire.hash(config.key..":reset:"..nextId()):sub(1,40)
     end
@@ -286,13 +302,46 @@ local function automaticTick()
   end
   local view={}
   for id,row in pairs(rows) do view[id]=addon.copy(row) view[id].age=row.seenAt and os.clock()-row.seenAt or math.huge end
+  if policy.allowReset then
+    local mount
+    for _,drive in ipairs(drives) do if drive.name==policy.drive then mount=drive.mount end end
+    if mount then for _,id in ipairs(policy.ids) do
+      local attempt=(policy.attempts or {})[tostring(id)]
+      if view[id] then view[id].updateFailure=attempt and attempt.release==M.release and attempt.failure==true or false end
+      local packet=store.load(fs.combine(mount,'nexus/failures/'..id..'.cfg'))
+      if packet and view[id] then
+        -- Bind the report to the current release and a recently attempted boot.
+        local message=wire.verify(wire.nodeKey(config.key,id),id,ownId(),packet)
+        local failure=message and message.kind=='bootstrap_failure' and message.body.release==M.release
+          and message.body.eligible==true and attempt and message.time>=attempt.at or false
+        if failure and not attempt.failure then
+          local nextValue=addon.copy(config) nextValue.automation.attempts[tostring(id)].failure=true
+          saveConfig(nextValue) policy=config.automation
+          view[id].updateFailure=true
+        end
+      end
+    end end
+    for _,id in ipairs(policy.ids) do
+      local row=view[id]
+      if row and row.release and row.release~=M.release and row.age<=15 and row.deployAt and row.seenAt>=row.deployAt then
+        row.updateFailure=true
+      end
+    end
+  end
   local step=automation.plan(policy,view,config.members,M.release,os.epoch("utc"))
   if not step then return end
-  if step.kind=="deploy" then
-    local manifest=prepare(policy.drive,policy.ids,policy.resetToken)
+  if step.kind=='reset' then
+    local nextValue=addon.copy(config)
+    nextValue.automation.resets=nextValue.automation.resets or {}
+    nextValue.automation.resets[tostring(step.id)]={release=M.release,token=wire.hash(config.key..':recovery:'..nextId()):sub(1,40)}
+    saveConfig(nextValue)
+    publish('Update failed for agent '..step.id..'; authorized internal reset scheduled')
+    autoMessage='Recovery reset queued for agent '..step.id
+  elseif step.kind=="deploy" then
+    local manifest=prepare(policy.drive,policy.ids,policy.resetToken,policy.resets)
     local nextValue=addon.copy(config)
     nextValue.automation.attempts=nextValue.automation.attempts or {}
-    nextValue.automation.attempts[tostring(step.id)]={release=manifest.release,count=step.count,at=os.epoch("utc")}
+    nextValue.automation.attempts[tostring(step.id)]={release=manifest.release,count=step.count,at=os.epoch("utc"),phase=step.phase}
     -- Persist before power: an interrupted call must not cause a reboot loop.
     saveConfig(nextValue)
     local row=rows[step.id]
