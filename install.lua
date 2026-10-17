@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2736,6 +2736,8 @@ local forms=require("system.gui.form")
 local addon=require("system.libraries.addon")
 local instruments=require("system.navigation.instruments")
 local attitude=require("system.navigation.attitude")
+local vehicle=require("system.navigation.vehicle")
+local vehicleDiagram=require("system.navigation.vehicle_diagram")
 local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
@@ -2749,9 +2751,12 @@ end
 function M.run(ctx)
   local actor={pid=ctx.pid}
   local draft=flight.configuration()
+  draft.vehicle=vehicle.profile(draft.vehicle)
+  for _,channel in ipairs(draft.channels) do channel.actuator=vehicle.actuator(channel.actuator) end
   local original=config.load("/system/config/navigation.cfg",{})
   local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
-  local tabs={{id="flight",label="Flight"},{id="control",label="Control"},{id="mapping",label="Outputs"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  if draft.vehicle.type=="unknown" then app.page="vehicle" end
+  local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
@@ -2765,7 +2770,14 @@ function M.run(ctx)
       local set=item.set item.set=function(value) set(value) app.dirty=true end
       rows[#rows+1]=item
     end
-    if app.page=="mapping" then
+    if app.page=="vehicle" then
+      field(draft.vehicle,"name","Vehicle name","string")
+      field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
+      field(draft.vehicle,"rotorCount","Independent rotors (0 = unknown)","number")
+      field(draft.vehicle,"massKg","Mass (kg)","number")
+      for _,axis in ipairs({"x","y","z"}) do field(draft.vehicle.com,axis,"COM body "..axis.." (blocks)","number") end
+      field(draft.vehicle,"comVerified","COM body frame verified","boolean")
+    elseif app.page=="mapping" then
       local channel=draft.channels[app.index]
       if not channel then return rows end
       field(channel,"id","Output ID","string")
@@ -2782,6 +2794,11 @@ function M.run(ctx)
       channel.mix=channel.mix or {}
       for _,axis in ipairs(axes) do field(channel.mix,axis,"Mix "..axis,"number") end
       field(channel,"frequency","Create frequency (label)","string")
+      if not channel.actuator then channel.actuator=vehicle.actuator() end
+      field(channel.actuator,"role","Actuator role",nil,vehicle.roles)
+      for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.position,axis,"Position body "..axis.." (blocks)","number") end
+      for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.direction,axis,"Thrust direction "..axis,"number") end
+      field(channel.actuator,"geometryVerified","Geometry physically verified","boolean")
     elseif app.page=="gains" then
       local axis=axes[app.axis]
       for _,key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do field(draft.gains[axis],key,axis.." "..key,"number") end
@@ -2808,7 +2825,10 @@ function M.run(ctx)
     for i=app.scroll,math.min(#rows,app.scroll+count-1) do renderer.writeAt(1,y+i-app.scroll,renderer.crop(rows[i],w)) end
   end
   local function actions()
-    if app.page=="mapping" or app.page=="manual" then return {{id="previous",label="Prev"},{id="next",label="Next"},{id="add",label="Add"},{id="remove",label="Remove"},{id="save",label="Save"}}
+    if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
+    elseif app.page=="vehicle" then return {{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="context" then return {{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
+    elseif app.page=="diagram" then return {{id="analysis",label="Analysis"},{id="top",label="Top"},{id="side",label="Side"},{id="outputs",label="Actuators"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
     elseif app.page=="control" then return {{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"},{id="yawLeft",label="Yaw-"},{id="yawRight",label="Yaw+"}}
@@ -2822,13 +2842,26 @@ function M.run(ctx)
     menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
     local commands=actions()
     for _,command in ipairs(commands) do
-      command.primary=command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.primary=command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
       command.danger=command.id=="arm"
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
-    if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
+    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
+    elseif self.page=="diagram" then
+      local analysis=vehicle.analyze(draft.vehicle,draft.channels)
+      vehicleDiagram.draw(w,h,analysis,draft.vehicle,self.diagramSide)
+    elseif self.page=="context" then
+      local analysis=vehicle.analyze(draft.vehicle,draft.channels)
+      local rows={analysis.frame,draft.vehicle.type.." | "..fmt(draft.vehicle.massKg," kg")}
+      rows[#rows+1]="Detected propellers: "..tostring(#(self.av.propeller or {})).." | signal endpoints: "..tostring(#flight.endpoints())
+      for _,row in ipairs(analysis.rows) do
+        rows[#rows+1]=tostring(row.id).." | "..row.role
+        if row.torque then rows[#rows+1]=string.format("  geometry/N: pitch %.2f yaw %.2f roll %.2f",row.torque.pitch,row.torque.yaw,row.torque.roll) end
+      end
+      for _,warning in ipairs(analysis.warnings) do rows[#rows+1]="- "..warning end
+      lines(w,h,rows)
     elseif self.page=="flight" then
       local measured=self.av.measurements or {}
       local sample,fresh=attitude.sample(measured,self.lastAttitude,os.clock())
@@ -2923,7 +2956,17 @@ function M.run(ctx)
         draft.channels[#draft.channels+1]={id="output"..(#draft.channels+1),backend="redstone",side=sides[math.min(6,#draft.channels+1)],min=0,max=15,neutral=15,rescue=15,mix={pitch=0,roll=0,altitude=0,heading=0},validated=false,frequency=""}
         self.index=#draft.channels return true
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
-      elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() self.dirty=false end refresh() return true
+      elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
+      elseif id=="mass" then
+        local mass=self.sub.measurements and self.sub.measurements.mass
+        if mass and mass.valid and addon.finite(mass.value) and mass.value>0 and mass.validUntil and os.clock()<=mass.validUntil then
+          draft.vehicle.massKg=mass.value self.dirty=true self.message="Measured mass copied"
+        else self.message="Fresh measured Sable mass unavailable" end return true
+      elseif id=="analysis" then self.page="context" return true
+      elseif id=="diagram" then self.page="diagram" return true
+      elseif id=="top" or id=="side" then self.diagramSide=id=="side" return true
+      elseif id=="vehicle" then self.page="vehicle" return true
+      elseif id=="outputs" then self.page="mapping" return true
       elseif id=="rescan" then avionics.rescan() sable.rescan() return true
       elseif id=="devices" or id=="logs" then ctx.apps.launch(id) return true
       elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm("Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
@@ -2960,7 +3003,7 @@ function M.run(ctx)
         confirm("Physically verify "..id.." before confirming",function()
           local ok,message=flight.calibrate(actor,id,channel and channel.id,true)
           report(ok,message)
-          if ok then draft=flight.configuration() end
+          if ok then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) end
         end) return true
       elseif self.page=="calibration" and y==4 then
         local channel=draft.channels[self.index]
@@ -2968,7 +3011,7 @@ function M.run(ctx)
         self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
-    if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then return self.form:handle(event) end
+    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then return self.form:handle(event) end
     return false
   end
   refresh()
@@ -2989,7 +3032,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3073,7 +3116,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3383,7 +3426,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3498,7 +3541,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3640,7 +3683,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.12",
+  version = "0.18.13",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4090,7 +4133,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.12",
+  version = "0.18.13",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4632,7 +4675,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.12",
+    version = "0.18.13",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5010,7 +5053,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.12",
+  version = "0.18.13",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -6651,21 +6694,21 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.12", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.12", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.12", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.12", permissions = { "rednet.send", "rednet.receive" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.12", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.12", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.12", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.12", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.12", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.12", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.12", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.12", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.12", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.12", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.12", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.13", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.13", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.13", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.13", permissions = { "rednet.send", "rednet.receive" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.13", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.13", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.13", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.13", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.13", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.13", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.13", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.13", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.13", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.13", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.13", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7424,7 +7467,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.12",
+    version = meta.version or "0.18.13",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -9019,6 +9062,110 @@ function M.new(snapshot,selected,configuration,onShip,save,validate)
     return self.form:handle(event)
   end
   return state
+end
+return M
+]=],
+  ["system/navigation/vehicle.lua"] = [=[
+local addon=require("system.libraries.addon")
+local M={}
+M.types={"unknown","monocopter","bicopter","tricopter","quadcopter","hexacopter","octocopter","multirotor","helicopter","airship","fixed-wing","ground","hybrid"}
+M.roles={"unknown","lift","propulsion","stabilization","yaw","strafe","mixed"}
+local function contains(values,value)
+  for _,item in ipairs(values) do if item==value then return true end end
+end
+local function bounded(vector)
+  return math.max(math.abs(vector.x),math.abs(vector.y),math.abs(vector.z))<=1000000
+end
+function M.profile(value)
+  local p=type(value)=="table" and addon.copy(value) or {}
+  p.type=contains(M.types,p.type) and p.type or "unknown"
+  p.name=type(p.name)=="string" and p.name or "Vehicle"
+  p.massKg=addon.finite(p.massKg) and p.massKg or 0
+  p.rotorCount=addon.finite(p.rotorCount) and math.max(0,math.min(32,math.floor(p.rotorCount))) or 0
+  p.comVerified=p.comVerified==true
+  p.com=addon.vec(p.com) or {x=0,y=0,z=0}
+  return p
+end
+function M.actuator(value)
+  local a=type(value)=="table" and addon.copy(value) or {}
+  a.role=contains(M.roles,a.role) and a.role or "unknown"
+  a.position=addon.vec(a.position) or {x=0,y=0,z=0}
+  a.direction=addon.vec(a.direction) or {x=0,y=0,z=0}
+  a.geometryVerified=a.geometryVerified==true
+  return a
+end
+-- Body frame: +X right, +Y up, +Z forward. Torque is r cross F.
+-- Geometry alone is not a measured transfer function or a PID tuning.
+function M.analyze(profile,channels)
+  profile=M.profile(profile)
+  local out={rows={},warnings={},frame="body: +X right / +Y up / +Z forward"}
+  if profile.type=="unknown" then out.warnings[#out.warnings+1]="Vehicle type missing" end
+  if profile.massKg<=0 then out.warnings[#out.warnings+1]="Mass missing; force estimates unavailable" end
+  if not profile.comVerified then out.warnings[#out.warnings+1]="Body-frame COM unverified; torque unavailable" end
+  for _,channel in ipairs(channels or {}) do
+    local a=M.actuator(channel.actuator)
+    local row={id=channel.id,role=a.role,frequency=channel.frequency,verified=a.geometryVerified}
+    if a.role=="unknown" then out.warnings[#out.warnings+1]=tostring(channel.id)..": role missing" end
+    local d=a.direction
+    local length=math.sqrt(d.x*d.x+d.y*d.y+d.z*d.z)
+    if not a.geometryVerified or length<1e-8 or not addon.finite(length) or not profile.comVerified or not bounded(a.position) or not bounded(d) or not bounded(profile.com) then
+      out.warnings[#out.warnings+1]=tostring(channel.id)..": geometry unverified"
+    else
+      local x,y,z=a.position.x-profile.com.x,a.position.y-profile.com.y,a.position.z-profile.com.z
+      local fx,fy,fz=d.x/length,d.y/length,d.z/length
+      row.force={x=fx,y=fy,z=fz}
+      row.torque={pitch=y*fz-z*fy,yaw=z*fx-x*fz,roll=x*fy-y*fx}
+      row.position=addon.copy(a.position)
+    end
+    out.rows[#out.rows+1]=row
+  end
+  if #out.rows==0 then out.warnings[#out.warnings+1]="No mapped actuators" end
+  out.warnings[#out.warnings+1]="PID needs measured response; Kalman needs sensor/noise model"
+  return out
+end
+return M
+]=],
+  ["system/navigation/vehicle_diagram.lua"] = [=[
+local pixels=require("system.gui.subpixel")
+local renderer=require("system.gui.renderer")
+local M={}
+function M.draw(w,h,analysis,profile,side)
+  local height=math.max(2,h-7)
+  local canvas=pixels.new(w,height,colors.black)
+  local cx,cy=canvas.width/2,canvas.height/2
+  local radius=1
+  local points={}
+  for i,row in ipairs(analysis.rows) do
+    if row.position then
+      local x=side and row.position.z-profile.com.z or row.position.x-profile.com.x
+      local y=side and row.position.y-profile.com.y or row.position.z-profile.com.z
+      radius=math.max(radius,math.abs(x),math.abs(y))
+      points[#points+1]={x=x,y=y,index=i,row=row}
+    end
+  end
+  local scale=math.max(1,math.min(cx-4,cy-4))/radius
+  canvas:line(cx,1,cx,canvas.height,colors.gray)
+  canvas:line(1,cy,canvas.width,cy,colors.gray)
+  for _,point in ipairs(points) do
+    point.px=math.floor(cx+point.x*scale)
+    point.py=math.floor(cy-point.y*scale)
+    canvas:line(cx,cy,point.px,point.py,colors.lightGray)
+    local palette={lift=colors.lime,propulsion=colors.red,stabilization=colors.cyan,yaw=colors.yellow,strafe=colors.magenta,mixed=colors.lightBlue}
+    local color=palette[point.row.role] or colors.lightGray
+    local force=point.row.force
+    local dx,dy=side and force.z or force.x,side and force.y or force.z
+    canvas:line(point.px,point.py,point.px+dx*6,point.py-dy*6,color)
+    canvas:rect(point.px-2,point.py-2,5,5,color)
+  end
+  if profile.comVerified then canvas:rect(cx-1,cy-1,3,3,colors.orange) end
+  canvas:draw(1,4)
+  for _,point in ipairs(points) do
+    local x=math.max(1,math.min(w,math.floor((point.px-1)/2)+1))
+    local y=math.max(4,math.min(3+height,math.floor((point.py-1)/3)+4))
+    renderer.writeAt(x,y,renderer.crop(tostring(point.index),w-x+1),colors.white,colors.black)
+  end
+  renderer.writeAt(1,3,renderer.crop(side and "Body side: +Z right / +Y up | orange COM" or "Body top: +X right / +Z up | orange COM",w),colors.cyan)
+  if #points==0 then renderer.writeAt(1,5,renderer.crop("No verified actuator geometry / COM",w),colors.orange,colors.black) end
 end
 return M
 ]=],
@@ -14030,7 +14177,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.12
+0.18.13
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

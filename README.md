@@ -2,7 +2,12 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.12:
+This repository currently contains V0.18.13:
+
+[Vehicle context](docs/VEHICLE_CONTEXT.md): vehicle types, independent rotor count,
+actuator roles, verified body geometry, top/side diagrams and force/torque coupling
+previews. This is a configuration/analysis foundation, not an Aeronautics Diagram
+importer, automatic PID tuner or Kalman flight controller.
 
 Calibration Test always provides visible feedback: missing outputs and unsaved
 configuration open a setup dialog; a neutral/rescue signal offers editing rather
@@ -18,7 +23,7 @@ selection automatically chooses a unique device; ambiguous setups require an
 explicit selection. Calibration shows arming blockers and retains confirmed
 progress in the current configuration draft. No safety prerequisites are bypassed.
 
-V0.18.12 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
+V0.18.13 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
 
 CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 
