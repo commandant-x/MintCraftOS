@@ -138,4 +138,18 @@ run(function()
   local values=addon.read({good=function() return 7 end},{"good"})
   assert(values.good==7,"cancelled sibling retained admission")
 end)
-print("40 radars / 240 reads: bounded fan-out, no deadlock, shared cache passed")
+addon.configure({concurrency=4,readsPerTick=1000})
+now=now+0.1
+local flightStarted, diagnosticsStarted=now,0
+run(function()
+  addon.parallel({function()
+    addon.read({hang=function() diagnosticsStarted=diagnosticsStarted+1 os.pullEvent("never") end},
+      {"hang","hang","hang","hang"},0.15,{priority="diagnostics"})
+  end,function()
+    addon.read({angles=function() flightStarted=now return {0,0} end},
+      {"angles"},0.15,{priority="flight"})
+    assert(diagnosticsStarted==3,"diagnostics did not reserve a flight slot")
+  end},2)
+end)
+assert(now-flightStarted>=0.15 and addon.metrics().inFlight==0 and addon.metrics().queue==0)
+print("40 radars / 240 reads: bounded fan-out, cancellation cleanup and reserved flight capacity passed")

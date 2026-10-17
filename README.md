@@ -2,7 +2,9 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.8:
+This repository currently contains V0.18.9:
+
+V0.18.9 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
 
 CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 

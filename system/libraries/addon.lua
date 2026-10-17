@@ -1,5 +1,5 @@
 local M = {}
-local settings = { concurrency = 4, readsPerTick = 16 }
+local settings = { concurrency = 16, readsPerTick = 32 }
 local counters = { reads = 0, readSeconds = 0, timeouts = 0, overruns = 0,
   peakInFlight = 0, inventoryScans = 0, readsByPriority = {} }
 local windowStart, windowReads = 0, 0
@@ -188,7 +188,10 @@ local function read(device, methods, timeout, options)
       branches[#branches + 1] = function()
         while true do
           if os.clock() - windowStart >= 0.05 then windowStart, windowReads = os.clock(), 0 end
-          if activeCount() < settings.concurrency and windowReads < settings.readsPerTick and firstTicket(ticket) then break end
+          -- Background reads leave one slot for flight sensors, even before
+          -- the next high-priority ticket arrives.
+          local capacity = readPriority == priorities.diagnostics and math.max(1, settings.concurrency - 1) or settings.concurrency
+          if activeCount() < capacity and windowReads < settings.readsPerTick and firstTicket(ticket) then break end
           local delay = windowReads >= settings.readsPerTick and math.max(0.001, 0.05 - (os.clock() - windowStart)) or 0.01
           local timer = startTimer(delay)
           repeat local _, id = os.pullEvent("timer") until id == timer

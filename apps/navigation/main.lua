@@ -4,6 +4,7 @@ local menus=require("system.gui.action_menu")
 local forms=require("system.gui.form")
 local addon=require("system.libraries.addon")
 local instruments=require("system.navigation.instruments")
+local attitude=require("system.navigation.attitude")
 local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
@@ -99,10 +100,11 @@ function M.run(ctx)
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
     elseif self.page=="flight" then
       local measured=self.av.measurements or {}
-      local fresh=os.clock()-(self.av.timestamp or 0)<=0.5
-      local pitch=fresh and measured.pitch and measured.pitch.valid and measured.pitch.value
-      local roll=fresh and measured.roll and measured.roll.valid and measured.roll.value
-      renderer.writeAt(1,3,renderer.crop(fresh and "Measured attitude | +Z heading = south" or "STALE / missing flight telemetry",w),fresh and colors.cyan or colors.orange)
+      local sample,fresh=attitude.sample(measured,self.lastAttitude,os.clock())
+      self.lastAttitude=sample
+      local pitch=sample and sample.pitch
+      local roll=sample and sample.roll
+      renderer.writeAt(1,3,renderer.crop(fresh and "Measured attitude | +Z heading = south" or (sample and "STALE attitude | holding last sample" or "STALE / missing flight telemetry"),w),fresh and colors.cyan or colors.orange)
       local graphW=w>=65 and math.floor(w*0.52) or w
       local graphH=w>=65 and math.max(3,h-5) or math.max(2,math.floor((h-5)/2))
       local key=graphW..":"..graphH..":"..tostring(pitch)..":"..tostring(roll)
