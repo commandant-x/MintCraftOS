@@ -2,6 +2,7 @@ local addon=require("system.libraries.addon")
 local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local bootstrap=require("system.nexus.bootstrap")
+local automation=require("system.nexus.automation")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
 local M={version=wire.version}
@@ -11,6 +12,7 @@ local serial,revision,lastScan=0,0,-math.huge
 local boot=tostring(os.epoch("utc"))
 local seen,admission={}, {at=0,count=0}
 local notice="MASTER not configured"
+local autoMessage="Automatic deployment disabled"
 local function ownId() return os.getComputerID() end
 local function validId(id) return type(id)=="number" and id>=0 and id<2147483647 and id%1==0 end
 local function actorAllowed(actor)
@@ -119,7 +121,7 @@ local function prepare(driveName,ids)
   local previous=store.read(startupPath)
   assert(not fs.exists(fs.combine(mount,"startup")),"Existing disk startup directory protected")
   assert(not previous or previous:sub(1,#bootstrap.marker)==bootstrap.marker,"Existing disk startup protected")
-  local manifest={schema=1,release=tostring(os.epoch("utc")).."_"..ownId(),master=ownId(),nodes={},hashes={}}
+  local manifest={schema=1,master=ownId(),nodes={},hashes={}}
   for _,id in ipairs(ids) do
     local member=assert(config.members[tostring(id)],"Computer not authorized")
     assert(id~=ownId(),"Cannot deploy on MASTER")
@@ -131,6 +133,9 @@ local function prepare(driveName,ids)
     manifest.hashes[path]=wire.hash(data)
     store.write(fs.combine(mount,"nexus/payload/"..path),data)
   end
+  local fingerprint={}
+  for _,path in ipairs(paths) do fingerprint[#fingerprint+1]=path..":"..manifest.hashes[path] end
+  manifest.release=wire.hash(table.concat(fingerprint,"\n")):sub(1,40)
   store.save(fs.combine(mount,"nexus/manifest.cfg"),manifest)
   store.write(startupPath,diskStartup)
   return manifest
@@ -138,7 +143,7 @@ end
 function M.request(actor,action,args)
   local ok,err=actorAllowed(actor) if not ok then return false,err end
   if #actions>=8 then return false,"NEXUS action queue full" end
-  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="reboot" and action~="shutdown" then return false,"Unknown NEXUS action" end
+  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="reboot" and action~="shutdown" and action~="auto" and action~="pause" then return false,"Unknown NEXUS action" end
   if action~="scan" and config.role~="master" then return false,"Configure MASTER first" end
   args=type(args)=="table" and addon.copy(args) or {}
   actions[#actions+1]={actor={pid=actor.pid},action=action,args=args}
@@ -162,7 +167,25 @@ end
 local function execute(action)
   local permitted,err=actorAllowed(action.actor) assert(permitted,err)
   local args=action.args
-  if action.action=="scan" then scan() publish("Wired discovery refreshed")
+  if action.action=="auto" then
+    scan()
+    local ids=selectedIds(args.group or config.group)
+    assert(#ids>0,"Authorize owned computers first")
+    local drive=args.drive
+    if not drive then
+      for _,value in ipairs(drives) do if value.mount and not fs.isReadOnly(value.mount) then
+        assert(not drive,"Several disks found; choose a provisioning disk") drive=value.name
+      end end
+    end
+    assert(drive,"Insert a writable provisioning disk")
+    local nextValue=addon.copy(config)
+    nextValue.automation={enabled=true,ids=ids,group=args.group or config.group,drive=drive,attempts={},holds={}}
+    saveConfig(nextValue) publish("Automatic deployment enabled for "..#ids.." explicitly authorized computers")
+  elseif action.action=="pause" then
+    local nextValue=addon.copy(config)
+    nextValue.automation=nextValue.automation or {} nextValue.automation.enabled=false
+    saveConfig(nextValue) autoMessage="Automatic deployment paused" publish(autoMessage)
+  elseif action.action=="scan" then scan() publish("Wired discovery refreshed")
   elseif action.action=="prepare" or action.action=="deploy" then
     scan()
     local ids=selectedIds(args.group)
@@ -192,7 +215,53 @@ local function execute(action)
     end
     publish("Provisioning credentials removed from this disk; installed agents are independent")
   elseif action.action=="mission" then mission(args) publish("Read-only mission queued")
-  else power(args.id,action.action) publish(action.action.." requested for "..args.id) end
+  else
+    if config.automation then
+      local nextValue=addon.copy(config) nextValue.automation.holds=nextValue.automation.holds or {}
+      nextValue.automation.holds[tostring(args.id)]=action.action=="shutdown" or nil
+      saveConfig(nextValue)
+    end
+    power(args.id,action.action) publish(action.action.." requested for "..args.id)
+  end
+end
+local function automaticTick()
+  local policy=config.automation
+  if type(policy)~="table" or not policy.enabled then return end
+  local paths=addon.copy(bootstrap.files) paths[#paths+1]="system/nexus/bootstrap.lua"
+  if not M.release then
+    local values={}
+    for _,path in ipairs(paths) do values[#values+1]=path..":"..wire.hash(assert(store.read("/"..path),"Missing agent payload")) end
+    M.release=wire.hash(table.concat(values,"\n")):sub(1,40)
+  end
+  local view={}
+  for id,row in pairs(rows) do view[id]=addon.copy(row) view[id].age=row.seenAt and os.clock()-row.seenAt or math.huge end
+  local step=automation.plan(policy,view,config.members,M.release,os.epoch("utc"))
+  if not step then return end
+  if step.kind=="deploy" then
+    local manifest=prepare(policy.drive,policy.ids)
+    local nextValue=addon.copy(config)
+    nextValue.automation.attempts=nextValue.automation.attempts or {}
+    nextValue.automation.attempts[tostring(step.id)]={release=manifest.release,count=step.count,at=os.epoch("utc")}
+    -- Persist before power: an interrupted call must not cause a reboot loop.
+    saveConfig(nextValue)
+    local row=rows[step.id]
+    power(step.id,row.powered and "reboot" or "turnOn")
+    row.deployAt=os.clock() row.deployRelease=manifest.release
+    autoMessage="Installing agent "..step.id.."; attempt "..step.count.."/2"
+  elseif step.kind=="seal" then
+    local mount
+    for _,drive in ipairs(drives) do if drive.name==policy.drive then mount=drive.mount end end
+    assert(mount,"Agents ready; insert provisioning disk to seal credentials")
+    local path=fs.combine(mount,"startup.lua") local data=store.read(path)
+    assert(not data or data:sub(1,#bootstrap.marker)==bootstrap.marker,"Foreign disk startup protected")
+    for _,base in ipairs({"nexus/manifest.cfg","startup.lua"}) do
+      for _,suffix in ipairs({"",".backup",".pending"}) do
+        local target=fs.combine(mount,base..suffix) if fs.exists(target) then fs.delete(target) end
+      end
+    end
+    local nextValue=addon.copy(config) nextValue.automation.sealedRelease=M.release saveConfig(nextValue)
+    autoMessage="All scoped agents verified; provisioning credentials sealed"
+  else autoMessage=step.message end
 end
 local function enqueue(sender,packet,protocol)
   if config.role~="master" or protocol~=wire.name or not validId(sender) or not config.members[tostring(sender)] or not wire.shape(packet) then return end
@@ -227,6 +296,10 @@ function M.tick()
   if config.role~="master" then return end
   if os.clock()-lastScan>10 then wire.openModems() scan() end
   for _=1,4 do if #incoming==0 then break end receive(table.remove(incoming,1)) end
+  if not M.autoAt or os.clock()-M.autoAt>=2 then
+    M.autoAt=os.clock()
+    local ok,err=pcall(automaticTick) if not ok then autoMessage="Automatic deployment: "..tostring(err):sub(1,180) end
+  end
   for _,job in ipairs(jobs) do
     if (job.state=="queued" or job.state=="sent") and os.clock()-job.lastAttempt>=5 then
       if not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
@@ -238,7 +311,8 @@ function M.tick()
 end
 function M.snapshot()
   local result={role=config.role,group=config.group,computers={},drives=addon.copy(drives),jobs=addon.copy(jobs),
-    message=notice,revision=revision,master=ownId(),online=0,managed=0,discovered=0}
+    message=notice,revision=revision,master=ownId(),online=0,managed=0,discovered=0,
+    automation={enabled=type(config.automation)=="table" and config.automation.enabled==true,message=autoMessage}}
   for id,row in pairs(rows) do
     local value=addon.copy(row) local member=config.members[tostring(id)]
     value.authorized=member~=nil value.group=member and member.group or nil
@@ -256,6 +330,7 @@ function M.snapshot()
 end
 function M.start(ctx)
   M.stop() context=ctx
+  M.release=nil M.autoAt=nil autoMessage="Automatic deployment disabled"
   rows,drives,seen={}, {},{} lastScan=-math.huge
   store.recover("/system/config/nexus.cfg") config=store.load("/system/config/nexus.cfg",{role="off",members={}})
   local malformed=type(config.members)~="table" or (config.role~="off" and config.role~="master")

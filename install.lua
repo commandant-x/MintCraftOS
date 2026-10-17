@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3194,6 +3194,7 @@ function M.run(ctx,args)
   local function actions()
     if app.page=="setup" then return {{id="setup",label="Save MASTER"},{id="scan",label="Rescan"}} end
     if app.page=="computers" then return {{id="scan",label="Rescan"},{id="drive",label="Disk"},{id="prepare",label="Prepare disk"},
+      {id="auto",label="Automate"},{id="pause",label="Pause automation"},
       {id="deploy",label="Deploy selected"},{id="seal",label="Seal disk"},{id="reboot",label="Restart agent"},{id="shutdown",label="Power off"}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
@@ -3254,7 +3255,9 @@ function M.run(ctx,args)
         end
       else
         lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
-          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs}
+          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,
+          "Automation: "..((s.automation and s.automation.enabled) and "ON" or "OFF"),
+          s.automation and s.automation.message or ""}
         for _,row in ipairs(s.computers) do if row.authorized then
           lines[#lines+1]=row.id.." "..row.label.." | "..row.state.." | agent "..tostring(row.version or "not registered")
           if row.error then lines[#lines+1]=row.error end
@@ -3267,15 +3270,20 @@ function M.run(ctx,args)
     if self.confirm then
       renderer.fill(1,3,w,h-3,colors.gray)
       local text=self.confirm.title
+      local capacity=math.max(1,math.min(h-3,8)-3)*w
+      local offset=self.confirm.offset or 0
+      text=text:sub(offset+1)
       for y=4,math.min(h-3,8) do renderer.writeAt(1,y,text:sub(1,w),colors.white,colors.gray) text=text:sub(w+1) if text=="" then break end end
-      self.confirmBar=ui.toolbar(1,h-2,w,{{id="yes",label="Confirm"},{id="no",label="Cancel"}})
+      self.confirm.capacity=capacity
+      self.confirmBar=ui.toolbar(1,h-2,w,{{id=text~="" and "more" or "yes",label=text~="" and "Read more" or "Confirm"},{id="no",label="Cancel"}})
     elseif not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
   function app:handle(event)
     if self.confirm then
       if event.name=="mouse_click" then
         local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
-        if id=="yes" then local fn=self.confirm.fn self.confirm=nil fn() elseif id=="no" then self.confirm=nil end
+        if id=="more" then self.confirm.offset=(self.confirm.offset or 0)+self.confirm.capacity
+        elseif id=="yes" then local fn=self.confirm.fn self.confirm=nil fn() elseif id=="no" then self.confirm=nil end
       end return true
     end
     if self.form.edit then return self.form:handle(event) end
@@ -3286,6 +3294,11 @@ function M.run(ctx,args)
       if id=="setup" then report(nexus.setup(actor,self.settings.key,self.settings.group)) self.settings.key="" self.snapshot=nexus.snapshot()
       elseif id=="scan" then request("scan")
       elseif id=="drive" then self.driveIndex=(self.driveIndex or 1)%math.max(1,#s.drives)+1
+      elseif id=="pause" then request("pause")
+      elseif id=="auto" then
+        confirm("Allow background deployment/restarts of currently authorized group "..self.settings.group.." (max 2 attempts/node), then seal disk? Unknown PCs excluded.",function()
+          request("auto",{drive=drive and drive.name,group=self.settings.group})
+        end)
       elseif id=="prepare" or id=="deploy" then
         if not drive then self.message="Connect a shared drive with a data disk" return true end
         confirm(id=="deploy" and "Prepare trusted disk and RESTART every authorized computer in group "..self.settings.group.."? Blank machines only; existing startups are protected." or "Prepare selected disk for authorized computers? Provisioning secrets will be readable on this shared disk; eject it after deployment.",function()
@@ -3328,7 +3341,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3412,7 +3425,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3722,7 +3735,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3837,7 +3850,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3979,7 +3992,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.18",
+  version = "0.18.19",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4435,7 +4448,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.18",
+  version = "0.18.19",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4977,7 +4990,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.18",
+    version = "0.18.19",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5355,7 +5368,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.18",
+  version = "0.18.19",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -6996,22 +7009,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.18", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.18", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.18", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.18", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.19", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.19", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.19", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.19", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.1.0", permissions = { "system.security.admin" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.18", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.18", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.18", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.18", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.18", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.18", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.18", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.18", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.18", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.18", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.18", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.19", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.19", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.19", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.19", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.19", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.19", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.19", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.19", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.19", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.19", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.19", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7772,7 +7785,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.18",
+    version = meta.version or "0.18.19",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -9826,6 +9839,29 @@ function M.run()
       end
     elseif event=="peripheral" or event=="peripheral_detach" then agent.lastScan=-math.huge end
   end
+end
+return M
+]=],
+  ["system/nexus/automation.lua"] = [=[
+local M={}
+function M.plan(policy,rows,members,release,now)
+  if type(policy)~="table" or policy.enabled~=true or type(policy.ids)~="table" or #policy.ids>64 then return nil end
+  local complete=true
+  for _,id in ipairs(policy.ids) do
+    local member=members[tostring(id)]
+    local row=rows[id]
+    if not member or member.group~=policy.group then return {kind="blocked",message="Authorization changed; renew automatic deployment"} end
+    if not row or not row.seenAt or row.age>15 or row.release~=release then
+      complete=false
+      local attempt=(policy.attempts or {})[tostring(id)] or {}
+      if not (policy.holds or {})[tostring(id)] and row and row.name and row.release~=release and policy.sealedRelease~=release then
+        local count=attempt.release==release and (attempt.count or 0) or 0
+        if count<2 and (not attempt.at or now-attempt.at>=60000) then return {kind="deploy",id=id,count=count+1} end
+      end
+    end
+  end
+  if complete and #policy.ids>0 and policy.sealedRelease~=release then return {kind="seal"} end
+  return {kind="waiting",message=complete and "All scoped agents confirmed" or "Waiting for agents; exhausted retries require approval"}
 end
 return M
 ]=],
@@ -12724,6 +12760,7 @@ local addon=require("system.libraries.addon")
 local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local bootstrap=require("system.nexus.bootstrap")
+local automation=require("system.nexus.automation")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
 local M={version=wire.version}
@@ -12733,6 +12770,7 @@ local serial,revision,lastScan=0,0,-math.huge
 local boot=tostring(os.epoch("utc"))
 local seen,admission={}, {at=0,count=0}
 local notice="MASTER not configured"
+local autoMessage="Automatic deployment disabled"
 local function ownId() return os.getComputerID() end
 local function validId(id) return type(id)=="number" and id>=0 and id<2147483647 and id%1==0 end
 local function actorAllowed(actor)
@@ -12841,7 +12879,7 @@ local function prepare(driveName,ids)
   local previous=store.read(startupPath)
   assert(not fs.exists(fs.combine(mount,"startup")),"Existing disk startup directory protected")
   assert(not previous or previous:sub(1,#bootstrap.marker)==bootstrap.marker,"Existing disk startup protected")
-  local manifest={schema=1,release=tostring(os.epoch("utc")).."_"..ownId(),master=ownId(),nodes={},hashes={}}
+  local manifest={schema=1,master=ownId(),nodes={},hashes={}}
   for _,id in ipairs(ids) do
     local member=assert(config.members[tostring(id)],"Computer not authorized")
     assert(id~=ownId(),"Cannot deploy on MASTER")
@@ -12853,6 +12891,9 @@ local function prepare(driveName,ids)
     manifest.hashes[path]=wire.hash(data)
     store.write(fs.combine(mount,"nexus/payload/"..path),data)
   end
+  local fingerprint={}
+  for _,path in ipairs(paths) do fingerprint[#fingerprint+1]=path..":"..manifest.hashes[path] end
+  manifest.release=wire.hash(table.concat(fingerprint,"\n")):sub(1,40)
   store.save(fs.combine(mount,"nexus/manifest.cfg"),manifest)
   store.write(startupPath,diskStartup)
   return manifest
@@ -12860,7 +12901,7 @@ end
 function M.request(actor,action,args)
   local ok,err=actorAllowed(actor) if not ok then return false,err end
   if #actions>=8 then return false,"NEXUS action queue full" end
-  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="reboot" and action~="shutdown" then return false,"Unknown NEXUS action" end
+  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="reboot" and action~="shutdown" and action~="auto" and action~="pause" then return false,"Unknown NEXUS action" end
   if action~="scan" and config.role~="master" then return false,"Configure MASTER first" end
   args=type(args)=="table" and addon.copy(args) or {}
   actions[#actions+1]={actor={pid=actor.pid},action=action,args=args}
@@ -12884,7 +12925,25 @@ end
 local function execute(action)
   local permitted,err=actorAllowed(action.actor) assert(permitted,err)
   local args=action.args
-  if action.action=="scan" then scan() publish("Wired discovery refreshed")
+  if action.action=="auto" then
+    scan()
+    local ids=selectedIds(args.group or config.group)
+    assert(#ids>0,"Authorize owned computers first")
+    local drive=args.drive
+    if not drive then
+      for _,value in ipairs(drives) do if value.mount and not fs.isReadOnly(value.mount) then
+        assert(not drive,"Several disks found; choose a provisioning disk") drive=value.name
+      end end
+    end
+    assert(drive,"Insert a writable provisioning disk")
+    local nextValue=addon.copy(config)
+    nextValue.automation={enabled=true,ids=ids,group=args.group or config.group,drive=drive,attempts={},holds={}}
+    saveConfig(nextValue) publish("Automatic deployment enabled for "..#ids.." explicitly authorized computers")
+  elseif action.action=="pause" then
+    local nextValue=addon.copy(config)
+    nextValue.automation=nextValue.automation or {} nextValue.automation.enabled=false
+    saveConfig(nextValue) autoMessage="Automatic deployment paused" publish(autoMessage)
+  elseif action.action=="scan" then scan() publish("Wired discovery refreshed")
   elseif action.action=="prepare" or action.action=="deploy" then
     scan()
     local ids=selectedIds(args.group)
@@ -12914,7 +12973,53 @@ local function execute(action)
     end
     publish("Provisioning credentials removed from this disk; installed agents are independent")
   elseif action.action=="mission" then mission(args) publish("Read-only mission queued")
-  else power(args.id,action.action) publish(action.action.." requested for "..args.id) end
+  else
+    if config.automation then
+      local nextValue=addon.copy(config) nextValue.automation.holds=nextValue.automation.holds or {}
+      nextValue.automation.holds[tostring(args.id)]=action.action=="shutdown" or nil
+      saveConfig(nextValue)
+    end
+    power(args.id,action.action) publish(action.action.." requested for "..args.id)
+  end
+end
+local function automaticTick()
+  local policy=config.automation
+  if type(policy)~="table" or not policy.enabled then return end
+  local paths=addon.copy(bootstrap.files) paths[#paths+1]="system/nexus/bootstrap.lua"
+  if not M.release then
+    local values={}
+    for _,path in ipairs(paths) do values[#values+1]=path..":"..wire.hash(assert(store.read("/"..path),"Missing agent payload")) end
+    M.release=wire.hash(table.concat(values,"\n")):sub(1,40)
+  end
+  local view={}
+  for id,row in pairs(rows) do view[id]=addon.copy(row) view[id].age=row.seenAt and os.clock()-row.seenAt or math.huge end
+  local step=automation.plan(policy,view,config.members,M.release,os.epoch("utc"))
+  if not step then return end
+  if step.kind=="deploy" then
+    local manifest=prepare(policy.drive,policy.ids)
+    local nextValue=addon.copy(config)
+    nextValue.automation.attempts=nextValue.automation.attempts or {}
+    nextValue.automation.attempts[tostring(step.id)]={release=manifest.release,count=step.count,at=os.epoch("utc")}
+    -- Persist before power: an interrupted call must not cause a reboot loop.
+    saveConfig(nextValue)
+    local row=rows[step.id]
+    power(step.id,row.powered and "reboot" or "turnOn")
+    row.deployAt=os.clock() row.deployRelease=manifest.release
+    autoMessage="Installing agent "..step.id.."; attempt "..step.count.."/2"
+  elseif step.kind=="seal" then
+    local mount
+    for _,drive in ipairs(drives) do if drive.name==policy.drive then mount=drive.mount end end
+    assert(mount,"Agents ready; insert provisioning disk to seal credentials")
+    local path=fs.combine(mount,"startup.lua") local data=store.read(path)
+    assert(not data or data:sub(1,#bootstrap.marker)==bootstrap.marker,"Foreign disk startup protected")
+    for _,base in ipairs({"nexus/manifest.cfg","startup.lua"}) do
+      for _,suffix in ipairs({"",".backup",".pending"}) do
+        local target=fs.combine(mount,base..suffix) if fs.exists(target) then fs.delete(target) end
+      end
+    end
+    local nextValue=addon.copy(config) nextValue.automation.sealedRelease=M.release saveConfig(nextValue)
+    autoMessage="All scoped agents verified; provisioning credentials sealed"
+  else autoMessage=step.message end
 end
 local function enqueue(sender,packet,protocol)
   if config.role~="master" or protocol~=wire.name or not validId(sender) or not config.members[tostring(sender)] or not wire.shape(packet) then return end
@@ -12949,6 +13054,10 @@ function M.tick()
   if config.role~="master" then return end
   if os.clock()-lastScan>10 then wire.openModems() scan() end
   for _=1,4 do if #incoming==0 then break end receive(table.remove(incoming,1)) end
+  if not M.autoAt or os.clock()-M.autoAt>=2 then
+    M.autoAt=os.clock()
+    local ok,err=pcall(automaticTick) if not ok then autoMessage="Automatic deployment: "..tostring(err):sub(1,180) end
+  end
   for _,job in ipairs(jobs) do
     if (job.state=="queued" or job.state=="sent") and os.clock()-job.lastAttempt>=5 then
       if not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
@@ -12960,7 +13069,8 @@ function M.tick()
 end
 function M.snapshot()
   local result={role=config.role,group=config.group,computers={},drives=addon.copy(drives),jobs=addon.copy(jobs),
-    message=notice,revision=revision,master=ownId(),online=0,managed=0,discovered=0}
+    message=notice,revision=revision,master=ownId(),online=0,managed=0,discovered=0,
+    automation={enabled=type(config.automation)=="table" and config.automation.enabled==true,message=autoMessage}}
   for id,row in pairs(rows) do
     local value=addon.copy(row) local member=config.members[tostring(id)]
     value.authorized=member~=nil value.group=member and member.group or nil
@@ -12978,6 +13088,7 @@ function M.snapshot()
 end
 function M.start(ctx)
   M.stop() context=ctx
+  M.release=nil M.autoAt=nil autoMessage="Automatic deployment disabled"
   rows,drives,seen={}, {},{} lastScan=-math.huge
   store.recover("/system/config/nexus.cfg") config=store.load("/system/config/nexus.cfg",{role="off",members={}})
   local malformed=type(config.members)~="table" or (config.role~="off" and config.role~="master")
@@ -15334,7 +15445,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.18
+0.18.19
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

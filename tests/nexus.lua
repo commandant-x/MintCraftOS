@@ -36,7 +36,7 @@ peripheral={
     local id=tonumber(name:match("pc(%d+)")) assert(id,"Unexpected peripheral")
     if method=="getID" then return id elseif method=="getLabel" then return "node-"..id
     elseif method=="isOn" then return powered[id]==true elseif method=="reboot" then powered[id]=true
-    elseif method=="shutdown" then powered[id]=false else error("Unexpected control method") end
+    elseif method=="shutdown" then powered[id]=false elseif method=="turnOn" then powered[id]=true else error("Unexpected control method") end
   end,
 }
 disk={getMountPath=function(name) if name=="drive_0" then return "/disk" end end}
@@ -141,6 +141,20 @@ assert(load(source['system/nexus/uninstall.lua'],'local uninstall','t',_ENV))()
 assert(not fs.exists('/startup.lua') and not fs.exists('/nexus'))
 assert(store.read('/keep.txt')=='unrelated user data','Uninstall deleted unrelated files')
 switch(0)
+for id=1,7 do switch(id) agents[id]:tick() end
+switch(0) deliverMaster()
+assert(service.request(actor,'auto',{group='factory'})) service.tick()
+assert(service.snapshot().automation.enabled,'Automation consent not persisted')
+local policy=store.load('/system/config/nexus.cfg').automation
+assert(#policy.ids==7 and policy.drive=='drive_0')
+now=now+2 service.tick()
+assert(store.load('/system/config/nexus.cfg').automation.sealedRelease,'Matching agents not automatically sealed')
+assert(service.request(actor,'shutdown',{id=2})) service.tick()
+assert(store.load('/system/config/nexus.cfg').automation.holds['2'],'Maintenance shutdown hold missing')
+assert(service.request(actor,'pause')) service.tick()
+assert(not service.snapshot().automation.enabled)
+service.start(ctx)
+assert(not service.snapshot().automation.enabled,'Pause did not survive restart')
 machines[0].config('/system/config/nexus.cfg',{role='master',key=string.rep('k',64),group='factory',members={['1']=42}})
 service.start(ctx)
 assert(service.snapshot().role=='off','Malformed authorization registry did not fail closed')

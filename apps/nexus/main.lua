@@ -22,6 +22,7 @@ function M.run(ctx,args)
   local function actions()
     if app.page=="setup" then return {{id="setup",label="Save MASTER"},{id="scan",label="Rescan"}} end
     if app.page=="computers" then return {{id="scan",label="Rescan"},{id="drive",label="Disk"},{id="prepare",label="Prepare disk"},
+      {id="auto",label="Automate"},{id="pause",label="Pause automation"},
       {id="deploy",label="Deploy selected"},{id="seal",label="Seal disk"},{id="reboot",label="Restart agent"},{id="shutdown",label="Power off"}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
@@ -82,7 +83,9 @@ function M.run(ctx,args)
         end
       else
         lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
-          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs}
+          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,
+          "Automation: "..((s.automation and s.automation.enabled) and "ON" or "OFF"),
+          s.automation and s.automation.message or ""}
         for _,row in ipairs(s.computers) do if row.authorized then
           lines[#lines+1]=row.id.." "..row.label.." | "..row.state.." | agent "..tostring(row.version or "not registered")
           if row.error then lines[#lines+1]=row.error end
@@ -95,15 +98,20 @@ function M.run(ctx,args)
     if self.confirm then
       renderer.fill(1,3,w,h-3,colors.gray)
       local text=self.confirm.title
+      local capacity=math.max(1,math.min(h-3,8)-3)*w
+      local offset=self.confirm.offset or 0
+      text=text:sub(offset+1)
       for y=4,math.min(h-3,8) do renderer.writeAt(1,y,text:sub(1,w),colors.white,colors.gray) text=text:sub(w+1) if text=="" then break end end
-      self.confirmBar=ui.toolbar(1,h-2,w,{{id="yes",label="Confirm"},{id="no",label="Cancel"}})
+      self.confirm.capacity=capacity
+      self.confirmBar=ui.toolbar(1,h-2,w,{{id=text~="" and "more" or "yes",label=text~="" and "Read more" or "Confirm"},{id="no",label="Cancel"}})
     elseif not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
   function app:handle(event)
     if self.confirm then
       if event.name=="mouse_click" then
         local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
-        if id=="yes" then local fn=self.confirm.fn self.confirm=nil fn() elseif id=="no" then self.confirm=nil end
+        if id=="more" then self.confirm.offset=(self.confirm.offset or 0)+self.confirm.capacity
+        elseif id=="yes" then local fn=self.confirm.fn self.confirm=nil fn() elseif id=="no" then self.confirm=nil end
       end return true
     end
     if self.form.edit then return self.form:handle(event) end
@@ -114,6 +122,11 @@ function M.run(ctx,args)
       if id=="setup" then report(nexus.setup(actor,self.settings.key,self.settings.group)) self.settings.key="" self.snapshot=nexus.snapshot()
       elseif id=="scan" then request("scan")
       elseif id=="drive" then self.driveIndex=(self.driveIndex or 1)%math.max(1,#s.drives)+1
+      elseif id=="pause" then request("pause")
+      elseif id=="auto" then
+        confirm("Allow background deployment/restarts of currently authorized group "..self.settings.group.." (max 2 attempts/node), then seal disk? Unknown PCs excluded.",function()
+          request("auto",{drive=drive and drive.name,group=self.settings.group})
+        end)
       elseif id=="prepare" or id=="deploy" then
         if not drive then self.message="Connect a shared drive with a data disk" return true end
         confirm(id=="deploy" and "Prepare trusted disk and RESTART every authorized computer in group "..self.settings.group.."? Blank machines only; existing startups are protected." or "Prepare selected disk for authorized computers? Provisioning secrets will be readable on this shared disk; eject it after deployment.",function()
