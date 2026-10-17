@@ -22,7 +22,7 @@ local ok, err = pcall(function()
     for _, service in ipairs(apps.ctx.services:list()) do
       assert(service.state == "running" or (service.state=="degraded" and service.error), service.name .. ": " .. tostring(service.error))
     end
-    for _, id in ipairs({"navigation", "combat", "files", "terminal", "settings", "devices", "logs", "services", "taskmanager", "messenger", "editor"}) do
+    for _, id in ipairs({"navigation", "combat", "files", "terminal", "settings", "devices", "logs", "services", "taskmanager", "messenger", "editor", "nexus"}) do
       local launched, pid = apps.launch(id, {path="/home/user/documents/smoke.txt"})
       assert(launched, tostring(pid))
       os.queueEvent("mintcraft_test")
@@ -37,7 +37,7 @@ local ok, err = pcall(function()
       if term.screenshot then term.screenshot() end
       apps.ctx.scheduler:kill(pid)
     end
-    result("PASS: installed, booted offline, service health reflects missing addons, eleven apps opened and maximized")
+    result("PASS: installed, booted offline, service health reflects missing addons, twelve apps including NEXUS opened and maximized")
   end)
 end)
 if not ok then result("FAIL: " .. tostring(err)) end

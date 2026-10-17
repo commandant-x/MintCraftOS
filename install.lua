@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3158,11 +3158,177 @@ function M.run(ctx)
 end
 return M
 ]=],
+  ["apps/nexus/app.cfg"] = [=[
+{
+  id = "nexus",
+  name = "NEXUS OVERMIND",
+  version = "0.1.0",
+  module = "apps.nexus.main",
+  category = "Network",
+  iconPath = "/system/themes/icons/nexus.nfp",
+  permissions = {"system.security.admin"},
+}
+]=],
+  ["apps/nexus/main.lua"] = [=[
+local renderer=require("system.gui.renderer")
+local theme=require("system.gui.theme")
+local ui=require("system.gui.components")
+local menus=require("system.gui.action_menu")
+local forms=require("system.gui.form")
+local pixels=require("system.gui.subpixel")
+local nexus=require("system.services.nexusd")
+local M={}
+function M.run(ctx,args)
+  args=ctx.args or (type(args)=="table" and args or {})
+  local actor={pid=ctx.pid}
+  local app={page=args.deploy and "computers" or "dashboard",pages=menus.new(),commands=menus.new(),form=forms.new(),scroll=1,
+    settings={key="",group=args.group or "factory"},message="",snapshot=nexus.snapshot()}
+  if app.snapshot.role~="master" then app.page="setup" end
+  if not args.group and app.snapshot.group then app.settings.group=app.snapshot.group end
+  local pages={{id="dashboard",label="Dashboard"},{id="computers",label="Deploy"},{id="map",label="Network"},
+    {id="missions",label="Missions"},{id="setup",label="Setup"}}
+  local win,timer
+  local function report(ok,err) app.message=ok and (err or "Done") or tostring(err) end
+  local function request(action,options) report(nexus.request(actor,action,options)) end
+  local function confirm(title,fn) app.confirm={title=title,fn=fn} end
+  local function actions()
+    if app.page=="setup" then return {{id="setup",label="Save MASTER"},{id="scan",label="Rescan"}} end
+    if app.page=="computers" then return {{id="scan",label="Rescan"},{id="drive",label="Disk"},{id="prepare",label="Prepare disk"},
+      {id="deploy",label="Deploy selected"},{id="seal",label="Seal disk"},{id="reboot",label="Restart agent"},{id="shutdown",label="Power off"}} end
+    return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
+  end
+  function app:draw(w,h)
+    if w<18 or h<9 then renderer.writeAt(1,1,renderer.crop("NEXUS: enlarge window",w)) return end
+    menus.bar(self.pages,1,1,w,pages,{selector=true,label="NEXUS / "..self.page,title="NEXUS OVERMIND",selected=self.page})
+    local buttons=actions() for _,button in ipairs(buttons) do button.primary=true end
+    menus.bar(self.commands,1,2,w,buttons,{title="NEXUS actions"})
+    local s=self.snapshot
+    renderer.writeAt(1,3,renderer.crop("MASTER "..s.master.." | "..s.online.." online / "..s.managed.." managed",w),theme.get("accent"))
+    self.boxes={}
+    if self.page=="setup" then
+      self.form:draw(w,h,{forms.field(self.settings,"group","Deployment group","string"),forms.field(self.settings,"key","Private MASTER key (32+ chars)","secret")})
+    elseif self.page=="computers" then
+      local drive=s.drives[self.driveIndex or 1]
+      renderer.writeAt(1,4,renderer.crop("Disk: "..(drive and (drive.name.." / "..tostring(drive.mount or "no data disk")) or "none").." | group "..self.settings.group,w))
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#s.computers-h+8)))
+      for index=self.scroll,math.min(#s.computers,self.scroll+h-8) do
+        local row=s.computers[index] local y=5+index-self.scroll
+        local text=(row.authorized and "[x] " or "[ ] ")..row.id.." "..row.label.." | "..row.state..(row.powered and " / ON" or " / OFF")
+        renderer.writeAt(1,y,renderer.crop(text,w),row.id==self.selected and colors.black or theme.get("windowFg"),row.id==self.selected and colors.cyan or theme.get("windowBg"))
+        self.boxes[#self.boxes+1]={x=1,y=y,w=w,h=1,row=row}
+      end
+    elseif self.page=="map" then
+      local height=math.max(1,h-6)
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#s.computers-15)))
+      local key=tostring(s.revision)..":"..w..":"..height..":"..self.scroll
+      if key~=self.mapKey then
+        local canvas=pixels.new(w,height,colors.black)
+        local cx,cy=math.floor(canvas.width/2),math.floor(canvas.height/2)
+        local count=math.min(16,#s.computers-self.scroll+1)
+        self.mapLabels={}
+        for i=1,count do
+          local angle=(i-1)/math.max(1,count)*math.pi*2
+          local x=math.floor(cx+math.cos(angle)*math.max(2,cx-10))
+          local y=math.floor(cy+math.sin(angle)*math.max(2,cy-5))
+          local row=s.computers[self.scroll+i-1]
+          local color=row.state=="ONLINE" and colors.lime or (row.authorized and colors.orange or colors.gray)
+          canvas:line(cx,cy,x,y,colors.gray)
+          for dx=-1,1 do for dy=-1,1 do canvas:pixel(x+dx,y+dy,color) end end
+          self.mapLabels[#self.mapLabels+1]={x=math.max(1,math.min(w-4,math.floor(x/2))),y=math.max(4,math.min(h-3,4+math.floor(y/3))),id=row.id,row=row}
+        end
+        for dx=-2,2 do for dy=-2,2 do canvas:pixel(cx+dx,cy+dy,colors.cyan) end end
+        self.map,self.mapKey=canvas,key
+      end
+      self.map:draw(1,4)
+      for _,label in ipairs(self.mapLabels or {}) do
+        local text=renderer.crop(tostring(label.id),w-label.x+1)
+        renderer.writeAt(label.x,label.y,text,colors.white,colors.black)
+        self.boxes[#self.boxes+1]={x=label.x,y=label.y,w=#text,h=1,row=label.row}
+      end
+    else
+      local lines={}
+      if self.page=="missions" then
+        for _,job in ipairs(s.jobs) do
+          lines[#lines+1]=job.type.." -> "..job.node.." | "..job.state
+          if job.result then lines[#lines+1]=textutils.serialize(job.result,{compact=true}) end
+        end
+      else
+        lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
+          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs}
+        for _,row in ipairs(s.computers) do if row.authorized then
+          lines[#lines+1]=row.id.." "..row.label.." | "..row.state.." | agent "..tostring(row.version or "not registered")
+          if row.error then lines[#lines+1]=row.error end
+        end end
+      end
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#lines-h+6)))
+      for index=self.scroll,math.min(#lines,self.scroll+h-6) do renderer.writeAt(1,4+index-self.scroll,renderer.crop(tostring(lines[index]),w)) end
+    end
+    renderer.writeAt(1,h,renderer.crop(self.message~="" and self.message or s.message,w),colors.white,colors.gray)
+    if self.confirm then
+      renderer.fill(1,3,w,h-3,colors.gray)
+      local text=self.confirm.title
+      for y=4,math.min(h-3,8) do renderer.writeAt(1,y,text:sub(1,w),colors.white,colors.gray) text=text:sub(w+1) if text=="" then break end end
+      self.confirmBar=ui.toolbar(1,h-2,w,{{id="yes",label="Confirm"},{id="no",label="Cancel"}})
+    elseif not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
+  end
+  function app:handle(event)
+    if self.confirm then
+      if event.name=="mouse_click" then
+        local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
+        if id=="yes" then local fn=self.confirm.fn self.confirm=nil fn() elseif id=="no" then self.confirm=nil end
+      end return true
+    end
+    if self.form.edit then return self.form:handle(event) end
+    local section,id,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
+    if handled and section=="pages" then if id then self.page=id self.scroll=1 end return true end
+    if handled and id then
+      local s=self.snapshot local drive=s.drives[self.driveIndex or 1]
+      if id=="setup" then report(nexus.setup(actor,self.settings.key,self.settings.group)) self.settings.key="" self.snapshot=nexus.snapshot()
+      elseif id=="scan" then request("scan")
+      elseif id=="drive" then self.driveIndex=(self.driveIndex or 1)%math.max(1,#s.drives)+1
+      elseif id=="prepare" or id=="deploy" then
+        if not drive then self.message="Connect a shared drive with a data disk" return true end
+        confirm(id=="deploy" and "Prepare trusted disk and RESTART every authorized computer in group "..self.settings.group.."? Blank machines only; existing startups are protected." or "Prepare selected disk for authorized computers? Provisioning secrets will be readable on this shared disk; eject it after deployment.",function()
+          request(id,{drive=drive.name,group=self.settings.group})
+        end)
+      elseif id=="reboot" or id=="shutdown" then
+        confirm(id.." authorized computer "..tostring(self.selected).."?",function() request(id,{id=self.selected}) end)
+      elseif id=="seal" then
+        if not drive then self.message="No bootstrap disk" return true end
+        confirm("Remove NEXUS provisioning keys and startup from this disk? Verify all selected agents are ONLINE first.",function() request("seal",{drive=drive.name}) end)
+      else request("mission",{id=self.selected,type=id}) end
+      return true
+    elseif handled then return true end
+    if self.page=="setup" then return self.form:handle(event) end
+    if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_click" then
+      for _,box in ipairs(self.boxes) do if ui.hit(box,event.args[2],event.args[3]) then
+        self.selected=box.row.id
+        if self.page=="computers" and event.args[2]<=4 then report(nexus.select(actor,box.row.id,not box.row.authorized,self.settings.group)) self.snapshot=nexus.snapshot() end
+        return true
+      end end
+    end
+    return false
+  end
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="NEXUS OVERMIND",w=math.max(18,math.min(92,w-2)),h=math.max(9,math.min(30,h-2)),x=2,y=2,app=app})
+  request("scan") timer=ctx.startTimer(0.5)
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end end)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event.name=="timer" and event.args[1]==timer then
+      if not win.minimized then app.snapshot=nexus.snapshot() end
+      timer=ctx.startTimer(0.5)
+    end
+  end
+end
+return M
+]=],
   ["apps/services/app.cfg"] = [=[
 {
   id = "services",
   name = "Services",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3246,7 +3412,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3556,7 +3722,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3671,7 +3837,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3813,7 +3979,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.17",
+  version = "0.18.18",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4064,6 +4230,12 @@ local function runCommand(app, ctx, input)
     ctx.apps.launch("settings")
   elseif cmd == "devices" then
     ctx.apps.launch("devices")
+  elseif cmd == "nexus" then
+    local group=rest:match("^deploy%s+%-%-group%s+([%w_-]+)%s*$")
+    if rest=="" or rest=="deploy" or group then
+      local ok,err=ctx.apps.launch("nexus",{deploy=rest~="",group=group})
+      if not ok then append(app,tostring(err)) end
+    else append(app,"nexus deploy [--group factory]") end
   elseif cmd == "reboot" then
     local allowed, denied = ctx.security.require("system.reboot", "reboot")
     if allowed then ctx.security.audit("reboot", "terminal") os.reboot() else append(app, denied) end
@@ -4263,7 +4435,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.17",
+  version = "0.18.18",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4805,7 +4977,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.17",
+    version = "0.18.18",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5183,7 +5355,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.17",
+  version = "0.18.18",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -5232,7 +5404,7 @@ local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
   "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "navigation", "combat", "store", "install", "files", "settings", "devices",
   "whoami", "lock", "unlock", "login", "logout", "passwd",
-  "reboot", "help",
+  "reboot", "help", "nexus",
 }
 
 local snippets = {
@@ -6824,21 +6996,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.17", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.17", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.17", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.17", permissions = { "rednet.send", "rednet.receive" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.17", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.17", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.17", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.17", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.17", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.17", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.17", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.17", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.17", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.17", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.17", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.18", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.18", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.18", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.18", permissions = { "rednet.send", "rednet.receive" } })
+  register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.1.0", permissions = { "system.security.admin" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.18", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.18", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.18", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.18", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.18", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.18", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.18", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.18", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.18", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.18", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.18", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -6868,6 +7041,7 @@ function M.start()
   ctx.services:register("securityd", "system.services.securityd", true)
   ctx.services:register("networkd", "system.services.networkd", true)
   ctx.services:register("messaged", "system.services.messaged", true)
+  ctx.services:register("nexusd", "system.services.nexusd", true)
   ctx.services:register("audiod", "system.services.audiod", true)
   ctx.services:register("deviced", "system.services.deviced", true)
   ctx.services:register("sabled", "system.services.sabled", true)
@@ -6916,7 +7090,7 @@ function M.start()
       if event then
         if event.name=="timer" and event.args[1]==diagnosticTimer then
           diagnosticTimer=os.startTimer(1)
-          for _,id in ipairs({"settings","devices","services","taskmanager","logs","messenger"}) do ctx.wm:invalidate(id) end
+          for _,id in ipairs({"settings","devices","services","taskmanager","logs","messenger","nexus"}) do ctx.wm:invalidate(id) end
         elseif event.name=="peripheral" or event.name=="peripheral_detach" or event.name=="monitor_resize" or event.name=="term_resize" then
           ctx.wm:invalidate()
         end
@@ -7598,7 +7772,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.17",
+    version = meta.version or "0.18.18",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -8353,6 +8527,7 @@ function M.configure(value)
   return ok,err
 end
 function M.serviceEnabled(id)
+  if id=="nexusd" then return M.appEnabled("nexus") end
   if id=="vehiclebridged" then return M.appEnabled("navigation") end
   if id=="sabled" or id=="avionicsd" then return M.appEnabled("navigation") or M.appEnabled("combat") end
   if id=="flightd" then return M.appEnabled("navigation") end
@@ -8362,6 +8537,7 @@ function M.serviceEnabled(id)
   return true
 end
 function M.dependencies(id)
+  if id=="nexus" then return {"nexusd"} end
   if id=="navigation" then return {"sabled","avionicsd","vehiclebridged","flightd"} end
   if id=="combat" then return {"sabled","avionicsd","combatd","radarnetd"} end
   if id=="messenger" then return {"messaged"} end
@@ -9586,6 +9762,243 @@ function M.connect(url, headers)
 end
 
 return M
+]=],
+  ["system/nexus/agent.lua"] = [=[
+local wire=require("system.nexus.protocol")
+local store=require("system.nexus.storage")
+local M={}
+local function safeCount(value) return type(value)=="number" and value%1==0 and value>=0 and value<=10000 end
+function M.new(cfg)
+  assert(cfg.role=="agent" and cfg.id==os.getComputerID() and wire.validKey(cfg.key),"Invalid agent association")
+  local self={cfg=cfg,seen={},sequence=0,nextHeartbeat=os.clock()+(cfg.id%20)*0.25,boot=tostring(os.epoch("utc")),inventory={},lastScan=-math.huge}
+  store.recover("/nexus/receipts.cfg")
+  self.receipts=store.load("/nexus/receipts.cfg",{})
+  function self:send(kind,body)
+    self.sequence=self.sequence+1
+    local packet=wire.sign(cfg.key,cfg.id,cfg.master,kind,cfg.id..":"..self.boot..":"..self.sequence,body)
+    local ok,sent=pcall(rednet.send,cfg.master,packet,wire.name)
+    return ok and sent==true
+  end
+  function self:tick()
+    if os.clock()-self.lastScan>=10 then self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock() end
+    if self.modems>0 and os.clock()>=self.nextHeartbeat then
+      self:send("heartbeat",{version=wire.version,release=cfg.active,label=tostring(os.getComputerLabel() or "Agent "..cfg.id):sub(1,64),
+        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum"}})
+      self.nextHeartbeat=os.clock()+5
+    end
+  end
+  function self:receive(sender,packet,protocol)
+    if sender~=cfg.master or protocol~=wire.name then return false end
+    local message=wire.verify(cfg.key,sender,cfg.id,packet,self.seen)
+    if not message or message.kind~="mission" then return false end
+    local task=message.body
+    if type(task.id)~="string" or #task.id>80 then return false end
+    local result=self.receipts[task.id]
+    if not result then
+      if task.type=="ping" then result={ok=true,type="ping",id=cfg.id}
+      elseif task.type=="inventory" then result={ok=true,peripherals=wire.inventory()}
+      elseif task.type=="storage" then result={ok=true,free=fs.getFreeSpace("/"),capacity=fs.getCapacity("/")}
+      elseif task.type=="sum" and safeCount(task.count) then result={ok=true,value=task.count*(task.count+1)/2}
+      else result={ok=false,error="Mission not in read-only allowlist"} end
+      local count=0 for _ in pairs(self.receipts) do count=count+1 end
+      if count>=128 then result={ok=false,error="Receipt journal full; archive/reprovision locally before more missions"}
+      else self.receipts[task.id]=result store.save("/nexus/receipts.cfg",self.receipts) end
+    end
+    self:send("result",{id=task.id,result=result})
+    return true
+  end
+  return self
+end
+function M.run()
+  store.recover("/nexus/config.cfg")
+  local cfg=assert(store.load("/nexus/config.cfg"),"NEXUS association missing")
+  local agent=M.new(cfg)
+  print("NEXUS agent "..cfg.id.." | master "..cfg.master)
+  local timer=os.startTimer(0.25)
+  local admission={at=os.clock(),count=0}
+  while true do
+    local event,a,b,c=os.pullEvent()
+    if event=="timer" and a==timer then agent:tick() timer=os.startTimer(0.25)
+    elseif event=="rednet_message" then
+      if os.clock()-admission.at>=1 then admission={at=os.clock(),count=0} end
+      if admission.count<8 and a==cfg.master and c==wire.name and wire.shape(b) then
+        admission.count=admission.count+1 agent:receive(a,b,c)
+      end
+    elseif event=="peripheral" or event=="peripheral_detach" then agent.lastScan=-math.huge end
+  end
+end
+return M
+]=],
+  ["system/nexus/bootstrap.lua"] = [==[
+local wire=require("system.nexus.protocol")
+local store=require("system.nexus.storage")
+local M={marker="-- MintCraft NEXUS bootstrap v1"}
+M.files={"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}
+M.launcher=M.marker.."\n"..[=[
+if not fs.exists('/nexus/config.cfg') and fs.exists('/nexus/config.cfg.backup') then fs.move('/nexus/config.cfg.backup','/nexus/config.cfg') end
+local h=assert(fs.open('/nexus/config.cfg','r')) local cfg=textutils.unserialize(h.readAll()) h.close()
+assert(type(cfg)=='table' and type(cfg.active)=='string' and cfg.active:match('^[%w_-]+$'),'Invalid NEXUS slot')
+local function run(slot)
+  package.path='/nexus/versions/'..slot..'/?.lua;'..package.path
+  for _,name in ipairs({'system.nexus.protocol','system.nexus.agent','system.nexus.storage','system.libraries.password_crypto'}) do package.loaded[name]=nil end
+  return require('system.nexus.agent').run()
+end
+local ok,err=pcall(run,cfg.active)
+if not ok then
+  printError('NEXUS agent stopped: '..tostring(err))
+  if type(cfg.previous)=='string' and cfg.previous:match('^[%w_-]+$') then
+    print('Trying previous NEXUS slot') run(cfg.previous)
+  end
+end
+]=]
+function M.install(mount)
+  local manifest=assert(store.load(fs.combine(mount,"nexus/manifest.cfg")),"NEXUS manifest missing")
+  assert(manifest.schema==1 and type(manifest.release)=="string" and manifest.release:match("^[%w_-]+$") and #manifest.release<=64,"Invalid NEXUS release")
+  local id=os.getComputerID()
+  local association=type(manifest.nodes)=="table" and manifest.nodes[tostring(id)]
+  if not association or manifest.master==id then return false,"Computer not selected" end
+  assert(wire.validKey(association.key) and type(association.group)=="string","Invalid bootstrap association")
+  store.recover("/nexus/config.cfg")
+  local existing=store.load("/nexus/config.cfg")
+  local startup=store.read("/startup.lua")
+  if startup and startup:sub(1,#M.marker)~=M.marker then return false,"Existing startup protected; use an explicitly provisioned blank computer" end
+  if fs.exists("/startup") or fs.exists("/system") or fs.exists("/boot.lua") then return false,"Existing installation protected" end
+  if existing and (existing.master~=manifest.master or existing.id~=id or existing.key~=association.key) then return false,"Existing NEXUS association protected" end
+  local root="/nexus/versions/"..manifest.release
+  local source=fs.combine(mount,"nexus/payload")
+  for _,path in ipairs(M.files) do
+    local data=assert(store.read(fs.combine(source,path)),"Missing payload: "..path)
+    assert(type(manifest.hashes)=="table" and manifest.hashes[path]==wire.hash(data),"Payload integrity mismatch: "..path)
+    assert(load(data,"nexus/"..path,"t",{}),"Invalid Lua payload: "..path)
+  end
+  if existing and existing.active==manifest.release then
+    for _,path in ipairs(M.files) do assert(wire.hash(assert(store.read(fs.combine(root,path)),"Installed payload missing"))==manifest.hashes[path],"Installed payload corrupt; prepare a repair disk") end
+    if not fs.exists('/nexus/uninstall.lua') then store.write('/nexus/uninstall.lua',assert(store.read(fs.combine(root,'system/nexus/uninstall.lua')))) end
+    if not startup then store.write('/startup.lua',M.launcher) end
+    return true,"Already installed"
+  end
+  local stage="/nexus/staging/"..manifest.release
+  if fs.exists(stage) then fs.delete(stage) end
+  for _,path in ipairs(M.files) do
+    local data=assert(store.read(fs.combine(source,path)))
+    assert(wire.hash(data)==manifest.hashes[path],"Payload changed during installation")
+    store.write(fs.combine(stage,path),data)
+  end
+  if fs.exists(root) then fs.delete(root) end
+  fs.move(stage,root)
+  local cfg=existing or {role="agent",id=id,master=manifest.master,key=association.key,group=association.group}
+  cfg.previous,cfg.active=cfg.active,manifest.release
+  cfg.group=association.group
+  store.save("/nexus/config.cfg",cfg)
+  store.write('/nexus/uninstall.lua',assert(store.read(fs.combine(root,'system/nexus/uninstall.lua'))))
+  store.write("/startup.lua",M.launcher)
+  return true,"Installed"
+end
+return M
+]==],
+  ["system/nexus/protocol.lua"] = [=[
+local crypto=require("system.libraries.password_crypto")
+local M={name="mintcraft.nexus.v1",version="0.1.0",maxPayload=8192}
+local function integer(x) return type(x)=="number" and x==x and x>=0 and x<2147483647 and x%1==0 end
+local function utc() assert(os.epoch,"UTC clock required") return os.epoch("utc") end
+function M.hash(text) return (crypto.digest(text):gsub(".",function(c) return string.format("%02x",c:byte()) end)) end
+function M.nodeKey(masterKey,id) return crypto.mac(masterKey,"NEXUS node key v1:"..tostring(id)) end
+function M.validKey(key) return type(key)=="string" and #key>=32 and #key<=256 end
+local function mac(key,payload) return crypto.mac(key,M.name.."\n"..payload) end
+function M.sign(key,from,to,kind,id,body)
+  assert(M.validKey(key) and integer(from) and integer(to),"Invalid NEXUS credentials")
+  assert(type(id)=="string" and #id<=100 and type(kind)=="string" and #kind<=24,"Invalid NEXUS header")
+  local payload=textutils.serialize({schema=1,from=from,to=to,kind=kind,id=id,time=utc(),body=body})
+  assert(#payload<=M.maxPayload,"NEXUS payload too large")
+  return {payload=payload,mac=mac(key,payload)}
+end
+function M.shape(packet)
+  return type(packet)=="table" and type(packet.payload)=="string" and #packet.payload<=M.maxPayload
+    and type(packet.mac)=="string" and #packet.mac==64 and packet.mac:match("^%x+$")~=nil
+end
+function M.verify(key,sender,recipient,packet,seen)
+  if not M.validKey(key) or not integer(sender) or not M.shape(packet) then return nil,"Malformed packet" end
+  local expected=mac(key,packet.payload)
+  local difference=0 for i=1,64 do local d=expected:byte(i)-packet.mac:byte(i) difference=difference+d*d end
+  if difference~=0 then return nil,"Authentication failed" end
+  local ok,value=pcall(textutils.unserialize,packet.payload)
+  if not ok or type(value)~="table" or value.schema~=1 or value.from~=sender or value.to~=recipient
+    or type(value.id)~="string" or #value.id>100 or type(value.kind)~="string" or #value.kind>24
+    or type(value.body)~="table" or type(value.time)~="number" or value.time~=value.time or math.abs(value.time)==math.huge then return nil,"Invalid signed message" end
+  if math.abs(utc()-value.time)>30000 then return nil,"Expired message" end
+  if seen and seen[value.id] then return nil,"Duplicate message" end
+  if seen then
+    local count=0 for id,time in pairs(seen) do if utc()-time>30000 then seen[id]=nil else count=count+1 end end
+    if count>=256 then return nil,"Replay window full" end
+    seen[value.id]=utc()
+  end
+  return value
+end
+function M.inventory()
+  local rows={}
+  local names=peripheral.getNames()
+  table.sort(names)
+  for i=1,math.min(24,#names) do
+    local name=names[i]
+    local ok,kind=pcall(peripheral.getType,name)
+    rows[#rows+1]={name=tostring(name):sub(1,64),type=ok and tostring(kind):sub(1,64) or "unavailable"}
+  end
+  return rows
+end
+function M.openModems()
+  local count=0
+  for _,name in ipairs(peripheral.getNames()) do
+    if peripheral.hasType(name,"modem") then
+      local ok=pcall(function() if not rednet.isOpen(name) then rednet.open(name) end end)
+      if ok then count=count+1 end
+    end
+  end
+  return count
+end
+return M
+]=],
+  ["system/nexus/storage.lua"] = [=[
+local M={}
+function M.read(path)
+  local h=fs.open(path,"r") if not h then return nil end
+  local value=h.readAll() h.close() return value
+end
+function M.load(path,default)
+  local data=M.read(path)
+  if not data or #data>262144 then return default end
+  local ok,value=pcall(textutils.unserialize,data)
+  return ok and type(value)=="table" and value or default
+end
+function M.write(path,data)
+  assert(type(data)=="string" and #data<=262144,"NEXUS file too large")
+  fs.makeDir(fs.getDir(path))
+  local pending,backup=path..".pending",path..".backup"
+  if fs.exists(pending) then fs.delete(pending) end
+  local h=assert(fs.open(pending,"w"),"Cannot write "..path)
+  h.write(data) h.close()
+  assert(M.read(pending)==data,"NEXUS write verification failed")
+  if fs.exists(backup) then fs.delete(backup) end
+  if fs.exists(path) then fs.move(path,backup) end
+  fs.move(pending,path)
+  return true
+end
+function M.save(path,value) return M.write(path,textutils.serialize(value)) end
+function M.recover(path)
+  if not fs.exists(path) and fs.exists(path..".backup") then fs.move(path..".backup",path) end
+end
+return M
+]=],
+  ["system/nexus/uninstall.lua"] = [=[
+local h=fs.open('/startup.lua','r')
+local startup=h and h.readAll() if h then h.close() end
+local marker='-- MintCraft NEXUS bootstrap v1'
+assert(type(startup)=='string' and startup:sub(1,#marker)==marker,'Non-NEXUS startup protected')
+print('Eject the provisioning disk and remove this ID from the MASTER first.')
+print('Type UNINSTALL to remove only /nexus and the NEXUS startup:')
+if read()~='UNINSTALL' then print('Cancelled') return end
+fs.delete('/startup.lua')
+fs.delete('/nexus')
+print('NEXUS removed. Other files were not changed.')
 ]=],
   ["system/package/manifest.lua"] = [=[
 local M = {}
@@ -12306,6 +12719,299 @@ end
 
 return M
 ]=],
+  ["system/services/nexusd.lua"] = [==[
+local addon=require("system.libraries.addon")
+local wire=require("system.nexus.protocol")
+local store=require("system.nexus.storage")
+local bootstrap=require("system.nexus.bootstrap")
+local permissions=require("system.security.permissions")
+local log=require("system.libraries.log")
+local M={version=wire.version}
+local context,runner,listener,config={},nil,nil,{role="off",members={}}
+local rows,drives,jobs,incoming,actions={}, {},{}, {},{}
+local serial,revision,lastScan=0,0,-math.huge
+local boot=tostring(os.epoch("utc"))
+local seen,admission={}, {at=0,count=0}
+local notice="MASTER not configured"
+local function ownId() return os.getComputerID() end
+local function validId(id) return type(id)=="number" and id>=0 and id<2147483647 and id%1==0 end
+local function actorAllowed(actor)
+  local process=context.scheduler and actor and context.scheduler.processes[actor.pid]
+  if not process or process.state~="ready" or not process.meta or process.meta.appId~="nexus" then return false,"NEXUS window not running" end
+  return permissions.require({pid=actor.pid,appId="nexus",permissions=process.permissions},"system.security.admin")
+end
+local function saveConfig(value) store.save("/system/config/nexus.cfg",value) config=value end
+local function publish(message)
+  notice=tostring(message):sub(1,300) revision=revision+1
+  pcall(log.info,"nexus",notice)
+end
+local function nextId()
+  serial=serial+1 return ownId()..":"..boot..":"..serial
+end
+local function send(id,kind,body)
+  if not config.members[tostring(id)] then return false end
+  local packet=wire.sign(wire.nodeKey(config.key,id),ownId(),id,kind,nextId(),body)
+  local ok,sent=pcall(rednet.send,id,packet,wire.name)
+  return ok and sent==true
+end
+local function scan()
+  if config.role=="master" then wire.openModems() end
+  local found,newDrives={},{}
+  local names=peripheral.getNames() table.sort(names)
+  for i=1,math.min(256,#names) do
+    local name=names[i]
+    local ok,kind=pcall(peripheral.getType,name)
+    if ok and (kind=="computer" or kind=="turtle") then
+      local okId,id=pcall(peripheral.call,name,"getID")
+      if okId and validId(id) and id~=ownId() then
+        local _,label=pcall(peripheral.call,name,"getLabel")
+        local okOn,on=pcall(peripheral.call,name,"isOn")
+        local old=rows[id] or {}
+        found[id]={id=id,name=name,label=type(label)=="string" and label:sub(1,64) or "Computer "..id,
+          powered=okOn and on==true,seenAt=old.seenAt,version=old.version,peripherals=old.peripherals,
+          error=old.error,capabilities=old.capabilities,deployAt=old.deployAt,deployRelease=old.deployRelease,release=old.release}
+      end
+    elseif ok and kind=="drive" then
+      local okPath,path=pcall(disk.getMountPath,name)
+      newDrives[#newDrives+1]={name=name,mount=okPath and path or nil}
+    end
+  end
+  for id,row in pairs(rows) do if not found[id] and config.members[tostring(id)] then row.name=nil found[id]=row end end
+  for id in pairs(config.members) do
+    local number=tonumber(id)
+    if validId(number) and not found[number] then found[number]={id=number,label="Agent "..id} end
+  end
+  rows,drives=found,newDrives lastScan=os.clock() revision=revision+1
+end
+function M.setup(actor,key,group)
+  local ok,err=actorAllowed(actor) if not ok then return false,err end
+  if type(group)~="string" or not group:match("^[%w_-]+$") or #group>32 then return false,"Use a short group name" end
+  if config.role=="master" then
+    if key~="" then return false,"MASTER key already set; leave key empty to change deployment group" end
+    local nextValue=addon.copy(config) nextValue.group=group
+    local saved,problem=pcall(saveConfig,nextValue) if not saved then return false,tostring(problem) end
+    publish("Default deployment group changed; existing authorizations retained") return true
+  end
+  if not wire.validKey(key) then return false,"Use a private key of 32..256 characters" end
+  local saved,problem=pcall(saveConfig,{schema=1,role="master",key=key,group=group,members={}})
+  if not saved then return false,tostring(problem) end
+  publish("MASTER configured; select owned computers")
+  return true
+end
+function M.select(actor,id,enabled,group)
+  local ok,err=actorAllowed(actor) if not ok then return false,err end
+  if config.role~="master" or not validId(id) or id==ownId() or not rows[id] then return false,"Select a discovered computer, not the MASTER" end
+  local nextValue=addon.copy(config)
+  if enabled then
+    local count=0 for _ in pairs(config.members) do count=count+1 end
+    if not config.members[tostring(id)] and count>=64 then return false,"Maximum 64 managed computers" end
+    group=group or config.group
+    if type(group)~="string" or #group>32 or not group:match("^[%w_-]+$") then return false,"Invalid group" end
+    nextValue.members[tostring(id)]={group=group}
+  else nextValue.members[tostring(id)]=nil seen[id]=nil end
+  local saved,problem=pcall(saveConfig,nextValue) if not saved then return false,tostring(problem) end
+  publish(enabled and "Computer explicitly authorized: "..id or "Authorization removed: "..id)
+  return true
+end
+local function selectedIds(group)
+  local ids={}
+  for id,member in pairs(config.members) do if not group or group==member.group then ids[#ids+1]=tonumber(id) end end
+  table.sort(ids) return ids
+end
+local diskStartup=bootstrap.marker.."\n"..[=[
+local mount='/'..fs.getDir(shell.getRunningProgram()):gsub('^/+','')
+local h=fs.open(fs.combine(mount,'nexus/manifest.cfg'),'r')
+local manifest=h and textutils.unserialize(h.readAll()) if h then h.close() end
+local selected=type(manifest)=='table' and type(manifest.nodes)=='table' and manifest.nodes[tostring(os.getComputerID())]
+if selected and manifest.master~=os.getComputerID() then
+  package.path=fs.combine(mount,'nexus/payload/?.lua')..';'..package.path
+  local ok,result,err=pcall(function() return require('system.nexus.bootstrap').install(mount) end)
+  if not ok or not result then printError('NEXUS bootstrap: '..tostring(ok and err or result)) end
+end
+if fs.exists('/startup.lua') then shell.run('/startup.lua') end
+]=]
+local function prepare(driveName,ids)
+  assert(config.role=="master","Configure MASTER first")
+  assert(#ids>0,"No authorized computers in this group")
+  local mount
+  for _,drive in ipairs(drives) do if drive.name==driveName then mount=drive.mount end end
+  assert(mount,"Select a data disk visible on the wired network")
+  assert(not fs.isReadOnly(mount),"Bootstrap disk is read-only")
+  local startupPath=fs.combine(mount,"startup.lua")
+  local previous=store.read(startupPath)
+  assert(not fs.exists(fs.combine(mount,"startup")),"Existing disk startup directory protected")
+  assert(not previous or previous:sub(1,#bootstrap.marker)==bootstrap.marker,"Existing disk startup protected")
+  local manifest={schema=1,release=tostring(os.epoch("utc")).."_"..ownId(),master=ownId(),nodes={},hashes={}}
+  for _,id in ipairs(ids) do
+    local member=assert(config.members[tostring(id)],"Computer not authorized")
+    assert(id~=ownId(),"Cannot deploy on MASTER")
+    manifest.nodes[tostring(id)]={group=member.group,key=wire.nodeKey(config.key,id)}
+  end
+  local paths=addon.copy(bootstrap.files) paths[#paths+1]="system/nexus/bootstrap.lua"
+  for _,path in ipairs(paths) do
+    local data=assert(store.read("/"..path),"Missing installed NEXUS module: "..path)
+    manifest.hashes[path]=wire.hash(data)
+    store.write(fs.combine(mount,"nexus/payload/"..path),data)
+  end
+  store.save(fs.combine(mount,"nexus/manifest.cfg"),manifest)
+  store.write(startupPath,diskStartup)
+  return manifest
+end
+function M.request(actor,action,args)
+  local ok,err=actorAllowed(actor) if not ok then return false,err end
+  if #actions>=8 then return false,"NEXUS action queue full" end
+  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="reboot" and action~="shutdown" then return false,"Unknown NEXUS action" end
+  if action~="scan" and config.role~="master" then return false,"Configure MASTER first" end
+  args=type(args)=="table" and addon.copy(args) or {}
+  actions[#actions+1]={actor={pid=actor.pid},action=action,args=args}
+  return true,"Queued: "..action
+end
+local function power(id,method)
+  assert(config.members[tostring(id)] and id~=ownId(),"Computer not authorized")
+  local row=assert(rows[id],"Computer unavailable")
+  assert(row.name,"Computer not reachable as a wired peripheral")
+  local ok,err=pcall(peripheral.call,row.name,method)
+  assert(ok,tostring(err)) row.error=nil
+end
+local function mission(args)
+  local id=args.id
+  assert(validId(id) and config.members[tostring(id)],"Agent not authorized")
+  assert(args.type=="ping" or args.type=="inventory" or args.type=="storage" or args.type=="sum","Read-only mission type required")
+  assert(#jobs<128,"Mission history full")
+  local job={id=nextId(),type=args.type,node=id,state="queued",priority=1,capability=args.type,count=args.count or 100,lastAttempt=-1000000000,attempts=0}
+  jobs[#jobs+1]=job store.save("/var/nexus/jobs.cfg",jobs)
+end
+local function execute(action)
+  local permitted,err=actorAllowed(action.actor) assert(permitted,err)
+  local args=action.args
+  if action.action=="scan" then scan() publish("Wired discovery refreshed")
+  elseif action.action=="prepare" or action.action=="deploy" then
+    scan()
+    local ids=selectedIds(args.group)
+    local manifest=prepare(args.drive,ids)
+    if action.action=="deploy" then
+      for _,id in ipairs(ids) do
+        local ok,problem=pcall(power,id,"reboot")
+        local row=rows[id]
+        if row then row.deployAt=os.clock() row.deployRelease=manifest.release row.error=not ok and tostring(problem) or nil end
+      end
+    end
+    publish("Disk prepared for "..#ids.." authorized computers; "..manifest.release)
+  elseif action.action=="seal" then
+    local mount
+    for _,drive in ipairs(drives) do if drive.name==args.drive then mount=drive.mount end end
+    assert(mount,"Bootstrap disk missing")
+    local path=fs.combine(mount,"startup.lua")
+    local startup=assert(store.read(path),"No bootstrap on this disk")
+    assert(startup:sub(1,#bootstrap.marker)==bootstrap.marker,"Non-NEXUS disk protected")
+    for _,suffix in ipairs({"",".backup",".pending"}) do
+      local manifest=fs.combine(mount,"nexus/manifest.cfg"..suffix)
+      if fs.exists(manifest) then fs.delete(manifest) end
+    end
+    fs.delete(path)
+    for _,suffix in ipairs({".backup",".pending"}) do
+      local old=path..suffix if fs.exists(old) then fs.delete(old) end
+    end
+    publish("Provisioning credentials removed from this disk; installed agents are independent")
+  elseif action.action=="mission" then mission(args) publish("Read-only mission queued")
+  else power(args.id,action.action) publish(action.action.." requested for "..args.id) end
+end
+local function enqueue(sender,packet,protocol)
+  if config.role~="master" or protocol~=wire.name or not validId(sender) or not config.members[tostring(sender)] or not wire.shape(packet) then return end
+  if os.clock()-admission.at>=1 then admission={at=os.clock(),count=0} end
+  if admission.count>=16 or #incoming>=32 then return end
+  admission.count=admission.count+1 incoming[#incoming+1]={sender=sender,packet={payload=packet.payload,mac=packet.mac}}
+end
+local function receive(item)
+  local id=item.sender
+  if not config.members[tostring(id)] then return end
+  seen[id]=seen[id] or {}
+  local message=wire.verify(wire.nodeKey(config.key,id),id,ownId(),item.packet,seen[id])
+  if not message then return end
+  local body=message.body
+  if message.kind=="heartbeat" and type(body.version)=="string" and type(body.peripherals)=="table" and #body.peripherals<=48 then
+    local row=rows[id] or {id=id,label="Agent "..id}
+    row.seenAt=os.clock() row.version=body.version:sub(1,32) row.error=nil
+    row.release=type(body.release)=="string" and body.release:sub(1,64) or nil
+    row.label=type(body.label)=="string" and body.label:sub(1,64) or row.label
+    row.peripherals=body.peripherals row.capabilities=body.capabilities rows[id]=row revision=revision+1
+    send(id,"ack",{heartbeat=message.id})
+  elseif message.kind=="result" then
+    for _,job in ipairs(jobs) do if job.id==body.id and job.node==id and job.state~="completed" and job.state~="failed" then
+      if type(body.result)~="table" then return end
+      job.result=body.result job.state=body.result.ok==true and "completed" or "failed"
+      store.save("/var/nexus/jobs.cfg",jobs) revision=revision+1 break
+    end end
+  end
+end
+function M.tick()
+  if #actions>0 then local action=table.remove(actions,1) local ok,err=pcall(execute,action) if not ok then publish("NEXUS error: "..tostring(err)) end end
+  if config.role~="master" then return end
+  if os.clock()-lastScan>10 then wire.openModems() scan() end
+  for _=1,4 do if #incoming==0 then break end receive(table.remove(incoming,1)) end
+  for _,job in ipairs(jobs) do
+    if (job.state=="queued" or job.state=="sent") and os.clock()-job.lastAttempt>=5 then
+      if not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
+      elseif job.attempts>=3 then job.state="failed" job.result={error="Timeout; no confirmed result"}
+      else job.attempts=job.attempts+1 job.lastAttempt=os.clock() job.state="sent" send(job.node,"mission",{id=job.id,type=job.type,count=job.count}) end
+      store.save("/var/nexus/jobs.cfg",jobs) revision=revision+1 break
+    end
+  end
+end
+function M.snapshot()
+  local result={role=config.role,group=config.group,computers={},drives=addon.copy(drives),jobs=addon.copy(jobs),
+    message=notice,revision=revision,master=ownId(),online=0,managed=0,discovered=0}
+  for id,row in pairs(rows) do
+    local value=addon.copy(row) local member=config.members[tostring(id)]
+    value.authorized=member~=nil value.group=member and member.group or nil
+    value.state=value.seenAt and os.clock()-value.seenAt<=15 and "ONLINE" or (value.deployAt and os.clock()-value.deployAt<30 and "INSTALLING" or (member and "OFFLINE" or "DISCOVERED"))
+    if value.deployRelease and value.release~=value.deployRelease then
+      if value.deployAt and os.clock()-value.deployAt<30 then value.state="INSTALLING"
+      else value.state="UPDATE FAILED" value.error="Expected bootstrap release not confirmed; check shared drive, disk startup setting and local startup protection" end
+    end
+    if value.state=="ONLINE" then result.online=result.online+1 end
+    if member then result.managed=result.managed+1 end
+    result.computers[#result.computers+1]=value
+  end
+  result.discovered=#result.computers table.sort(result.computers,function(a,b) return a.id<b.id end)
+  return result
+end
+function M.start(ctx)
+  M.stop() context=ctx
+  rows,drives,seen={}, {},{} lastScan=-math.huge
+  store.recover("/system/config/nexus.cfg") config=store.load("/system/config/nexus.cfg",{role="off",members={}})
+  local malformed=type(config.members)~="table" or (config.role~="off" and config.role~="master")
+    or (config.role=="master" and (not wire.validKey(config.key) or type(config.group)~="string" or #config.group>32))
+  local count=0
+  for id,member in pairs(type(config.members)=="table" and config.members or {}) do
+    count=count+1
+    if type(id)~="string" or not validId(tonumber(id)) or tonumber(id)==ownId() or type(member)~="table"
+      or type(member.group)~="string" or #member.group>32 or count>64 then malformed=true end
+  end
+  if malformed then config={role="off",members={}} notice="Invalid MASTER config; restore backup locally" end
+  if config.role=="master" then notice="MASTER ready; awaiting authenticated agents" end
+  store.recover("/var/nexus/jobs.cfg") jobs=store.load("/var/nexus/jobs.cfg",{})
+  if #jobs>128 then jobs={} end
+  local validJobs={}
+  for _,job in ipairs(jobs) do
+    if type(job)=="table" and type(job.id)=="string" and #job.id<=80 and validId(job.node) and type(job.type)=="string"
+      and type(job.attempts)=="number" and job.attempts>=0 and job.attempts<=3 and type(job.state)=="string" then
+      if job.state=="sent" then job.state="queued" end
+      job.lastAttempt=-1000000000 validJobs[#validJobs+1]=job
+    end
+  end
+  jobs=validJobs
+  if ctx.eventBus then listener=ctx.eventBus:on("rednet_message",enqueue) end
+  runner=addon.periodic(ctx,"nexusd",0.25,M.tick)
+end
+function M.stop()
+  if runner then runner:stop() runner=nil end
+  if listener and context.eventBus then context.eventBus:off(listener) end
+  listener=nil actions={} incoming={}
+end
+function M.health() return {ok=true,status=notice} end
+return M
+]==],
   ["system/services/notifd.lua"] = [=[
 local renderer = require("system.gui.renderer")
 local theme = require("system.gui.theme")
@@ -14127,6 +14833,15 @@ bfbfbfb
 bfbbbfb
 bbbbbbb
 ]=],
+  ["system/themes/icons/nexus.nfp"] = [=[
+0000000
+0b000b0
+00b0b00
+000b000
+00b0b00
+0b000b0
+0000000
+]=],
   ["system/themes/icons/services.nfp"] = [=[
 bbbbbbb
 bff0ffb
@@ -14619,7 +15334,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.17
+0.18.18
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

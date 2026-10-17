@@ -243,6 +243,12 @@ local function runCommand(app, ctx, input)
     ctx.apps.launch("settings")
   elseif cmd == "devices" then
     ctx.apps.launch("devices")
+  elseif cmd == "nexus" then
+    local group=rest:match("^deploy%s+%-%-group%s+([%w_-]+)%s*$")
+    if rest=="" or rest=="deploy" or group then
+      local ok,err=ctx.apps.launch("nexus",{deploy=rest~="",group=group})
+      if not ok then append(app,tostring(err)) end
+    else append(app,"nexus deploy [--group factory]") end
   elseif cmd == "reboot" then
     local allowed, denied = ctx.security.require("system.reboot", "reboot")
     if allowed then ctx.security.audit("reboot", "terminal") os.reboot() else append(app, denied) end

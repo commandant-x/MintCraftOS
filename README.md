@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.17:
+This repository currently contains V0.18.18:
+
+V0.18.18 adds NEXUS OVERMIND 0.1.0: an authorized shared-disk bootstrap for
+blank computers, signed agent heartbeats/read-only missions and a native
+administration UI. Start with `nexus deploy` in Terminal. This is the first
+demonstration release, not the complete eight-phase OVERMIND 1.0 specification.
+See [setup, security boundaries and remaining phases](docs/NEXUS_OVERMIND.md).
 
 V0.18.17 separates balloon association from gas activity and diagnoses the old
 bridge's empty-balloon false negative. Replace Vehicle Bridge 0.2.0 with 0.2.1;
@@ -45,7 +51,7 @@ selection automatically chooses a unique device; ambiguous setups require an
 explicit selection. Calibration shows arming blockers and retains confirmed
 progress in the current configuration draft. No safety prerequisites are bypassed.
 
-V0.18.17 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
+V0.18.18 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
 
 CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 
