@@ -4,6 +4,9 @@ import java.util.Map;
 
 final class BridgeMath {
     private BridgeMath() {}
+    static boolean balloonAssociated(boolean present, int capacity, boolean heaterRegistered) {
+        return present && capacity > 0 && heaterRegistered;
+    }
     static Map<String, Double> vector(double x, double y, double z) {
         if (!(Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)))
             throw new IllegalArgumentException("non-finite vector");

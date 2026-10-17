@@ -248,6 +248,7 @@ function M.run(ctx)
         for _,burner in ipairs((self.bridge or {}).burners or {}) do
           local label=burner.id:match("^[^:]+:(.*)$") or burner.id
           rows[#rows+1]="Burner "..label.." signal="..tostring(burner.signal).." balloon="..tostring(burner.hasBalloon)
+          if burner.associationState then rows[#rows+1]="  "..burner.associationState.." | gas active="..tostring(burner.gasActive==true) end
         end
       end
       lines(w,h,rows,6)

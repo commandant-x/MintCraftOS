@@ -41,7 +41,7 @@ public final class VehicleApi implements ILuaAPI {
     @Override public String[] getNames() { return new String[]{"mintcraft_vehicle"}; }
 
     @LuaFunction public final Map<String, Object> status() {
-        return Map.of("schema", 1, "version", "0.2.0", "readOnly", true,
+        return Map.of("schema", 1, "version", "0.2.1", "readOnly", true,
             "scope", "containing sublevel; loaded block entities only", "controlWrites", false);
     }
 
@@ -101,7 +101,7 @@ public final class VehicleApi implements ILuaAPI {
         var links = new ArrayList<Map<String, Object>>();
         BlockPos origin = ship.getPlot().getCenterBlock();
         result.put("schema", 1); result.put("ok", true); result.put("readOnly", true);
-        result.put("bridgeVersion", "0.2.0"); result.put("features", Map.of("burners",true));
+        result.put("bridgeVersion", "0.2.1"); result.put("features", Map.of("burners",true));
         result.put("vehicleId", ship.getUniqueId().toString()); result.put("name", ship.getName());
         result.put("observedAtGameTick", tick); result.put("revision", tick);
         result.put("frame", "body_plot");
@@ -198,8 +198,16 @@ public final class VehicleApi implements ILuaAPI {
         row.put("position",position(burner.getBlockPos(),origin));
         row.put("signal",burner.getSignalStrength()); row.put("gasOutput",burner.getGasOutput());
         var balloon=burner.getBalloon();
-        row.put("hasBalloon",balloon!=null && balloon.isValid());
-        if(balloon!=null && balloon.isValid()) {
+        // ServerBalloon.isValid() tests gas amounts, not heater association.
+        boolean associated=BridgeMath.balloonAssociated(balloon!=null,
+            balloon==null ? 0 : balloon.getCapacity(),
+            balloon!=null && balloon.getHeaters().contains(burner));
+        row.put("hasBalloon",associated);
+        row.put("associationSource","heater_membership");
+        row.put("gasActive",balloon!=null && balloon.isValid());
+        row.put("associationState",balloon==null ? "no_balloon_reference" :
+            (associated ? "associated" : "invalid_capacity_or_heater_membership"));
+        if(associated) {
             row.put("balloonId",id(ship,balloon.getControllerPos(),origin));
             row.put("capacity",balloon.getCapacity());
             if(balloon instanceof ServerBalloon server) {

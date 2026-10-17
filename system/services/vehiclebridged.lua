@@ -68,7 +68,10 @@ function M.normalize(raw)
       seen[row.id]=true
       out.burners[#out.burners+1]={id=row.id,position=position,signal=row.signal,gasOutput=row.gasOutput,
         hasBalloon=row.hasBalloon==true,balloonId=type(row.balloonId)=="string" and row.balloonId:sub(1,192) or nil,
-        capacity=addon.finite(row.capacity) and row.capacity or nil,lift=addon.finite(row.lift) and row.lift or nil}
+        capacity=addon.finite(row.capacity) and row.capacity or nil,lift=addon.finite(row.lift) and row.lift or nil,
+        associationSource=type(row.associationSource)=="string" and row.associationSource:sub(1,64) or "legacy_gas_validity",
+        associationState=type(row.associationState)=="string" and row.associationState:sub(1,96) or nil,
+        gasActive=row.gasActive==true}
     end
   end
   if not out.centerOfMass then out.complete=false end
@@ -116,6 +119,7 @@ function M.balloonStatus(setup)
     local label=id:match("^[^:]+:(.*)$") or id
     if not burner then return false,"Burner missing: "..label end
     if not burner.hasBalloon then
+      if burner.associationSource=="legacy_gas_validity" then return false,"Update Vehicle Bridge to 0.2.1: old bridge confuses empty balloon with missing association" end
       return false,"Burner "..label..(burner.signal==0 and ": off; balloon association not confirmed (Initialize in Calibration)" or ": Aeronautics balloon association unavailable; check burner clearance/envelope")
     end
   end

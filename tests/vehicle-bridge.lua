@@ -40,7 +40,7 @@ raw.units.position="block" raw.readOnly=false assert(not bridge.normalize(raw))
 raw.readOnly=true raw.inertia={{1,0,0},{0,2,0},{0,0,3}}
 local parsed=assert(bridge.normalize(raw)) assert(parsed.inertia[3][3]==3)
 raw.features={burners=true}
-raw.burners={{id="burner:1:2:3",position={x=1,y=2,z=3},signal=0,gasOutput=0,hasBalloon=false}}
+raw.burners={{id="burner:1:2:3",position={x=1,y=2,z=3},signal=0,gasOutput=0,hasBalloon=false,associationSource="heater_membership"}}
 raw.revision=260 bridge.acquire()
 local setup={vehicleId="ship-1",burnerIds={"burner:1:2:3"}}
 local ready,why=bridge.balloonStatus(setup)
@@ -50,6 +50,12 @@ ready,why=bridge.balloonStatus(setup)
 assert(not ready and why:find("Aeronautics balloon association unavailable",1,true))
 raw.burners[1].hasBalloon=true raw.revision=300 bridge.acquire()
 assert(bridge.balloonStatus(setup),"confirmed association still refused")
+raw.burners[1].gasActive=false raw.burners[1].associationState="associated" raw.revision=320 bridge.acquire()
+assert(bridge.balloonStatus(setup),"structurally associated empty balloon refused")
+assert(bridge.snapshot().burners[1].associationState=="associated")
+raw.burners[1].associationSource=nil raw.burners[1].hasBalloon=false raw.revision=340 bridge.acquire()
+ready,why=bridge.balloonStatus(setup)
+assert(not ready and why:find("Update Vehicle Bridge to 0.2.1",1,true))
 ready,why=bridge.balloonStatus({vehicleId="ship-1",burnerIds={"absent"}})
 assert(not ready and why:find("Burner missing",1,true))
 raw.actuators[1].direction={x=0,y=0,z=0}

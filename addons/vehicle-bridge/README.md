@@ -1,13 +1,22 @@
-# MintCraft Vehicle Bridge 0.2.0
+# MintCraft Vehicle Bridge 0.2.1
 
 Standalone, read-only NeoForge addon. It exposes the containing Sable vehicle to
 ComputerCraft as the global `mintcraft_vehicle` API. No existing mod is patched.
+
+0.2.1 corrects burner association: `hasBalloon` means a positive-capacity balloon
+reference whose heater collection contains this burner. Aeronautics 1.3.2
+`ServerBalloon.isValid()` actually tests filled/target gas amounts, so it is now
+exported only as `gasActive`, never used as proof of structural association.
+This allows associated empty balloons without bypassing missing-heater checks.
+
+This build also compiles against the profile's Sable 2.0.6 using
+`-PsableJar=sable-neoforge-1.21.1-2.0.6.jar` (default remains 2.0.5).
 
 ## Installation
 
 1. Stop Minecraft/the server normally. Back up the world before trying a new mod.
    Remove the previous Vehicle Bridge JAR when replacing it; do not keep two versions.
-2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.0.jar` to the chosen profile's
+2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.1.jar` to the chosen profile's
    `mods` directory, alongside CC:Tweaked, Sable, Create and Aeronautics.
    For multiplayer, install on the server and clients using that modpack.
 3. Restart Minecraft. Place the computer on the assembled Sable vehicle.

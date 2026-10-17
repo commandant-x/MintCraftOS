@@ -4,6 +4,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class BridgeMathTest {
+    @Test void structuralBalloonAssociationDoesNotRequireGas() {
+        assertTrue(BridgeMath.balloonAssociated(true,64,true));
+        assertFalse(BridgeMath.balloonAssociated(false,64,true));
+        assertFalse(BridgeMath.balloonAssociated(true,0,true));
+        assertFalse(BridgeMath.balloonAssociated(true,-1,true));
+        assertFalse(BridgeMath.balloonAssociated(true,64,false));
+    }
     @Test void plotOriginCancelsFromMomentArm() {
         var pos=BridgeMath.relative(100002.5,70.5,100003.5,100000,64,100000);
         var com=BridgeMath.relative(100000.5,70.5,100000.5,100000,64,100000);

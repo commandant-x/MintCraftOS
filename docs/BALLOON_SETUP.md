@@ -1,6 +1,6 @@
 # Ballon : assistant de configuration
 
-Le pont Vehicle Bridge 0.2.0 detecte les bruleurs Aeronautics sur le sublevel,
+Le pont Vehicle Bridge 0.2.1 detecte les bruleurs Aeronautics sur le sublevel,
 leur signal et leur association a un ballon. Discover ouvre le guide lorsqu'il
 en trouve. Sans ce pont, aucune detection de bruleur n'est inventee.
 
@@ -18,6 +18,13 @@ en trouve. Sans ce pont, aucune detection de bruleur n'est inventee.
    physique et regler les gains PID d'altitude, initialement nuls.
 
 ## Association Aeronautics Non Initialisee
+
+Le pont 0.2.0 confondait l'association avec ServerBalloon.isValid(), qui teste
+en realite les volumes de gaz courant/cible (> 0,05), pas la liaison du
+bruleur. Le pont 0.2.1 verifie une reference de ballon, une capacite positive
+et la presence du bruleur dans ses heaters. L'etat du gaz est exporte
+separement comme gasActive et ne conditionne pas cette association.
+Un ballon vide peut donc etre associe sans etre actuellement porteur.
 
 Dans Aeronautics 1.3.2, la recherche du ballon est effectuee par le lazy tick
 du bruleur (20 ticks de jeu), uniquement lorsqu'il peut emettre du gaz.
