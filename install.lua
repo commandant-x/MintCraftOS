@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2858,7 +2858,10 @@ function M.run(ctx)
       lines(w,h,rows)
     elseif self.page=="calibration" then
       local channel=draft.channels[self.index]
-      local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Direction verified: "..tostring(channel and channel.validated==true),"Test is 0.3s, then calibrated rescue",tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
+      local progress=self.flight.calibration or {}
+      local tested=channel and progress.tested and progress.tested[channel.id]
+      local step=not channel and "Outputs: no saved output" or (not tested and not channel.validated and "Pending: Test" or (not channel.validated and "Pending: Verify direction" or "Direction verified"))
+      local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),step,"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Hover: "..tostring(draft.hoverValidated==true).." Manual: "..tostring(draft.manualValidated==true),"Rescue tested: "..tostring(progress.rescueTested==true).." Verified: "..tostring(draft.rescueValidated==true),tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
       lines(w,h,rows,6)
       self.testValue=self.testValue or {value=channel and channel.neutral or 0}
@@ -2969,7 +2972,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3053,7 +3056,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3363,7 +3366,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3478,7 +3481,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3620,7 +3623,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.10",
+  version = "0.18.11",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4070,7 +4073,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.10",
+  version = "0.18.11",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4612,7 +4615,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.10",
+    version = "0.18.11",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4990,7 +4993,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.10",
+  version = "0.18.11",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -6631,21 +6634,21 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.10", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.10", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.10", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.10", permissions = { "rednet.send", "rednet.receive" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.10", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.10", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.10", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.10", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.10", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.10", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.10", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.10", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.10", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.10", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.10", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.11", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.11", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.11", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.11", permissions = { "rednet.send", "rednet.receive" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.11", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.11", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.11", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.11", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.11", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.11", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.11", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.11", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.11", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.11", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.11", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7404,7 +7407,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.10",
+    version = meta.version or "0.18.11",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -11305,6 +11308,13 @@ function M.validate()
 end
 
 function M.configuration() return addon.copy(cfg.control) end
+local function same(a,b)
+  if type(a)~=type(b) then return false end
+  if type(a)~="table" then return a==b end
+  for key,value in pairs(a) do if not same(value,b[key]) then return false end end
+  for key in pairs(b) do if a[key]==nil then return false end end
+  return true
+end
 function M.configure(actor, value)
   local ok, err=authorize(actor,"navigation.calibrate")
   if not ok then return false,err end
@@ -11316,6 +11326,7 @@ function M.configure(actor, value)
     if not valid then return false,why end
     if type(channel.mix)~="table" then return false,"mixer required" end
   end
+  if same(value,cfg.control) then return true end
   local previous=cfg.control
   cfg.control=addon.copy(value)
   cfg.control.enabled=false
@@ -11489,6 +11500,12 @@ function M.testOutput(actor,id,value,confirmed)
     if channel.id==id then
       local valid,why=channelValid(channel)
       if not valid or not addon.finite(value) or value<channel.min or value>channel.max then return false,why or "test outside calibrated limits" end
+      if channel.validated then
+        channel.validated=false
+        local saved,problem=persist()
+        if not saved then channel.validated=true return false,problem end
+      end
+      tested[id]=nil
       owner,state,reason=actor.pid,"calibration","output test"
       M.test={id=id,value=math.floor(value+0.5),expires=os.clock()+0.3}
       return true
@@ -11515,12 +11532,22 @@ function M.step(rescan)
     local ok,err=writeOutputs({},true,rescueResults)
     if not ok then state,reason="failsafe","rescue incomplete: "..err
     elseif state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
-    if ok and M.test and M.test.applied and M.test.completed then tested[M.test.id]=true end
+    if ok and M.test and M.test.applied and M.test.completed then
+      tested[M.test.id]=true
+      if state=="calibration" and reason=="output test returning to rescue" then
+        state,reason,owner="disarmed","Output test complete; verify physical direction",nil
+      end
+    end
     M.test=nil
     return
   end
   if state=="calibration" and M.test then
-    if now>=M.test.expires then M.test.completed=true M.fail("output test completed") return end
+    if now>=M.test.expires then
+      if not M.test.applied then M.fail("output test expired before application; test again") return end
+      M.test.completed=true
+      reason,rescuePending="output test returning to rescue",true
+      return
+    end
     local ok,err=writeOutputs({[M.test.id]=M.test.value})
     if not ok then M.fail("actuator error: "..err) return end
     M.test.applied=true
@@ -11560,6 +11587,7 @@ end
 function M.status()
   local valid,errors=M.validate()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
+    calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test)},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
 end
 
@@ -13985,7 +14013,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.10
+0.18.11
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

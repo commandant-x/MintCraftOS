@@ -2,7 +2,11 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.10:
+This repository currently contains V0.18.11:
+
+Successful calibration pulses now return to disarmed after confirmed rescue,
+without a false failsafe. Unchanged configuration saves preserve calibration;
+real actuator errors still latch failsafe and invalidate the repeated test.
 
 Flight heading uses the selected Avionics navigation table, or a fresh Sable
 world quaternion when no navigation table is explicitly selected. Blank sensor
@@ -10,7 +14,7 @@ selection automatically chooses a unique device; ambiguous setups require an
 explicit selection. Calibration shows arming blockers and retains confirmed
 progress in the current configuration draft. No safety prerequisites are bypassed.
 
-V0.18.10 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
+V0.18.11 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
 
 CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 

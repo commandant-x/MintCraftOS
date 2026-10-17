@@ -183,6 +183,13 @@ function M.validate()
 end
 
 function M.configuration() return addon.copy(cfg.control) end
+local function same(a,b)
+  if type(a)~=type(b) then return false end
+  if type(a)~="table" then return a==b end
+  for key,value in pairs(a) do if not same(value,b[key]) then return false end end
+  for key in pairs(b) do if a[key]==nil then return false end end
+  return true
+end
 function M.configure(actor, value)
   local ok, err=authorize(actor,"navigation.calibrate")
   if not ok then return false,err end
@@ -194,6 +201,7 @@ function M.configure(actor, value)
     if not valid then return false,why end
     if type(channel.mix)~="table" then return false,"mixer required" end
   end
+  if same(value,cfg.control) then return true end
   local previous=cfg.control
   cfg.control=addon.copy(value)
   cfg.control.enabled=false
@@ -367,6 +375,12 @@ function M.testOutput(actor,id,value,confirmed)
     if channel.id==id then
       local valid,why=channelValid(channel)
       if not valid or not addon.finite(value) or value<channel.min or value>channel.max then return false,why or "test outside calibrated limits" end
+      if channel.validated then
+        channel.validated=false
+        local saved,problem=persist()
+        if not saved then channel.validated=true return false,problem end
+      end
+      tested[id]=nil
       owner,state,reason=actor.pid,"calibration","output test"
       M.test={id=id,value=math.floor(value+0.5),expires=os.clock()+0.3}
       return true
@@ -393,12 +407,22 @@ function M.step(rescan)
     local ok,err=writeOutputs({},true,rescueResults)
     if not ok then state,reason="failsafe","rescue incomplete: "..err
     elseif state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
-    if ok and M.test and M.test.applied and M.test.completed then tested[M.test.id]=true end
+    if ok and M.test and M.test.applied and M.test.completed then
+      tested[M.test.id]=true
+      if state=="calibration" and reason=="output test returning to rescue" then
+        state,reason,owner="disarmed","Output test complete; verify physical direction",nil
+      end
+    end
     M.test=nil
     return
   end
   if state=="calibration" and M.test then
-    if now>=M.test.expires then M.test.completed=true M.fail("output test completed") return end
+    if now>=M.test.expires then
+      if not M.test.applied then M.fail("output test expired before application; test again") return end
+      M.test.completed=true
+      reason,rescuePending="output test returning to rescue",true
+      return
+    end
     local ok,err=writeOutputs({[M.test.id]=M.test.value})
     if not ok then M.fail("actuator error: "..err) return end
     M.test.applied=true
@@ -438,6 +462,7 @@ end
 function M.status()
   local valid,errors=M.validate()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
+    calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test)},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
 end
 

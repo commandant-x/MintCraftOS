@@ -55,9 +55,36 @@ local ok,err=pcall(function()
     cfg.channels={{id="relay-test",backend="relay",name="relay",side="top",min=0,max=15,neutral=15,rescue=15,mix={}}}
     cfg.sensors={gimbal="gimbal",altitude="altitude",nav="nav"}
     assert(flight.configure({pid=navPid},cfg))
-    assert(flight.testOutput({pid=navPid},"relay-test",7,true))
+    apps.ctx.scheduler:kill(navPid)
+    launched,navPid=apps.launch("navigation") assert(launched,tostring(navPid))
+    local app=apps.ctx.scheduler.processes[navPid].window.app
+    app.page="calibration"
+    local function draw() app:draw(80,28) end
+    local function click(box) assert(box,"calibration control missing") app:handle({name="mouse_click",args={1,box.x,box.y}}) end
+    local function command(id)
+      draw()
+      local selected
+      for _,box in ipairs(app.commands.boxes) do if box.id==id then selected=box end end
+      if not selected then
+        click(app.commands.trigger) draw()
+        for _,box in ipairs(app.commands.menuBoxes or {}) do if box.id==id then selected=box end end
+      end
+      click(selected) draw()
+      assert(app.confirm,"calibration action did not require confirmation")
+      for _,box in ipairs(app.confirmBar) do if box.id=="confirm" then click(box) return end end
+      error("confirmation button missing")
+    end
+    draw() click({x=2,y=4})
+    assert(app.form.edit,"test signal field cannot be edited")
+    app.form.text="7" app:handle({name="key",args={keys.enter}})
+    command("test")
     for _=1,30 do if signals.top==15 then break end sleep(0.1) end
     assert(signals.top==15,"relay test did not return to configured rescue")
+    assert(flight.status().state=="disarmed","normal calibration pulse entered failsafe")
+    command("channel")
+    assert(flight.configuration().channels[1].validated,"UI direction verification blocked after successful pulse")
+    assert(flight.configure({pid=navPid},flight.configuration()))
+    assert(flight.configuration().channels[1].validated,"Save erased physical verification")
     apps.ctx.scheduler:kill(navPid)
     launched,navPid=apps.launch("combat") assert(launched,tostring(navPid))
     local actor={pid=navPid}
@@ -77,5 +104,5 @@ local ok,err=pcall(function()
   end)
 end)
 local h=assert(fs.open("/addon-audit-result.txt","w"))
-h.write(ok and "PASS: native task_complete, numeric Sable pressure, unknown COM, slim flight, relay rescue, scan progression and CBC false release" or "FAIL: "..tostring(err))
+h.write(ok and "PASS: native workers, Navigation calibration UI signal/test/confirm/direction/save, relay rescue, Sable contracts, radar progression and CBC release" or "FAIL: "..tostring(err))
 h.close() os.shutdown()

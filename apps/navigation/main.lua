@@ -127,7 +127,10 @@ function M.run(ctx)
       lines(w,h,rows)
     elseif self.page=="calibration" then
       local channel=draft.channels[self.index]
-      local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Direction verified: "..tostring(channel and channel.validated==true),"Test is 0.3s, then calibrated rescue",tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
+      local progress=self.flight.calibration or {}
+      local tested=channel and progress.tested and progress.tested[channel.id]
+      local step=not channel and "Outputs: no saved output" or (not tested and not channel.validated and "Pending: Test" or (not channel.validated and "Pending: Verify direction" or "Direction verified"))
+      local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),step,"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Hover: "..tostring(draft.hoverValidated==true).." Manual: "..tostring(draft.manualValidated==true),"Rescue tested: "..tostring(progress.rescueTested==true).." Verified: "..tostring(draft.rescueValidated==true),tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
       lines(w,h,rows,6)
       self.testValue=self.testValue or {value=channel and channel.neutral or 0}
