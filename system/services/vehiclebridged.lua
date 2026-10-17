@@ -109,9 +109,16 @@ function M.balloonStatus(setup)
   if not cached.ok or not cached.validUntil or os.clock()>cached.validUntil or not cached.complete then return false,"Balloon discovery stale/incomplete" end
   if not cached.burnerDiscoveryAvailable or cached.vehicleId~=setup.vehicleId then return false,"Balloon vehicle changed" end
   local found={}
-  for _,burner in ipairs(cached.burners) do found[burner.id]=burner.hasBalloon end
+  for _,burner in ipairs(cached.burners) do found[burner.id]=burner end
   if type(setup.burnerIds)~="table" or #setup.burnerIds==0 then return false,"Balloon burner group missing" end
-  for _,id in ipairs(setup.burnerIds) do if not found[id] then return false,"Balloon/burner disconnected" end end
+  for _,id in ipairs(setup.burnerIds) do
+    local burner=found[id]
+    local label=id:match("^[^:]+:(.*)$") or id
+    if not burner then return false,"Burner missing: "..label end
+    if not burner.hasBalloon then
+      return false,"Burner "..label..(burner.signal==0 and ": off; balloon association not confirmed (Initialize in Calibration)" or ": Aeronautics balloon association unavailable; check burner clearance/envelope")
+    end
+  end
   return true
 end
 function M.rescan() if runner then runner:rescan() end end

@@ -387,9 +387,11 @@ function M.calibrate(actor,kind,id, confirmed)
   return persist()
 end
 
-function M.testOutput(actor,id,value,confirmed)
+function M.testOutput(actor,id,value,confirmed,duration)
   local ok,err=authorize(actor,"navigation.calibrate")
   if not ok then return false,err end
+  duration=duration==nil and 0.3 or duration
+  if not addon.finite(duration) or duration<0.1 or duration>2 then return false,"test duration must be 0.1..2 seconds" end
   if state=="armed" or state=="calibration" or rescuePending or confirmed~=true then return false,"test requires idle state and confirmation" end
   for _,channel in ipairs(cfg.control.channels) do
     if channel.id==id then
@@ -402,7 +404,7 @@ function M.testOutput(actor,id,value,confirmed)
       end
       tested[id]=nil
       owner,state,reason=actor.pid,"calibration","output test"
-      M.test={id=id,value=math.floor(value+0.5),expires=os.clock()+0.3}
+      M.test={id=id,value=math.floor(value+0.5),expires=os.clock()+duration}
       return true
     end
   end

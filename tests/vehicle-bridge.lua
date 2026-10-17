@@ -39,6 +39,19 @@ raw.actuators[1].position.x=1 raw.units.position="unknown" assert(not bridge.nor
 raw.units.position="block" raw.readOnly=false assert(not bridge.normalize(raw))
 raw.readOnly=true raw.inertia={{1,0,0},{0,2,0},{0,0,3}}
 local parsed=assert(bridge.normalize(raw)) assert(parsed.inertia[3][3]==3)
+raw.features={burners=true}
+raw.burners={{id="burner:1:2:3",position={x=1,y=2,z=3},signal=0,gasOutput=0,hasBalloon=false}}
+raw.revision=260 bridge.acquire()
+local setup={vehicleId="ship-1",burnerIds={"burner:1:2:3"}}
+local ready,why=bridge.balloonStatus(setup)
+assert(not ready and why:find("off; balloon association not confirmed",1,true))
+raw.burners[1].signal=3 raw.revision=280 bridge.acquire()
+ready,why=bridge.balloonStatus(setup)
+assert(not ready and why:find("Aeronautics balloon association unavailable",1,true))
+raw.burners[1].hasBalloon=true raw.revision=300 bridge.acquire()
+assert(bridge.balloonStatus(setup),"confirmed association still refused")
+ready,why=bridge.balloonStatus({vehicleId="ship-1",burnerIds={"absent"}})
+assert(not ready and why:find("Burner missing",1,true))
 raw.actuators[1].direction={x=0,y=0,z=0}
 assert(not bridge.normalize(raw).complete,"uninitialised direction silently omitted from complete model")
 mintcraft_vehicle.snapshot=function() error("addon API failed") end

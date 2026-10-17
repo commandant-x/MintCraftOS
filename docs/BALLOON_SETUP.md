@@ -17,6 +17,23 @@ en trouve. Sans ce pont, aucune detection de bruleur n'est inventee.
 5. Apply + Save enregistre sans emettre. Effectuer ensuite la calibration
    physique et regler les gains PID d'altitude, initialement nuls.
 
+## Association Aeronautics Non Initialisee
+
+Dans Aeronautics 1.3.2, la recherche du ballon est effectuee par le lazy tick
+du bruleur (20 ticks de jeu), uniquement lorsqu'il peut emettre du gaz.
+Le test generique de 0,3 seconde peut donc terminer avant cette recherche.
+
+Dans Calibration, choisir un Test signal non nul physiquement verifie, puis
+Initialize (2s). La confirmation indique le signal et le retour au secours.
+Ce test dure deux secondes au maximum, ne se repete pas automatiquement et
+ne force aucune association. Apres sa fin, Rescan puis verifier les etats des
+bruleurs. Il ne valide ni les gains, ni le stationnaire, ni le secours physique.
+
+Si l'association reste absente avec un signal positif, verifier avec les
+lunettes d'ingenieur Aeronautics si le bruleur reconnait une enveloppe valide.
+Verifier son degagement vertical, la portee configuree et l'enveloppe ; ne pas
+contourner la verification en armant un bruleur non reconnu.
+
 Au bruleur Aeronautics, 0 coupe l'apport de gaz et 15 correspond au maximum
 configure. Le cablage externe peut inverser ce comportement. La coupure ne
 vide pas instantanement le ballon et ne garantit pas une descente sure.

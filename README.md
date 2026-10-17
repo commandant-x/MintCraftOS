@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.15:
+This repository currently contains V0.18.16:
+
+V0.18.16 adds a confirmed two-second burner initialization test, distinct
+missing/off/unassociated heater diagnostics, and separate measured altitude and
+altitude target labels. Aeronautics discovers balloons on a 20-game-tick lazy
+tick while the heater is powered; the generic 0.3-second test may be too short.
+The bridge remains read-only and arming prerequisites are not bypassed.
 
 V0.18.15 adds a guided balloon/burner setup, collective frequency output and
 altitude-only control. Burner discovery requires Vehicle Bridge 0.2.0.
@@ -34,7 +40,7 @@ selection automatically chooses a unique device; ambiguous setups require an
 explicit selection. Calibration shows arming blockers and retains confirmed
 progress in the current configuration draft. No safety prerequisites are bypassed.
 
-V0.18.15 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
+V0.18.16 fixes artificial-horizon freshness and reserves acquisition capacity for flight sensors. A stale horizon is held for at most one second from its original observation, explicitly marked stale; control never uses this display hold.
 
 CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 

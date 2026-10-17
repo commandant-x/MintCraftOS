@@ -139,7 +139,7 @@ function M.run(ctx)
       if not app.setup then return {{id="guide",label="Detect"},{id="devices",label="Devices"}} end
       if app.setupStep==5 then return {{id="calibrationPage",label="Calibration"},{id="pidPage",label="PID"},{id="controlPage",label="Control"}} end
       return {{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="devices",label="Devices"}}
-    elseif app.page=="context" then return {{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
+    elseif app.page=="context" then return {{id="guide",label="Setup guide"},{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
     elseif app.page=="diagram" then return {{id="analysis",label="Analysis"},{id="top",label="Top"},{id="side",label="Side"},{id="outputs",label="Actuators"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
@@ -147,7 +147,11 @@ function M.run(ctx)
       local out={{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"}}
       if draft.mode~="altitude" then out[#out+1]={id="yawLeft",label="Yaw-"} out[#out+1]={id="yawRight",label="Yaw+"} end
       return out
-    elseif app.page=="calibration" then return {{id="previous",label="Prev"},{id="next",label="Next"},{id="test",label="Test"},{id="channel",label="Verify direction"},{id="hover",label="Hover OK"},{id="manual",label="Manual OK"},{id="rescue",label="Test rescue"},{id="rescueConfirm",label="Rescue OK"},{id="disarm",label="Acknowledge"}}
+    elseif app.page=="calibration" then
+      local out={{id="previous",label="Prev"},{id="next",label="Next"},{id="test",label="Test"}}
+      if draft.balloonSetup then out[#out+1]={id="initializeBalloon",label="Initialize (2s)"} end
+      for _,item in ipairs({{id="channel",label="Verify direction"},{id="hover",label="Hover OK"},{id="manual",label="Manual OK"},{id="rescue",label="Test rescue"},{id="rescueConfirm",label="Rescue OK"},{id="disarm",label="Acknowledge"},{id="rescan",label="Rescan"}}) do out[#out+1]=item end
+      return out
     else return {{id="rescan",label="Rescan"},{id="devices",label="Devices"},{id="logs",label="Logs"}} end
   end
   function app:draw(w,h)
@@ -157,7 +161,7 @@ function M.run(ctx)
     menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
     local commands=actions()
     for _,command in ipairs(commands) do
-      command.primary=self.page=="setup" or command.id=="guide" or command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.primary=self.page=="setup" or command.id=="initializeBalloon" or command.id=="guide" or command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
       command.danger=command.id=="arm"
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
@@ -228,7 +232,7 @@ function M.run(ctx)
       local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Source: "..tostring(t.headingSource or "missing heading sensor"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
       for i=1,math.min(#rows,h-y) do renderer.writeAt(x,y+i-1,renderer.crop(rows[i],w-x+1)) end
     elseif self.page=="control" then
-      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),draft.mode=="altitude" and "Altitude only; no attitude/heading hold" or "Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Readiness:"}
+      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),draft.mode=="altitude" and "Altitude only; no attitude/heading hold" or "Pitch/roll setpoint: 0 deg at arm","Measured altitude: "..fmt(flight.telemetry().altitude,"m"),"Altitude target: "..(self.flight.targets and self.flight.targets.altitude and fmt(self.flight.targets.altitude,"m") or "set when armed"),"Readiness:"}
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
       for name,value in pairs(self.flight.outputs or {}) do rows[#rows+1]=name.." signal="..value end
       lines(w,h,rows)
@@ -239,6 +243,13 @@ function M.run(ctx)
       local step=not channel and "Outputs: no saved output" or (not tested and not channel.validated and "Pending: Test" or (not channel.validated and "Pending: Verify direction" or "Direction verified"))
       local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),step,"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Hover: "..tostring(draft.hoverValidated==true).." Manual: "..tostring(draft.manualValidated==true),"Rescue tested: "..tostring(progress.rescueTested==true).." Verified: "..tostring(draft.rescueValidated==true),tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
+      if draft.balloonSetup then
+        rows[#rows+1]="Initialize (2s): confirmed heater test for Aeronautics discovery"
+        for _,burner in ipairs((self.bridge or {}).burners or {}) do
+          local label=burner.id:match("^[^:]+:(.*)$") or burner.id
+          rows[#rows+1]="Burner "..label.." signal="..tostring(burner.signal).." balloon="..tostring(burner.hasBalloon)
+        end
+      end
       lines(w,h,rows,6)
       self.testValue=self.testValue or {value=channel and channel.neutral or 0}
       ui.input(1,4,w,"Test signal",self.testValue.value,false)
@@ -259,7 +270,7 @@ function M.run(ctx)
       for _,command in ipairs((original.aircraft or {}).commands or {}) do rows[#rows+1]=command.name.." : "..command.frequency end
       lines(w,h,rows)
     end
-    renderer.writeAt(1,h,renderer.crop(self.dirty and "Unsaved mapping; Save before calibration/arm" or self.message,w),colors.white,colors.gray)
+    renderer.writeAt(1,h,renderer.crop((self.dirty and "Unsaved | " or "")..self.message,w),colors.white,colors.gray)
     if self.confirm then
       renderer.fill(1,3,w,h-3,colors.gray)
       renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
@@ -351,6 +362,15 @@ function M.run(ctx)
       elseif id=="disarm" then report(flight.disarm(actor)) refresh() return true
       elseif id=="altDown" or id=="altUp" then report(flight.manual(actor,"altitude",id=="altUp" and 1 or -1)) return true
       elseif id=="yawLeft" or id=="yawRight" then report(flight.manual(actor,"heading",id=="yawRight" and 1 or -1)) return true
+      elseif id=="initializeBalloon" then
+        if self.dirty then report(false,"Save changes first") return true end
+        local channel=draft.channels[self.index]
+        local value=self.testValue and self.testValue.value or channel and channel.neutral
+        if not draft.balloonSetup or not channel or channel.backend~="frequency" or not channel.actuator or channel.actuator.role~="buoyancy" then report(false,"Select the collective burner frequency output") return true end
+        if not addon.finite(value) or value%1~=0 or value<=0 or value>15 then report(false,"Set Test signal to a physically checked nonzero value (1..15)") return true end
+        confirm("Heat signal "..value.." for 2s, then rescue "..channel.rescue.."?",function()
+          report(flight.testOutput(actor,channel.id,value,true,2))
+        end) return true
       elseif id=="test" then
         local function setup()
           self.page="mapping" self.form.scroll=1 self.scroll=1
