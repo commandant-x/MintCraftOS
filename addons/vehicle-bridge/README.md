@@ -1,4 +1,4 @@
-# MintCraft Vehicle Bridge 0.1.0
+# MintCraft Vehicle Bridge 0.2.0
 
 Standalone, read-only NeoForge addon. It exposes the containing Sable vehicle to
 ComputerCraft as the global `mintcraft_vehicle` API. No existing mod is patched.
@@ -6,11 +6,12 @@ ComputerCraft as the global `mintcraft_vehicle` API. No existing mod is patched.
 ## Installation
 
 1. Stop Minecraft/the server normally. Back up the world before trying a new mod.
-2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.1.0.jar` to the chosen profile's
+   Remove the previous Vehicle Bridge JAR when replacing it; do not keep two versions.
+2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.0.jar` to the chosen profile's
    `mods` directory, alongside CC:Tweaked, Sable, Create and Aeronautics.
    For multiplayer, install on the server and clients using that modpack.
 3. Restart Minecraft. Place the computer on the assembled Sable vehicle.
-4. Update MintCraftOS to 0.18.14 or later. Open Navigation > Vehicle > Discover.
+4. Update MintCraftOS to 0.18.15 or later. Open Navigation > Vehicle > Discover.
 5. Review/import the measured model, confirm the suggested vehicle type and axes,
    then Save. Outputs and motor commands are never created by discovery.
    Existing command channels can select a `Measured actuator #` to reuse its
@@ -33,6 +34,8 @@ of compatibility with every pack or live vehicle.
   active state, signed/scaled thrust, active force and torque per unit thrust;
 - `links`: Create redstone-link position, receiver/transmitter, both frequency
   items/colors and current signal; not an inferred motor wiring diagram;
+- `features.burners`, `burners`: heater positions, signal, gas output and balloon
+  association. Heater coordinates are not buoyancy force application points.
 - sample revision/game tick, cache age, limits, errors and completeness.
 
 Coordinate contract: positions and COM are in the unrotated parent plot frame,
@@ -49,6 +52,10 @@ Orientation-based roles and rotor-count-based vehicle types are suggestions.
 Reaction torque, power polarity, geared shafts, wireless control links, servo
 response, aerodynamic surfaces, balloon forces and child sublevels are not
 automatically modelled. Imported geometry is analysis data, not actuator calibration.
+
+With the corresponding OS changes, detected burners open a collective-altitude
+setup guide. See `../../docs/BALLOON_SETUP.md`. It proposes one item pair and
+requires wiring confirmation; it never sends power or arms automatically.
 
 ## Scope and Limits
 

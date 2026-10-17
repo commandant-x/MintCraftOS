@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2739,6 +2739,8 @@ local attitude=require("system.navigation.attitude")
 local vehicle=require("system.navigation.vehicle")
 local vehicleDiagram=require("system.navigation.vehicle_diagram")
 local vehicleBridge=require("system.services.vehiclebridged")
+local balloonSetup=require("system.navigation.balloon_setup")
+local controlMode=require("system.navigation.control_mode")
 local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
@@ -2757,7 +2759,7 @@ function M.run(ctx)
   local original=config.load("/system/config/navigation.cfg",{})
   local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
   if draft.vehicle.type=="unknown" then app.page="vehicle" end
-  local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="setup",label="Setup guide"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
@@ -2765,6 +2767,14 @@ function M.run(ctx)
   end
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
+  local function guide()
+    local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints())
+    app.page="setup" app.setup=plan app.setupStep=1 app.scroll=1
+    if not plan then app.message=err return end
+    app.setupOptions={transmitter=plan.transmitter,neutral=plan.baseline or 0,rescue=0,
+      inverted=false,wiringConfirmed=false,replaceExisting=false}
+    app.message="Detection passive; aucun signal emis"
+  end
   local function fields()
     local rows={}
     local function field(object,key,label,kind,options)
@@ -2775,6 +2785,7 @@ function M.run(ctx)
     if app.page=="vehicle" then
       field(draft.vehicle,"name","Vehicle name","string")
       field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
+      field(draft,"mode","Control mode",nil,{"full","altitude"})
       field(draft.vehicle,"rotorCount","Lift rotor count (0 = unknown)","number")
       field(draft.vehicle,"massKg","Mass (kg)","number")
       for _,axis in ipairs({"x","y","z"}) do field(draft.vehicle.com,axis,"COM body "..axis.." (blocks)","number") end
@@ -2783,14 +2794,18 @@ function M.run(ctx)
       local channel=draft.channels[app.index]
       if not channel then return rows end
       field(channel,"id","Output ID","string")
-      field(channel,"backend","Backend",nil,{"redstone","avionics","relay"})
+      field(channel,"backend","Backend",nil,{"redstone","avionics","relay","frequency"})
       if channel.backend=="redstone" then field(channel,"side","PC side",nil,sides)
       else
         local names={}
         for _,row in ipairs(flight.endpoints()) do if row.backend==channel.backend then names[#names+1]=row.name end end
-        local label=channel.backend=="relay" and "Redstone relay" or "Avionics endpoint"
+        local label=channel.backend=="frequency" and "Frequency transmitter" or (channel.backend=="relay" and "Redstone relay" or "Avionics endpoint")
         if #names>0 then field(channel,"name",label,nil,names) else field(channel,"name",label,"string") end
         if channel.backend=="relay" then field(channel,"side","Relay side",nil,sides) end
+      end
+      if channel.backend=="frequency" then
+        channel.link=channel.link or {first="",second=""}
+        field(channel.link,"first","Frequency item 1","string") field(channel.link,"second","Frequency item 2","string")
       end
       for _,key in ipairs({"min","max","neutral","rescue"}) do field(channel,key,key,"number") end
       channel.mix=channel.mix or {}
@@ -2815,7 +2830,8 @@ function M.run(ctx)
       for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.direction,axis,"Thrust direction "..axis,"number") end
       field(channel.actuator,"geometryVerified","Geometry physically verified","boolean")
     elseif app.page=="gains" then
-      local axis=axes[app.axis]
+      local available=controlMode.axes(draft)
+      local axis=available[app.axis] or available[1]
       for _,key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do field(draft.gains[axis],key,axis.." "..key,"number") end
     elseif app.page=="sensors" then
       for _,role in ipairs({"gimbal","altitude","nav"}) do
@@ -2826,10 +2842,18 @@ function M.run(ctx)
     elseif app.page=="manual" then
       local binding=draft.manualInputs[app.index]
       if binding then
-        field(binding,"axis","Axis",nil,axes)
+        field(binding,"axis","Axis",nil,controlMode.axes(draft))
         field(binding,"side","Digital input side",nil,sides)
         field(binding,"value","Override -1..1","number")
       end
+    elseif app.page=="setup" and app.setup and app.setupStep==3 then
+      local options=app.setupOptions
+      if #app.setup.endpoints>0 then field(options,"transmitter","Frequency transmitter",nil,app.setup.endpoints) end
+      field(options,"neutral","Hover baseline signal (verify)","number")
+      field(options,"rescue","Rescue signal (0 cuts gas)","number")
+      field(options,"inverted","Wiring inverts burner signal","boolean")
+      field(options,"wiringConfirmed","Receivers/wiring physically checked","boolean")
+      if #draft.channels>0 then field(options,"replaceExisting","Replace existing control mapping","boolean") end
     end
     return rows
   end
@@ -2841,12 +2865,19 @@ function M.run(ctx)
   end
   local function actions()
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
-    elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="guide",label="Guide"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="setup" then
+      if not app.setup then return {{id="guide",label="Detect"},{id="devices",label="Devices"}} end
+      if app.setupStep==5 then return {{id="calibrationPage",label="Calibration"},{id="pidPage",label="PID"},{id="controlPage",label="Control"}} end
+      return {{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="devices",label="Devices"}}
     elseif app.page=="context" then return {{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
     elseif app.page=="diagram" then return {{id="analysis",label="Analysis"},{id="top",label="Top"},{id="side",label="Side"},{id="outputs",label="Actuators"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
-    elseif app.page=="control" then return {{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"},{id="yawLeft",label="Yaw-"},{id="yawRight",label="Yaw+"}}
+    elseif app.page=="control" then
+      local out={{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"}}
+      if draft.mode~="altitude" then out[#out+1]={id="yawLeft",label="Yaw-"} out[#out+1]={id="yawRight",label="Yaw+"} end
+      return out
     elseif app.page=="calibration" then return {{id="previous",label="Prev"},{id="next",label="Next"},{id="test",label="Test"},{id="channel",label="Verify direction"},{id="hover",label="Hover OK"},{id="manual",label="Manual OK"},{id="rescue",label="Test rescue"},{id="rescueConfirm",label="Rescue OK"},{id="disarm",label="Acknowledge"}}
     else return {{id="rescan",label="Rescan"},{id="devices",label="Devices"},{id="logs",label="Logs"}} end
   end
@@ -2857,11 +2888,35 @@ function M.run(ctx)
     menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
     local commands=actions()
     for _,command in ipairs(commands) do
-      command.primary=command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.primary=self.page=="setup" or command.id=="guide" or command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
       command.danger=command.id=="arm"
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
-    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
+    if self.page=="setup" then
+      renderer.writeAt(1,3,renderer.crop("Ballon : etape "..tostring(self.setupStep or 1).."/5",w),colors.cyan)
+      if self.setup and self.setupStep==3 then self.form:draw(w,h,fields())
+      else
+        local p=self.setup
+        local paragraphs=not p and {self.message,"La detection des bruleurs exige le pont Vehicle Bridge 0.2.0."} or {
+          [1]={"Nous avons detecte "..p.burnerCount.." bruleur(s).","Un seul canal collectif commandera leur chauffe. Maintien d'altitude uniquement : pas de stabilisation du roulis, tangage ou cap.","Aucun signal n'est emis par cet assistant."},
+          [2]={"Frequence collective :",tostring(p.frequency.first),tostring(p.frequency.second),"Configurer cette paire sur chaque recepteur Create relie aux bruleurs. Relier un Redstone Link Bridge au PC.","La paire est proposee selon les liens visibles sur ce vehicule, pas reservee globalement. Verifier les machines voisines et le cablage."},
+          [4]={"Verifier la frequence et le transmetteur avant Apply + Save.","Transmetteur : "..tostring(self.setupOptions.transmitter),"Stationnaire : "..tostring(self.setupOptions.neutral).." / secours : "..tostring(self.setupOptions.rescue),"Cette operation remplace le mapping seulement avec votre accord. Elle enregistre la configuration sans emettre de signal.","Les gains PID restent nuls : armement bloque avant calibration."},
+          [5]={"Configuration enregistree, controle desarme.","Calibration : tester le sens, verifier le signal stationnaire et le secours physiquement. Puis regler les gains d'altitude dans PID.","Au bruleur, 0 coupe l'apport et 15 chauffe au maximum. Un cablage externe peut inverser ce sens.","Couper la chauffe ne vide pas instantanement le ballon. Le delai thermique interdit de supposer que 0 garantit une descente sure."}
+        }
+        if p then paragraphs=paragraphs[self.setupStep] or {} end
+        local rows={}
+        for _,paragraph in ipairs(paragraphs) do
+          local line=""
+          for word in tostring(paragraph):gmatch("%S+") do
+            if #line+#word+1>w and #line>0 then rows[#rows+1]=line line="" end
+            while #word>w do rows[#rows+1]=word:sub(1,w) word=word:sub(w+1) end
+            line=line=="" and word or line.." "..word
+          end
+          rows[#rows+1]=line rows[#rows+1]=""
+        end
+        lines(w,h,rows)
+      end
+    elseif self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
     elseif self.page=="diagram" then
@@ -2904,7 +2959,7 @@ function M.run(ctx)
       local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Source: "..tostring(t.headingSource or "missing heading sensor"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
       for i=1,math.min(#rows,h-y) do renderer.writeAt(x,y+i-1,renderer.crop(rows[i],w-x+1)) end
     elseif self.page=="control" then
-      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),"Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Heading: "..fmt(self.flight.targets and self.flight.targets.heading,"deg"),"Readiness:"}
+      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),draft.mode=="altitude" and "Altitude only; no attitude/heading hold" or "Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Readiness:"}
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
       for name,value in pairs(self.flight.outputs or {}) do rows[#rows+1]=name.." signal="..value end
       lines(w,h,rows)
@@ -2956,17 +3011,17 @@ function M.run(ctx)
     local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
     if handled then
       if section=="pages" then
-        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil end
+        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil if command=="setup" then guide() end end
         return true
       end
       if not command then return true end
     end
-    if event.name=="mouse_scroll" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_scroll" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
     if event.name=="mouse_click" or command then
       local _,x,y=table.unpack(event.args)
       local id=command
       if id=="previous" or id=="next" then
-        if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%4+1
+        if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%#controlMode.axes(draft)+1
         else self.index=math.max(1,math.min(self.page=="manual" and #draft.manualInputs or #draft.channels,self.index+(id=="next" and 1 or -1))) end
         self.testValue=nil self.form.scroll=1 return true
       elseif id=="add" then
@@ -2976,6 +3031,24 @@ function M.run(ctx)
         self.index=#draft.channels return true
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
       elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
+      elseif id=="guide" then guide() return true
+      elseif id=="guideBack" then self.setupStep=math.max(1,self.setupStep-1) self.form.scroll=1 self.scroll=1 return true
+      elseif id=="guideNext" then
+        if self.setupStep==3 then local candidate,err=balloonSetup.create(draft,self.setup,self.setupOptions) if not candidate then report(false,err) return true end end
+        self.setupStep=math.min(4,self.setupStep+1) self.form.scroll=1 self.scroll=1 return true
+      elseif id=="guideApply" then
+        confirm("Save collective burner mapping? No signal emitted.",function()
+          local latest=vehicleBridge.snapshot()
+          if not latest.ok or latest.vehicleId~=self.setup.vehicleId then report(false,"Vehicle changed or unavailable; Detect again") return end
+          local present={} for _,burner in ipairs(latest.burners or {}) do present[burner.id]=true end
+          for _,burnerId in ipairs(self.setup.burnerIds) do if not present[burnerId] then report(false,"Burner missing; Detect again") return end end
+          local candidate,err=balloonSetup.create(draft,self.setup,self.setupOptions)
+          if not candidate then report(false,err) return end
+          local ok,message=flight.configure(actor,candidate) report(ok,message)
+          if ok then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false self.setupStep=5 self.scroll=1 end
+        end) return true
+      elseif id=="calibrationPage" or id=="pidPage" or id=="controlPage" then
+        self.page=id=="pidPage" and "gains" or (id=="controlPage" and "control" or "calibration") self.axis=1 self.index=1 self.form.scroll=1 self.scroll=1 return true
       elseif id=="discover" then
         local snapshot=vehicleBridge.snapshot()
         local imported,err=vehicle.import(draft.vehicle,snapshot)
@@ -2990,6 +3063,7 @@ function M.run(ctx)
             if not current then report(false,problem) return end
             draft.vehicle=current self.dirty=true self.page="context"
             self.message="Geometry imported into draft; confirm type/axes, then Save"
+            if #(current.bridgeBurners or {})>0 then guide() end
           end)
         end return true
       elseif id=="mass" then
@@ -3004,7 +3078,7 @@ function M.run(ctx)
       elseif id=="outputs" then self.page="mapping" return true
       elseif id=="rescan" then avionics.rescan() sable.rescan() vehicleBridge.rescan() return true
       elseif id=="devices" or id=="logs" then ctx.apps.launch(id) return true
-      elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm("Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
+      elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm(draft.mode=="altitude" and "Arm current altitude hold only?" or "Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
       elseif id=="disarm" then report(flight.disarm(actor)) refresh() return true
       elseif id=="altDown" or id=="altUp" then report(flight.manual(actor,"altitude",id=="altUp" and 1 or -1)) return true
       elseif id=="yawLeft" or id=="yawRight" then report(flight.manual(actor,"heading",id=="yawRight" and 1 or -1)) return true
@@ -3046,7 +3120,7 @@ function M.run(ctx)
         self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
-    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then return self.form:handle(event) end
+    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
   refresh()
@@ -3067,7 +3141,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3151,7 +3225,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3461,7 +3535,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3576,7 +3650,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3718,7 +3792,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.14",
+  version = "0.18.15",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4168,7 +4242,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.14",
+  version = "0.18.15",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4710,7 +4784,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.14",
+    version = "0.18.15",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5088,7 +5162,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.14",
+  version = "0.18.15",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -6729,21 +6803,21 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.14", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.14", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.14", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.14", permissions = { "rednet.send", "rednet.receive" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.14", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.14", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.14", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.14", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.14", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.14", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.14", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.14", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.14", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.14", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.14", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.15", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.15", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.15", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.15", permissions = { "rednet.send", "rednet.receive" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.15", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.15", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.15", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.15", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.15", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.15", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.15", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.15", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.15", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.15", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.15", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7503,7 +7577,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.14",
+    version = meta.version or "0.18.15",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -8621,6 +8695,81 @@ function M.sample(measurements, previous, now)
 end
 return M
 ]=],
+  ["system/navigation/balloon_setup.lua"] = [=[
+local addon=require("system.libraries.addon")
+local link=require("system.navigation.link_output")
+local M={}
+local function spec(row)
+  return {first=row.first.item,second=row.second.item,firstColor=row.first.dyedColor,secondColor=row.second.dyedColor}
+end
+local function key(value) return link.key({link=value}) end
+function M.plan(snapshot,control,endpoints)
+  if not snapshot.ok or not snapshot.complete then return nil,"Discover requiert un inventaire complet et recent" end
+  if not snapshot.burnerDiscoveryAvailable then return nil,"Installer le pont 0.2.0 pour detecter les bruleurs" end
+  if #(snapshot.burners or {})==0 then return nil,"Aucun bruleur detecte sur ce sublevel" end
+  local p={vehicleId=snapshot.vehicleId,burnerIds={},endpoints={},connected=0,baseline=nil}
+  local baseline,uniform,shared,consistent=nil,true,nil,true
+  local occupied={}
+  for _,r in ipairs(snapshot.links) do occupied[key(spec(r))]=true end
+  for _,c in ipairs(control.channels or {}) do local k=c.backend=="frequency" and key(c.link) if k then occupied[k]=true end end
+  for _,burner in ipairs(snapshot.burners) do
+    p.burnerIds[#p.burnerIds+1]=burner.id
+    if burner.hasBalloon then p.connected=p.connected+1 end
+    if baseline==nil then baseline=burner.signal elseif baseline~=burner.signal then uniform=false end
+    local adjacent,selected=0,nil
+    for _,r in ipairs(snapshot.links) do
+      local a,b=burner.position,r.position
+      if r.receiver and math.abs(math.abs(a.x-b.x)+math.abs(a.y-b.y)+math.abs(a.z-b.z)-1)<0.01 then
+        adjacent=adjacent+1 selected=spec(r)
+      end
+    end
+    if adjacent~=1 then consistent=false
+    elseif not shared then shared=selected
+    elseif key(shared)~=key(selected) then consistent=false end
+  end
+  if uniform then p.baseline=baseline end
+  p.burnerCount=#p.burnerIds
+  if consistent and shared then p.frequency=shared p.reused=true end
+  if not p.frequency then
+    for _,color in ipairs({"white","orange","magenta","light_blue","yellow","lime","pink","gray","light_gray","cyan","purple","blue","brown","green","red","black"}) do
+      local item="minecraft:"..color.."_wool"
+      local candidate={first=item,second=item}
+      if not occupied[key(candidate)] then p.frequency=candidate break end
+    end
+  end
+  if not p.frequency then return nil,"Les frequences proposees sont deja utilisees; choisir une paire manuellement" end
+  for _,e in ipairs(endpoints) do if e.backend=="frequency" then p.endpoints[#p.endpoints+1]=e.name end end
+  p.transmitter=#p.endpoints==1 and p.endpoints[1] or ""
+  return p
+end
+function M.create(control,plan,options)
+  if not plan or not plan.frequency or not key(plan.frequency) then return nil,"Frequence manquante" end
+  local known=false
+  for _,name in ipairs(plan.endpoints) do if name==options.transmitter then known=true end end
+  if not known then return nil,"Choisir un CC Create Redstone Link Bridge detecte" end
+  if options.wiringConfirmed~=true then return nil,"Confirmer le cablage des recepteurs" end
+  for _,field in ipairs({"neutral","rescue"}) do
+    local v=options[field]
+    if not addon.finite(v) or v%1~=0 or v<0 or v>15 then return nil,"Signal "..field.." invalide (0..15)" end
+  end
+  if #(control.channels or {})>0 and not options.replaceExisting then return nil,"Remplacement des commandes existantes non confirme" end
+  local out=addon.copy(control)
+  out.mode="altitude" out.channels={{id="balloon-burners",backend="frequency",name=options.transmitter,
+    link=addon.copy(plan.frequency),min=0,max=15,neutral=options.neutral,rescue=options.rescue,
+    mix={altitude=options.inverted and -1 or 1},validated=false,frequency=plan.frequency.first.." + "..plan.frequency.second,
+    actuator={role="buoyancy",position={x=0,y=0,z=0},direction={x=0,y=0,z=0},geometryVerified=false}}}
+  out.vehicle=out.vehicle or {} out.vehicle.type="airship"
+  out.gains=out.gains or {}
+  out.gains.altitude={kp=0,ki=0,kd=0,limit=1,slew=0.5,integralLimit=1,deadband=0}
+  out.manualInputs={}
+  for _,binding in ipairs(control.manualInputs or {}) do if binding.axis=="altitude" then out.manualInputs[#out.manualInputs+1]=addon.copy(binding) end end
+  out.balloonSetup={vehicleId=plan.vehicleId,burnerIds=addon.copy(plan.burnerIds),wiringConfirmed=true}
+  out.hoverValidated,out.rescueValidated,out.manualValidated=false,false,false
+  out.enabled=false
+  return out
+end
+return M
+]=],
   ["system/navigation/combat_adapters.lua"] = [=[
 local M={}
 local stock={"getTracks","getPosition","getRange","getRotation","getRotationSpeed","getDishCount"}
@@ -8649,6 +8798,18 @@ end
 -- Nil is retained for older void-return adapters; errors are handled by caller.
 function M.fireResult(value,requested)
   return value==nil or value==requested
+end
+return M
+]=],
+  ["system/navigation/control_mode.lua"] = [=[
+local M={}
+function M.axes(control)
+  if control and control.mode=="altitude" then return {"altitude"} end
+  return {"pitch","roll","altitude","heading"}
+end
+function M.enabled(control,axis)
+  for _,name in ipairs(M.axes(control)) do if name==axis then return true end end
+  return false
 end
 return M
 ]=],
@@ -8903,6 +9064,31 @@ function M.radar(w,h,snap,radarId,selected,view)
 end
 return M
 ]=],
+  ["system/navigation/link_output.lua"] = [=[
+local addon=require("system.libraries.addon")
+local M={}
+local function item(value)
+  return type(value)=="string" and #value<=128 and value:match("^[a-z0-9_.-]+:[a-z0-9_./-]+$")~=nil
+end
+function M.key(channel)
+  local f=channel.link
+  if type(f)~="table" or not item(f.first) or not item(f.second) then return nil end
+  for _,color in ipairs({"firstColor","secondColor"}) do
+    if f[color]~=nil and (not addon.finite(f[color]) or f[color]%1~=0 or f[color]<0 or f[color]>16777215) then return nil end
+  end
+  return "frequency:"..f.first.."@"..tostring(f.firstColor).."|"..f.second.."@"..tostring(f.secondColor)
+end
+function M.device(row)
+  return row and addon.hasType(row,"redstone_link_bridge") and row.set and row.set.sendLinkSignal
+end
+function M.write(row,channel,value)
+  local f=channel.link
+  local returned,err=addon.call(row.device,"sendLinkSignal",f.first,f.second,value,f.firstColor,f.secondColor)
+  if err then error(err) end
+  return returned~=false,returned==false and "frequency transmitter refused" or nil
+end
+return M
+]=],
   ["system/navigation/pid.lua"] = [=[
 local M = {}
 function M.step(state, gains, error, rate, dt)
@@ -9106,7 +9292,7 @@ return M
 local addon=require("system.libraries.addon")
 local M={}
 M.types={"unknown","monocopter","bicopter","tricopter","quadcopter","hexacopter","octocopter","multirotor","helicopter","airship","fixed-wing","ground","hybrid"}
-M.roles={"unknown","lift","propulsion","stabilization","yaw","strafe","mixed"}
+M.roles={"unknown","lift","buoyancy","propulsion","stabilization","yaw","strafe","mixed"}
 local function contains(values,value)
   for _,item in ipairs(values) do if item==value then return true end end
 end
@@ -9141,6 +9327,7 @@ function M.import(profile,snapshot)
   p.bridgeUnits=addon.copy(snapshot.units) p.bridgeRevision=snapshot.sourceRevision
   p.bridgeInertia=addon.copy(snapshot.inertia)
   p.bridgeMass=snapshot.mass p.bridgeLinks=addon.copy(snapshot.links)
+  p.bridgeBurners=addon.copy(snapshot.burners or {})
   p.bridgeActuators={}
   local lift=0
   for _,row in ipairs(snapshot.actuators) do
@@ -9153,7 +9340,7 @@ function M.import(profile,snapshot)
   end
   p.rotorCount=lift
   if p.type=="unknown" then
-    p.type=({[1]="monocopter",[2]="bicopter",[3]="tricopter",[4]="quadcopter",[6]="hexacopter",[8]="octocopter"})[lift] or "unknown"
+    p.type=#p.bridgeBurners>0 and "airship" or (({[1]="monocopter",[2]="bicopter",[3]="tricopter",[4]="quadcopter",[6]="hexacopter",[8]="octocopter"})[lift] or "unknown")
     p.typeSource="orientation-based suggestion; confirm vehicle forward axes"
   end
   if p.name=="Vehicle" then p.name=snapshot.name end
@@ -11368,6 +11555,9 @@ local permissions = require("system.security.permissions")
 local avionics = require("system.services.avionicsd")
 local sable = require("system.services.sabled")
 local log = require("system.libraries.log")
+local mode = require("system.navigation.control_mode")
+local linkOutput = require("system.navigation.link_output")
+local vehicleBridge = require("system.services.vehiclebridged")
 local M = {}
 local axes = {"pitch","roll","altitude","heading"}
 local sides = {top=true,bottom=true,left=true,right=true,front=true,back=true}
@@ -11396,6 +11586,7 @@ local function migrate()
     c.gains[axis] = c.gains[axis] or {kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}
   end
   c.enabled = false
+  if c.mode==nil then c.mode="full" end
   rankConfig,mixerRank=nil,nil
 end
 
@@ -11429,6 +11620,13 @@ function M.telemetry()
         end
       end
     elseif addon.finite(t.heading) then t.headingSource="Avionics navigation table" end
+    if c.mode=="altitude" and t.measurements then
+      local a,v=t.measurements.altitude,t.measurements.altitudeRate
+      if a and v and a.valid and v.valid and addon.finite(a.observedAt) and addon.finite(v.observedAt)
+        and a.validUntil and v.validUntil and os.clock()<=math.min(a.validUntil,v.validUntil) then
+        t.altitude,t.altitudeRate=a.value,v.value t.timestamp=math.min(a.observedAt,v.observedAt)
+      else t.altitude,t.altitudeRate,t.timestamp=nil,nil,0 end
+    end
     return t
   end
   local snap = avionics.snapshot()
@@ -11444,6 +11642,7 @@ function M.telemetry()
 end
 
 local function endpoint(channel)
+  if channel.backend=="frequency" and type(channel.name)=="string" and channel.name~="" then return linkOutput.key(channel) end
   if channel.backend=="redstone" then return channel.side and sides[channel.side] and ("redstone:"..channel.side) end
   if channel.backend=="avionics" and type(channel.name)=="string" and channel.name~="" then return "avionics:"..channel.name end
   if channel.backend=="relay" and type(channel.name)=="string" and channel.name~="" and sides[channel.side] then
@@ -11471,21 +11670,22 @@ local function channelValid(channel)
     local row=deviceFor(channel)
     if not row or not addon.hasType(row,"redstone_relay") or not row.set.setAnalogOutput then return false,"redstone relay endpoint missing" end
   end
+  if channel.backend=="frequency" and not linkOutput.device(deviceFor(channel)) then return false,"CC Create Redstone Link transmitter missing" end
   return true
 end
 
-local function rank(matrix)
+local function rank(matrix,columns)
   local n, pivot = #matrix,1
-  for col=1,4 do
+  for col=1,columns do
     local selectedRow
     for row=pivot,n do if math.abs(matrix[row][col])>1e-8 then selectedRow=row break end end
     if selectedRow then
       matrix[pivot],matrix[selectedRow]=matrix[selectedRow],matrix[pivot]
       local divisor=matrix[pivot][col]
-      for j=col,4 do matrix[pivot][j]=matrix[pivot][j]/divisor end
+      for j=col,columns do matrix[pivot][j]=matrix[pivot][j]/divisor end
       for row=pivot+1,n do
         local factor=matrix[row][col]
-        for j=col,4 do matrix[row][j]=matrix[row][j]-factor*matrix[pivot][j] end
+        for j=col,columns do matrix[row][j]=matrix[row][j]-factor*matrix[pivot][j] end
       end
       pivot=pivot+1
     end
@@ -11497,7 +11697,10 @@ function M.validate()
   local c, errors, used, matrix = cfg.control,{}, {},{}
   if not c then return false,{"configuration missing"} end
   if type(c.channels)~="table" or type(c.gains)~="table" then return false,{"configuration malformed"} end
-  if #c.channels<4 then errors[#errors+1]="at least four independent mapped outputs required" end
+  local active=mode.axes(c)
+  if c.balloonSetup then local valid,why=vehicleBridge.balloonStatus(c.balloonSetup) if not valid then errors[#errors+1]=why end end
+  if c.mode~=nil and c.mode~="full" and c.mode~="altitude" then errors[#errors+1]="unknown control mode" end
+  if #c.channels<#active then errors[#errors+1]="at least "..#active.." independent mapped outputs required" end
   local ids={}
   for _, channel in ipairs(c.channels) do
     if type(channel)~="table" then return false,{"output malformed"} end
@@ -11510,16 +11713,16 @@ function M.validate()
     if key then used[key]=true end
     if not channel.validated then errors[#errors+1]=(channel.id or "output")..": calibration unconfirmed" end
     local row={}
-    for index,axis in ipairs(axes) do
+    for _,axis in ipairs(axes) do
       local weight=(channel.mix or {})[axis] or 0
       if not addon.finite(weight) or math.abs(weight)>10 then errors[#errors+1]="invalid mixer coefficient" weight=0 end
-      row[index]=weight
     end
+    for index,axis in ipairs(active) do row[index]=addon.finite((channel.mix or {})[axis]) and channel.mix[axis] or 0 end
     matrix[#matrix+1]=row
   end
-  if rankConfig~=c then mixerRank,rankConfig=rank(matrix),c end
-  if mixerRank<4 then errors[#errors+1]="outputs cannot independently correct all four axes" end
-  for _, axis in ipairs(axes) do
+  if rankConfig~=c then mixerRank,rankConfig=rank(matrix,#active),c end
+  if mixerRank<#active then errors[#errors+1]="outputs cannot independently correct enabled axes" end
+  for _, axis in ipairs(active) do
     local g=c.gains[axis] or {}
     for _, key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do
       if not addon.finite(g[key]) or g[key]<0 then errors[#errors+1]=axis..": invalid "..key end
@@ -11531,12 +11734,13 @@ function M.validate()
   if not c.manualValidated then errors[#errors+1]="manual priority bindings not validated" end
   for _,binding in ipairs(c.manualInputs or {}) do
     if type(binding)~="table" or not sides[binding.side] or not c.gains[binding.axis] or not addon.finite(binding.value) or math.abs(binding.value)>1 then errors[#errors+1]="invalid manual input binding"
+    elseif not mode.enabled(c,binding.axis) then errors[#errors+1]="manual input axis disabled: "..binding.axis
     elseif used["redstone:"..binding.side] then errors[#errors+1]="manual input shares output side "..binding.side end
   end
   local t=M.telemetry()
   if not t.inSublevel then errors[#errors+1]="not on a Sable sublevel" end
   if os.clock()-t.timestamp>0.5 then errors[#errors+1]="flight telemetry stale" end
-  for _, axis in ipairs(axes) do
+  for _, axis in ipairs(active) do
     if not addon.finite(t[axis]) then errors[#errors+1]=axis..": sensor unavailable (check Sensors / Devices)" end
     if not addon.finite(t[axis.."Rate"]) then errors[#errors+1]=axis..": rate unavailable (gimbal / altitude sensor)" end
   end
@@ -11557,6 +11761,7 @@ function M.configure(actor, value)
   if state=="armed" or state=="calibration" or rescuePending then return false,"disarm and finish pending outputs before editing" end
   if type(value)~="table" then return false,"invalid control config" end
   if type(value.channels)~="table" or type(value.gains)~="table" or type(value.sensors)~="table" or #value.channels>32 then return false,"invalid mapping" end
+  if value.mode~=nil and value.mode~="full" and value.mode~="altitude" then return false,"invalid control mode" end
   for _,channel in ipairs(value.channels) do
     local valid,why=channelValid(channel)
     if not valid then return false,why end
@@ -11625,7 +11830,7 @@ function M.setSetpoint(actor,axis,value)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
   if owner~=actor.pid or state~="armed" then return false,"not armed by this owner" end
-  if not addon.finite(value) or not cfg.control.gains[axis] then return false,"invalid setpoint" end
+  if not addon.finite(value) or not mode.enabled(cfg.control,axis) then return false,"invalid or disabled setpoint" end
   if (axis=="pitch" or axis=="roll") and math.abs(value)>30 then return false,"attitude setpoint limited to 30 degrees" end
   targets[axis]=axis=="heading" and value%360 or value
   controllers[axis]={}
@@ -11635,7 +11840,7 @@ end
 function M.manual(actor,axis,value)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
-  if state~="armed" or owner~=actor.pid or not cfg.control.gains[axis] or not addon.finite(value) then return false,"manual override unavailable" end
+  if state~="armed" or owner~=actor.pid or not mode.enabled(cfg.control,axis) or not addon.finite(value) then return false,"manual override unavailable" end
   manual[axis]={value=math.max(-1,math.min(1,value)),expires=os.clock()+0.3}
   return true
 end
@@ -11661,6 +11866,7 @@ local function writeOutputs(values, force, results)
             if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value) return true end
             local row=deviceFor(channel)
             if not row then return false,"actuator detached: "..tostring(channel.name) end
+            if channel.backend=="frequency" then return linkOutput.write(row,channel,value) end
             if channel.backend=="relay" then
               local accepted,problem=addon.call(row.device,"setAnalogOutput",channel.side,value)
               if problem then error(problem) end
@@ -11690,7 +11896,8 @@ end
 function M.endpoints()
   local rows={}
   for _,row in ipairs(inventory) do
-    if addon.hasType(row,"redstone_relay") and row.set.setAnalogOutput then
+    if linkOutput.device(row) then rows[#rows+1]={name=row.name,backend="frequency"}
+    elseif addon.hasType(row,"redstone_relay") and row.set.setAnalogOutput then
       rows[#rows+1]={name=row.name,backend="relay",sides={"top","bottom","left","right","front","back"}}
     elseif row.set.setSignal and (addon.hasType(row,"analog_transmission") or addon.hasType(row,"throttle_lever")) then
       rows[#rows+1]={name=row.name,backend="avionics"}
@@ -11759,7 +11966,9 @@ function M.step(rescan)
     if not process or process.state~="ready" then M.fail("Navigation owner stopped")
     elseif not t.inSublevel or now-t.timestamp>0.5 then M.fail("sublevel/telemetry lost")
     else
-      for _,axis in ipairs(axes) do if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then M.fail(axis.." sensor invalid") break end end
+      for _,axis in ipairs(mode.axes(cfg.control)) do if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then M.fail(axis.." sensor invalid") break end end
+      for _,channel in ipairs(cfg.control.channels) do local valid,why=channelValid(channel) if not valid then M.fail(why) break end end
+      if cfg.control.balloonSetup then local valid,why=vehicleBridge.balloonStatus(cfg.control.balloonSetup) if not valid then M.fail(why) end end
     end
   end
   if rescuePending then
@@ -11793,7 +12002,7 @@ function M.step(rescan)
   local dt=lastTick and now-lastTick or 0.1
   lastTick=now
   local output={}
-  for _,axis in ipairs(axes) do
+  for _,axis in ipairs(mode.axes(cfg.control)) do
     local override=manual[axis]
     for _,binding in ipairs(cfg.control.manualInputs or {}) do
       if binding.axis==axis and sides[binding.side] and redstone.getInput(binding.side) then override={value=math.max(-1,math.min(1,tonumber(binding.value) or 0)),expires=now+0.2} manual[axis]=override end
@@ -11813,7 +12022,7 @@ function M.step(rescan)
   local values={}
   for _,channel in ipairs(cfg.control.channels) do
     local value=channel.neutral
-    for _,axis in ipairs(axes) do value=value+(channel.mix[axis] or 0)*output[axis] end
+    for _,axis in ipairs(mode.axes(cfg.control)) do value=value+(channel.mix[axis] or 0)*output[axis] end
     values[channel.id]=math.floor(math.max(channel.min,math.min(channel.max,value))+0.5)
   end
   local ok,err=writeOutputs(values)
@@ -11823,6 +12032,7 @@ end
 function M.status()
   local valid,errors=M.validate()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
+    mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
     calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test)},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
 end
@@ -13637,7 +13847,8 @@ function M.normalize(raw)
   if type(raw.actuators)~="table" or #raw.actuators>256 or type(raw.links)~="table" or #raw.links>256 then return nil,"bridge inventory limit exceeded" end
   local out={available=true,ok=true,vehicleId=raw.vehicleId,name=tostring(raw.name or "Vehicle"):sub(1,128),
     frame=raw.frame,units=addon.copy(raw.units),sourceRevision=raw.revision,ageTicks=raw.ageTicks,
-    complete=raw.complete==true,actuators={},links={},centerOfMass=boundedVector(raw.centerOfMass),mass=raw.mass,
+    complete=raw.complete==true,actuators={},links={},burners={},burnerDiscoveryAvailable=type(raw.features)=="table" and raw.features.burners==true,
+    centerOfMass=boundedVector(raw.centerOfMass),mass=raw.mass,
     controlBindingsKnown=false}
   local seen={}
   if type(raw.inertia)=="table" and #raw.inertia==3 then
@@ -13678,6 +13889,18 @@ function M.normalize(raw)
     out.links[#out.links+1]={id=row.id,position=position,receiver=row.receiver==true,first=first,second=second,
       signal=addon.finite(row.signal) and row.signal or nil,actuatorBindingKnown=false}
   end
+  if out.burnerDiscoveryAvailable then
+    if type(raw.burners)~="table" or #raw.burners>256 then return nil,"invalid burner inventory" end
+    for _,row in ipairs(raw.burners) do
+      if type(row)~="table" or type(row.id)~="string" or #row.id>192 or seen[row.id] then return nil,"invalid burner identity" end
+      local position=boundedVector(row.position)
+      if not position or not addon.finite(row.signal) or row.signal%1~=0 or row.signal<0 or row.signal>15 or not addon.finite(row.gasOutput) then return nil,"invalid burner measurement" end
+      seen[row.id]=true
+      out.burners[#out.burners+1]={id=row.id,position=position,signal=row.signal,gasOutput=row.gasOutput,
+        hasBalloon=row.hasBalloon==true,balloonId=type(row.balloonId)=="string" and row.balloonId:sub(1,192) or nil,
+        capacity=addon.finite(row.capacity) and row.capacity or nil,lift=addon.finite(row.lift) and row.lift or nil}
+    end
+  end
   if not out.centerOfMass then out.complete=false end
   return out
 end
@@ -13712,6 +13935,15 @@ function M.status()
     actuatorCount=#(s.actuators or {}),linkCount=#(s.links or {}),complete=s.complete}
 end
 function M.health() return M.status() end
+function M.balloonStatus(setup)
+  if not cached.ok or not cached.validUntil or os.clock()>cached.validUntil or not cached.complete then return false,"Balloon discovery stale/incomplete" end
+  if not cached.burnerDiscoveryAvailable or cached.vehicleId~=setup.vehicleId then return false,"Balloon vehicle changed" end
+  local found={}
+  for _,burner in ipairs(cached.burners) do found[burner.id]=burner.hasBalloon end
+  if type(setup.burnerIds)~="table" or #setup.burnerIds==0 then return false,"Balloon burner group missing" end
+  for _,id in ipairs(setup.burnerIds) do if not found[id] then return false,"Balloon/burner disconnected" end end
+  return true
+end
 function M.rescan() if runner then runner:rescan() end end
 function M.start(ctx)
   M.stop()
@@ -14353,7 +14585,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.14
+0.18.15
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

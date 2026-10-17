@@ -17,7 +17,8 @@ function M.normalize(raw)
   if type(raw.actuators)~="table" or #raw.actuators>256 or type(raw.links)~="table" or #raw.links>256 then return nil,"bridge inventory limit exceeded" end
   local out={available=true,ok=true,vehicleId=raw.vehicleId,name=tostring(raw.name or "Vehicle"):sub(1,128),
     frame=raw.frame,units=addon.copy(raw.units),sourceRevision=raw.revision,ageTicks=raw.ageTicks,
-    complete=raw.complete==true,actuators={},links={},centerOfMass=boundedVector(raw.centerOfMass),mass=raw.mass,
+    complete=raw.complete==true,actuators={},links={},burners={},burnerDiscoveryAvailable=type(raw.features)=="table" and raw.features.burners==true,
+    centerOfMass=boundedVector(raw.centerOfMass),mass=raw.mass,
     controlBindingsKnown=false}
   local seen={}
   if type(raw.inertia)=="table" and #raw.inertia==3 then
@@ -58,6 +59,18 @@ function M.normalize(raw)
     out.links[#out.links+1]={id=row.id,position=position,receiver=row.receiver==true,first=first,second=second,
       signal=addon.finite(row.signal) and row.signal or nil,actuatorBindingKnown=false}
   end
+  if out.burnerDiscoveryAvailable then
+    if type(raw.burners)~="table" or #raw.burners>256 then return nil,"invalid burner inventory" end
+    for _,row in ipairs(raw.burners) do
+      if type(row)~="table" or type(row.id)~="string" or #row.id>192 or seen[row.id] then return nil,"invalid burner identity" end
+      local position=boundedVector(row.position)
+      if not position or not addon.finite(row.signal) or row.signal%1~=0 or row.signal<0 or row.signal>15 or not addon.finite(row.gasOutput) then return nil,"invalid burner measurement" end
+      seen[row.id]=true
+      out.burners[#out.burners+1]={id=row.id,position=position,signal=row.signal,gasOutput=row.gasOutput,
+        hasBalloon=row.hasBalloon==true,balloonId=type(row.balloonId)=="string" and row.balloonId:sub(1,192) or nil,
+        capacity=addon.finite(row.capacity) and row.capacity or nil,lift=addon.finite(row.lift) and row.lift or nil}
+    end
+  end
   if not out.centerOfMass then out.complete=false end
   return out
 end
@@ -92,6 +105,15 @@ function M.status()
     actuatorCount=#(s.actuators or {}),linkCount=#(s.links or {}),complete=s.complete}
 end
 function M.health() return M.status() end
+function M.balloonStatus(setup)
+  if not cached.ok or not cached.validUntil or os.clock()>cached.validUntil or not cached.complete then return false,"Balloon discovery stale/incomplete" end
+  if not cached.burnerDiscoveryAvailable or cached.vehicleId~=setup.vehicleId then return false,"Balloon vehicle changed" end
+  local found={}
+  for _,burner in ipairs(cached.burners) do found[burner.id]=burner.hasBalloon end
+  if type(setup.burnerIds)~="table" or #setup.burnerIds==0 then return false,"Balloon burner group missing" end
+  for _,id in ipairs(setup.burnerIds) do if not found[id] then return false,"Balloon/burner disconnected" end end
+  return true
+end
 function M.rescan() if runner then runner:rescan() end end
 function M.start(ctx)
   M.stop()

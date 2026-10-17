@@ -8,6 +8,8 @@ local attitude=require("system.navigation.attitude")
 local vehicle=require("system.navigation.vehicle")
 local vehicleDiagram=require("system.navigation.vehicle_diagram")
 local vehicleBridge=require("system.services.vehiclebridged")
+local balloonSetup=require("system.navigation.balloon_setup")
+local controlMode=require("system.navigation.control_mode")
 local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
@@ -26,7 +28,7 @@ function M.run(ctx)
   local original=config.load("/system/config/navigation.cfg",{})
   local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
   if draft.vehicle.type=="unknown" then app.page="vehicle" end
-  local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="setup",label="Setup guide"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
@@ -34,6 +36,14 @@ function M.run(ctx)
   end
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
+  local function guide()
+    local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints())
+    app.page="setup" app.setup=plan app.setupStep=1 app.scroll=1
+    if not plan then app.message=err return end
+    app.setupOptions={transmitter=plan.transmitter,neutral=plan.baseline or 0,rescue=0,
+      inverted=false,wiringConfirmed=false,replaceExisting=false}
+    app.message="Detection passive; aucun signal emis"
+  end
   local function fields()
     local rows={}
     local function field(object,key,label,kind,options)
@@ -44,6 +54,7 @@ function M.run(ctx)
     if app.page=="vehicle" then
       field(draft.vehicle,"name","Vehicle name","string")
       field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
+      field(draft,"mode","Control mode",nil,{"full","altitude"})
       field(draft.vehicle,"rotorCount","Lift rotor count (0 = unknown)","number")
       field(draft.vehicle,"massKg","Mass (kg)","number")
       for _,axis in ipairs({"x","y","z"}) do field(draft.vehicle.com,axis,"COM body "..axis.." (blocks)","number") end
@@ -52,14 +63,18 @@ function M.run(ctx)
       local channel=draft.channels[app.index]
       if not channel then return rows end
       field(channel,"id","Output ID","string")
-      field(channel,"backend","Backend",nil,{"redstone","avionics","relay"})
+      field(channel,"backend","Backend",nil,{"redstone","avionics","relay","frequency"})
       if channel.backend=="redstone" then field(channel,"side","PC side",nil,sides)
       else
         local names={}
         for _,row in ipairs(flight.endpoints()) do if row.backend==channel.backend then names[#names+1]=row.name end end
-        local label=channel.backend=="relay" and "Redstone relay" or "Avionics endpoint"
+        local label=channel.backend=="frequency" and "Frequency transmitter" or (channel.backend=="relay" and "Redstone relay" or "Avionics endpoint")
         if #names>0 then field(channel,"name",label,nil,names) else field(channel,"name",label,"string") end
         if channel.backend=="relay" then field(channel,"side","Relay side",nil,sides) end
+      end
+      if channel.backend=="frequency" then
+        channel.link=channel.link or {first="",second=""}
+        field(channel.link,"first","Frequency item 1","string") field(channel.link,"second","Frequency item 2","string")
       end
       for _,key in ipairs({"min","max","neutral","rescue"}) do field(channel,key,key,"number") end
       channel.mix=channel.mix or {}
@@ -84,7 +99,8 @@ function M.run(ctx)
       for _,axis in ipairs({"x","y","z"}) do field(channel.actuator.direction,axis,"Thrust direction "..axis,"number") end
       field(channel.actuator,"geometryVerified","Geometry physically verified","boolean")
     elseif app.page=="gains" then
-      local axis=axes[app.axis]
+      local available=controlMode.axes(draft)
+      local axis=available[app.axis] or available[1]
       for _,key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do field(draft.gains[axis],key,axis.." "..key,"number") end
     elseif app.page=="sensors" then
       for _,role in ipairs({"gimbal","altitude","nav"}) do
@@ -95,10 +111,18 @@ function M.run(ctx)
     elseif app.page=="manual" then
       local binding=draft.manualInputs[app.index]
       if binding then
-        field(binding,"axis","Axis",nil,axes)
+        field(binding,"axis","Axis",nil,controlMode.axes(draft))
         field(binding,"side","Digital input side",nil,sides)
         field(binding,"value","Override -1..1","number")
       end
+    elseif app.page=="setup" and app.setup and app.setupStep==3 then
+      local options=app.setupOptions
+      if #app.setup.endpoints>0 then field(options,"transmitter","Frequency transmitter",nil,app.setup.endpoints) end
+      field(options,"neutral","Hover baseline signal (verify)","number")
+      field(options,"rescue","Rescue signal (0 cuts gas)","number")
+      field(options,"inverted","Wiring inverts burner signal","boolean")
+      field(options,"wiringConfirmed","Receivers/wiring physically checked","boolean")
+      if #draft.channels>0 then field(options,"replaceExisting","Replace existing control mapping","boolean") end
     end
     return rows
   end
@@ -110,12 +134,19 @@ function M.run(ctx)
   end
   local function actions()
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
-    elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="guide",label="Guide"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="setup" then
+      if not app.setup then return {{id="guide",label="Detect"},{id="devices",label="Devices"}} end
+      if app.setupStep==5 then return {{id="calibrationPage",label="Calibration"},{id="pidPage",label="PID"},{id="controlPage",label="Control"}} end
+      return {{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="devices",label="Devices"}}
     elseif app.page=="context" then return {{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
     elseif app.page=="diagram" then return {{id="analysis",label="Analysis"},{id="top",label="Top"},{id="side",label="Side"},{id="outputs",label="Actuators"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
-    elseif app.page=="control" then return {{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"},{id="yawLeft",label="Yaw-"},{id="yawRight",label="Yaw+"}}
+    elseif app.page=="control" then
+      local out={{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"}}
+      if draft.mode~="altitude" then out[#out+1]={id="yawLeft",label="Yaw-"} out[#out+1]={id="yawRight",label="Yaw+"} end
+      return out
     elseif app.page=="calibration" then return {{id="previous",label="Prev"},{id="next",label="Next"},{id="test",label="Test"},{id="channel",label="Verify direction"},{id="hover",label="Hover OK"},{id="manual",label="Manual OK"},{id="rescue",label="Test rescue"},{id="rescueConfirm",label="Rescue OK"},{id="disarm",label="Acknowledge"}}
     else return {{id="rescan",label="Rescan"},{id="devices",label="Devices"},{id="logs",label="Logs"}} end
   end
@@ -126,11 +157,35 @@ function M.run(ctx)
     menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
     local commands=actions()
     for _,command in ipairs(commands) do
-      command.primary=command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
+      command.primary=self.page=="setup" or command.id=="guide" or command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
       command.danger=command.id=="arm"
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
-    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
+    if self.page=="setup" then
+      renderer.writeAt(1,3,renderer.crop("Ballon : etape "..tostring(self.setupStep or 1).."/5",w),colors.cyan)
+      if self.setup and self.setupStep==3 then self.form:draw(w,h,fields())
+      else
+        local p=self.setup
+        local paragraphs=not p and {self.message,"La detection des bruleurs exige le pont Vehicle Bridge 0.2.0."} or {
+          [1]={"Nous avons detecte "..p.burnerCount.." bruleur(s).","Un seul canal collectif commandera leur chauffe. Maintien d'altitude uniquement : pas de stabilisation du roulis, tangage ou cap.","Aucun signal n'est emis par cet assistant."},
+          [2]={"Frequence collective :",tostring(p.frequency.first),tostring(p.frequency.second),"Configurer cette paire sur chaque recepteur Create relie aux bruleurs. Relier un Redstone Link Bridge au PC.","La paire est proposee selon les liens visibles sur ce vehicule, pas reservee globalement. Verifier les machines voisines et le cablage."},
+          [4]={"Verifier la frequence et le transmetteur avant Apply + Save.","Transmetteur : "..tostring(self.setupOptions.transmitter),"Stationnaire : "..tostring(self.setupOptions.neutral).." / secours : "..tostring(self.setupOptions.rescue),"Cette operation remplace le mapping seulement avec votre accord. Elle enregistre la configuration sans emettre de signal.","Les gains PID restent nuls : armement bloque avant calibration."},
+          [5]={"Configuration enregistree, controle desarme.","Calibration : tester le sens, verifier le signal stationnaire et le secours physiquement. Puis regler les gains d'altitude dans PID.","Au bruleur, 0 coupe l'apport et 15 chauffe au maximum. Un cablage externe peut inverser ce sens.","Couper la chauffe ne vide pas instantanement le ballon. Le delai thermique interdit de supposer que 0 garantit une descente sure."}
+        }
+        if p then paragraphs=paragraphs[self.setupStep] or {} end
+        local rows={}
+        for _,paragraph in ipairs(paragraphs) do
+          local line=""
+          for word in tostring(paragraph):gmatch("%S+") do
+            if #line+#word+1>w and #line>0 then rows[#rows+1]=line line="" end
+            while #word>w do rows[#rows+1]=word:sub(1,w) word=word:sub(w+1) end
+            line=line=="" and word or line.." "..word
+          end
+          rows[#rows+1]=line rows[#rows+1]=""
+        end
+        lines(w,h,rows)
+      end
+    elseif self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
     elseif self.page=="diagram" then
@@ -173,7 +228,7 @@ function M.run(ctx)
       local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Source: "..tostring(t.headingSource or "missing heading sensor"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
       for i=1,math.min(#rows,h-y) do renderer.writeAt(x,y+i-1,renderer.crop(rows[i],w-x+1)) end
     elseif self.page=="control" then
-      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),"Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Heading: "..fmt(self.flight.targets and self.flight.targets.heading,"deg"),"Readiness:"}
+      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),draft.mode=="altitude" and "Altitude only; no attitude/heading hold" or "Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Readiness:"}
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
       for name,value in pairs(self.flight.outputs or {}) do rows[#rows+1]=name.." signal="..value end
       lines(w,h,rows)
@@ -225,17 +280,17 @@ function M.run(ctx)
     local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
     if handled then
       if section=="pages" then
-        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil end
+        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil if command=="setup" then guide() end end
         return true
       end
       if not command then return true end
     end
-    if event.name=="mouse_scroll" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_scroll" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
     if event.name=="mouse_click" or command then
       local _,x,y=table.unpack(event.args)
       local id=command
       if id=="previous" or id=="next" then
-        if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%4+1
+        if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%#controlMode.axes(draft)+1
         else self.index=math.max(1,math.min(self.page=="manual" and #draft.manualInputs or #draft.channels,self.index+(id=="next" and 1 or -1))) end
         self.testValue=nil self.form.scroll=1 return true
       elseif id=="add" then
@@ -245,6 +300,24 @@ function M.run(ctx)
         self.index=#draft.channels return true
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
       elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
+      elseif id=="guide" then guide() return true
+      elseif id=="guideBack" then self.setupStep=math.max(1,self.setupStep-1) self.form.scroll=1 self.scroll=1 return true
+      elseif id=="guideNext" then
+        if self.setupStep==3 then local candidate,err=balloonSetup.create(draft,self.setup,self.setupOptions) if not candidate then report(false,err) return true end end
+        self.setupStep=math.min(4,self.setupStep+1) self.form.scroll=1 self.scroll=1 return true
+      elseif id=="guideApply" then
+        confirm("Save collective burner mapping? No signal emitted.",function()
+          local latest=vehicleBridge.snapshot()
+          if not latest.ok or latest.vehicleId~=self.setup.vehicleId then report(false,"Vehicle changed or unavailable; Detect again") return end
+          local present={} for _,burner in ipairs(latest.burners or {}) do present[burner.id]=true end
+          for _,burnerId in ipairs(self.setup.burnerIds) do if not present[burnerId] then report(false,"Burner missing; Detect again") return end end
+          local candidate,err=balloonSetup.create(draft,self.setup,self.setupOptions)
+          if not candidate then report(false,err) return end
+          local ok,message=flight.configure(actor,candidate) report(ok,message)
+          if ok then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false self.setupStep=5 self.scroll=1 end
+        end) return true
+      elseif id=="calibrationPage" or id=="pidPage" or id=="controlPage" then
+        self.page=id=="pidPage" and "gains" or (id=="controlPage" and "control" or "calibration") self.axis=1 self.index=1 self.form.scroll=1 self.scroll=1 return true
       elseif id=="discover" then
         local snapshot=vehicleBridge.snapshot()
         local imported,err=vehicle.import(draft.vehicle,snapshot)
@@ -259,6 +332,7 @@ function M.run(ctx)
             if not current then report(false,problem) return end
             draft.vehicle=current self.dirty=true self.page="context"
             self.message="Geometry imported into draft; confirm type/axes, then Save"
+            if #(current.bridgeBurners or {})>0 then guide() end
           end)
         end return true
       elseif id=="mass" then
@@ -273,7 +347,7 @@ function M.run(ctx)
       elseif id=="outputs" then self.page="mapping" return true
       elseif id=="rescan" then avionics.rescan() sable.rescan() vehicleBridge.rescan() return true
       elseif id=="devices" or id=="logs" then ctx.apps.launch(id) return true
-      elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm("Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
+      elseif id=="arm" then if self.dirty then self.message="Save changes first" return true end confirm(draft.mode=="altitude" and "Arm current altitude hold only?" or "Arm horizontal attitude + current altitude/heading?",function() report(flight.arm(actor)) end) return true
       elseif id=="disarm" then report(flight.disarm(actor)) refresh() return true
       elseif id=="altDown" or id=="altUp" then report(flight.manual(actor,"altitude",id=="altUp" and 1 or -1)) return true
       elseif id=="yawLeft" or id=="yawRight" then report(flight.manual(actor,"heading",id=="yawRight" and 1 or -1)) return true
@@ -315,7 +389,7 @@ function M.run(ctx)
         self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
-    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then return self.form:handle(event) end
+    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
   refresh()

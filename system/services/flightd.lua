@@ -7,6 +7,9 @@ local permissions = require("system.security.permissions")
 local avionics = require("system.services.avionicsd")
 local sable = require("system.services.sabled")
 local log = require("system.libraries.log")
+local mode = require("system.navigation.control_mode")
+local linkOutput = require("system.navigation.link_output")
+local vehicleBridge = require("system.services.vehiclebridged")
 local M = {}
 local axes = {"pitch","roll","altitude","heading"}
 local sides = {top=true,bottom=true,left=true,right=true,front=true,back=true}
@@ -35,6 +38,7 @@ local function migrate()
     c.gains[axis] = c.gains[axis] or {kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}
   end
   c.enabled = false
+  if c.mode==nil then c.mode="full" end
   rankConfig,mixerRank=nil,nil
 end
 
@@ -68,6 +72,13 @@ function M.telemetry()
         end
       end
     elseif addon.finite(t.heading) then t.headingSource="Avionics navigation table" end
+    if c.mode=="altitude" and t.measurements then
+      local a,v=t.measurements.altitude,t.measurements.altitudeRate
+      if a and v and a.valid and v.valid and addon.finite(a.observedAt) and addon.finite(v.observedAt)
+        and a.validUntil and v.validUntil and os.clock()<=math.min(a.validUntil,v.validUntil) then
+        t.altitude,t.altitudeRate=a.value,v.value t.timestamp=math.min(a.observedAt,v.observedAt)
+      else t.altitude,t.altitudeRate,t.timestamp=nil,nil,0 end
+    end
     return t
   end
   local snap = avionics.snapshot()
@@ -83,6 +94,7 @@ function M.telemetry()
 end
 
 local function endpoint(channel)
+  if channel.backend=="frequency" and type(channel.name)=="string" and channel.name~="" then return linkOutput.key(channel) end
   if channel.backend=="redstone" then return channel.side and sides[channel.side] and ("redstone:"..channel.side) end
   if channel.backend=="avionics" and type(channel.name)=="string" and channel.name~="" then return "avionics:"..channel.name end
   if channel.backend=="relay" and type(channel.name)=="string" and channel.name~="" and sides[channel.side] then
@@ -110,21 +122,22 @@ local function channelValid(channel)
     local row=deviceFor(channel)
     if not row or not addon.hasType(row,"redstone_relay") or not row.set.setAnalogOutput then return false,"redstone relay endpoint missing" end
   end
+  if channel.backend=="frequency" and not linkOutput.device(deviceFor(channel)) then return false,"CC Create Redstone Link transmitter missing" end
   return true
 end
 
-local function rank(matrix)
+local function rank(matrix,columns)
   local n, pivot = #matrix,1
-  for col=1,4 do
+  for col=1,columns do
     local selectedRow
     for row=pivot,n do if math.abs(matrix[row][col])>1e-8 then selectedRow=row break end end
     if selectedRow then
       matrix[pivot],matrix[selectedRow]=matrix[selectedRow],matrix[pivot]
       local divisor=matrix[pivot][col]
-      for j=col,4 do matrix[pivot][j]=matrix[pivot][j]/divisor end
+      for j=col,columns do matrix[pivot][j]=matrix[pivot][j]/divisor end
       for row=pivot+1,n do
         local factor=matrix[row][col]
-        for j=col,4 do matrix[row][j]=matrix[row][j]-factor*matrix[pivot][j] end
+        for j=col,columns do matrix[row][j]=matrix[row][j]-factor*matrix[pivot][j] end
       end
       pivot=pivot+1
     end
@@ -136,7 +149,10 @@ function M.validate()
   local c, errors, used, matrix = cfg.control,{}, {},{}
   if not c then return false,{"configuration missing"} end
   if type(c.channels)~="table" or type(c.gains)~="table" then return false,{"configuration malformed"} end
-  if #c.channels<4 then errors[#errors+1]="at least four independent mapped outputs required" end
+  local active=mode.axes(c)
+  if c.balloonSetup then local valid,why=vehicleBridge.balloonStatus(c.balloonSetup) if not valid then errors[#errors+1]=why end end
+  if c.mode~=nil and c.mode~="full" and c.mode~="altitude" then errors[#errors+1]="unknown control mode" end
+  if #c.channels<#active then errors[#errors+1]="at least "..#active.." independent mapped outputs required" end
   local ids={}
   for _, channel in ipairs(c.channels) do
     if type(channel)~="table" then return false,{"output malformed"} end
@@ -149,16 +165,16 @@ function M.validate()
     if key then used[key]=true end
     if not channel.validated then errors[#errors+1]=(channel.id or "output")..": calibration unconfirmed" end
     local row={}
-    for index,axis in ipairs(axes) do
+    for _,axis in ipairs(axes) do
       local weight=(channel.mix or {})[axis] or 0
       if not addon.finite(weight) or math.abs(weight)>10 then errors[#errors+1]="invalid mixer coefficient" weight=0 end
-      row[index]=weight
     end
+    for index,axis in ipairs(active) do row[index]=addon.finite((channel.mix or {})[axis]) and channel.mix[axis] or 0 end
     matrix[#matrix+1]=row
   end
-  if rankConfig~=c then mixerRank,rankConfig=rank(matrix),c end
-  if mixerRank<4 then errors[#errors+1]="outputs cannot independently correct all four axes" end
-  for _, axis in ipairs(axes) do
+  if rankConfig~=c then mixerRank,rankConfig=rank(matrix,#active),c end
+  if mixerRank<#active then errors[#errors+1]="outputs cannot independently correct enabled axes" end
+  for _, axis in ipairs(active) do
     local g=c.gains[axis] or {}
     for _, key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do
       if not addon.finite(g[key]) or g[key]<0 then errors[#errors+1]=axis..": invalid "..key end
@@ -170,12 +186,13 @@ function M.validate()
   if not c.manualValidated then errors[#errors+1]="manual priority bindings not validated" end
   for _,binding in ipairs(c.manualInputs or {}) do
     if type(binding)~="table" or not sides[binding.side] or not c.gains[binding.axis] or not addon.finite(binding.value) or math.abs(binding.value)>1 then errors[#errors+1]="invalid manual input binding"
+    elseif not mode.enabled(c,binding.axis) then errors[#errors+1]="manual input axis disabled: "..binding.axis
     elseif used["redstone:"..binding.side] then errors[#errors+1]="manual input shares output side "..binding.side end
   end
   local t=M.telemetry()
   if not t.inSublevel then errors[#errors+1]="not on a Sable sublevel" end
   if os.clock()-t.timestamp>0.5 then errors[#errors+1]="flight telemetry stale" end
-  for _, axis in ipairs(axes) do
+  for _, axis in ipairs(active) do
     if not addon.finite(t[axis]) then errors[#errors+1]=axis..": sensor unavailable (check Sensors / Devices)" end
     if not addon.finite(t[axis.."Rate"]) then errors[#errors+1]=axis..": rate unavailable (gimbal / altitude sensor)" end
   end
@@ -196,6 +213,7 @@ function M.configure(actor, value)
   if state=="armed" or state=="calibration" or rescuePending then return false,"disarm and finish pending outputs before editing" end
   if type(value)~="table" then return false,"invalid control config" end
   if type(value.channels)~="table" or type(value.gains)~="table" or type(value.sensors)~="table" or #value.channels>32 then return false,"invalid mapping" end
+  if value.mode~=nil and value.mode~="full" and value.mode~="altitude" then return false,"invalid control mode" end
   for _,channel in ipairs(value.channels) do
     local valid,why=channelValid(channel)
     if not valid then return false,why end
@@ -264,7 +282,7 @@ function M.setSetpoint(actor,axis,value)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
   if owner~=actor.pid or state~="armed" then return false,"not armed by this owner" end
-  if not addon.finite(value) or not cfg.control.gains[axis] then return false,"invalid setpoint" end
+  if not addon.finite(value) or not mode.enabled(cfg.control,axis) then return false,"invalid or disabled setpoint" end
   if (axis=="pitch" or axis=="roll") and math.abs(value)>30 then return false,"attitude setpoint limited to 30 degrees" end
   targets[axis]=axis=="heading" and value%360 or value
   controllers[axis]={}
@@ -274,7 +292,7 @@ end
 function M.manual(actor,axis,value)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
-  if state~="armed" or owner~=actor.pid or not cfg.control.gains[axis] or not addon.finite(value) then return false,"manual override unavailable" end
+  if state~="armed" or owner~=actor.pid or not mode.enabled(cfg.control,axis) or not addon.finite(value) then return false,"manual override unavailable" end
   manual[axis]={value=math.max(-1,math.min(1,value)),expires=os.clock()+0.3}
   return true
 end
@@ -300,6 +318,7 @@ local function writeOutputs(values, force, results)
             if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value) return true end
             local row=deviceFor(channel)
             if not row then return false,"actuator detached: "..tostring(channel.name) end
+            if channel.backend=="frequency" then return linkOutput.write(row,channel,value) end
             if channel.backend=="relay" then
               local accepted,problem=addon.call(row.device,"setAnalogOutput",channel.side,value)
               if problem then error(problem) end
@@ -329,7 +348,8 @@ end
 function M.endpoints()
   local rows={}
   for _,row in ipairs(inventory) do
-    if addon.hasType(row,"redstone_relay") and row.set.setAnalogOutput then
+    if linkOutput.device(row) then rows[#rows+1]={name=row.name,backend="frequency"}
+    elseif addon.hasType(row,"redstone_relay") and row.set.setAnalogOutput then
       rows[#rows+1]={name=row.name,backend="relay",sides={"top","bottom","left","right","front","back"}}
     elseif row.set.setSignal and (addon.hasType(row,"analog_transmission") or addon.hasType(row,"throttle_lever")) then
       rows[#rows+1]={name=row.name,backend="avionics"}
@@ -398,7 +418,9 @@ function M.step(rescan)
     if not process or process.state~="ready" then M.fail("Navigation owner stopped")
     elseif not t.inSublevel or now-t.timestamp>0.5 then M.fail("sublevel/telemetry lost")
     else
-      for _,axis in ipairs(axes) do if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then M.fail(axis.." sensor invalid") break end end
+      for _,axis in ipairs(mode.axes(cfg.control)) do if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then M.fail(axis.." sensor invalid") break end end
+      for _,channel in ipairs(cfg.control.channels) do local valid,why=channelValid(channel) if not valid then M.fail(why) break end end
+      if cfg.control.balloonSetup then local valid,why=vehicleBridge.balloonStatus(cfg.control.balloonSetup) if not valid then M.fail(why) end end
     end
   end
   if rescuePending then
@@ -432,7 +454,7 @@ function M.step(rescan)
   local dt=lastTick and now-lastTick or 0.1
   lastTick=now
   local output={}
-  for _,axis in ipairs(axes) do
+  for _,axis in ipairs(mode.axes(cfg.control)) do
     local override=manual[axis]
     for _,binding in ipairs(cfg.control.manualInputs or {}) do
       if binding.axis==axis and sides[binding.side] and redstone.getInput(binding.side) then override={value=math.max(-1,math.min(1,tonumber(binding.value) or 0)),expires=now+0.2} manual[axis]=override end
@@ -452,7 +474,7 @@ function M.step(rescan)
   local values={}
   for _,channel in ipairs(cfg.control.channels) do
     local value=channel.neutral
-    for _,axis in ipairs(axes) do value=value+(channel.mix[axis] or 0)*output[axis] end
+    for _,axis in ipairs(mode.axes(cfg.control)) do value=value+(channel.mix[axis] or 0)*output[axis] end
     values[channel.id]=math.floor(math.max(channel.min,math.min(channel.max,value))+0.5)
   end
   local ok,err=writeOutputs(values)
@@ -462,6 +484,7 @@ end
 function M.status()
   local valid,errors=M.validate()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
+    mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
     calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test)},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
 end

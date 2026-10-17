@@ -9,6 +9,8 @@ import dan200.computercraft.api.lua.LuaFunction;
 import dev.eriksonn.aeronautics.content.blocks.propeller.bearing.gyroscopic_propeller_bearing.GyroscopicPropellerBearingBlockEntity;
 import dev.eriksonn.aeronautics.content.blocks.propeller.bearing.propeller_bearing.PropellerBearingBlockEntity;
 import dev.eriksonn.aeronautics.content.blocks.propeller.small.BasePropellerBlockEntity;
+import dev.eriksonn.aeronautics.content.blocks.hot_air.hot_air_burner.HotAirBurnerBlockEntity;
+import dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.ServerBalloon;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.block.propeller.BlockEntityPropeller;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
@@ -39,7 +41,7 @@ public final class VehicleApi implements ILuaAPI {
     @Override public String[] getNames() { return new String[]{"mintcraft_vehicle"}; }
 
     @LuaFunction public final Map<String, Object> status() {
-        return Map.of("schema", 1, "version", "0.1.0", "readOnly", true,
+        return Map.of("schema", 1, "version", "0.2.0", "readOnly", true,
             "scope", "containing sublevel; loaded block entities only", "controlWrites", false);
     }
 
@@ -95,9 +97,11 @@ public final class VehicleApi implements ILuaAPI {
         var result = new LinkedHashMap<String, Object>();
         var errors = new ArrayList<String>();
         var actuators = new ArrayList<Map<String, Object>>();
+        var burners = new ArrayList<Map<String, Object>>();
         var links = new ArrayList<Map<String, Object>>();
         BlockPos origin = ship.getPlot().getCenterBlock();
         result.put("schema", 1); result.put("ok", true); result.put("readOnly", true);
+        result.put("bridgeVersion", "0.2.0"); result.put("features", Map.of("burners",true));
         result.put("vehicleId", ship.getUniqueId().toString()); result.put("name", ship.getName());
         result.put("observedAtGameTick", tick); result.put("revision", tick);
         result.put("frame", "body_plot");
@@ -123,6 +127,9 @@ public final class VehicleApi implements ILuaAPI {
                     if (entity instanceof PropellerBearingBlockEntity || entity instanceof BasePropellerBlockEntity) {
                         if (actuators.size() >= MAX_ACTUATORS) { complete = false; continue; }
                         actuators.add(propeller(ship, entity, origin, result));
+                    } else if (entity instanceof HotAirBurnerBlockEntity burner) {
+                        if (burners.size()>=MAX_ACTUATORS) { complete=false; continue; }
+                        burners.add(burner(ship,burner,origin));
                     } else if (entity instanceof RedstoneLinkBlockEntity link) {
                         if (links.size() >= MAX_LINKS) { complete = false; continue; }
                         var data = link(ship, link, origin);
@@ -136,6 +143,8 @@ public final class VehicleApi implements ILuaAPI {
         }
         actuators.sort(Comparator.comparing(row -> (String) row.get("id")));
         links.sort(Comparator.comparing(row -> (String) row.get("id")));
+        burners.sort(Comparator.comparing(row -> (String) row.get("id")));
+        result.put("burners",burners);
         result.put("actuators", actuators); result.put("links", links); result.put("errors", errors);
         result.put("complete", complete); result.put("visitedBlockEntities", Math.min(visited, MAX_BLOCK_ENTITIES));
         result.put("limits", Map.of("chunks", MAX_CHUNKS, "blockEntities", MAX_BLOCK_ENTITIES, "actuators", MAX_ACTUATORS, "links", MAX_LINKS));
@@ -180,6 +189,26 @@ public final class VehicleApi implements ILuaAPI {
         row.put("item", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
         var color = stack.get(DataComponents.DYED_COLOR);
         if (color != null) row.put("dyedColor", color.rgb());
+        return row;
+    }
+    private static Map<String,Object> burner(ServerSubLevel ship,HotAirBurnerBlockEntity burner,BlockPos origin) {
+        var row=new LinkedHashMap<String,Object>();
+        row.put("id",id(ship,burner.getBlockPos(),origin));
+        row.put("block",BuiltInRegistries.BLOCK.getKey(burner.getBlockState().getBlock()).toString());
+        row.put("position",position(burner.getBlockPos(),origin));
+        row.put("signal",burner.getSignalStrength()); row.put("gasOutput",burner.getGasOutput());
+        var balloon=burner.getBalloon();
+        row.put("hasBalloon",balloon!=null && balloon.isValid());
+        if(balloon!=null && balloon.isValid()) {
+            row.put("balloonId",id(ship,balloon.getControllerPos(),origin));
+            row.put("capacity",balloon.getCapacity());
+            if(balloon instanceof ServerBalloon server) {
+                row.put("filledVolume",server.getTotalFilledVolume());
+                row.put("targetVolume",server.getTotalTargetVolume());
+                row.put("lift",server.getTotalLift());
+            }
+        }
+        row.put("controlBindingKnown",false);
         return row;
     }
     private static Map<String, Object> link(ServerSubLevel ship, RedstoneLinkBlockEntity entity, BlockPos origin) {

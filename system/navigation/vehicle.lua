@@ -1,7 +1,7 @@
 local addon=require("system.libraries.addon")
 local M={}
 M.types={"unknown","monocopter","bicopter","tricopter","quadcopter","hexacopter","octocopter","multirotor","helicopter","airship","fixed-wing","ground","hybrid"}
-M.roles={"unknown","lift","propulsion","stabilization","yaw","strafe","mixed"}
+M.roles={"unknown","lift","buoyancy","propulsion","stabilization","yaw","strafe","mixed"}
 local function contains(values,value)
   for _,item in ipairs(values) do if item==value then return true end end
 end
@@ -36,6 +36,7 @@ function M.import(profile,snapshot)
   p.bridgeUnits=addon.copy(snapshot.units) p.bridgeRevision=snapshot.sourceRevision
   p.bridgeInertia=addon.copy(snapshot.inertia)
   p.bridgeMass=snapshot.mass p.bridgeLinks=addon.copy(snapshot.links)
+  p.bridgeBurners=addon.copy(snapshot.burners or {})
   p.bridgeActuators={}
   local lift=0
   for _,row in ipairs(snapshot.actuators) do
@@ -48,7 +49,7 @@ function M.import(profile,snapshot)
   end
   p.rotorCount=lift
   if p.type=="unknown" then
-    p.type=({[1]="monocopter",[2]="bicopter",[3]="tricopter",[4]="quadcopter",[6]="hexacopter",[8]="octocopter"})[lift] or "unknown"
+    p.type=#p.bridgeBurners>0 and "airship" or (({[1]="monocopter",[2]="bicopter",[3]="tricopter",[4]="quadcopter",[6]="hexacopter",[8]="octocopter"})[lift] or "unknown")
     p.typeSource="orientation-based suggestion; confirm vehicle forward axes"
   end
   if p.name=="Vehicle" then p.name=snapshot.name end
