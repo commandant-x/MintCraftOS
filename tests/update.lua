@@ -22,7 +22,13 @@ assert(requests==1)
 local delivered, closed = 0, 0
 bus:on("http_success", function() delivered=delivered+1 end)
 local function response(v)
-  return {readAll=function() return v end,close=function() closed=closed+1 end}
+  local offset = 1
+  return {read=function(n)
+    if offset > #v then return nil end
+    local chunk = v:sub(offset, offset+n-1)
+    offset = offset + #chunk
+    return chunk
+  end,close=function() closed=closed+1 end}
 end
 bus:emit("http_success", "https://raw.githubusercontent.com/owner/repo/main/VERSION?mintcraft_auto=1", response("1.1.0"))
 assert(closed==1 and delivered==1, "listener cleanup skipped another subscriber")

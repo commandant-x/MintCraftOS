@@ -6,12 +6,16 @@ local permissions = require("system.security.permissions")
 local sable = require("system.services.sabled")
 local log = require("system.libraries.log")
 local radarNet = require("system.services.radarnetd")
+local adapters = require("system.navigation.combat_adapters")
 local M = {}
 local ctx, runner, inventory, settings = nil, nil, {}, {}
 local tracks, revision, pending, tokens, serial = {}, 0, {}, {}, 0
 local active, firing, uncertain = nil, nil, {}
 local probeResult
 local lastFault
+local slowReads={}
+local lastCycleCompletedAt
+local slowMethods={getRange=true,getDishCount=true,getRotationSpeed=true}
 local cached = { ok = false, status = "waiting for combat", devices = {}, radars = {}, targets = {}, cannons = {}, errors = {}, revision = 0, timestamp = 0 }
 local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", "getRotationSpeed", "getDishCount", "getScanGeometry"},
   cannon = {"getInfo", "isComputerControl"}, controller = {"getAngle"} }
@@ -75,27 +79,110 @@ local function origin(position, calibration)
 end
 
 function M.acquire(rescan)
-  if rescan then inventory = addon.inventory() end
+  if rescan then inventory = addon.inventory(true) slowReads={} end
   local now = os.clock()
+  local cycleStart,completed,lastPartialAt=now,0,now
+  local previousSnapshot,done,present=cached,{},{}
+  for _,item in ipairs(inventory) do present[item.name]=true end
+  for id in pairs(slowReads) do if not present[id] then slowReads[id]=nil end end
+  for _,target in pairs(tracks) do
+    for source,report in pairs(target.observations or {}) do if not present[source] then
+      target.retiredFriendly=target.retiredFriendly or report.friendly==true
+      target.retiredSynthetic=target.retiredSynthetic or report.synthetic==true
+      target.observations[source]=nil
+      if target.sources then target.sources[source]=nil end
+    end end
+  end
   local trackCount=0
   for id,target in pairs(tracks) do if now-target.timestamp>10 then tracks[id]=nil else trackCount=trackCount+1 end end
   local snap = {ok = true, devices = {}, radars = {}, targets = {}, cannons = {}, controllers = {}, unknownCombatDevices = {}, errors = {}, timestamp = now, frame = "world"}
+  local function acquisition()
+    local elapsed=os.clock()-cycleStart
+    return {startedAt=cycleStart,completed=completed,pending=#inventory-completed,
+      elapsed=elapsed,overrun=elapsed>0.2,targetHz=5,
+      cycleCapacityHz=elapsed>0 and 1/elapsed or nil,budget=addon.metrics()}
+  end
+  local function publishPartial()
+    if os.clock()-lastPartialAt<0.2 or completed==#inventory then return end
+    lastPartialAt=os.clock()
+    local partial=addon.copy(snap)
+    for _,key in ipairs({"radars","cannons","controllers","devices","unknownCombatDevices"}) do
+      local included={} for _,row in ipairs(partial[key]) do included[row.id or row.name]=true end
+      for _,row in ipairs(previousSnapshot[key] or {}) do
+        local id=row.id or row.name
+        if not included[id] and (row.remote or present[id] and not done[id]) then
+          local pendingRow=addon.copy(row)
+          pendingRow.pending=true pendingRow.stale=true
+          for _,measure in pairs(pendingRow.measurements or {}) do measure.valid=false end
+          partial[key][#partial[key]+1]=pendingRow
+        end
+      end
+    end
+    partial.timestamp=os.clock() partial.acquisition=acquisition()
+    partial.targets={}
+    for _,target in pairs(tracks) do
+      local row=addon.copy(target)
+      row.pending=present[row.radarId] and not done[row.radarId] or nil
+      row.stale=row.pending or not row.freshnessKnown or os.clock()-row.timestamp>5
+      if os.clock()-row.timestamp<=10 then partial.targets[#partial.targets+1]=row end
+    end
+    local targetIds={} for _,row in ipairs(partial.targets) do targetIds[row.id]=true end
+    for _,row in ipairs(previousSnapshot.targets or {}) do
+      if not targetIds[row.id] and row.remote and os.clock()-row.timestamp<=10 then
+        local retained=addon.copy(row) retained.pending=true retained.stale=true
+        partial.targets[#partial.targets+1]=retained
+      end
+    end
+    partial.network=cached.network partial.zone=cached.zone
+    partial.counts={radars=#partial.radars,targets=#partial.targets,cannons=#partial.cannons,unknown=#partial.unknownCombatDevices}
+    partial.available=#partial.radars+#partial.cannons+#partial.controllers>0
+    partial.ok=false partial.status="combat acquisition overrun; partial results, "..partial.acquisition.pending.." devices pending"
+    revision=revision+1 partial.revision=revision cached=partial
+  end
   local branches={}
   for _, item in ipairs(inventory) do
     branches[#branches+1]=function()
+    local now=os.clock()
     item.role = role(item)
     if item.role ~= "unknown" then
       local public = {id = item.name, name = item.name, types = item.types, methods = item.methods, role = item.role}
       snap.devices[#snap.devices + 1] = public
       local methods = READS[item.role]
       local radarConfig = item.role=="radar" and settings.radars[item.name]
-      if item.role=="radar" and knownRadar(item) and item.set.getScanGeometry then
-        methods={"getTracks","getScanGeometry"}
-      elseif radarConfig and (radarConfig.positionMode=="manual" or (radarConfig.origin and radarConfig.positionMode==nil)) then
-        methods = {}
-        for _,method in ipairs(READS.radar) do if method~="getPosition" then methods[#methods+1]=method end end
+      local adapter
+      if item.role=="radar" then
+        adapter=adapters.radar(item,(radarConfig or {}).apiProfile,
+          radarConfig and (radarConfig.positionMode=="manual" or radarConfig.origin))
+        methods=adapter.methods
       end
-      local values, errors = addon.read(item.device, methods)
+      local proxy,readMethods,observed,received={},{},{},{}
+      local cache=slowReads[item.name] or {} slowReads[item.name]=cache
+      for _,method in ipairs(methods) do
+        local saved=cache[method]
+        if not (item.role=="radar" and slowMethods[method] and saved and now-saved.observedAt<1) then
+          readMethods[#readMethods+1]=method
+          if type(item.device[method])=="function" then
+            proxy[method]=function()
+              observed[method]=os.clock()
+              local ok,value=pcall(item.device[method])
+              received[method]=os.clock()
+              if not ok then error(value,0) end
+              return value
+            end
+          end
+        end
+      end
+      local values, errors = addon.read(proxy, readMethods)
+      for _,method in ipairs(methods) do if item.role=="radar" and slowMethods[method] then
+        if observed[method] then
+          cache[method]={value=values[method],error=errors[method],observedAt=observed[method],receivedAt=received[method]}
+        elseif cache[method] then
+          local saved=cache[method]
+          values[method],errors[method]=saved.value,saved.error
+          observed[method],received[method]=saved.observedAt,saved.receivedAt
+        end
+      end end
+      now=observed.getTracks or observed.getInfo or os.clock()
       local scan=type(values.getScanGeometry)=="table" and values.getScanGeometry.version==1 and values.getScanGeometry or nil
       if scan then
         values.getPosition,values.getRange,values.getRotation=scan.position,scan.range,scan.rotation
@@ -114,6 +201,9 @@ function M.acquire(rescan)
           effectiveCal = addon.copy(cal)
           effectiveCal.frame = "world"
         end
+        if adapter.profile=="5.0-EA" and addon.hasType(item,"create_radar:plane_radar") and cal.positionMode~="manual" and not cal.origin then
+          effectiveCal=addon.copy(cal) effectiveCal.frame="world"
+        end
         local pos, frame = origin(values.getPosition, effectiveCal)
         local radar = {id = item.name, name = item.name, position = pos, frame = frame, rawPosition = addon.vec(values.getPosition),
           range = addon.finite(values.getRange) and values.getRange or nil, heading = nil,
@@ -122,7 +212,8 @@ function M.acquire(rescan)
           verticalFov=addon.finite(cal.verticalFov) and cal.verticalFov or nil,
           rotationSpeed = values.getRotationSpeed, dishCount = values.getDishCount,
           rawTrackCount = type(values.getTracks)=="table" and #values.getTracks or nil,
-          readErrors = addon.copy(errors), timestamp = now,
+          readErrors = addon.copy(errors), timestamp = now,observedAt=now,receivedAt=received.getTracks or os.clock(),
+          fieldTimes={observedAt=addon.copy(observed),receivedAt=addon.copy(received)},
           capabilities={tracks=item.set.getTracks==true,position=item.set.getPosition==true,
             range=item.set.getRange==true,rotation=item.set.getRotation==true,dishes=item.set.getDishCount==true},
           trackApi="getTracks", classificationSource="not exposed"}
@@ -135,7 +226,12 @@ function M.acquire(rescan)
           radar.fov,radar.fovSource=scan.fov,"scanner API"
         end
         radar.kind=addon.hasType(item,"create_radar:plane_radar") and "fixed" or item.set.getRotation and "rotating" or "unknown"
-        radar.apiProfile=cal.apiProfile or "auto"
+        radar.apiProfile=adapter.profile
+        radar.profileEvidence,radar.adapterOrigin,radar.profileLimitation=adapter.evidence,adapter.origin,adapter.limitation
+        if adapter.profile=="bridge" and not scan then
+          radar.readErrors.getScanGeometry="bridge geometry v1 unavailable"
+          snap.errors[#snap.errors+1]=item.name..": bridge geometry v1 unavailable"
+        end
         radar.positionSource = (cal.origin and cal.positionMode==nil) and "configured world origin" or
           cal.positionMode=="manual" and "configured "..tostring(cal.frame) or "API"
         radar.positionIssue = not pos and frame or nil
@@ -159,41 +255,82 @@ function M.acquire(rescan)
           end
         elseif addon.finite(cal.heading) then radar.heading = cal.heading end
         radar.measurements={position=addon.measure(pos,"m",frame,item.name,now),heading=addon.measure(radar.heading,"deg","world",item.name,now),range=addon.measure(radar.range,"m",frame,item.name,now),fov=addon.measure(radar.fov,"deg","radar calibrated",item.name,now)}
+        radar.measurements.position.timestamp=observed.getScanGeometry or observed.getPosition or now
+        radar.measurements.heading.timestamp=observed.getScanGeometry or observed.getRotation or now
+        radar.measurements.range.timestamp=observed.getRange or observed.getScanGeometry or now
         snap.radars[#snap.radars + 1] = radar
-        for _, raw in ipairs(type(values.getTracks) == "table" and values.getTracks or {}) do
+        local badRecords=0
+        for index, raw in ipairs(type(values.getTracks) == "table" and values.getTracks or {}) do
+          if index>512 then
+            snap.errors[#snap.errors+1]=item.name..": track processing capped at 512 entries"
+            break
+          end
+          if type(raw)=="table" then
           local id, position = raw.id and tostring(raw.id), addon.vec(raw.position)
           if id and position and (tracks[id] or trackCount<settings.radar.maxTargets) then
             local old = tracks[id]
             if not old then trackCount=trackCount+1 end
-            local changed = not old or (addon.finite(raw.scannedTime) and (not addon.finite(old.scannedTime) or raw.scannedTime>old.scannedTime))
             local target = old or {id = id, history = {}, timestamp=now, position=position}
+            target.observations=target.observations or {}
+            local previous=target.observations[item.name]
+            local numeric=addon.finite(raw.scannedTime)
+            local progressed=previous and numeric and addon.finite(previous.scannedTime) and raw.scannedTime>previous.scannedTime
+            local verified=progressed and now-previous.observedAt>=0 and now-previous.observedAt<=5 or false
+            local same=previous and numeric and raw.scannedTime==previous.scannedTime
+            local observation={scannedTime=raw.scannedTime,receivedAt=received.getTracks or now,
+              observedAt=progressed and now or same and previous.observedAt or now,
+              verified=verified or same and previous.verified or false,
+              friendly=raw.friendly,synthetic=raw.synthetic}
+            -- Only verified new boolean evidence can remove a safety flag.
+            if previous then
+              if numeric and addon.finite(previous.scannedTime) and raw.scannedTime<previous.scannedTime then
+                observation.scannedTime=previous.scannedTime
+              end
+              if not verified or type(raw.friendly)~="boolean" then
+                observation.friendly=previous.friendly==true or raw.friendly==true or raw.friendly
+              end
+              if not verified or type(raw.synthetic)~="boolean" then
+                observation.synthetic=previous.synthetic==true or raw.synthetic==true or raw.synthetic
+              end
+            end
+            local sourceCount=0 for _ in pairs(target.observations) do sourceCount=sourceCount+1 end
+            if previous or sourceCount<128 then target.observations[item.name]=observation
+            else target.classificationUncertain=true end
+            local changed = not old or (verified and (not addon.finite(target.scannedTime) or raw.scannedTime>target.scannedTime))
             if changed then
-              target.timestamp, target.position, target.scannedTime = now, position, raw.scannedTime
-              target.history[#target.history + 1] = {position = position, timestamp = now}
+              target.timestamp, target.position, target.scannedTime = observation.observedAt, position, raw.scannedTime
+              if not same then target.history[#target.history + 1] = {position = position, timestamp = now} end
               if #target.history > 20 then table.remove(target.history, 1) end
               target.category, target.entityType, target.radarId = raw.category, raw.entityType, item.name
               target.velocity, target.frame = addon.vec(raw.velocity), "world"
               target.velocityUnit = raw.category=="entity" and "blocks/tick" or "API units (unverified)"
               target.renderName = type(raw.name) == "string" and raw.name or type(raw.displayName) == "string" and raw.displayName or nil
-              target.freshnessKnown=addon.finite(raw.scannedTime)
+              target.freshnessKnown=observation.verified
             end
+            if target.radarId==item.name and not observation.verified then target.freshnessKnown=false end
             target.label = settings.aliases[id] or target.renderName or ("ID " .. id:sub(1, 8))
             target.labelSource = settings.aliases[id] and "alias" or target.renderName and "api" or "id"
             target.sources=target.sources or {}
-            target.sources[item.name]=now
-            if type(raw.friendly)=="boolean" then target.friendly=raw.friendly else target.friendly=nil end
-            if type(raw.synthetic)=="boolean" then target.synthetic=raw.synthetic else target.synthetic=nil end
+            if target.observations[item.name] then target.sources[item.name]=now end
+            target.friendly,target.synthetic=target.retiredFriendly or nil,target.retiredSynthetic or nil
+            for _,report in pairs(target.observations) do
+              if report.friendly==true then target.friendly=true elseif target.friendly==nil and report.friendly==false then target.friendly=false end
+              if report.synthetic==true then target.synthetic=true elseif target.synthetic==nil and report.synthetic==false then target.synthetic=false end
+            end
+            target.classificationSource="per-radar scan evidence; true wins conflicts"
             if type(raw.friendly)=="boolean" or type(raw.synthetic)=="boolean" then radar.classificationSource="API friendly/synthetic" end
             tracks[id] = target
           end
+          else badRecords=badRecords+1 end
         end
+        if badRecords>0 then snap.errors[#snap.errors+1]=item.name..": malformed track records: "..badRecords end
       elseif item.role == "cannon" then
         local info = type(values.getInfo) == "table" and values.getInfo or {}
         local cal = settings.profiles[item.name] or {}
         local pos, frame = origin({x=info.x,y=info.y,z=info.z}, cal)
         snap.cannons[#snap.cannons + 1] = {id=item.name,name=item.name,position=pos,frame=frame,
           yaw=info.yaw,pitch=info.pitch,assembled=info.assembled,computerControl=info.computerControl,
-          targetYaw=info.targetYaw,targetPitch=info.targetPitch,info=info,calibrated=cal.validated==true,timestamp=now,
+          targetYaw=info.targetYaw,targetPitch=info.targetPitch,info=info,calibrated=cal.validated==true,timestamp=now,observedAt=now,receivedAt=received.getInfo or os.clock(),
           measurements={position=addon.measure(pos,"m",frame,item.name,now),yaw=addon.measure(info.yaw,"deg","mount",item.name,now),pitch=addon.measure(info.pitch,"deg","mount",item.name,now)}}
       else snap.controllers[#snap.controllers + 1] = {id=item.name,name=item.name,values=values} end
     else
@@ -201,9 +338,13 @@ function M.acquire(rescan)
       snap.devices[#snap.devices+1]={id=item.name,name=item.name,types=addon.copy(item.types),methods=addon.copy(item.methods),role="unknown (list only)"}
       if text:find("radar",1,true) or text:find("cannon",1,true) then snap.unknownCombatDevices[#snap.unknownCombatDevices+1] = {name=item.name,types=item.types,methods=item.methods} end
     end
+    done[item.name]=true completed=completed+1 publishPartial()
     end
   end
-  if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
+  if #branches>0 then addon.parallel(branches) end
+  now=os.clock() snap.timestamp=now snap.acquisition=acquisition()
+  snap.acquisition.effectiveHz=lastCycleCompletedAt and now>lastCycleCompletedAt and 1/(now-lastCycleCompletedAt) or nil
+  lastCycleCompletedAt=now
   for _,key in ipairs({"devices","radars","cannons","controllers"}) do table.sort(snap[key],function(a,b) return a.name<b.name end) end
   for token,entry in pairs(tokens) do if now>entry.expires then tokens[token]=nil end end
   for id, target in pairs(tracks) do
@@ -253,6 +394,7 @@ function M.acquire(rescan)
   snap.available = #snap.radars+#snap.cannons+#snap.controllers>0
   snap.ok=#snap.errors==0
   snap.status = not snap.ok and "combat telemetry degraded" or snap.available and "combat peripherals ready" or "no supported combat peripheral"
+  if snap.ok and snap.acquisition.overrun then snap.status="combat acquisition overrun; inspect measured cadence/budget" end
   lastFault=snap.errors[1]
   snap.lastFault=lastFault
   cached = snap
@@ -260,7 +402,7 @@ function M.acquire(rescan)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
-function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=lastFault,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=lastFault,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain),acquisition=addon.copy(cached.acquisition)} end
 function M.health()
   local health=M.status()
   health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
@@ -280,13 +422,13 @@ function M.autoConfigureRadars(actor)
   for _,radar in ipairs(cached.radars) do if not radar.remote then
     if radar.autoGeometry and radar.rawPosition and radar.scanPositionFrame=="world" then
       local cal=updated.radars[radar.id] or {}
-      cal.positionMode="api" cal.frame="world" cal.apiProfile="auto"
+      cal.positionMode="api" cal.frame="world" cal.apiProfile="bridge"
       -- Retain the old manual origin/coordinates for recovery without using them.
       if cal.origin then cal.manualOriginBackup=cal.origin cal.origin=nil end
       updated.radars[radar.id]=cal count=count+1
     else missing=missing+1 end
   end end
-  if count==0 then return false,"Scanner API missing; install the Radar API bridge on the source PC" end
+  if count==0 then return false,"No valid optional bridge geometry; stock 4.x/EA require manual Setup (position/orientation)" end
   local saved,why=safeWrite.write("/system/config/combat.cfg",textutils.serialize(updated))
   if not saved then return false,why end
   settings=updated M.rescan()
@@ -299,7 +441,7 @@ function M.validateRadar(value)
   if value.headingSign~=1 and value.headingSign~=-1 then return false,"headingSign must be +1 or -1" end
   if not addon.finite(value.headingOffset) then return false,"heading offset invalid" end
   if value.positionMode~=nil and value.positionMode~="api" and value.positionMode~="manual" then return false,"invalid radar position source" end
-  if value.apiProfile~=nil and value.apiProfile~="auto" and value.apiProfile~="4.x" and value.apiProfile~="5.0-EA" then return false,"unknown radar API profile" end
+  if value.apiProfile~=nil and value.apiProfile~="auto" and value.apiProfile~="4.x" and value.apiProfile~="5.0-EA" and value.apiProfile~="bridge" then return false,"unknown radar API profile" end
   if value.positionMode=="manual" then
     if not addon.vec({x=value.positionX,y=value.positionY,z=value.positionZ}) then return false,"manual position requires finite X/Y/Z" end
     if value.frame=="world" and sable.status().inSublevel then return false,"moving sublevel requires local body coordinates" end
@@ -325,6 +467,7 @@ function M.configure(actor, section, id, value)
     local signKeys=section=="profiles" and {"yawSign","pitchSign"} or {"headingSign"}
     for _,key in ipairs(signKeys) do if value[key]~=1 and value[key]~=-1 then return false,key.." must be +1 or -1" end end
     if section=="radars" then
+      local valid,why=M.validateRadar(value) if not valid then return false,why end
       if value.positionMode~=nil and value.positionMode~="api" and value.positionMode~="manual" then return false,"invalid radar position source" end
       if value.positionMode=="manual" then
         if not addon.vec({x=value.positionX,y=value.positionY,z=value.positionZ}) then return false,"manual position requires finite X/Y/Z" end
@@ -350,12 +493,14 @@ function M.configure(actor, section, id, value)
 end
 
 function M.solution(cannonId, targetId)
+  if cached.acquisition and cached.acquisition.pending>0 then return nil,"combat acquisition incomplete; command blocked" end
   local cannon, target = find(cached.cannons, cannonId), find(cached.targets, type(targetId)=="table" and targetId.id or targetId)
   if not cannon or not target then return nil, "select cannon and target" end
   if target.remote then return nil,"remote Rednet contact: display/alerts only" end
+  if target.classificationUncertain then return nil,"classification source limit exceeded; command blocked" end
   if target.friendly==true then return nil,"API marks target friendly; command blocked" end
   if target.synthetic==true then return nil,"API marks synthetic contact; command blocked" end
-  if target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale" end
+  if not target.freshnessKnown or target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale/unverified scan progression" end
   if os.clock()-(cannon.timestamp or 0)>0.5 then return nil,"cannon telemetry stale" end
   local profile = settings.profiles[cannon.id] or {}
   if not profile.validated then return nil, "cannon profile not calibrated" end
@@ -368,11 +513,21 @@ function M.solution(cannonId, targetId)
   if disc < 0 then return nil, "target out of ballistic range" end
   local pitch = math.deg(math.atan((v2-math.sqrt(disc))/(g*rel.distance)))
   local bearing=rel.bearing
-  if profile.headingFrame=="body" then
+  if profile.headingFrame=="body" or profile.frame=="body" then
     local nav=require("system.services.avionicsd").snapshot()
+    for _,axis in ipairs({"pitch","roll"}) do
+      local measure=(nav.measurements or {})[axis]
+      local stamp=measure and (measure.observedAt or measure.timestamp)
+      if not measure or not measure.valid or not addon.finite(measure.value) or not addon.finite(stamp) or
+        os.clock()-stamp<0 or os.clock()-stamp>0.5 or (measure.validUntil and os.clock()>measure.validUntil) then
+        return nil,"body attitude unavailable/stale; yaw-only solution blocked"
+      end
+      if math.abs(measure.value)>0.01 then return nil,"inclined body mount unsupported; yaw-only solution blocked" end
+    end
     local heading=(nav.measurements or {}).heading
-    if not heading or not heading.valid or os.clock()-heading.timestamp>0.5 then return nil,"ship heading unavailable" end
-    bearing=geometry.wrap(bearing-heading.value)
+    local stamp=heading and (heading.observedAt or heading.timestamp)
+    if not heading or not heading.valid or not addon.finite(heading.value) or not addon.finite(stamp) or os.clock()-stamp<0 or os.clock()-stamp>0.5 or (heading.validUntil and os.clock()>heading.validUntil) then return nil,"ship heading unavailable" end
+    if profile.headingFrame=="body" then bearing=geometry.wrap(bearing-heading.value) end
   end
   local yaw = bearing*(profile.yawSign or 1)+(profile.yawOffset or 0)
   pitch = pitch*(profile.pitchSign or 1)+(profile.pitchOffset or 0)
@@ -481,11 +636,11 @@ local function processCommand(command)
   firing=row
   command.outputAttempted=true
   local value, fireErr = addon.call(row.device,"fire",true)
-  if fireErr or value == false then return false,fireErr or "fire refused" end
+  if fireErr or not adapters.fireResult(value,true) then return false,fireErr or "fire refused" end
   local timer = os.startTimer(0.1)
   while true do local _, id=os.pullEvent("timer") if id==timer then break end end
   local released, stopErr = addon.call(row.device,"fire",false)
-  if released==false then stopErr=stopErr or "fire release refused" end
+  if not adapters.fireResult(released,false) then stopErr=stopErr or "fire release state mismatch" end
   if not stopErr then firing=nil end
   log.warn("combat", "confirmed fire " .. command.cannonId .. " target=" .. command.targetId)
   return stopErr==nil,stopErr or "Fire pulse completed"
@@ -496,6 +651,7 @@ function M.start(context)
   if stopped==false then error(why) end
   ctx = context
   lastFault=nil
+  tracks={} cached.targets={} slowReads={} lastCycleCompletedAt=nil
   loadSettings()
   runner = addon.periodic(ctx,"combatd",0.2,M.acquire)
   runner.onError = function(err)
@@ -522,7 +678,7 @@ function M.start(context)
           local row=firing
           local cleared,clearErr=addon.bounded(function()
             local value,err=addon.call(row.device,"fire",false)
-            if err or value==false then error(err or "fire release refused") end
+            if err or not adapters.fireResult(value,false) then error(err or "fire release state mismatch") end
           end,0.5)
           if cleared then firing=nil else uncertain[row.name]=tostring(clearErr) end
         end

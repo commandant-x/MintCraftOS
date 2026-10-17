@@ -35,6 +35,29 @@ local function classifyHttpFailure(err)
   return text
 end
 
+function M.readResponse(handle, limit, url)
+  local ok,result=pcall(function()
+    assert(type(limit)=="number" and limit>=0 and limit<=8388608 and limit%1==0,"Invalid byte limit")
+    assert(type(handle.read)=="function","Response does not support bounded reads")
+    local chunks,size={},0
+    while true do
+      local chunk=handle.read(math.min(8192,limit-size+1))
+      if chunk==nil or chunk=="" then break end
+      if type(chunk)=="number" then chunk=string.char(chunk) end
+      assert(type(chunk)=="string","Invalid response body")
+      size=size+#chunk
+      assert(size<=limit,"Response exceeds "..limit.." byte limit")
+      chunks[#chunks+1]=chunk
+    end
+    local body=table.concat(chunks)
+    return {url=url,code=handle.getResponseCode and handle.getResponseCode() or 200,
+      headers=handle.getResponseHeaders and handle.getResponseHeaders() or {},body=body,size=#body}
+  end)
+  if handle and handle.close then pcall(handle.close) end
+  if not ok then return nil,"RESPONSE_READ_FAILED: "..tostring(result) end
+  return result
+end
+
 local function request(method, url, opts)
   opts = opts or {}
   url = trim(url)
@@ -69,25 +92,7 @@ local function request(method, url, opts)
     return nil, err
   end
 
-  local readOK,result=pcall(function()
-    assert(type(handle.read)=="function","Response does not support bounded reads")
-    local chunks,size={},0
-    while true do
-      local chunk=handle.read(math.min(8192,limit-size+1))
-      if chunk==nil or chunk=="" then break end
-      if type(chunk)=="number" then chunk=string.char(chunk) end
-      assert(type(chunk)=="string","Invalid response body")
-      size=size+#chunk
-      assert(size<=limit,"Response exceeds "..limit.." byte limit")
-      chunks[#chunks+1]=chunk
-    end
-    local body=table.concat(chunks)
-    return {url=url,code=handle.getResponseCode and handle.getResponseCode() or 200,
-      headers=handle.getResponseHeaders and handle.getResponseHeaders() or {},body=body,size=#body}
-  end)
-  pcall(handle.close)
-  if not readOK then return nil,"RESPONSE_READ_FAILED: "..tostring(result) end
-  return result
+  return M.readResponse(handle,limit,url)
 end
 
 function M.get(url, opts)

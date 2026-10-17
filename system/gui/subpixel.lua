@@ -24,13 +24,19 @@ function M.encode(pixels)
   return string.char(128 + mask), renderer.color(fg), renderer.color(bg), lost
 end
 
-function M.new(columns, rows, background)
+local function newCanvas(columns, rows, background, basePixels, baseCompiled)
   assert(columns >= 1 and rows >= 1 and columns % 1 == 0 and rows % 1 == 0, "Invalid canvas size")
   assert(columns * rows <= 65536, "Canvas exceeds 65536 terminal cells")
   background = background or 32768
   renderer.color(background)
   local canvas = { width = columns * 2, height = rows * 3, columns = columns, rows = rows }
   local pixels, compiled = {}, {}
+  for index,color in pairs(basePixels or {}) do pixels[index]=color end
+  for row,line in pairs(baseCompiled or {}) do compiled[row]=line end
+
+  function canvas:clone()
+    return newCanvas(columns,rows,background,pixels,compiled)
+  end
 
   function canvas:clear(color)
     background = color or background
@@ -106,5 +112,7 @@ function M.new(columns, rows, background)
   end
   return canvas
 end
+
+M.new=newCanvas
 
 return M

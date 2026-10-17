@@ -3,12 +3,21 @@ local config=require("system.libraries.config")
 local safeWrite=require("system.libraries.safe_write")
 local permissions=require("system.security.permissions")
 local M={protocol="mintcraft.radar.v1",securityWarning="INSECURE Rednet: unauthenticated and unencrypted; station IDs can be spoofed"}
-local ctx,runner,listener,modem,problem
+local ctx,runner,ingressRunner,listener,modem,problem
 local nodes,settings,sequence={}, {},0
 local session=tostring(os.epoch and os.epoch("utc") or os.clock())
 local announced,lastAlert={},-math.huge
 local ENVELOPE="mintcraft.radar.hmac-sha256.v1"
 local MAX_PAYLOAD=65536
+local VERIFY_EVENT="mintcraft_radar_verify"
+local verifySequence=0
+local ingress,admission,metrics
+local function resetIngress()
+  ingress={trusted={},discovery={}}
+  admission={since=os.clock(),trusted=0,discovery=0,senders={},count=0}
+  metrics={queued=0,coalesced=0,accepted=0,rejected=0,dropped=0,rateDrops=0,queueDrops=0,shapeDrops=0,processed=0,highWater=0}
+end
+resetIngress()
 local function authentication()
   if (settings.sharedKey or "")=="" then
     if settings.allowInsecure then return "insecure" end
@@ -78,7 +87,7 @@ function M.configure(actor,value)
   local nextSettings=addon.copy(value)
   nextSettings.sharedKey=value.sharedKey or "" nextSettings.allowInsecure=value.allowInsecure==true
   local saved,why=save(nextSettings)
-  if saved then if changed then nodes={} else pruneDiscovery() end if runner then runner:rescan() end end
+  if saved then resetIngress() if changed then nodes={} else pruneDiscovery() end if runner then runner:rescan() end end
   return saved,why
 end
 local function open()
@@ -92,12 +101,79 @@ local function open()
   end end
   problem="No modem; connect a wired/wireless modem"
 end
+-- This event-bus callback does no crypto, decoding, copying or history traversal.
+-- Sender IDs only select reserved capacity; they are not authentication evidence.
+local function enqueue(sender,packet,protocol)
+  if not ctx or protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
+  local now=os.clock()
+  if now-admission.since>=1 then
+    admission={since=now,trusted=0,discovery=0,senders={},count=0}
+  end
+  local lane=settings.trusted[tostring(sender)] and "trusted" or "discovery"
+  local limit=lane=="trusted" and 128 or 16
+  local attempts=admission.senders[sender]
+  if admission[lane]>=limit or (attempts and attempts>=8) or (not attempts and admission.count>=64) then
+    metrics.dropped=metrics.dropped+1 metrics.rateDrops=metrics.rateDrops+1 return false
+  end
+  admission[lane]=admission[lane]+1
+  if not attempts then admission.count=admission.count+1 end
+  admission.senders[sender]=(attempts or 0)+1
+  -- Invalid traffic consumes admission too, before even cheap shape checks.
+  if type(packet)~="table" or ((settings.sharedKey or "")~="" and
+    (packet.format~=ENVELOPE or packet.sender~=sender or type(packet.payload)~="string" or
+    #packet.payload>MAX_PAYLOAD or type(packet.mac)~="string" or #packet.mac~=64)) then
+    metrics.dropped=metrics.dropped+1 metrics.shapeDrops=metrics.shapeDrops+1 return false
+  end
+  local queue=ingress[lane]
+  -- Latest arrival replaces pending raw input without changing FIFO position.
+  -- Neither claimed sequence numbers nor paired IDs are trusted before HMAC.
+  for _,row in ipairs(queue) do
+    if row.sender==sender then
+      row.packet=packet row.received=now
+      metrics.coalesced=metrics.coalesced+1 return true
+    end
+  end
+  if #queue>=16 then
+    metrics.dropped=metrics.dropped+1 metrics.queueDrops=metrics.queueDrops+1 return false
+  end
+  queue[#queue+1]={sender=sender,packet=packet,protocol=protocol,received=now}
+  metrics.queued=metrics.queued+1
+  metrics.highWater=math.max(metrics.highWater,#ingress.trusted+#ingress.discovery)
+  return true
+end
+local function drainIngress()
+  local active=ingress
+  -- Four paired slots sustain 16 stations at 5 Hz; discovery retains one slot.
+  for _,lane in ipairs({"trusted","trusted","trusted","trusted","discovery"}) do
+    local queue=ingress[lane]
+    if #queue==0 then queue=ingress[lane=="trusted" and "discovery" or "trusted"] end
+    local row=table.remove(queue,1)
+    if row then
+      metrics.processed=metrics.processed+1
+      local accepted=M.receive(row.sender,row.packet,row.protocol,row.received)
+      local key=accepted and "accepted" or "rejected"
+      metrics[key]=metrics[key]+1
+      -- A queued wake gives other raw workers a dispatch between HMACs without
+      -- imposing a server-tick timer wait. Never reuse a token across restarts.
+      if #ingress.trusted+#ingress.discovery>0 then
+        verifySequence=verifySequence+1
+        local token=verifySequence
+        os.queueEvent(VERIFY_EVENT,token)
+        repeat
+          local event,id=os.pullEvent(VERIFY_EVENT)
+          if event==VERIFY_EVENT and id==token then break end
+        until false
+        if ingress~=active or not ctx then return end
+      end
+    end
+  end
+end
 -- Accept only bounded primitive measurement fields. Packets cannot request commands.
-function M.receive(sender,packet,protocol)
+function M.receive(sender,packet,protocol,receivedAt)
   if protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
   local mode,crypto=authentication()
   if not mode then return false end
-  local transportAge=0
+  local transportAge=receivedAt and math.max(0,os.clock()-receivedAt) or 0
   if mode=="keyed" then
     if type(packet)~="table" or packet.format~=ENVELOPE or packet.sender~=sender or
       type(packet.payload)~="string" or #packet.payload>MAX_PAYLOAD or
@@ -132,14 +208,16 @@ function M.receive(sender,packet,protocol)
     signedSessions[packet.session]={sequence=packet.sequence,sentAt=packet.sentAt}
   end
   if old and old.session==packet.session and packet.sequence<=old.sequence then return false end
-  if old and os.clock()-old.received<0.15 then return false end
+  local admittedAt=receivedAt or os.clock()
+  -- Worker scheduling jitter must not rate-limit healthy 5 Hz arrivals.
+  if old and admittedAt-(old.admittedAt or old.received)<0.15 then return false end
   if not old and not settings.trusted[tostring(sender)] then
     -- Discovery has its own quota: strangers cannot consume paired station slots.
     local count=0
     for id in pairs(nodes) do if not settings.trusted[tostring(id)] then count=count+1 end end
     if count>=16 then return false end
   end
-  local node={id=sender,label=packet.label,session=packet.session,sequence=packet.sequence,received=os.clock(),radars={},targets={},signedSessions=signedSessions}
+  local node={id=sender,label=packet.label,session=packet.session,sequence=packet.sequence,received=os.clock(),admittedAt=admittedAt,radars={},targets={},signedSessions=signedSessions}
   for _,radar in ipairs(packet.radars) do
     if type(radar)~="table" then return false end
     local pos=addon.vec(radar.position)
@@ -194,7 +272,16 @@ function M.snapshot()
   table.sort(result.nodes,function(a,b) return a.id<b.id end)
   return result
 end
-function M.status() local snap=M.snapshot() return {enabled=snap.enabled,modem=snap.modem,error=snap.error,warning=snap.warning,authenticated=snap.authenticated,encrypted=false,stations=#snap.nodes} end
+function M.status()
+  local mode,why=authentication()
+  local warning=mode=="keyed" and "Shared-key authenticated Rednet; NOT encrypted; key holders can impersonate stations" or M.securityWarning
+  local count=0 for _ in pairs(nodes) do count=count+1 end
+  local stats={} for key,value in pairs(metrics) do stats[key]=value end
+  stats.pending=#ingress.trusted+#ingress.discovery
+  stats.trustedPending=#ingress.trusted stats.discoveryPending=#ingress.discovery
+  return {enabled=settings.enabled,modem=modem,error=problem or (settings.enabled and (mode and warning or why) or nil),
+    warning=warning,authenticated=mode=="keyed",encrypted=false,stations=count,ingress=stats}
+end
 function M.rescan() if runner then runner:rescan() end end
 function M.publish(snapshot)
   local mode,crypto=authentication()
@@ -278,14 +365,18 @@ function M.start(context)
   settings.trusted=trusted
   for _,key in ipairs({"x","y","z"}) do if not addon.finite(settings[key]) then settings[key]=0 end end
   if not addon.finite(settings.radius) or settings.radius<=0 then settings.radius=100 end
-  listener=ctx.eventBus:on("rednet_message",M.receive)
-  if settings.enabled then require("system.libraries.log").warn("radarnet",M.snapshot().error or M.securityWarning) end
+  resetIngress()
+  listener=ctx.eventBus:on("rednet_message",enqueue)
+  if settings.enabled then require("system.libraries.log").warn("radarnet",M.status().error or M.securityWarning) end
+  ingressRunner=addon.periodic(ctx,"radarnet-ingress",0.05,drainIngress)
   runner=addon.periodic(ctx,"radarnetd",0.2,M.tick)
 end
 function M.stop()
+  if ingressRunner then ingressRunner:stop() ingressRunner=nil end
   if runner then runner:stop() runner=nil end
   if ctx and listener then ctx.eventBus:off(listener) end
   ctx=nil listener=nil modem=nil problem=nil nodes={}
+  resetIngress()
   -- Shared Rednet modems belong to Messenger too: never close them here.
 end
 return M

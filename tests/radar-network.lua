@@ -13,8 +13,10 @@ textutils={serialize=function() return "config" end}
 local sent,closed,alerts={},0,0
 rednet={isOpen=function() return true end,open=function() end,close=function() closed=closed+1 end,broadcast=function(packet,protocol) sent[#sent+1]={packet=packet,protocol=protocol} end}
 local net=require("system.services.radarnetd")
-local listener
-net.start({scheduler={processes={[7]={state="ready",meta={appId="combat"},permissions={}}}},eventBus={on=function(_,_,fn) listener=fn return 1 end,off=function() end},notifications={push=function() alerts=alerts+1 end}})
+-- The synchronous compatibility API is tested here; real listener ingress has
+-- separate queue/worker coverage in radar-ingress.lua.
+local listener=net.receive
+net.start({scheduler={processes={[7]={state="ready",meta={appId="combat"},permissions={}}}},eventBus={on=function() return 1 end,off=function() end},notifications={push=function() alerts=alerts+1 end}})
 local actor={pid=7}
 local packet={version=1,session="boot-A",sequence=1,group="world-A",frame="world",label="Outpost",radars={{id="radar",position={x=1000,y=70,z=0},range=500,age=0}},targets={{id="uuid",position={x=20,y=70,z=30},radarId="radar",age=0,category="player",renderName="API name"}}}
 assert(listener(2,packet,net.protocol))

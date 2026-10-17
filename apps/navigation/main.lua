@@ -37,12 +37,14 @@ function M.run(ctx)
       local channel=draft.channels[app.index]
       if not channel then return rows end
       field(channel,"id","Output ID","string")
-      field(channel,"backend","Backend",nil,{"redstone","avionics"})
+      field(channel,"backend","Backend",nil,{"redstone","avionics","relay"})
       if channel.backend=="redstone" then field(channel,"side","PC side",nil,sides)
       else
         local names={}
-        for _,row in ipairs(app.av.devices or {}) do if row.roles.analog or row.roles.throttle then names[#names+1]=row.name end end
-        if #names>0 then field(channel,"name","Avionics endpoint",nil,names) else field(channel,"name","Avionics endpoint","string") end
+        for _,row in ipairs(flight.endpoints()) do if row.backend==channel.backend then names[#names+1]=row.name end end
+        local label=channel.backend=="relay" and "Redstone relay" or "Avionics endpoint"
+        if #names>0 then field(channel,"name",label,nil,names) else field(channel,"name",label,"string") end
+        if channel.backend=="relay" then field(channel,"side","Relay side",nil,sides) end
       end
       for _,key in ipairs({"min","max","neutral","rescue"}) do field(channel,key,key,"number") end
       channel.mix=channel.mix or {}
@@ -94,7 +96,7 @@ function M.run(ctx)
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
     if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
-      if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | 6 independent PC sides") or "Configuration draft",w),colors.cyan) end
+      if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
     elseif self.page=="flight" then
       local measured=self.av.measurements or {}
       local fresh=os.clock()-(self.av.timestamp or 0)<=0.5

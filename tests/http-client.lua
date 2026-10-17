@@ -30,4 +30,11 @@ local opts={headers={Accept='test'},binary=true}
 http.post=function(options) assert(options.body=='payload' and options.method=='POST' and options.binary) return handle('posted') end
 assert(client.post('https://example.com','payload',opts).body=='posted' and opts.body==nil)
 assert(not client.get('https://example.com',{maxBytes=math.huge}))
+local before=closed
+assert(client.readResponse(handle('1234'),4).body=='1234')
+assert(not client.readResponse(handle('12345'),4))
+assert(not client.readResponse({read=function() return false end,close=function() closed=closed+1 end},4))
+assert(not client.readResponse({read=function() return nil end,getResponseCode=function() error('metadata failed') end,
+  close=function() closed=closed+1 end},4))
+assert(closed==before+4, 'shared reader leaked a response')
 print('HTTP response reads, native failure details and handle cleanup passed')

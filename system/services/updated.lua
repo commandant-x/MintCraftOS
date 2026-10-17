@@ -2,6 +2,7 @@ local config = require("system.libraries.config")
 local version = require("system.libraries.version")
 local source = require("system.libraries.update_source")
 local safeWrite = require("system.libraries.safe_write")
+local httpClient = require("system.network.http_client")
 local operation
 
 local M = {
@@ -91,7 +92,16 @@ local function restoreTree(from, to)
   return true
 end
 
-local function httpGet(url)
+local function responseBody(handle, url, limit)
+  local response, err = httpClient.readResponse(handle, limit, url)
+  if not response then return nil, err end
+  if type(response.code) ~= "number" or response.code < 200 or response.code >= 300 then
+    return nil, "GitHub HTTP " .. tostring(response.code)
+  end
+  return response.body
+end
+
+local function httpGet(url, limit)
   if not http or not http.get then return nil, "HTTP API disabled" end
   local ok, handle, problem, failureHandle = pcall(http.get, url, { ["User-Agent"] = "MintCraftOS" })
   if not ok then return nil, tostring(handle) end
@@ -99,15 +109,10 @@ local function httpGet(url)
     if failureHandle and failureHandle.close then pcall(failureHandle.close) end
     return nil, tostring(problem or "request failed")
   end
-  local codeOK,code=pcall(function() return handle.getResponseCode and handle.getResponseCode() or 200 end)
-  if not codeOK or code<200 or code>=300 then
-    pcall(handle.close) return nil,"GitHub HTTP "..tostring(code)
-  end
-  local readOk, data = pcall(handle.readAll)
-  pcall(handle.close)
-  if not readOk then return nil, tostring(data) end
-  return data
+  return responseBody(handle, url, limit or 256)
 end
+
+local function getCommit(url) return httpGet(url, 262144) end
 
 function M.loadConfig()
   local cfg=config.load(M.cfgPath,{})
@@ -172,11 +177,11 @@ end
 function M.downloadInstaller(pinned)
   if not pinned then
     local err
-    pinned, err = source.resolve(M.loadConfig(), httpGet)
+    pinned, err = source.resolve(M.loadConfig(), getCommit)
     if not pinned then return nil, err end
   end
   local url = source.url(pinned, "install.lua")
-  local data, err = httpGet(url)
+  local data, err = httpGet(url, 1048576)
   if not data then return nil, err end
 
   local path = "/var/tmp/mintcraft_update.lua"
@@ -330,13 +335,13 @@ function M.rollback() return exclusive("Rollback", rollback) end
 local function apply()
   if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
     or fs.exists("/var/tmp/mintcraft-restore") then return false, "Recover pending update before applying" end
-  local pinned, err = source.resolve(M.loadConfig(), httpGet)
+  local pinned, err = source.resolve(M.loadConfig(), getCommit)
   if not pinned then return false, err end
   local remote, problem = httpGet(source.url(pinned, "VERSION"))
   if not remote then return false, problem end
   local comparison, invalid = version.compare(trim(remote), M.localVersion())
   if comparison ~= 1 then return false, invalid or "Pinned release is not newer than installed version" end
-  local data,downloadErr=httpGet(source.url(pinned,"install.lua"))
+  local data,downloadErr=httpGet(source.url(pinned,"install.lua"),1048576)
   if not data then return false,downloadErr end
   if not data:find("-- MintCraft installer protocol: 2",1,true) then return false,"Unsupported installer; use a pinned manual installation" end
   local environment=setmetatable({print=function() end},{__index=_ENV})
@@ -497,9 +502,8 @@ function M.start(ctx)
   end
   table.insert(M.listeners, ctx.eventBus:on("http_success", function(address, handle)
     if address ~= url then return end
-    local ok, data = pcall(handle.readAll)
-    pcall(handle.close)
-    finish(ok and trim(data) or nil, not ok and tostring(data) or nil)
+    local data, err = responseBody(handle, url, 256)
+    finish(data and trim(data) or nil, err)
   end))
   table.insert(M.listeners, ctx.eventBus:on("http_failure", function(address, problem, handle)
     if address ~= url then return end

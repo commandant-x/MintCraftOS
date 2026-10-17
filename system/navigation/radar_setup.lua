@@ -30,7 +30,7 @@ function M.new(snapshot,selected,configuration,onShip,save,validate)
       local cfg=addon.copy(state.configuration.radars[state.id] or {})
       cfg.apiProfile=cfg.apiProfile or "auto"
       local point=addon.vec({x=cfg.positionX,y=cfg.positionY,z=cfg.positionZ}) or addon.vec(cfg.origin) or row and row.rawPosition
-      cfg.positionMode=cfg.positionMode or (row and row.capabilities and row.capabilities.position and "api" or "manual")
+      cfg.positionMode=cfg.positionMode or (row and row.rawPosition and "api" or "manual")
       if cfg.origin then cfg.positionMode="manual" cfg.origin=nil end
       cfg.frame=cfg.frame or (row and row.frame=="world" and "world" or state.onShip and "body" or "world")
       cfg.headingFrame=cfg.headingFrame or (state.onShip and "body" or "world")
@@ -65,9 +65,13 @@ function M.new(snapshot,selected,configuration,onShip,save,validate)
     if self.step==1 then
       local caps=row and row.capabilities or {}
       return {{label="Peripherique",options=ids,get=function() return self.id end,set=function(id) self.id=id self.error=nil end},
-        cfg and forms.field(cfg,"apiProfile","Profil API",nil,{"auto","4.x","5.0-EA"}) or info("Profil API","Indisponible"),
+        cfg and forms.field(cfg,"apiProfile","Profil API",nil,{"auto","4.x","5.0-EA","bridge"}) or info("Profil API","Indisponible"),
+        info("Profil actif",row and row.apiProfile or "Inconnu"),
+        info("Preuve API",row and row.profileEvidence or "Version non detectable"),
+        info("Origine",row and row.adapterOrigin or "API stock / inconnu"),
+        info("Limites",row and row.profileLimitation or "Geometrie automatique non verifiee"),
         info("Contacts recus",row and row.rawTrackCount or "Indisponible"),
-        info("Position automatique",caps.position and "Disponible" or "Non exposee"),
+        info("Position automatique",row and row.rawPosition and "Lecture disponible" or caps.position and "Methode exposee, lecture absente" or "Non exposee"),
         info("Rotation",row and row.rawRotation or "Indisponible"),
         info("Portee (m)",row and row.range or "Indisponible"),
         info("Lectures",row and row.readStatus or "Aucun radar")}

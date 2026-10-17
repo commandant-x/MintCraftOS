@@ -29,7 +29,8 @@ w = 80
 screen:draw(function() end)
 assert(resized == 1)
 local before = shown
-assert(not pcall(function() screen:draw(function() error("render failure") end) end))
+local rendered, renderError = pcall(function() screen:draw(function() error("render failure") end) end)
+assert(not rendered and tostring(renderError):find("render failure"), "render fault was swallowed")
 assert(current == native and shown == before, "partial frame published or redirect leaked")
 screen:invalidate()
 screen:draw(function() end)

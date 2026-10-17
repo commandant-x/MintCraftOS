@@ -85,7 +85,12 @@ function M.run(ctx)
     if self.page=="system" then add("label","Set label")
     elseif self.page=="display" then
       add("refresh","Refresh")
-      for _,v in ipairs({0.5,1,1.5,2}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+      local selected=deviced.getPreference and deviced.getPreference() or "auto"
+      add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
+      for _,device in ipairs(deviced.list()) do
+        if device.type=="monitor" then add("display:"..device.name,device.name,selected==device.name) end
+      end
+      for _,v in ipairs({0.5,1,1.5,2,2.5,3,3.5,4,4.5,5}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
     elseif self.page=="desktop" then add("theme:mint","Mint",theme.currentId=="mint") add("theme:dark","Dark",theme.currentId=="dark")
     elseif self.page=="network" then add("launch:browser","Browser") add("launch:messenger","Messenger") add("launch:crafttube","CraftTube")
     elseif self.page=="nav" then add("launch:navigation","Open Navigation")
@@ -116,6 +121,7 @@ function M.run(ctx)
       local d=deviced.getDisplay() local cells=(d.width or 0)*(d.height or 0)
       line("Target: "..tostring(d.target)) line("Resolution: "..tostring(d.width).."x"..tostring(d.height))
       line("Monitor side: "..tostring(d.monitorSide or "-")) line("Scale: "..tostring(d.scale or "-"))
+      line("Preference: "..tostring(deviced.getPreference and deviced.getPreference() or "auto"))
       line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
       line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
     elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Icons: NFP 7x6 with text fallback") line("Keyboard: AZERTY")
@@ -244,6 +250,7 @@ function M.run(ctx)
     if not allowed("system.config") then return end
     if id=="label" then self:beginInput(id)
     elseif id=="refresh" then deviced.refreshDisplay()
+    elseif id:sub(1,8)=="display:" then local ok,err=deviced.setTarget(id:sub(9)) notify(ok,"Display",err)
     elseif id:sub(1,6)=="scale:" then local ok,err=deviced.setScale(tonumber(id:sub(7))) notify(ok,"Display",err)
     elseif id:sub(1,6)=="theme:" then local ok,err=theme.set(id:sub(7)) notify(ok~=false,"Theme",err or "Theme applied") end
   end

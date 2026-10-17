@@ -9,6 +9,7 @@ os.cancelTimer=function() end
 os.pullEvent=function(filter) return coroutine.yield(filter) end
 parallel={waitForAll=function(...) for _,fn in ipairs({...}) do fn() end end}
 local addon=require("system.libraries.addon")
+addon.configure({readsPerTick=1000000})
 addon.bounded=function(fn) return pcall(fn) end
 addon.periodic=function() return {stop=function() end,rescan=function() end} end
 package.loaded["system.libraries.log"]={info=function() end,warn=function() end,error=function() end}
@@ -26,7 +27,7 @@ local devices={radar={getTracks=function() reads=reads+1 return {{id="player-uui
   mount={getInfo=function() reads=reads+1 return {x=0,y=0,z=0,assembled=true,yaw=currentYaw,pitch=currentPitch} end,
     setComputerControl=function(value) writes[#writes+1]={"control",value} end,
     setTargetAngles=function(yaw,pitch) currentYaw,currentPitch=yaw,pitch writes[#writes+1]={"aim",yaw,pitch} end,
-    fire=function(value) writes[#writes+1]={"fire",value} end}}
+    fire=function(value) writes[#writes+1]={"fire",value} return value end}}
 peripheral={getNames=function() scans=scans+1 return {"radar","mount"} end,getType=function(name) return name=="mount" and "cannon_mount" or "create_radar:radar" end,
   getMethods=function(name) local methods={} for key in pairs(devices[name]) do methods[#methods+1]=key end return methods end,wrap=function(name) return devices[name] end}
 local scheduler=require("system.kernel.scheduler").new()
@@ -40,6 +41,8 @@ local before=reads
 for i=1,100 do combat.snapshot() combat.status() end
 assert(reads==before and scans==1)
 local actor={pid=1}
+assert(not combat.solution("mount","player-uuid"),"first observation commandable")
+now=1.2 scanTime=21 combat.acquire(false)
 local solution=assert(combat.solution("mount","player-uuid")) assert(solution.estimated and solution.pitch>0)
 assert(not combat.solution("mount",nil),"missing target silently selected first contact")
 local function flush()
@@ -54,6 +57,7 @@ assert(writes[#writes][1]=="fire" and writes[#writes][2]==true)
 assert(combat.stop()==false,"stopped active fire worker")
 scheduler:dispatch({name="timer",args={timers}}) flush()
 assert(writes[#writes][2]==false,"fire output not released")
+assert(not combat.status().uncertain.mount,"false release mistaken for failure")
 assert(not combat.requestFire(actor,"mount","player-uuid",token),"confirmation reused")
 assert(combat.requestProbe(actor,"mount")) flush()
 assert(writes[#writes][1]=="fire" and writes[#writes][2]==false,"Probe called actuator")
@@ -75,7 +79,8 @@ devices.mount.fire=originalFire
 now=7 combat.acquire(false)
 assert(combat.snapshot().targets[1].stale,"rereading same scannedTime kept lost target fresh")
 assert(not combat.solution("mount","player-uuid"))
-scanTime=21 combat.acquire(false) assert(not combat.snapshot().targets[1].stale)
+scanTime=22 combat.acquire(false) assert(combat.snapshot().targets[1].stale,"late progression accepted")
+now=7.2 scanTime=23 combat.acquire(false) assert(not combat.snapshot().targets[1].stale)
 assert(combat.configure(actor,"aliases","player-uuid","Local alias")) combat.acquire(false)
 assert(combat.snapshot().targets[1].label=="Local alias" and combat.snapshot().targets[1].labelSource=="alias")
 assert(combat.stop())
@@ -129,11 +134,12 @@ combat.start({scheduler=scheduler}) combat.acquire(true)
 assert(combat.snapshot().targets[1].friendly==true and combat.snapshot().targets[1].synthetic==false)
 local _,blocked=combat.solution("mount","player-uuid")
 assert(blocked:find("friendly",1,true),"friendly API target can be commanded")
--- Classification is retained even when scan time did not change.
+-- Duplicate reports cannot clear true classification without a newer scan.
 assert(combat.snapshot().radars[1].classificationSource=="API friendly/synthetic")
 devices.right.getTracks=function() return {{id="player-uuid",position={x=0,y=0,z=100},scannedTime=scanTime,friendly=false,synthetic=true}} end
 combat.acquire(false)
-assert(combat.snapshot().targets[1].friendly==false and combat.snapshot().targets[1].synthetic==true)
+assert(combat.snapshot().targets[1].friendly==true and combat.snapshot().targets[1].synthetic==true)
+scanTime=scanTime+1 now=now+0.2 combat.acquire(false)
 local _,syntheticBlocked=combat.solution("mount","player-uuid")
 assert(syntheticBlocked:find("synthetic",1,true),"synthetic API target can be commanded")
 assert(combat.stop())

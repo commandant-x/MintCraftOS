@@ -52,7 +52,13 @@ http={get=function(path)
     ok,reason=updated.apply() assert(not ok and reason:find("in progress",1,true))
     state.put("/VERSION","2.0.0") data=script
   end
-  return {readAll=function() return data end,close=function() end,getResponseCode=function() return 200 end}
+  local offset=1
+  return {read=function(n)
+    if offset>#data then return nil end
+    local chunk=data:sub(offset,offset+n-1)
+    offset=offset+#chunk
+    return chunk
+  end,close=function() end,getResponseCode=function() return 200 end}
 end}
 local ok,reason=updated.apply()
 assert(not ok and reason:find("Installed version changed",1,true))

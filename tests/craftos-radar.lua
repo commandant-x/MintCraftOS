@@ -26,7 +26,8 @@ local ok,err=pcall(function()
     local launched,pid=apps.launch('combat') assert(launched,tostring(pid)) sleep(0.4)
     local process=apps.ctx.scheduler.processes[pid]
     assert(process.state=='ready' and process.window.app.snapshot.radars[1].position)
-    assert(combat.configure({pid=pid},'radars','right',{frame='unknown',headingFrame='world',headingSign=1,headingOffset=0}))
+    assert(not combat.configure({pid=pid},'radars','right',{frame='unknown',headingFrame='world',headingSign=1,headingOffset=0}))
+    assert(combat.configure({pid=pid},'radars','right',{frame='body',headingFrame='world',headingSign=1,headingOffset=0}))
     sleep(0.5)
     local app=process.window.app
     assert(not app.snapshot.radars[1].position and app.snapshot.radars[1].rawPosition)
@@ -114,7 +115,7 @@ local ok,err=pcall(function()
     end
     sleep(0.5)
     local radarNet=require('system.services.radarnetd')
-    local netConfig=radarNet.configuration() netConfig.enabled=true netConfig.group='test-world' netConfig.trusted['2']=true
+    local netConfig=radarNet.configuration() netConfig.enabled=true netConfig.allowInsecure=true netConfig.group='test-world' netConfig.trusted['2']=true
     netConfig.x=0 netConfig.y=70 netConfig.z=0 netConfig.radius=400
     assert(radarNet.configure({pid=pid},netConfig))
     local remotePacket={version=1,group='test-world',session='outpost',sequence=1,label='North station',frame='world',
@@ -135,10 +136,16 @@ local ok,err=pcall(function()
       for _,size in ipairs({{24,12},{49,15},{80,26},{118,36}}) do draw(size[1],size[2]) end
     end
     app.page='radar' app.view.network=true app.canvas=nil draw(118,36)
-    local players
-    for _,box in ipairs(app.filterBar) do if box.id=='players' then players=box end end
-    assert(players,'filter inaccessible')
-    app:handle({name='mouse_click',args={1,players.x,players.y}}) draw(118,36)
+    local function category(id)
+      local trigger=app.categories.trigger
+      app:handle({name='mouse_click',args={1,trigger.x,trigger.y}}) draw(118,36)
+      local selected
+      for _,box in ipairs(app.categories.menuBoxes) do if box.id==id then selected=box end end
+      assert(selected,'filter inaccessible')
+      app:handle({name='mouse_click',args={1,selected.x,selected.y}})
+      app:handle({name='key',args={keys.escape}}) draw(118,36)
+    end
+    category('players')
     assert(app.filters.players and #app.graphHits==2,'player filter did not affect 2D')
     local marker=app.graphHits[1]
     app:handle({name='mouse_click',args={1,marker.x,marker.y+4}})
@@ -147,7 +154,7 @@ local ok,err=pcall(function()
     app:handle({name='mouse_click',args={1,marker.x,marker.y+4}})
     assert(app.targetId==nil,'second tap did not deselect')
     app.page='three' app.canvas=nil draw(118,36) assert(#app.graphHits==2,'3D filters differ')
-    app:handle({name='mouse_click',args={1,players.x,players.y}}) draw(118,36)
+    category('players')
     assert(next(app.filters)==nil and #app.graphHits==4,'second category tap did not reset')
     app.page='targets' draw(118,36)
     local remoteRow
@@ -158,6 +165,9 @@ local ok,err=pcall(function()
     app.page='network' draw(118,36)
     local function clickAction(id)
       for _,box in ipairs(app.bar) do if box.id==id then app:handle({name='mouse_click',args={1,box.x,box.y}}) return end end
+      local trigger=app.commands.trigger
+      app:handle({name='mouse_click',args={1,trigger.x,trigger.y}}) draw(118,36)
+      for _,box in ipairs(app.commands.menuBoxes) do if box.id==id then app:handle({name='mouse_click',args={1,box.x,box.y}}) return end end
       error('missing action '..id)
     end
     clickAction('networkConfig') assert(app.page=='config')

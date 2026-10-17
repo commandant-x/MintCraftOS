@@ -1,5 +1,6 @@
 package.path="./?.lua;"..package.path
 require("system.libraries.addon").bounded=function(fn) return pcall(fn) end
+if require("system.libraries.addon").configure then require("system.libraries.addon").configure({readsPerTick=100000}) end
 local now=1
 os.clock=function() return now end
 parallel={waitForAll=function(...) for _,f in ipairs({...}) do f() end end}
@@ -12,6 +13,7 @@ peripheral={getNames=function() scans=scans+1 return {"altitude","gimbal","nav",
   getMethods=function(n) local methods={} for key in pairs(devices[n]) do methods[#methods+1]=key end return methods end,wrap=function(n) return devices[n] end}
 local av=require("system.services.avionicsd")
 av.acquire(true)
+av.acquireDiagnostics()
 assert(av.snapshot().measurements.pitch.value==3 and av.snapshot().measurements.yawRate.value==2)
 assert(av.snapshot().measurements.gravity.value.y==-11)
 local before=calls
@@ -21,6 +23,7 @@ now=1.1 av.acquire(false)
 assert(calls==before+1,"slow diagnostics read at 10Hz")
 assert(scans==1,"fast sample rescanned peripherals")
 now=2.2 av.acquire(false)
+av.acquireDiagnostics()
 assert(calls==before+3)
 local snap=av.snapshot() snap.devices[1].name="tampered"
 assert(av.snapshot().devices[1].name~="tampered")
@@ -36,6 +39,7 @@ package.loaded["system.libraries.log"]={warn=function() end,error=function() end
 sublevel={isInPlotGrid=function() return true end,getLogicalPose=function() return pose end,getMass=function() return 126093 end,getLinearVelocity=function() return {x=1,y=2,z=3} end}
 local sable=require("system.services.sabled")
 sable.acquire(true)
+sable.acquireDiagnostics() sable.acquire(false)
 assert(sable.status().inSublevel and sable.snapshot().sublevel.mass==126093)
 sublevel.isInPlotGrid=function() return false end
 sable.acquire(false)

@@ -6,7 +6,19 @@ local M = {
   ready = false,
   listeners = {},
   stream = nil,
+  notificationQueue = {},
 }
+
+local function flushNotifications()
+  while #M.notificationQueue > 0 do
+    local level = M.notificationQueue[1]
+    if M.stream and level ~= "error" then return end
+    if M.stream then M.stopPlayback() end
+    local ok, err = speaker.notify(level)
+    if not ok and err == "Speaker busy" then return end
+    table.remove(M.notificationQueue, 1)
+  end
+end
 
 function M.stopPlayback()
   if M.stream then M.stream.close(true) end
@@ -46,12 +58,22 @@ function M.start(ctx)
     end))
     table.insert(M.listeners, ctx.eventBus:on("speaker_audio_empty", function(side)
       if M.stream and M.stream.side == side then advance() end
+      flushNotifications()
+    end))
+    table.insert(M.listeners, ctx.eventBus:on("timer", function(id)
+      if id ~= M.notificationTimer then return end
+      M.notificationTimer = nil
+      flushNotifications()
+      if #M.notificationQueue > 0 then M.notificationTimer = os.startTimer(0.1) end
     end))
   end
 end
 
 function M.stop()
   M.stopPlayback()
+  if M.notificationTimer and os.cancelTimer then os.cancelTimer(M.notificationTimer) end
+  M.notificationTimer = nil
+  M.notificationQueue = {}
   if M.ctx and M.ctx.eventBus then
     for _, id in ipairs(M.listeners) do M.ctx.eventBus:off(id) end
   end
@@ -72,11 +94,23 @@ function M.test()
 end
 
 function M.notify(level)
-  return speaker.notify(level)
+  if not M.ready or not M.ctx or not M.ctx.eventBus or not os.startTimer then return speaker.notify(level) end
+  local queue = M.notificationQueue
+  if #queue >= 16 then
+    if level ~= "error" then return false, "Notification queue full" end
+    local victim
+    for i = #queue, 1, -1 do if queue[i] ~= "error" then victim = i break end end
+    if not victim then return false, "Notification queue full" end
+    table.remove(queue, victim)
+  end
+  if level == "error" then table.insert(queue, 1, level) else table.insert(queue, level or "info") end
+  flushNotifications()
+  if #queue > 0 and not M.notificationTimer then M.notificationTimer = os.startTimer(0.1) end
+  return true
 end
 
 function M.setEnabled(enabled)
-  if enabled == false then M.stopPlayback() end
+  if enabled == false then M.stopPlayback() M.notificationQueue = {} end
   return speaker.setEnabled(enabled)
 end
 

@@ -2,7 +2,9 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains the V0.18.7 base:
+This repository currently contains V0.18.8:
+
+CC/addon contract fixes and commissioning limits: [V0.18.8 remediation](docs/AUDIT_ADDONS_FIXES.md).
 
 Audit fixes, regression coverage and remaining limits: [V0.18.7 audit remediation](docs/AUDIT_FIXES.md).
 
@@ -28,7 +30,7 @@ Direct Navigation/Combat action pickers and 20 Hz radar redraw: [Action menus](d
 - richer Settings pages for system, display, desktop, network, storage, apps, packages and developer information
 - GitHub Update app and boot-time update check through the `updated` service
 - update rollback snapshot restored from Update or Recovery
-- Task Manager with process list, disk usage, Lua memory usage and estimated CPU activity
+- Task Manager with process list, disk usage, Lua heap, active wall time and bounded acquisition counters (not CPU percentage)
 - Terminal with file commands, process commands and touch autocomplete
 - Services, Logs and Task Manager apps with touch controls
 - HTTP/WebSocket network wrappers, `networkd` service and Chrome-like text/color Browser app
@@ -39,21 +41,23 @@ Direct Navigation/Combat action pickers and 20 Hz radar redraw: [Action menus](d
 - Store and local package manager with bundled example packages
 - Rednet Messenger app for MintCraftOS-to-MintCraftOS chat with a modem
 - Navigation: measured horizon, altitude, heading, vertical speed, environment, hybrid output mapping and calibrated PID control
-- Native coroutine workers: flight telemetry/control at 10 Hz, radar at 5 Hz and slow Avionics diagnostics at 1 Hz
+- Native coroutine workers: target flight telemetry/control 10 Hz, radar 5 Hz and slow diagnostics 1 Hz, with bounded acquisition and measured overruns
 - Combat: subpixel 2D/3D schematic scopes, measured/calibrated radar heading, bounded trails, persistent target IDs and local aliases
 - Shared category filters and second-tap deselection; immediate touch redraw with 5 Hz cached instruments
 - Optional Rednet station discovery/inclusion, aggregated contacts, multi-radar overview and explicitly enabled perimeter alerts
-- Remote contacts are display/alert only: unauthenticated Rednet never authorizes weapon control
+- Remote contacts are display/alert only, including authenticated Rednet; shared-key authentication does not encrypt measurements
 - CC:CBC 1.1.1 mount adapter: calibrated ballistic estimates, mechanical limits, asynchronous aiming/tracking and separately confirmed fire pulses
 - No simulated radar sweep, fabricated name, origin, angle or fallback target position; unknown coordinate frames block control
 - Navigation gains start at zero and arming requires output tests, direction/hover/manual/rescue confirmation and fresh selected sensors
+- Navigation supports calibrated CC redstone relay outputs by peripheral name and side, in addition to PC sides and Avionics
+- Body-mounted CBC aiming is blocked when attitude is unknown or inclined; full 3D mount ballistics is not implemented
 - Closing/crashing/killing the Navigation owner requests calibrated rescue; never automatically rearm after rescue or reboot
 - Browser/CraftTube remain legacy features in pause; V0.18 adds no browser/HTML5 work
 - user/session security service with declared app permissions, user permissions, lock/unlock and logged denials
 - speaker audio driver and `audiod` service with Settings controls and notification/test tones
 - app crash isolation for process, window draw and input errors, with log entry and notification
 
-Not included yet: JavaScript/HTML5 video playback, encrypted password storage and per-file ACLs.
+Not included yet: JavaScript/HTML5 video playback, full 3D mount ballistics and per-file ACLs. Passwords use salted PBKDF2 hashes, not reversible encryption. Arbitrary third-party Lua execution remains blocked.
 
 Install the repository contents at the root of a CC:Tweaked computer, then reboot or run:
 

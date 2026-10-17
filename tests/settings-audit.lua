@@ -16,6 +16,8 @@ package.loaded["system.gui.theme"]={currentId="dark",get=function(key) return ke
 package.loaded["system.libraries.config"]={load=function(_,fallback) return fallback end}
 package.loaded["system.libraries.version"]={current=function() return "test" end}
 package.loaded["system.services.deviced"]={getDisplay=function() return {width=26,height=20,target="computer",scale=1} end,hasType=function() return false end,
+  list=function() return {{name="monitor_0",type="monitor"}} end,getPreference=function() return "auto" end,
+  setTarget=function(value) changes.display=value return true end,
   refreshDisplay=function() changes.refresh=true end,setScale=function(value) changes.scale=value return true end}
 package.loaded["system.services.networkd"]={getStatus=function() return {} end}
 package.loaded["system.services.audiod"]={status=function() return {speakers={{side="left"}},volume=1} end,
@@ -63,7 +65,7 @@ for _,page in ipairs({"nav","combat"}) do
   assert(box and click(box.x,box.y))
   assert(launched==(page=="nav" and "navigation" or "combat"),"local launch hitbox used global term size")
 end
-for _,id in ipairs({"theme:mint","label","scale:0.5","audio","test","volume:0.5","speaker:left","refresh"}) do app:action(id) end
+for _,id in ipairs({"theme:mint","label","scale:0.5","display:computer","audio","test","volume:0.5","speaker:left","refresh"}) do app:action(id) end
 assert(next(changes)==nil,"guest changed Settings")
 app:action("passwordOld") assert(not app.mode)
 app:action("cleanup") app:action("cleanupConfirm") assert(cleanupCalls==0)
@@ -73,6 +75,7 @@ app:action("cleanup") assert(app.cleanupPending and cleanupCalls==0)
 app:action("cleanupConfirm") assert(cleanupCalls==1)
 app:action("theme:mint") app:action("scale:0.5") app:action("audio")
 assert(changes.theme=="mint" and changes.scale==0.5 and changes.audio)
+app:action("display:monitor_0") assert(changes.display=="monitor_0")
 app:action("profile:pocket") assert(configured.mode=="pocket")
 app:action("passwordOld") app.input="old password" app.keyboard.onEnter()
 assert(app.mode=="passwordNew") app.input="new password" app.keyboard.onEnter()

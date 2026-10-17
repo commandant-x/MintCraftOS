@@ -7,6 +7,11 @@ local M = {
 }
 
 local CONFIG = "/system/config/audio.cfg"
+local cachedCfg
+
+function M.invalidateConfig()
+  cachedCfg = nil
+end
 
 local function clampVolume(value)
   value = tonumber(value) or 1
@@ -16,13 +21,16 @@ local function clampVolume(value)
 end
 
 local function loadCfg()
-  return config.load(CONFIG, {
+  if cachedCfg then return cachedCfg end
+  cachedCfg = config.load(CONFIG, {
     enabled = true,
     volume = 1,
     notificationVolume = 0.6,
     defaultSide = nil,
     notifyOnSystemReady = true,
   })
+  if type(cachedCfg) ~= "table" then cachedCfg = {} end
+  return cachedCfg
 end
 
 local function get(side)
@@ -81,9 +89,9 @@ function M.openStream(path, side)
   if not name then return nil, "Speaker name unavailable" end
   local ok, dfpwm = pcall(require, "cc.audio.dfpwm")
   if not ok then return nil, "DFPWM decoder unavailable" end
+  local decoder = dfpwm.make_decoder()
   local handle = fs.open(path, "rb")
   if not handle then return nil, "Cannot open audio file" end
-  local decoder = dfpwm.make_decoder()
   local pending, closed = nil, false
   return {
     side = name,
@@ -113,6 +121,7 @@ function M.setVolume(volume)
   local cfg = loadCfg()
   cfg.volume = clampVolume(volume)
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   return cfg.volume
 end
 
@@ -120,6 +129,7 @@ function M.setNotificationVolume(volume)
   local cfg = loadCfg()
   cfg.notificationVolume = clampVolume(volume)
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   return cfg.notificationVolume
 end
 
@@ -127,6 +137,7 @@ function M.setEnabled(enabled)
   local cfg = loadCfg()
   cfg.enabled = enabled ~= false
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   return cfg.enabled
 end
 
@@ -138,6 +149,7 @@ function M.use(side)
   local cfg = loadCfg()
   cfg.defaultSide = side
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   M.defaultSide = side
   return true
 end
@@ -152,6 +164,7 @@ function M.playNote(instrument, pitch, volume, side)
     log.warn("speaker", tostring(err))
     return false, tostring(err)
   end
+  if err == false then return false, "Speaker busy" end
   return true
 end
 
@@ -165,6 +178,7 @@ function M.playSound(name, pitch, volume, side)
     log.warn("speaker", tostring(err))
     return false, tostring(err)
   end
+  if err == false then return false, "Speaker busy" end
   return true
 end
 
@@ -189,18 +203,21 @@ function M.playDfPWM(path, side)
   if not speaker or not speaker.playAudio then return false, "No speaker audio API" end
   local okDfpwm, dfpwm = pcall(require, "cc.audio.dfpwm")
   if not okDfpwm then return false, "DFPWM decoder unavailable" end
+  local decoder = dfpwm.make_decoder()
   local handle = fs.open(path, "rb")
   if not handle then return false, "Cannot open file" end
-  local decoder = dfpwm.make_decoder()
+  local ok, err = pcall(function()
   while true do
     local chunk = handle.read(16 * 1024)
-    if not chunk then break end
+    if not chunk or chunk == "" then break end
     local buffer = decoder(chunk)
     while not speaker.playAudio(buffer, clampVolume(cfg.volume)) do
       os.pullEvent("speaker_audio_empty")
     end
   end
-  handle.close()
+  end)
+  pcall(handle.close)
+  if not ok then return false, tostring(err) end
   return true
 end
 

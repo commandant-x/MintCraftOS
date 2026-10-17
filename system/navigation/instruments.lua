@@ -5,6 +5,10 @@ local filters=require("system.navigation.radar_filter")
 local M={}
 local categoryPalette={players=colors.lightBlue,mobs=colors.orange,vessels=colors.white,projectiles=colors.red,other=colors.lightGray}
 local unitCircle={}
+local backgroundCache={}
+local cacheSerial=0
+local renderStats={backgroundBuilds=0,backgroundHits=0}
+function M.stats() return {backgroundBuilds=renderStats.backgroundBuilds,backgroundHits=renderStats.backgroundHits} end
 for step=0,48 do local a=step*math.pi/24 unitCircle[#unitCircle+1]={math.sin(a),math.cos(a)} end
 function M.horizon(w,h,pitch,roll)
   local canvas=pixels.new(w,h,colors.black)
@@ -73,6 +77,23 @@ function M.radar(w,h,snap,radarId,selected,view)
     if x1 and x2 then canvas:line(x1,y1,x2,y2,color) end
   end
   local o=radar.position
+  local parts={}
+  local function keyPart(value)
+    local text=tostring(value)
+    parts[#parts+1]=#text..":"..text
+  end
+  for _,value in ipairs({w,h,o.x,o.y,o.z,range,heading,yaw,pitch}) do keyPart(value) end
+  keyPart(view.three==true) keyPart(view.relative==true) keyPart(view.network==true)
+  for _,station in ipairs(snap.radars or {}) do
+    keyPart(station.id) keyPart(station.name)
+    for _,key in ipairs({"range","heading","fov","halfHeight","verticalFov","running","remote"}) do keyPart(station[key]) end
+    for _,key in ipairs({"x","y","z"}) do keyPart(station.position and station.position[key]) end
+  end
+  local zone=snap.zone
+  keyPart(zone and zone.alerts)
+  for _,key in ipairs({"x","y","z","radius"}) do keyPart(zone and zone[key]) end
+  local backgroundKey=table.concat(parts,"|")
+  local cachedBackground=backgroundCache[backgroundKey]
   local function circle(position,r,color)
     local previous
     for _,point in ipairs(unitCircle) do
@@ -80,6 +101,7 @@ function M.radar(w,h,snap,radarId,selected,view)
       if previous then segment(previous,p,color) end previous=p
     end
   end
+  local function drawBackground()
   if view.three then
     circle(o,range,colors.gray)
     for _,d in ipairs({{range,0,0},{0,range,0},{0,0,range}}) do segment(o,{x=o.x+d[1],y=o.y+d[2],z=o.z+d[3]},colors.gray) end
@@ -125,9 +147,30 @@ function M.radar(w,h,snap,radarId,selected,view)
         if view.network then labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan} end
       end
     end end
-  local zone=snap.zone
   if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
     circle({x=zone.x,y=zone.y,z=zone.z},zone.radius,colors.orange)
+  end
+  end
+  cacheSerial=cacheSerial+1
+  if cachedBackground then
+    cachedBackground.used=cacheSerial
+    canvas=cachedBackground.canvas:clone()
+    labels=addon.copy(cachedBackground.labels)
+    renderStats.backgroundHits=renderStats.backgroundHits+1
+  else
+    drawBackground()
+    renderStats.backgroundBuilds=renderStats.backgroundBuilds+1
+    if w*h<=8192 then
+      for row=1,h do canvas:getLine(row) end
+      local count,oldestKey,oldest=0,nil,math.huge
+      for key,entry in pairs(backgroundCache) do
+        count=count+1
+        if entry.used<oldest then oldestKey,oldest=key,entry.used end
+      end
+      if count>=4 then backgroundCache[oldestKey]=nil end
+      backgroundCache[backgroundKey]={canvas=canvas,labels=addon.copy(labels),used=cacheSerial}
+      canvas=canvas:clone()
+    end
   end
   if not view.three and not view.relative then labels[#labels+1]={x=math.max(1,math.floor(cx/2)),y=1,text="N (-Z)",color=colors.white} end
   for _,target in ipairs(snap.targets or {}) do

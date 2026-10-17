@@ -15,6 +15,7 @@ local state, reason, owner, targets, timestamp = "disarmed","not calibrated",nil
 local rescuePending, lastTick, inventoryDirty = false, nil, true
 local tested, rescueTested, session = {}, false, false
 local outputResults, rescueResults = {}, {}
+local rankConfig, mixerRank
 
 local function authorize(actor, permission)
   local process = ctx and actor and ctx.scheduler.processes[actor.pid]
@@ -34,6 +35,7 @@ local function migrate()
     c.gains[axis] = c.gains[axis] or {kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}
   end
   c.enabled = false
+  rankConfig,mixerRank=nil,nil
 end
 
 local function persist()
@@ -47,8 +49,16 @@ local function selected(rows,name)
 end
 
 function M.telemetry()
-  local snap = avionics.snapshot()
   local c = cfg.control or {sensors={}}
+  if avionics.flightTelemetry then
+    local t=avionics.flightTelemetry(c.sensors)
+    local sub=sable.flightStatus and sable.flightStatus() or sable.status()
+    local observed=sub.timestamp
+    if not observed then observed=sable.snapshot().timestamp end
+    t.inSublevel=sub.inSublevel==true and addon.finite(observed) and os.clock()-observed<=0.5
+    return t
+  end
+  local snap = avionics.snapshot()
   local g = selected(snap.gimbal,c.sensors.gimbal)
   local a = selected(snap.altitude,c.sensors.altitude)
   local nav = selected(snap.nav,c.sensors.nav)
@@ -62,7 +72,10 @@ end
 
 local function endpoint(channel)
   if channel.backend=="redstone" then return channel.side and sides[channel.side] and ("redstone:"..channel.side) end
-  if channel.backend=="avionics" then return channel.name and ("avionics:"..channel.name) end
+  if channel.backend=="avionics" and type(channel.name)=="string" and channel.name~="" then return "avionics:"..channel.name end
+  if channel.backend=="relay" and type(channel.name)=="string" and channel.name~="" and sides[channel.side] then
+    return "relay:"..channel.name..":"..channel.side
+  end
 end
 
 local function deviceFor(channel)
@@ -72,12 +85,18 @@ end
 local function channelValid(channel)
   if type(channel)~="table" or type(channel.id)~="string" or channel.id=="" then return false,"output ID missing" end
   if not endpoint(channel) then return false,"invalid endpoint" end
-  for _, key in ipairs({"min","max","neutral","rescue"}) do if not addon.finite(channel[key]) then return false,key.." missing" end end
+  for _, key in ipairs({"min","max","neutral","rescue"}) do
+    if not addon.finite(channel[key]) or channel[key]%1~=0 then return false,key.." must be an integer" end
+  end
   if channel.min < 0 or channel.max > 15 or channel.min>channel.max then return false,"signal limits must be within 0..15" end
   if channel.neutral<channel.min or channel.neutral>channel.max or channel.rescue<channel.min or channel.rescue>channel.max then return false,"neutral/rescue outside limits" end
   if channel.backend=="avionics" then
     local row=deviceFor(channel)
     if not row or not row.set.setSignal or not (addon.hasType(row,"analog_transmission") or addon.hasType(row,"throttle_lever")) then return false,"supported Avionics signal endpoint missing" end
+  end
+  if channel.backend=="relay" then
+    local row=deviceFor(channel)
+    if not row or not addon.hasType(row,"redstone_relay") or not row.set.setAnalogOutput then return false,"redstone relay endpoint missing" end
   end
   return true
 end
@@ -125,7 +144,8 @@ function M.validate()
     end
     matrix[#matrix+1]=row
   end
-  if rank(matrix)<4 then errors[#errors+1]="outputs cannot independently correct all four axes" end
+  if rankConfig~=c then mixerRank,rankConfig=rank(matrix),c end
+  if mixerRank<4 then errors[#errors+1]="outputs cannot independently correct all four axes" end
   for _, axis in ipairs(axes) do
     local g=c.gains[axis] or {}
     for _, key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do
@@ -259,6 +279,11 @@ local function writeOutputs(values, force, results)
             if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value) return true end
             local row=deviceFor(channel)
             if not row then return false,"actuator detached: "..tostring(channel.name) end
+            if channel.backend=="relay" then
+              local accepted,problem=addon.call(row.device,"setAnalogOutput",channel.side,value)
+              if problem then error(problem) end
+              return accepted~=false,accepted==false and "relay refused" or nil
+            end
             local returned,problem=addon.call(row.device,"setSignal",value)
             if problem then error(problem) end
             return returned~=false,returned==false and "actuator refused" or nil
@@ -278,6 +303,18 @@ local function writeOutputs(values, force, results)
     if result.state~="confirmed" then failures[#failures+1]=id..": "..result.state..": "..tostring(result.error) end
   end
   return #failures==0,table.concat(failures,"; "),results
+end
+
+function M.endpoints()
+  local rows={}
+  for _,row in ipairs(inventory) do
+    if addon.hasType(row,"redstone_relay") and row.set.setAnalogOutput then
+      rows[#rows+1]={name=row.name,backend="relay",sides={"top","bottom","left","right","front","back"}}
+    elseif row.set.setSignal and (addon.hasType(row,"analog_transmission") or addon.hasType(row,"throttle_lever")) then
+      rows[#rows+1]={name=row.name,backend="avionics"}
+    end
+  end
+  return rows
 end
 
 function M.calibrate(actor,kind,id, confirmed)

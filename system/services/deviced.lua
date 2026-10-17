@@ -17,21 +17,79 @@ local M = {
   listeners = {},
 }
 
-local function readScale()
-  local cfg = config.load("/system/config/system.cfg", {})
-  local value = tonumber(cfg.displayScale) or 0.5
-  if value < 0.5 then value = 0.5 end
-  if value > 5 then value = 5 end
-  return math.floor(value * 2 + 0.5) / 2
+local function normalizeScale(value)
+  value = tonumber(value) or 0.5
+  if value ~= value then value = 0.5 end
+  return math.floor(math.max(0.5, math.min(5, value)) * 2 + 0.5) / 2
 end
 
-function M.setScale(scale)
+local function validTarget(target)
+  return type(target) == "string" and target:find("%S") ~= nil and not target:find("%c")
+end
+
+function M.getPreference()
   local cfg = config.load("/system/config/system.cfg", {})
-  scale = tonumber(scale) or readScale()
-  if scale < 0.5 then scale = 0.5 end
-  if scale > 5 then scale = 5 end
-  cfg.displayScale = math.floor(scale * 2 + 0.5) / 2
-  config.save("/system/config/system.cfg", cfg)
+  return validTarget(cfg.displayTarget) and cfg.displayTarget or "auto"
+end
+
+local function readScale(target)
+  local cfg = config.load("/system/config/system.cfg", {})
+  local scales = type(cfg.displayScales) == "table" and cfg.displayScales or {}
+  return normalizeScale(scales[target] or cfg.displayScale)
+end
+
+function M.setTarget(target)
+  local ok, err = M.setPreference(target)
+  if not ok then return false, err end
+  if target ~= "auto" and target ~= "computer" and M.display.monitorSide ~= target then
+    return false, "Display unavailable; preference saved; using computer"
+  end
+  return true
+end
+
+function M.setPreference(target)
+  if not validTarget(target) then return false, "Invalid display target" end
+  local cfg = config.load("/system/config/system.cfg", {})
+  cfg.displayTarget = target
+  local ok, err = config.save("/system/config/system.cfg", cfg)
+  if not ok then return false, err end
+  M.refreshDisplay()
+  return true
+end
+
+function M.listDisplays()
+  local preference = M.getPreference()
+  local rows = {
+    {name = "auto", label = "Auto", available = true, selected = preference == "auto"},
+    {name = "computer", label = "Computer", available = true, selected = preference == "computer"},
+  }
+  local names, found = {}, false
+  for name, device in pairs(M.devices) do
+    if device.type == "monitor" or (device.types and device.types.monitor) then
+      names[#names + 1] = name
+    end
+  end
+  table.sort(names)
+  for _, name in ipairs(names) do
+    rows[#rows + 1] = {name = name, label = name, available = true, selected = preference == name}
+    if preference == name then found = true end
+  end
+  if preference ~= "auto" and preference ~= "computer" and not found then
+    rows[#rows + 1] = {name = preference, label = preference, available = false, selected = true}
+  end
+  return rows
+end
+
+function M.setScale(scale, target)
+  local cfg = config.load("/system/config/system.cfg", {})
+  target = target or M.display.monitorSide or M.getPreference()
+  if not validTarget(target) then return false, "Invalid display target" end
+  scale = normalizeScale(tonumber(scale) or readScale(target))
+  if type(cfg.displayScales) ~= "table" then cfg.displayScales = {} end
+  cfg.displayScales[target] = scale
+  if target == "auto" then cfg.displayScale = scale end
+  local ok, err = config.save("/system/config/system.cfg", cfg)
+  if not ok then return false, err end
   return M.refreshDisplay()
 end
 
@@ -68,10 +126,13 @@ function M.hasType(kind)
 end
 
 function M.useMonitor()
+  local preference = M.getPreference()
+  if preference == "computer" then return false end
   if not peripheral or not peripheral.wrap then return false end
   local names = {}
   for name, device in pairs(M.devices) do
-    if device.type == "monitor" or (device.types and device.types.monitor) then
+    if (preference == "auto" or preference == name) and
+        (device.type == "monitor" or (device.types and device.types.monitor)) then
       names[#names + 1] = name
     end
   end
@@ -81,9 +142,10 @@ function M.useMonitor()
     if b == M.display.monitorSide then return false end
     return a < b
   end)
-  local scale = readScale()
+  local scale
   local monitor, side, w, h
   for _, name in ipairs(names) do
+    scale = readScale(name)
     local ok, candidate, width, height = pcall(function()
       local device = peripheral.wrap(name)
       if not device then error("Monitor detached") end
@@ -112,6 +174,7 @@ function M.useMonitor()
 end
 
 function M.refreshDisplay()
+  if not M.nativeTerm then M.nativeTerm = term.native and term.native() or term.current() end
   if M.ctx and M.ctx.invalidateDisplay then M.ctx.invalidateDisplay() end
   M.scan()
   local oldW, oldH = M.display.width, M.display.height
@@ -142,6 +205,20 @@ end
 
 function M.getTarget()
   return M.displayTerm or M.nativeTerm or term.current()
+end
+
+function M.outputFailed(target, problem)
+  if target ~= M.getTarget() then return false end
+  M.nativeTerm = M.nativeTerm or (term.native and term.native())
+  M.displayTerm, M.redirected = M.nativeTerm, false
+  term.redirect(M.nativeTerm)
+  M.getDisplay()
+  log.error("deviced", "display output failed: " .. tostring(problem))
+  if M.ctx and M.ctx.invalidateDisplay then pcall(M.ctx.invalidateDisplay) end
+  if M.ctx and M.ctx.notifications then
+    pcall(function() M.ctx.notifications:push("error", "Display", "Monitor unavailable; using computer", 5) end)
+  end
+  return true
 end
 
 function M.getDisplay()
@@ -189,7 +266,7 @@ function M.stop()
   end
   M.listeners = {}
   M.ctx = nil
-  if M.redirected and M.nativeTerm then
+  if M.nativeTerm then
     term.redirect(M.nativeTerm)
     M.redirected = false
     M.displayTerm = M.nativeTerm

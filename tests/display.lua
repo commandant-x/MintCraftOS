@@ -1,6 +1,10 @@
 package.path = "./?.lua;" .. package.path
 package.loaded["system.libraries.log"] = { info = function() end, error = function() end }
-package.loaded["system.libraries.config"] = { load = function() return {} end }
+local cfg = {}
+package.loaded["system.libraries.config"] = {
+  load = function() return cfg end,
+  save = function(_, value) cfg = value return true end,
+}
 colors = { black = 32768 }
 local native = { getSize = function() return 51, 19 end }
 local current = native
@@ -56,4 +60,44 @@ peripheral.wrap = function(name) return name == "left" and badMonitor or monitor
 bus:emit("peripheral", "right")
 assert(devices.getDisplay().monitorSide == "right", "broken first monitor blocked healthy monitor")
 devices.stop()
+assert(devices.setTarget("computer"))
+assert(devices.getPreference() == "computer" and devices.getTarget() == native)
+local selected, problem = devices.setTarget("missing")
+assert(selected == false and problem:find("preference saved"))
+assert(devices.getPreference() == "missing")
+assert(devices.getTarget() == native, "named target substituted another monitor")
+assert(devices.setScale(2.2, "right") == false)
+assert(cfg.displayScales.right == 2)
+assert(devices.setTarget("right"))
+assert(devices.getDisplay().scale == 2)
+assert(devices.setScale(1.5))
+assert(cfg.displayScales.right == 1.5)
+assert(devices.setTarget("auto"))
+local notified, invalidated = 0, 0
+devices.ctx = {invalidateDisplay = function() invalidated = invalidated + 1 end,
+  notifications = {push = function() notified = notified + 1 end}}
+assert(devices.outputFailed(monitor, "detached"))
+assert(devices.getTarget() == native and notified == 1 and invalidated == 1)
+assert(not devices.outputFailed(monitor, "duplicate"))
+devices.ctx = nil
+assert(devices.setPreference("computer"))
+assert(devices.getPreference() == "computer")
+assert(devices.listDisplays()[2].selected)
+assert(devices.setPreference("offline_monitor"))
+local displays = devices.listDisplays()
+assert(displays[#displays].name == "offline_monitor" and not displays[#displays].available)
+for _, bad in ipairs({"", "   ", "monitor\n7", "monitor\0", "monitor\127"}) do
+  assert(not devices.setTarget(bad))
+  assert(not devices.setPreference(bad))
+  assert(not devices.setScale(1, bad))
+  assert(devices.getPreference() == "offline_monitor")
+end
+assert(devices.setTarget("right"))
+assert(devices.getDisplay().scale == 1.5, "target scale was not retained")
+devices.stop()
+assert(current == native and devices.getTarget() == native and not devices.isRedirected())
+assert(devices.getPreference() == "right" and cfg.displayScales.right == 1.5)
+current = {getSize = function() return 2, 2 end}
+devices.stop()
+assert(current == native, "stop leaked an application redirect")
 print("display tests passed")

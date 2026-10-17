@@ -48,6 +48,7 @@ local function run(fn)
 end
 local function hang() os.pullEvent("never") end
 local addon=require("system.libraries.addon")
+local realInventory=addon.inventory
 local realPeriodic=addon.periodic
 local runners={}
 addon.periodic=function(_,name,_,refresh)
@@ -98,9 +99,11 @@ aero={getGravity=function() return {x=0,y=-10,z=0} end}
 local sable=require("system.services.sabled")
 sable.start({})
 run(function() sable.acquire(true) end)
+run(function() sable.acquireDiagnostics() sable.acquire(false) end)
 assert(not sable.health().ok and sable.snapshot().aero.gravity.y==-10,"hung sublevel discarded aero")
 sublevel.isInPlotGrid=function() return true end
 run(function() sable.acquire(false) end)
+run(function() sable.acquireDiagnostics() sable.acquire(false) end)
 assert(not sable.health().ok and sable.snapshot().sublevel.mass==100,"hung method discarded healthy Sable fields")
 sublevel.getVelocity=function() return {1,2,3} end
 run(function() sable.acquire(false) end)
@@ -176,4 +179,172 @@ failed=false
 nativeScheduler:dispatch({name="timer",args=table.pack(recovering.timer),raw=table.pack("timer",recovering.timer)})
 assert(recovering.error==nil and recovering.lastSuccess==now,"runner fault did not recover")
 recovering:stop()
+-- A large healthy batch is not implicitly cancelled at half a second.
+local callbacks, scans = {}, 0
+addon.inventory=realInventory
+peripheral={getNames=function() scans=scans+1 return {} end}
+addon.invalidateInventory()
+addon.inventory()
+local cycleCount=0
+local hotBus={on=function(_,event,callback) callbacks[event]=callback return event end,off=function() end}
+local large=addon.periodic({scheduler=nativeScheduler,eventBus=hotBus},"large batch",0.2,function(dirty)
+  cycleCount=cycleCount+1
+  if dirty then addon.inventory() end
+  os.pullEvent("task_complete")
+end)
+assert(scans==1)
+callbacks.peripheral_detach()
+addon.inventory()
+assert(scans==2,"hotplug did not invalidate shared inventory")
+large:rescan()
+addon.inventory()
+assert(scans==3,"explicit rescan did not invalidate shared inventory")
+now=now+0.6
+nativeScheduler:dispatch({name="task_complete",args=table.pack(99,true),raw=table.pack("task_complete",99,true)})
+assert(large.lastSuccess==now and large.dirty and cycleCount==1,"rescan lost or refresh stacked")
+assert(large:metrics().overruns==1 and large:metrics().seconds>0.59)
+large:stop()
+local partial=0
+local budgetCtx={scheduler=nativeScheduler,eventBus=bus}
+local budgeted=addon.periodic(budgetCtx,"budgeted",0.1,function() hang() end,
+  {budget=0.3,onPartial=function(err) assert(err:find("uncertain",1,true)) partial=partial+1 end})
+local deadline=serial
+assert(budgetCtx.workerTimers[deadline],"bounded deadline not marked internal")
+now=now+0.3
+nativeScheduler:dispatch({name="timer",args=table.pack(deadline),raw=table.pack("timer",deadline)})
+assert(partial==1 and budgeted.error and budgeted:metrics().overruns==1)
+assert(not budgetCtx.workerTimers[deadline],"expired deadline retained internal flag")
+budgeted:stop()
+assert(next(budgetCtx.workerTimers)==nil)
+-- Direct scheduler kill must close inherited scopes without runner:stop().
+addon.configure({concurrency=1,readsPerTick=1000})
+local flightBefore=addon.metrics().readsByPriority.flight or 0
+local killCtx={scheduler=nativeScheduler,eventBus=bus}
+local killed=addon.periodic(killCtx,"killed acquisition",0.1,function()
+  addon.read({a=hang,b=hang},{"a","b"},10)
+end,{priority="flight"})
+assert(addon.metrics().inFlight==1 and addon.metrics().queue==1)
+assert(addon.metrics().readsByPriority.flight==flightBefore+1,"runner priority not inherited")
+assert(next(killCtx.workerTimers),"read deadline not marked internal")
+nativeScheduler:kill(killed.pid,true)
+assert(killed.stopped and addon.metrics().inFlight==0 and addon.metrics().queue==0,"scheduler kill leaked leases")
+assert(next(killCtx.workerTimers)==nil,"scheduler kill leaked timer flags")
+run(function()
+  local values=addon.read({fast=function() return 7 end},{"fast"})
+  assert(values.fast==7,"dead process retained admission permit")
+end)
+addon.configure({concurrency=1,readsPerTick=1})
+now=now+0.1
+local pacedCtx={scheduler=nativeScheduler,eventBus=bus}
+local paced=addon.periodic(pacedCtx,"paced acquisition",0.2,function()
+  addon.read({fast=function() return 1 end},{"fast"})
+  addon.read({fast=function() return 2 end},{"fast"})
+end)
+local pacingTimer=serial
+assert(pacedCtx.workerTimers[pacingTimer],"pacing timer not marked internal")
+now=now+0.06
+nativeScheduler:dispatch({name="timer",args=table.pack(pacingTimer),raw=table.pack("timer",pacingTimer)})
+assert(not pacedCtx.workerTimers[pacingTimer] and paced.lastSuccess==now,"pacing flag retained after expiry")
+assert(addon.metrics().runners["paced acquisition"].reads==2)
+nativeScheduler:kill(paced.pid,true)
+assert(next(pacedCtx.workerTimers)==nil and not addon.metrics().runners["paced acquisition"])
+-- An ordinary refresh exception cancels siblings without killing the runner.
+addon.configure({concurrency=1,readsPerTick=1000})
+local recoveryCtx={scheduler=nativeScheduler,eventBus=bus}
+local attempts,healthy=0,0
+local branchRecovery=addon.periodic(recoveryCtx,"branch recovery",0.1,function()
+  attempts=attempts+1
+  if attempts==1 then
+    addon.parallel({function() addon.read({hang=hang},{"hang","hang"},10) end,
+      function() error("bad sensor shape") end},2)
+  else
+    local values=addon.read({good=function() return 7 end},{"good"})
+    assert(values.good==7)
+    healthy=healthy+1
+  end
+end)
+assert(branchRecovery.error and branchRecovery.error:find("bad sensor shape",1,true))
+assert(addon.metrics().inFlight==0 and addon.metrics().queue==0,"failed cycle leaked reads")
+for _=1,100 do
+  local id,at
+  for key,time in pairs(timers) do if not at or time<at then id,at=key,time end end
+  assert(id,"recovery worker lost its timer")
+  now=at timers[id]=nil
+  nativeScheduler:dispatch({name="timer",args=table.pack(id),raw=table.pack("timer",id)})
+end
+assert(healthy==100 and attempts==101 and branchRecovery.lastSuccess==now and not branchRecovery.error,
+  "branch failure prevented subsequent acquisition cycles")
+assert(addon.metrics().inFlight==0 and addon.metrics().queue==0)
+for id in pairs(recoveryCtx.workerTimers) do assert(id==branchRecovery.timer,"abandoned cycle timer survived") end
+branchRecovery:stop()
+assert(next(recoveryCtx.workerTimers)==nil)
+-- Closing a failed cycle must not cancel another periodic worker's deadline.
+addon.configure({concurrency=2,readsPerTick=1000})
+local sharedCtx={scheduler=nativeScheduler,eventBus=bus}
+local receivedValue
+local unaffected=addon.periodic(sharedCtx,"unaffected acquisition",0.1,function()
+  local values=addon.read({wait=function()
+    local _,_,_,value=os.pullEvent("task_complete")
+    return value
+  end},{"wait"},10)
+  receivedValue=values.wait
+end)
+local isolated=addon.periodic(sharedCtx,"isolated failure",0.1,function()
+  addon.parallel({function() addon.read({hang=hang},{"hang","hang"},10) end,
+    function() error("isolated branch failure") end},2)
+end)
+assert(isolated.error and addon.metrics().inFlight==1 and addon.metrics().queue==0)
+isolated:stop()
+assert(next(sharedCtx.workerTimers),"failed worker cancelled unrelated deadline")
+nativeScheduler:dispatch({name="task_complete",args=table.pack(88,true,42),raw=table.pack("task_complete",88,true,42)})
+assert(receivedValue==42 and unaffected.lastSuccess==now and not unaffected.error)
+assert(addon.metrics().inFlight==0 and addon.metrics().queue==0)
+unaffected:stop()
+assert(next(sharedCtx.workerTimers)==nil)
+-- Hung diagnostics must not occupy the next fast acquisition cycle.
+addon.configure({concurrency=4,readsPerTick=1000})
+local slowRows={}
+for i=1,20 do
+  slowRows[#slowRows+1]=row(string.format("00analog%02d",i),"analog_transmission",
+    {getSignal=hang,getOutputSpeed=hang,isExternallyControlled=hang})
+end
+slowRows[#slowRows+1]=row("gimbal","gimbal_sensor",{getAngles=function() return {3,4} end,
+  getAngularRates=function() return {1,2,3} end,getGravity=function() return {0,-9,0} end})
+slowRows[#slowRows+1]=row("altitude","altitude_sensor",{getHeight=function() return 200 end,getVerticalSpeed=function() return 0 end})
+slowRows[#slowRows+1]=row("nav","navigation_table",{getHeading=function() return 90 end})
+addon.inventory=function() return slowRows end
+sublevel={isInPlotGrid=function() return true end,getLogicalPose=function() return {position={1,2,3}} end,
+  getMass=hang,getInverseMass=hang,getCenterOfMass=hang,getInertiaTensor=hang,getInverseInertiaTensor=hang}
+aero={getGravity=hang,getMagneticNorth=hang,getAirPressure=hang}
+local isolatedCtx={scheduler=nativeScheduler,eventBus=bus}
+av.start(isolatedCtx) sable.start(isolatedCtx)
+local initialRevision=av.snapshot().revision
+local started=now
+local samples=0
+for _=1,5000 do
+  local event=table.remove(events,1)
+  if not event then
+    local id,at
+    for key,time in pairs(timers) do if not at or time<at then id,at=key,time end end
+    assert(id,"independent workers lost timers")
+    now=at timers[id]=nil event=table.pack("timer",id)
+  end
+  local args={n=event.n-1}
+  for i=2,event.n do args[i-1]=event[i] end
+  nativeScheduler:dispatch({name=event[1],args=args,raw=event})
+  if now-started>=0.3 then
+    local sample=av.flightTelemetry({gimbal="gimbal",altitude="altitude",nav="nav"})
+    assert(sample.pitch==3 and now-sample.timestamp<=0.5,"hung diagnostics starved flight sensors")
+    assert(sable.flightStatus().inSublevel and now-sable.pose().timestamp<=0.5,"hung Sable diagnostics starved pose")
+    samples=samples+1
+  end
+  if now-started>=2 then break end
+end
+assert(now-started>=2 and samples>5 and av.snapshot().revision>initialRevision+5)
+assert(addon.metrics().runners["avionicsd-diagnostics"] and addon.metrics().runners["sabled-diagnostics"])
+av.stop() sable.stop()
+assert(next(isolatedCtx.workerTimers)==nil,"diagnostic worker timers leaked at stop")
+assert(addon.metrics().inFlight==0 and addon.metrics().queue==0,"diagnostic read leases leaked at stop")
+assert(not addon.metrics().runners.avionicsd and not addon.metrics().runners["avionicsd-diagnostics"])
+assert(not addon.metrics().runners.sabled and not addon.metrics().runners["sabled-diagnostics"])
 print("bounded sensor isolation, health revisions/recovery, partial rescue and raw-worker regressions passed")

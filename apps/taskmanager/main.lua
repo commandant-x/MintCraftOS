@@ -1,6 +1,7 @@
 local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
 local theme = require("system.gui.theme")
+local addon = require("system.libraries.addon")
 
 local M = {}
 
@@ -45,7 +46,7 @@ function M.run(ctx)
         if process.state=="ready" then ready=ready+1 end
         runtime=runtime+(process.runtimeMs or 0)
       end
-      sample={rows=rows,memory=memoryStats(),disk=diskStats(),ready=ready,runtimeMs=runtime}
+      sample={rows=rows,memory=memoryStats(),disk=diskStats(),ready=ready,runtimeMs=runtime,acquisition=addon.metrics()}
       sampleTime = now
     end
     return sample
@@ -71,6 +72,8 @@ function M.run(ctx)
     renderer.writeAt(2,3,renderer.crop("CPU: unavailable | Live: "..snapshot.ready.." / "..total,w-2),theme.get("windowFg"),theme.get("windowBg"))
     renderer.writeAt(2, 4, renderer.crop(snapshot.memory, w - 2), theme.get("windowFg"), theme.get("windowBg"))
     renderer.writeAt(2, 5, renderer.crop(snapshot.disk, w - 2), theme.get("windowFg"), theme.get("windowBg"))
+    local io=snapshot.acquisition
+    renderer.writeAt(2,6,renderer.crop("Reads "..io.reads.." | Active "..io.inFlight.." | Queue "..io.queue.." | Overruns "..io.overruns,w-2),theme.get("windowFg"),theme.get("windowBg"))
     renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), theme.get("windowFg"), theme.get("buttonBg"))
 
     local visible=math.max(0,h-7-(self.selectedPid and 2 or 0))

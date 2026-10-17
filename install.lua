@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -810,7 +810,7 @@ function M.run(ctx)
     local status=combat.status()
     if not app.snapshot.radars or app.snapshot.revision~=status.revision then app.snapshot=combat.snapshot() end
     if app.setup then app.setup:update(app.snapshot) end
-    for _,target in ipairs(app.snapshot.targets or {}) do target.stale=not target.freshnessKnown or os.clock()-target.timestamp>5 end
+    for _,target in ipairs(app.snapshot.targets or {}) do target.stale=target.pending or not target.freshnessKnown or os.clock()-target.timestamp>5 end
     if not find(app.snapshot.radars,app.radarId) then app.radarId=app.snapshot.radars[1] and app.snapshot.radars[1].id app.canvas=nil end
     if app.targetId and not find(app.snapshot.targets,app.targetId) then app.targetId=nil app.tracking=false app.confirm=nil app.solution=nil end
     if not app.cannonId and app.snapshot.cannons[1] then app.cannonId=app.snapshot.cannons[1].id end
@@ -848,7 +848,7 @@ function M.run(ctx)
     field("frame","Position frame",nil,{"unknown","world","body"})
     field("headingFrame","Mount heading frame",nil,{"world","body"})
     if app.configKind=="radar" then
-      field("apiProfile","Radar API profile",nil,{"auto","4.x","5.0-EA"})
+      field("apiProfile","Radar API profile",nil,{"auto","4.x","5.0-EA","bridge"})
       field("positionMode","Position source",nil,{"api","manual"})
       field("positionX","Radar position X","number")
       field("positionY","Radar position Y","number")
@@ -918,7 +918,9 @@ function M.run(ctx)
           "Range: "..fmt(radar.range).."m | rotation: "..fmt(radar.rawRotation),
           "Dishes: "..tostring(radar.dishCount or "unavailable"),
           "Position source: "..tostring(radar.positionSource),
-          "Position status: "..tostring(radar.positionIssue or "valid")}
+          "Position status: "..tostring(radar.positionIssue or "valid"),
+          "Profile: "..tostring(radar.apiProfile),tostring(radar.profileEvidence),
+          tostring(radar.adapterOrigin),tostring(radar.profileLimitation)}
         for i=1,math.min(#rows,graphH) do renderer.writeAt(1,4+i,renderer.crop(rows[i],graphW),colors.white,colors.black) end
       elseif radar then
         local source=self.view.network and ("All stations | contacts="..#filter.targets(snap.targets,self.filters)) or (radar.name.." | contacts="..tostring(radar.rawTrackCount or "?").." rot="..fmt(radar.rawRotation))
@@ -963,8 +965,12 @@ function M.run(ctx)
         local x=graphW+2
         local radar=find(snap.radars,self.radarId)
         local relative=target and radar and geometry.relative(target.position,radar.position)
-        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Display: 20 Hz / read: 5 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
+        local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Display target: 20 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
+        if snap.acquisition then
+          rows[#rows+1]="Read target 5 Hz; measured "..fmt(snap.acquisition.effectiveHz).." Hz"
+          rows[#rows+1]="Pending "..snap.acquisition.pending.."; cycle "..fmt(snap.acquisition.elapsed).."s"
+        end
         if radar then
           rows[#rows+1]="Heading: "..fmt(radar.heading).." deg"
           rows[#rows+1]="FOV: "..fmt(radar.fov).." deg"
@@ -1162,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1561,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1647,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2043,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2518,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2598,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2717,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2762,12 +2768,14 @@ function M.run(ctx)
       local channel=draft.channels[app.index]
       if not channel then return rows end
       field(channel,"id","Output ID","string")
-      field(channel,"backend","Backend",nil,{"redstone","avionics"})
+      field(channel,"backend","Backend",nil,{"redstone","avionics","relay"})
       if channel.backend=="redstone" then field(channel,"side","PC side",nil,sides)
       else
         local names={}
-        for _,row in ipairs(app.av.devices or {}) do if row.roles.analog or row.roles.throttle then names[#names+1]=row.name end end
-        if #names>0 then field(channel,"name","Avionics endpoint",nil,names) else field(channel,"name","Avionics endpoint","string") end
+        for _,row in ipairs(flight.endpoints()) do if row.backend==channel.backend then names[#names+1]=row.name end end
+        local label=channel.backend=="relay" and "Redstone relay" or "Avionics endpoint"
+        if #names>0 then field(channel,"name",label,nil,names) else field(channel,"name",label,"string") end
+        if channel.backend=="relay" then field(channel,"side","Relay side",nil,sides) end
       end
       for _,key in ipairs({"min","max","neutral","rescue"}) do field(channel,key,key,"number") end
       channel.mix=channel.mix or {}
@@ -2819,7 +2827,7 @@ function M.run(ctx)
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
     if self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
-      if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | 6 independent PC sides") or "Configuration draft",w),colors.cyan) end
+      if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
     elseif self.page=="flight" then
       local measured=self.av.measurements or {}
       local fresh=os.clock()-(self.av.timestamp or 0)<=0.5
@@ -2950,7 +2958,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3034,7 +3042,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3127,7 +3135,12 @@ function M.run(ctx)
     if self.page=="system" then add("label","Set label")
     elseif self.page=="display" then
       add("refresh","Refresh")
-      for _,v in ipairs({0.5,1,1.5,2}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+      local selected=deviced.getPreference and deviced.getPreference() or "auto"
+      add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
+      for _,device in ipairs(deviced.list()) do
+        if device.type=="monitor" then add("display:"..device.name,device.name,selected==device.name) end
+      end
+      for _,v in ipairs({0.5,1,1.5,2,2.5,3,3.5,4,4.5,5}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
     elseif self.page=="desktop" then add("theme:mint","Mint",theme.currentId=="mint") add("theme:dark","Dark",theme.currentId=="dark")
     elseif self.page=="network" then add("launch:browser","Browser") add("launch:messenger","Messenger") add("launch:crafttube","CraftTube")
     elseif self.page=="nav" then add("launch:navigation","Open Navigation")
@@ -3158,6 +3171,7 @@ function M.run(ctx)
       local d=deviced.getDisplay() local cells=(d.width or 0)*(d.height or 0)
       line("Target: "..tostring(d.target)) line("Resolution: "..tostring(d.width).."x"..tostring(d.height))
       line("Monitor side: "..tostring(d.monitorSide or "-")) line("Scale: "..tostring(d.scale or "-"))
+      line("Preference: "..tostring(deviced.getPreference and deviced.getPreference() or "auto"))
       line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
       line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
     elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Icons: NFP 7x6 with text fallback") line("Keyboard: AZERTY")
@@ -3286,6 +3300,7 @@ function M.run(ctx)
     if not allowed("system.config") then return end
     if id=="label" then self:beginInput(id)
     elseif id=="refresh" then deviced.refreshDisplay()
+    elseif id:sub(1,8)=="display:" then local ok,err=deviced.setTarget(id:sub(9)) notify(ok,"Display",err)
     elseif id:sub(1,6)=="scale:" then local ok,err=deviced.setScale(tonumber(id:sub(7))) notify(ok,"Display",err)
     elseif id:sub(1,6)=="theme:" then local ok,err=theme.set(id:sub(7)) notify(ok~=false,"Theme",err or "Theme applied") end
   end
@@ -3337,7 +3352,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3452,7 +3467,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3461,6 +3476,7 @@ return M
 local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
 local theme = require("system.gui.theme")
+local addon = require("system.libraries.addon")
 
 local M = {}
 
@@ -3505,7 +3521,7 @@ function M.run(ctx)
         if process.state=="ready" then ready=ready+1 end
         runtime=runtime+(process.runtimeMs or 0)
       end
-      sample={rows=rows,memory=memoryStats(),disk=diskStats(),ready=ready,runtimeMs=runtime}
+      sample={rows=rows,memory=memoryStats(),disk=diskStats(),ready=ready,runtimeMs=runtime,acquisition=addon.metrics()}
       sampleTime = now
     end
     return sample
@@ -3531,6 +3547,8 @@ function M.run(ctx)
     renderer.writeAt(2,3,renderer.crop("CPU: unavailable | Live: "..snapshot.ready.." / "..total,w-2),theme.get("windowFg"),theme.get("windowBg"))
     renderer.writeAt(2, 4, renderer.crop(snapshot.memory, w - 2), theme.get("windowFg"), theme.get("windowBg"))
     renderer.writeAt(2, 5, renderer.crop(snapshot.disk, w - 2), theme.get("windowFg"), theme.get("windowBg"))
+    local io=snapshot.acquisition
+    renderer.writeAt(2,6,renderer.crop("Reads "..io.reads.." | Active "..io.inFlight.." | Queue "..io.queue.." | Overruns "..io.overruns,w-2),theme.get("windowFg"),theme.get("windowBg"))
     renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), theme.get("windowFg"), theme.get("buttonBg"))
 
     local visible=math.max(0,h-7-(self.selectedPid and 2 or 0))
@@ -3591,7 +3609,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.7",
+  version = "0.18.8",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4041,7 +4059,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.7",
+  version = "0.18.8",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4583,7 +4601,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.7",
+    version = "0.18.8",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4961,7 +4979,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.7",
+  version = "0.18.8",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -5165,6 +5183,11 @@ local M = {
 }
 
 local CONFIG = "/system/config/audio.cfg"
+local cachedCfg
+
+function M.invalidateConfig()
+  cachedCfg = nil
+end
 
 local function clampVolume(value)
   value = tonumber(value) or 1
@@ -5174,13 +5197,16 @@ local function clampVolume(value)
 end
 
 local function loadCfg()
-  return config.load(CONFIG, {
+  if cachedCfg then return cachedCfg end
+  cachedCfg = config.load(CONFIG, {
     enabled = true,
     volume = 1,
     notificationVolume = 0.6,
     defaultSide = nil,
     notifyOnSystemReady = true,
   })
+  if type(cachedCfg) ~= "table" then cachedCfg = {} end
+  return cachedCfg
 end
 
 local function get(side)
@@ -5239,9 +5265,9 @@ function M.openStream(path, side)
   if not name then return nil, "Speaker name unavailable" end
   local ok, dfpwm = pcall(require, "cc.audio.dfpwm")
   if not ok then return nil, "DFPWM decoder unavailable" end
+  local decoder = dfpwm.make_decoder()
   local handle = fs.open(path, "rb")
   if not handle then return nil, "Cannot open audio file" end
-  local decoder = dfpwm.make_decoder()
   local pending, closed = nil, false
   return {
     side = name,
@@ -5271,6 +5297,7 @@ function M.setVolume(volume)
   local cfg = loadCfg()
   cfg.volume = clampVolume(volume)
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   return cfg.volume
 end
 
@@ -5278,6 +5305,7 @@ function M.setNotificationVolume(volume)
   local cfg = loadCfg()
   cfg.notificationVolume = clampVolume(volume)
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   return cfg.notificationVolume
 end
 
@@ -5285,6 +5313,7 @@ function M.setEnabled(enabled)
   local cfg = loadCfg()
   cfg.enabled = enabled ~= false
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   return cfg.enabled
 end
 
@@ -5296,6 +5325,7 @@ function M.use(side)
   local cfg = loadCfg()
   cfg.defaultSide = side
   config.save(CONFIG, cfg)
+  M.invalidateConfig()
   M.defaultSide = side
   return true
 end
@@ -5310,6 +5340,7 @@ function M.playNote(instrument, pitch, volume, side)
     log.warn("speaker", tostring(err))
     return false, tostring(err)
   end
+  if err == false then return false, "Speaker busy" end
   return true
 end
 
@@ -5323,6 +5354,7 @@ function M.playSound(name, pitch, volume, side)
     log.warn("speaker", tostring(err))
     return false, tostring(err)
   end
+  if err == false then return false, "Speaker busy" end
   return true
 end
 
@@ -5347,18 +5379,21 @@ function M.playDfPWM(path, side)
   if not speaker or not speaker.playAudio then return false, "No speaker audio API" end
   local okDfpwm, dfpwm = pcall(require, "cc.audio.dfpwm")
   if not okDfpwm then return false, "DFPWM decoder unavailable" end
+  local decoder = dfpwm.make_decoder()
   local handle = fs.open(path, "rb")
   if not handle then return false, "Cannot open file" end
-  local decoder = dfpwm.make_decoder()
+  local ok, err = pcall(function()
   while true do
     local chunk = handle.read(16 * 1024)
-    if not chunk then break end
+    if not chunk or chunk == "" then break end
     local buffer = decoder(chunk)
     while not speaker.playAudio(buffer, clampVolume(cfg.volume)) do
       os.pullEvent("speaker_audio_empty")
     end
   end
-  handle.close()
+  end)
+  pcall(handle.close)
+  if not ok then return false, tostring(err) end
   return true
 end
 
@@ -5585,16 +5620,33 @@ return M
   ["system/gui/compositor.lua"] = [=[
 local M = {}
 
-function M.new(resolveTarget)
+function M.new(resolveTarget, onOutputFailure)
   local surface, parent, width, height
   local previous = {}
+  local frame = {}
+  local failedTarget, fallbackTarget
+  local function outputFailure(target, problem)
+    previous = {}
+    local native = term.native and term.native() or target
+    term.redirect(native)
+    if target == native then error(problem, 0) end
+    failedTarget, fallbackTarget = target, native
+    surface, parent = nil, nil
+    if onOutputFailure then pcall(onOutputFailure, target, problem) end
+    return native
+  end
   local stats = { frames = 0, rows = 0, cells = 0 }
   return {
-    invalidate = function() previous = {} end,
+    invalidate = function() previous = {} failedTarget = nil end,
     stats = function() return { frames = stats.frames, rows = stats.rows, cells = stats.cells } end,
     draw = function(_, render)
       local target = resolveTarget and resolveTarget() or term.current()
-      local w, h = target.getSize()
+      if target == failedTarget then target = fallbackTarget end
+      local sized, w, h = pcall(target.getSize)
+      if not sized then
+        target = outputFailure(target, w)
+        w, h = target.getSize()
+      end
       if parent ~= target then
         parent, width, height = target, w, h
         surface = window.create(parent, 1, 1, w, h, false)
@@ -5609,27 +5661,39 @@ function M.new(resolveTarget)
       local ok, err = pcall(render)
       term.redirect(target)
       if not ok then error(err, 0) end
-      local nextFrame = {}
-      local cx, cy = target.getCursorPos()
-      local blink = target.getCursorBlink()
+      -- Read the local surface outside the output guard: these are renderer faults.
+      for y = 1, h do
+        local row = frame[y] or {}
+        row[1], row[2], row[3] = surface.getLine(y)
+        frame[y] = row
+      end
+      local cx, cy, blink
       local flushed, failure = pcall(function()
+        cx, cy = target.getCursorPos()
+        blink = target.getCursorBlink()
         target.setCursorBlink(false)
         for y = 1, h do
-          local text, fg, bg = surface.getLine(y)
-          nextFrame[y] = { text, fg, bg }
+          local text, fg, bg = frame[y][1], frame[y][2], frame[y][3]
           local old = previous[y]
           if not old or old[1] ~= text or old[2] ~= fg or old[3] ~= bg then
             target.setCursorPos(1, y)
             target.blit(text, fg, bg)
             stats.rows, stats.cells = stats.rows + 1, stats.cells + #text
           end
+          if not old then old = {} previous[y] = old end
+          old[1], old[2], old[3] = text, fg, bg
         end
+        target.setCursorPos(cx, cy)
+        target.setCursorBlink(blink)
       end)
-      target.setCursorPos(cx, cy)
-      target.setCursorBlink(blink)
-      if not flushed then previous = {} error(failure, 0) end
-      previous = nextFrame
+      if not flushed then
+        if cx and cy then pcall(target.setCursorPos, cx, cy) end
+        if blink ~= nil then pcall(target.setCursorBlink, blink) end
+        outputFailure(target, failure)
+        return false, failure
+      end
       stats.frames = stats.frames + 1
+      return true
     end,
   }
 end
@@ -6310,13 +6374,19 @@ function M.encode(pixels)
   return string.char(128 + mask), renderer.color(fg), renderer.color(bg), lost
 end
 
-function M.new(columns, rows, background)
+local function newCanvas(columns, rows, background, basePixels, baseCompiled)
   assert(columns >= 1 and rows >= 1 and columns % 1 == 0 and rows % 1 == 0, "Invalid canvas size")
   assert(columns * rows <= 65536, "Canvas exceeds 65536 terminal cells")
   background = background or 32768
   renderer.color(background)
   local canvas = { width = columns * 2, height = rows * 3, columns = columns, rows = rows }
   local pixels, compiled = {}, {}
+  for index,color in pairs(basePixels or {}) do pixels[index]=color end
+  for row,line in pairs(baseCompiled or {}) do compiled[row]=line end
+
+  function canvas:clone()
+    return newCanvas(columns,rows,background,pixels,compiled)
+  end
 
   function canvas:clear(color)
     background = color or background
@@ -6392,6 +6462,8 @@ function M.new(columns, rows, background)
   end
   return canvas
 end
+
+M.new=newCanvas
 
 return M
 ]=],
@@ -6548,21 +6620,21 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.7", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.7", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.7", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.7", permissions = { "rednet.send", "rednet.receive" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.7", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.7", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.7", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.7", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.7", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.7", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.7", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.7", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.7", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.7", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.7", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.8", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.8", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.8", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.8", permissions = { "rednet.send", "rednet.receive" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.8", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.8", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.8", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.8", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.8", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.8", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.8", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.8", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.8", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.8", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.8", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -6604,7 +6676,7 @@ function M.start()
   ctx.services:startAutostart()
   bootApps(ctx)
 
-  local screen = compositor.new(devices.getTarget)
+  local screen = compositor.new(devices.getTarget, devices.outputFailed)
   ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() end
   ctx.renderStats = function() return screen:stats() end
   local lastClock
@@ -6632,7 +6704,7 @@ function M.start()
         lastClock = time
       end
     else
-      local internal=(raw[1]=="timer" and ctx.workerTimers and ctx.workerTimers[raw[2]]) or raw[1]=="task_complete"
+      local internal=(raw[1]=="timer" and ctx.workerTimers and ctx.workerTimers[raw[2]]) or raw[1]=="task_complete" or raw[1]=="mintcraft_radar_verify"
       local notificationVersion=ctx.notifications.nextId
       local event = input.normalize(raw, devices.getDisplay())
 
@@ -6894,6 +6966,142 @@ return Scheduler
 ]=],
   ["system/libraries/addon.lua"] = [=[
 local M = {}
+local settings = { concurrency = 4, readsPerTick = 16 }
+local counters = { reads = 0, readSeconds = 0, timeouts = 0, overruns = 0,
+  peakInFlight = 0, inventoryScans = 0, readsByPriority = {} }
+local windowStart, windowReads = 0, 0
+local inventoryCache
+local activeReads = {}
+local queuedReads = {}
+local runners = {}
+local scopes = setmetatable({}, { __mode = "k" })
+local priorities = { diagnostics = 1, contacts = 2, commands = 3, flight = 4 }
+local ticketSerial = 0
+local function currentScope() return scopes[coroutine.running()] end
+local function priority(value)
+  if value == nil then return priorities.contacts end
+  assert(priorities[value], "invalid acquisition priority")
+  return priorities[value]
+end
+local function live(scope)
+  while scope do
+    if scope.closed then return false end
+    scope = scope.parent
+  end
+  return true
+end
+local function startTimer(seconds, scope)
+  scope = scope or currentScope()
+  local id = os.startTimer(seconds)
+  if scope then
+    scope.timers = scope.timers or {}
+    scope.timers[id] = scope
+    if scope.workerTimers then scope.workerTimers[id] = true end
+  end
+  return id
+end
+local function cancelTimer(id, scope)
+  scope = scope or currentScope()
+  os.cancelTimer(id)
+  if scope then
+    if scope.timers then scope.timers[id] = nil end
+    if scope.workerTimers then scope.workerTimers[id] = nil end
+  end
+end
+local function closeScope(scope)
+  scope.closed = true
+  for id, owner in pairs(scope.timers or {}) do
+    if not live(owner) then cancelTimer(id, scope) end
+  end
+  for token, lease in pairs(activeReads) do if not live(lease.scope) then activeReads[token] = nil end end
+  for ticket, entry in pairs(queuedReads) do if not live(entry.scope) then queuedReads[ticket] = nil end end
+end
+local function childScope(parent)
+  return { parent = parent, priority = parent and parent.priority,
+    timers = parent and parent.timers or {}, workerTimers = parent and parent.workerTimers }
+end
+-- Lua 5.2 pcall may yield. Restore ownership before propagating branch failures.
+local function scoped(fn, ...)
+  local thread, parent = coroutine.running(), currentScope()
+  local scope = childScope(parent)
+  scopes[thread] = scope
+  local result = table.pack(pcall(fn, ...))
+  scopes[thread] = parent
+  closeScope(scope)
+  if not result[1] then error(result[2], 0) end
+  return table.unpack(result, 2, result.n)
+end
+local function activeCount()
+  local count = 0
+  for token, lease in pairs(activeReads) do
+    if not live(lease.scope) then activeReads[token] = nil else count = count + 1 end
+  end
+  return count
+end
+
+local function firstTicket(ticket)
+  local selected = queuedReads[ticket]
+  for key, other in pairs(queuedReads) do
+    if not live(other.scope) then queuedReads[key] = nil
+    elseif other.priority > selected.priority or
+      (other.priority == selected.priority and other.serial < selected.serial) then return false end
+  end
+  return true
+end
+
+function M.configure(options)
+  for _, key in ipairs({ "concurrency", "readsPerTick" }) do
+    local value = options and options[key]
+    if type(value) == "number" and value == value and value >= 1 and value < math.huge then
+      settings[key] = math.floor(value)
+    end
+  end
+end
+
+function M.metrics()
+  local result = M.copy(counters)
+  result.inFlight = activeCount()
+  result.queue = 0
+  result.queueByPriority = {}
+  for token, ticket in pairs(queuedReads) do
+    if live(ticket.scope) then
+      result.queue = result.queue + 1
+      for name, rank in pairs(priorities) do
+        if rank == ticket.priority then result.queueByPriority[name] = (result.queueByPriority[name] or 0) + 1 end
+      end
+    else queuedReads[token] = nil end
+  end
+  result.concurrency, result.readsPerTick = settings.concurrency, settings.readsPerTick
+  result.budgetWindowSeconds = 0.05
+  result.runners = {}
+  for runner, name in pairs(runners) do result.runners[name] = runner:metrics() end
+  return result
+end
+
+-- Bound each fan-out level; callers must also use this for device branches.
+function M.parallel(branches, limit)
+  limit = limit or settings.concurrency
+  assert(type(limit) == "number" and limit >= 1 and limit < math.huge, "invalid concurrency")
+  return scoped(function()
+  local nextIndex, workers = 1, {}
+  local scope = currentScope()
+  for _ = 1, math.min(#branches, math.floor(limit)) do
+    workers[#workers + 1] = function()
+      scopes[coroutine.running()] = scope
+      while nextIndex <= #branches do
+        local index = nextIndex
+        nextIndex = index + 1
+        branches[index]()
+      end
+    end
+  end
+  if #workers > 0 then parallel.waitForAll(table.unpack(workers)) end
+  end)
+end
+
+function M.invalidateInventory()
+  inventoryCache = nil
+end
 
 function M.finite(value)
   return type(value) == "number" and value == value and math.abs(value) < math.huge
@@ -6932,26 +7140,71 @@ function M.call(device, method, ...)
   return value
 end
 
-function M.read(device, methods, timeout)
-  local values, errors, branches = {}, {}, {}
+local function read(device, methods, timeout, options)
+  local scope = currentScope()
+  local rank = options and options.priority
+  if rank == nil and scope then rank = scope.priority end
+  local readPriority = priority(rank)
+  local values, errors, branches, timings = {}, {}, {}, {}
   for _, name in ipairs(methods) do
     if type(device[name]) == "function" then
+      local ticket = {}
+      ticketSerial = ticketSerial + 1
+      queuedReads[ticket] = { scope = scope, priority = readPriority, serial = ticketSerial }
+      local queuedAt = os.clock()
       branches[#branches + 1] = function()
+        while true do
+          if os.clock() - windowStart >= 0.05 then windowStart, windowReads = os.clock(), 0 end
+          if activeCount() < settings.concurrency and windowReads < settings.readsPerTick and firstTicket(ticket) then break end
+          local delay = windowReads >= settings.readsPerTick and math.max(0.001, 0.05 - (os.clock() - windowStart)) or 0.01
+          local timer = startTimer(delay)
+          repeat local _, id = os.pullEvent("timer") until id == timer
+          cancelTimer(timer)
+        end
+        windowReads = windowReads + 1
+        queuedReads[ticket] = nil
+        local started = os.clock()
+        local token = {}
+        activeReads[token] = { scope = currentScope() }
+        counters.reads = counters.reads + 1
+        for label, rank in pairs(priorities) do
+          if rank == readPriority then counters.readsByPriority[label] = (counters.readsByPriority[label] or 0) + 1 end
+        end
+        local scope = currentScope()
+        while scope do scope.reads = (scope.reads or 0) + 1 scope = scope.parent end
+        counters.peakInFlight = math.max(counters.peakInFlight, activeCount())
         local ok, value, err = M.bounded(function() return M.call(device, name) end, timeout or 0.15)
+        activeReads[token] = nil
+        counters.readSeconds = counters.readSeconds + os.clock() - started
+        if not ok and tostring(value):find("timeout", 1, true) then counters.timeouts = counters.timeouts + 1 end
         if ok then values[name], errors[name] = value, err
         else errors[name] = tostring(value) end
+        timings[name] = { startedAt = started, receivedAt = os.clock(), queueSeconds = started - queuedAt }
       end
     end
   end
-  if #branches > 0 then parallel.waitForAll(table.unpack(branches)) end
-  return values, errors
+  M.parallel(branches)
+  return values, errors, timings
 end
 
-function M.inventory()
+function M.read(device, methods, timeout, options)
+  return scoped(read, device, methods, timeout, options)
+end
+
+-- true always forces discovery; several services passing true may repeat it.
+-- A coordinated rescan can invalidate once, then let consumers call inventory().
+function M.inventory(force)
+  if force then M.invalidateInventory() end
+  if inventoryCache then
+    local result = {}
+    for i, row in ipairs(inventoryCache) do result[i] = M.copy(row) result[i].device = row.device end
+    return result
+  end
   local rows = {}
   if not peripheral or not peripheral.getNames then return rows, "peripheral API unavailable" end
   local ok, names = pcall(peripheral.getNames)
   if not ok then return rows, tostring(names) end
+  counters.inventoryScans = counters.inventoryScans + 1
   table.sort(names)
   for _, name in ipairs(names) do
     local types = table.pack(pcall(peripheral.getType, name))
@@ -6964,7 +7217,14 @@ function M.inventory()
       rows[#rows + 1] = row
     end
   end
-  return rows
+  inventoryCache = rows
+  -- Device wrappers contain functions and must retain their callable identity.
+  local result = {}
+  for i, row in ipairs(rows) do
+    result[i] = M.copy(row)
+    result[i].device = row.device
+  end
+  return result
 end
 
 function M.hasType(row, name)
@@ -6973,57 +7233,97 @@ function M.hasType(row, name)
 end
 
 function M.bounded(fn, seconds)
-  local timer = os.startTimer(seconds or 0.5)
   local result, finished
+  local parent = currentScope()
+  local scope = childScope(parent)
+  local timer = startTimer(seconds or 0.5, scope)
   parallel.waitForAny(function()
+    scopes[coroutine.running()] = scope
     result = table.pack(pcall(fn))
     finished = true
   end, function()
     while true do local _, id = os.pullEvent("timer") if id == timer then return end end
   end)
-  os.cancelTimer(timer)
+  closeScope(scope)
   if not finished then return false, "timeout; result uncertain" end
   return table.unpack(result, 1, result.n)
 end
 
 -- Raw workers preserve task_complete's native argument layout and may yield.
 function M.periodic(ctx, name, interval, refresh, timeout)
+  local options = type(timeout) == "table" and timeout or { budget = timeout }
   ctx.workerTimers=ctx.workerTimers or {}
   local runner = { ctx = ctx, dirty = true, stopped = false, interval = interval, listeners = {} }
+  priority(options.priority)
+  runner.scope = { priority = options.priority, timers = {}, workerTimers = ctx.workerTimers }
+  runner.stats = { cycles = 0, overruns = 0, seconds = 0, reads = 0 }
   local pid
   pid = ctx.scheduler:spawn(name, function()
+    scopes[coroutine.running()] = runner.scope
     while not runner.stopped do
       local started = os.clock()
-      local ok, err = M.bounded(function() refresh(runner.dirty) end, timeout or 0.5)
-      if ok then runner.dirty = false runner.error = nil runner.lastSuccess = os.clock() else
+      runner.startedAt = started
+      local reads, generation = runner.scope.reads or 0, runner.generation
+      local cycle = childScope(runner.scope)
+      scopes[coroutine.running()] = cycle
+      local ok, err
+      if options.budget then ok, err = M.bounded(function() refresh(runner.dirty) end, options.budget)
+      else ok, err = pcall(refresh, runner.dirty) end
+      scopes[coroutine.running()] = runner.scope
+      closeScope(cycle)
+      runner.stats.cycles = runner.stats.cycles + 1
+      runner.stats.seconds = os.clock() - started
+      runner.stats.reads = (runner.scope.reads or 0) - reads
+      if runner.stats.seconds > runner.interval then
+        runner.stats.overruns = runner.stats.overruns + 1
+        counters.overruns = counters.overruns + 1
+      end
+      if ok then runner.dirty = runner.generation ~= generation runner.error = nil runner.lastSuccess = os.clock() else
         runner.error = tostring(err)
+        if options.onPartial then options.onPartial(runner.error) end
         if runner.onError then runner.onError(runner.error) end
       end
-      local timer = os.startTimer(math.max(0.05, runner.interval - (os.clock() - started)))
-      ctx.workerTimers[timer]=true
+      local timer = startTimer(math.max(0.05, runner.interval - (os.clock() - started)))
       runner.timer = timer
       while not runner.stopped do
         local event, id = os.pullEvent()
         if (event == "timer" and id == timer) or (event == "mintcraft_rescan" and id == pid) then break end
       end
-      os.cancelTimer(timer)
-      ctx.workerTimers[timer]=nil
+      cancelTimer(timer)
     end
   end, { eventMode = "raw", appId = name, permissions = {}, protected = true })
   runner.pid = pid
+  -- Scheduler cleanup runs for direct kill, coroutine failure and normal exit.
+  local function cleanup()
+    runner.stopped = true
+    runners[runner] = nil
+    closeScope(runner.scope)
+    for _, id in ipairs(runner.listeners) do ctx.eventBus:off(id) end
+    runner.listeners = {}
+    activeCount()
+    for token, ticket in pairs(queuedReads) do if not live(ticket.scope) then queuedReads[token] = nil end end
+  end
+  if ctx.scheduler.makeContext then ctx.scheduler:makeContext(pid).onCleanup(cleanup) end
   function runner:rescan()
+    M.invalidateInventory()
+    self.generation = (self.generation or 0) + 1
     self.dirty = true
     os.queueEvent("mintcraft_rescan", self.pid)
+  end
+  function runner:metrics()
+    local result = M.copy(self.stats)
+    result.interval, result.priority = self.interval, options.priority or "contacts"
+    result.startedAt, result.lastSuccess, result.error = self.startedAt, self.lastSuccess, self.error
+    return result
   end
   for _, event in ipairs({ "peripheral", "peripheral_detach" }) do
     runner.listeners[#runner.listeners + 1] = ctx.eventBus:on(event, function() runner:rescan() end)
   end
   function runner:stop()
-    self.stopped = true
-    if self.timer then os.cancelTimer(self.timer) ctx.workerTimers[self.timer]=nil end
-    for _, id in ipairs(self.listeners) do ctx.eventBus:off(id) end
+    cleanup()
     ctx.scheduler:kill(self.pid,true)
   end
+  runners[runner] = name
   ctx.scheduler:start(pid)
   return runner
 end
@@ -7090,7 +7390,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.7",
+    version = meta.version or "0.18.8",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -8186,6 +8486,37 @@ end
 
 return M
 ]=],
+  ["system/navigation/combat_adapters.lua"] = [=[
+local M={}
+local stock={"getTracks","getPosition","getRange","getRotation","getRotationSpeed","getDishCount"}
+
+function M.radar(row,profile,manual)
+  profile=profile or "auto"
+  local bridge=row.set.getScanGeometry==true
+  local selected=profile=="auto" and (bridge and "bridge" or "4.x") or profile
+  local methods={}
+  if selected=="bridge" then
+    methods={"getTracks","getScanGeometry"}
+  else
+    for _,method in ipairs(stock) do
+      if not (manual and method=="getPosition") then methods[#methods+1]=method end
+    end
+  end
+  return {profile=selected,methods=methods,
+    evidence=bridge and "getScanGeometry advertised (optional bridge)" or "stock methods; version not detectable",
+    origin=selected=="bridge" and "optional source-PC bridge; not native Radar" or "stock Radar API",
+    limitation=selected=="bridge" and "requires valid geometry v1 response" or
+      selected=="5.0-EA" and "EA selected explicitly; bearing getPosition may fail; fixed plane position is world" or
+      "4.x compatibility profile; bearing getPosition may fail; manual setup required"}
+end
+
+-- CC:CBC 1.1.1 returns the resulting FIRE_POWERED state, not an ACK.
+-- Nil is retained for older void-return adapters; errors are handled by caller.
+function M.fireResult(value,requested)
+  return value==nil or value==requested
+end
+return M
+]=],
   ["system/navigation/geometry.lua"] = [=[
 local addon = require("system.libraries.addon")
 local M = {}
@@ -8236,6 +8567,10 @@ local filters=require("system.navigation.radar_filter")
 local M={}
 local categoryPalette={players=colors.lightBlue,mobs=colors.orange,vessels=colors.white,projectiles=colors.red,other=colors.lightGray}
 local unitCircle={}
+local backgroundCache={}
+local cacheSerial=0
+local renderStats={backgroundBuilds=0,backgroundHits=0}
+function M.stats() return {backgroundBuilds=renderStats.backgroundBuilds,backgroundHits=renderStats.backgroundHits} end
 for step=0,48 do local a=step*math.pi/24 unitCircle[#unitCircle+1]={math.sin(a),math.cos(a)} end
 function M.horizon(w,h,pitch,roll)
   local canvas=pixels.new(w,h,colors.black)
@@ -8304,6 +8639,23 @@ function M.radar(w,h,snap,radarId,selected,view)
     if x1 and x2 then canvas:line(x1,y1,x2,y2,color) end
   end
   local o=radar.position
+  local parts={}
+  local function keyPart(value)
+    local text=tostring(value)
+    parts[#parts+1]=#text..":"..text
+  end
+  for _,value in ipairs({w,h,o.x,o.y,o.z,range,heading,yaw,pitch}) do keyPart(value) end
+  keyPart(view.three==true) keyPart(view.relative==true) keyPart(view.network==true)
+  for _,station in ipairs(snap.radars or {}) do
+    keyPart(station.id) keyPart(station.name)
+    for _,key in ipairs({"range","heading","fov","halfHeight","verticalFov","running","remote"}) do keyPart(station[key]) end
+    for _,key in ipairs({"x","y","z"}) do keyPart(station.position and station.position[key]) end
+  end
+  local zone=snap.zone
+  keyPart(zone and zone.alerts)
+  for _,key in ipairs({"x","y","z","radius"}) do keyPart(zone and zone[key]) end
+  local backgroundKey=table.concat(parts,"|")
+  local cachedBackground=backgroundCache[backgroundKey]
   local function circle(position,r,color)
     local previous
     for _,point in ipairs(unitCircle) do
@@ -8311,6 +8663,7 @@ function M.radar(w,h,snap,radarId,selected,view)
       if previous then segment(previous,p,color) end previous=p
     end
   end
+  local function drawBackground()
   if view.three then
     circle(o,range,colors.gray)
     for _,d in ipairs({{range,0,0},{0,range,0},{0,0,range}}) do segment(o,{x=o.x+d[1],y=o.y+d[2],z=o.z+d[3]},colors.gray) end
@@ -8356,9 +8709,30 @@ function M.radar(w,h,snap,radarId,selected,view)
         if view.network then labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan} end
       end
     end end
-  local zone=snap.zone
   if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
     circle({x=zone.x,y=zone.y,z=zone.z},zone.radius,colors.orange)
+  end
+  end
+  cacheSerial=cacheSerial+1
+  if cachedBackground then
+    cachedBackground.used=cacheSerial
+    canvas=cachedBackground.canvas:clone()
+    labels=addon.copy(cachedBackground.labels)
+    renderStats.backgroundHits=renderStats.backgroundHits+1
+  else
+    drawBackground()
+    renderStats.backgroundBuilds=renderStats.backgroundBuilds+1
+    if w*h<=8192 then
+      for row=1,h do canvas:getLine(row) end
+      local count,oldestKey,oldest=0,nil,math.huge
+      for key,entry in pairs(backgroundCache) do
+        count=count+1
+        if entry.used<oldest then oldestKey,oldest=key,entry.used end
+      end
+      if count>=4 then backgroundCache[oldestKey]=nil end
+      backgroundCache[backgroundKey]={canvas=canvas,labels=addon.copy(labels),used=cacheSerial}
+      canvas=canvas:clone()
+    end
   end
   if not view.three and not view.relative then labels[#labels+1]={x=math.max(1,math.floor(cx/2)),y=1,text="N (-Z)",color=colors.white} end
   for _,target in ipairs(snap.targets or {}) do
@@ -8457,7 +8831,7 @@ function M.new(snapshot,selected,configuration,onShip,save,validate)
       local cfg=addon.copy(state.configuration.radars[state.id] or {})
       cfg.apiProfile=cfg.apiProfile or "auto"
       local point=addon.vec({x=cfg.positionX,y=cfg.positionY,z=cfg.positionZ}) or addon.vec(cfg.origin) or row and row.rawPosition
-      cfg.positionMode=cfg.positionMode or (row and row.capabilities and row.capabilities.position and "api" or "manual")
+      cfg.positionMode=cfg.positionMode or (row and row.rawPosition and "api" or "manual")
       if cfg.origin then cfg.positionMode="manual" cfg.origin=nil end
       cfg.frame=cfg.frame or (row and row.frame=="world" and "world" or state.onShip and "body" or "world")
       cfg.headingFrame=cfg.headingFrame or (state.onShip and "body" or "world")
@@ -8492,9 +8866,13 @@ function M.new(snapshot,selected,configuration,onShip,save,validate)
     if self.step==1 then
       local caps=row and row.capabilities or {}
       return {{label="Peripherique",options=ids,get=function() return self.id end,set=function(id) self.id=id self.error=nil end},
-        cfg and forms.field(cfg,"apiProfile","Profil API",nil,{"auto","4.x","5.0-EA"}) or info("Profil API","Indisponible"),
+        cfg and forms.field(cfg,"apiProfile","Profil API",nil,{"auto","4.x","5.0-EA","bridge"}) or info("Profil API","Indisponible"),
+        info("Profil actif",row and row.apiProfile or "Inconnu"),
+        info("Preuve API",row and row.profileEvidence or "Version non detectable"),
+        info("Origine",row and row.adapterOrigin or "API stock / inconnu"),
+        info("Limites",row and row.profileLimitation or "Geometrie automatique non verifiee"),
         info("Contacts recus",row and row.rawTrackCount or "Indisponible"),
-        info("Position automatique",caps.position and "Disponible" or "Non exposee"),
+        info("Position automatique",row and row.rawPosition and "Lecture disponible" or caps.position and "Methode exposee, lecture absente" or "Non exposee"),
         info("Rotation",row and row.rawRotation or "Indisponible"),
         info("Portee (m)",row and row.range or "Indisponible"),
         info("Lectures",row and row.readStatus or "Aucun radar")}
@@ -8615,6 +8993,29 @@ local function classifyHttpFailure(err)
   return text
 end
 
+function M.readResponse(handle, limit, url)
+  local ok,result=pcall(function()
+    assert(type(limit)=="number" and limit>=0 and limit<=8388608 and limit%1==0,"Invalid byte limit")
+    assert(type(handle.read)=="function","Response does not support bounded reads")
+    local chunks,size={},0
+    while true do
+      local chunk=handle.read(math.min(8192,limit-size+1))
+      if chunk==nil or chunk=="" then break end
+      if type(chunk)=="number" then chunk=string.char(chunk) end
+      assert(type(chunk)=="string","Invalid response body")
+      size=size+#chunk
+      assert(size<=limit,"Response exceeds "..limit.." byte limit")
+      chunks[#chunks+1]=chunk
+    end
+    local body=table.concat(chunks)
+    return {url=url,code=handle.getResponseCode and handle.getResponseCode() or 200,
+      headers=handle.getResponseHeaders and handle.getResponseHeaders() or {},body=body,size=#body}
+  end)
+  if handle and handle.close then pcall(handle.close) end
+  if not ok then return nil,"RESPONSE_READ_FAILED: "..tostring(result) end
+  return result
+end
+
 local function request(method, url, opts)
   opts = opts or {}
   url = trim(url)
@@ -8649,25 +9050,7 @@ local function request(method, url, opts)
     return nil, err
   end
 
-  local readOK,result=pcall(function()
-    assert(type(handle.read)=="function","Response does not support bounded reads")
-    local chunks,size={},0
-    while true do
-      local chunk=handle.read(math.min(8192,limit-size+1))
-      if chunk==nil or chunk=="" then break end
-      if type(chunk)=="number" then chunk=string.char(chunk) end
-      assert(type(chunk)=="string","Invalid response body")
-      size=size+#chunk
-      assert(size<=limit,"Response exceeds "..limit.." byte limit")
-      chunks[#chunks+1]=chunk
-    end
-    local body=table.concat(chunks)
-    return {url=url,code=handle.getResponseCode and handle.getResponseCode() or 200,
-      headers=handle.getResponseHeaders and handle.getResponseHeaders() or {},body=body,size=#body}
-  end)
-  pcall(handle.close)
-  if not readOK then return nil,"RESPONSE_READ_FAILED: "..tostring(result) end
-  return result
+  return M.readResponse(handle,limit,url)
 end
 
 function M.get(url, opts)
@@ -9325,7 +9708,19 @@ local M = {
   ready = false,
   listeners = {},
   stream = nil,
+  notificationQueue = {},
 }
+
+local function flushNotifications()
+  while #M.notificationQueue > 0 do
+    local level = M.notificationQueue[1]
+    if M.stream and level ~= "error" then return end
+    if M.stream then M.stopPlayback() end
+    local ok, err = speaker.notify(level)
+    if not ok and err == "Speaker busy" then return end
+    table.remove(M.notificationQueue, 1)
+  end
+end
 
 function M.stopPlayback()
   if M.stream then M.stream.close(true) end
@@ -9365,12 +9760,22 @@ function M.start(ctx)
     end))
     table.insert(M.listeners, ctx.eventBus:on("speaker_audio_empty", function(side)
       if M.stream and M.stream.side == side then advance() end
+      flushNotifications()
+    end))
+    table.insert(M.listeners, ctx.eventBus:on("timer", function(id)
+      if id ~= M.notificationTimer then return end
+      M.notificationTimer = nil
+      flushNotifications()
+      if #M.notificationQueue > 0 then M.notificationTimer = os.startTimer(0.1) end
     end))
   end
 end
 
 function M.stop()
   M.stopPlayback()
+  if M.notificationTimer and os.cancelTimer then os.cancelTimer(M.notificationTimer) end
+  M.notificationTimer = nil
+  M.notificationQueue = {}
   if M.ctx and M.ctx.eventBus then
     for _, id in ipairs(M.listeners) do M.ctx.eventBus:off(id) end
   end
@@ -9391,11 +9796,23 @@ function M.test()
 end
 
 function M.notify(level)
-  return speaker.notify(level)
+  if not M.ready or not M.ctx or not M.ctx.eventBus or not os.startTimer then return speaker.notify(level) end
+  local queue = M.notificationQueue
+  if #queue >= 16 then
+    if level ~= "error" then return false, "Notification queue full" end
+    local victim
+    for i = #queue, 1, -1 do if queue[i] ~= "error" then victim = i break end end
+    if not victim then return false, "Notification queue full" end
+    table.remove(queue, victim)
+  end
+  if level == "error" then table.insert(queue, 1, level) else table.insert(queue, level or "info") end
+  flushNotifications()
+  if #queue > 0 and not M.notificationTimer then M.notificationTimer = os.startTimer(0.1) end
+  return true
 end
 
 function M.setEnabled(enabled)
-  if enabled == false then M.stopPlayback() end
+  if enabled == false then M.stopPlayback() M.notificationQueue = {} end
   return speaker.setEnabled(enabled)
 end
 
@@ -9427,6 +9844,8 @@ return M
 local addon = require("system.libraries.addon")
 local M = {}
 local inventory, runner, revision, slow, slowAt = {}, nil, 0, {}, -math.huge
+local lastAcquiredAt
+local diagnosticRunner,diagnosticsPending,generation=nil,false,0
 local cached = {ok=false,available=false,status="waiting for Avionics",devices={},counts={},measurements={},timestamp=0,revision=0}
 local definitions = {
   altitude_sensor={role="altitude",fields={height="getHeight",airPressure="getAirPressure",verticalSpeed="getVerticalSpeed"}},
@@ -9440,13 +9859,66 @@ local definitions = {
 local function definition(row)
   for _, name in ipairs(row.types) do if definitions[name] then return definitions[name] end end
 end
-function M.acquire(rescan)
-  if rescan then inventory=addon.inventory() slow={} slowAt=-math.huge end
+local required={altitude={height=true},gimbal={angles=true},nav={heading=true},propeller={thrust=true},throttle={signal=true},analog={signal=true}}
+local function validField(field,value)
+  if field=="angles" or field=="angularRates" then
+    if type(value)~="table" then return false end
+    for i=1,(field=="angles" and 2 or 3) do if not addon.finite(value[i]) then return false end end
+    return true
+  end
+  if field=="gravity" or field=="linearAcceleration" or field=="thrustVector" then return addon.vec(value)~=nil end
+  if field=="active" or field=="assembled" or field=="external" or field=="hasTarget" then return type(value)=="boolean" end
+  if field=="orientation" then return type(value)=="table" end
+  if field=="axis" then return type(value)=="string" end
+  return addon.finite(value)
+end
+local flightFields={pitch={"gimbal","angles",1,"deg","body"},roll={"gimbal","angles",2,"deg","body"},
+  altitude={"altitude","height",nil,"m","world"},heading={"nav","heading",nil,"deg","world"},
+  pitchRate={"gimbal","angularRates",1,"deg/s","body"},rollRate={"gimbal","angularRates",3,"deg/s","body"},
+  headingRate={"gimbal","angularRates",2,"deg/s","body"},altitudeRate={"altitude","verticalSpeed",nil,"m/s","world"},
+  gravity={"gimbal","gravity",nil,"m/s2","body"},pressure={"altitude","airPressure",nil,"fraction","world"}}
+local function normalized(snap,ids)
+  local out={}
+  for key,spec in pairs(flightFields) do
+    local m={valid=false,error="sensor unavailable",frame=spec[5],unit=spec[4]}
+    for _,entry in ipairs(snap[spec[1]] or {}) do
+      if (ids and entry.name==ids[spec[1]]) or (not ids and entry.measurements and entry.measurements[spec[2]].valid) then
+        m=addon.copy(entry.measurements[spec[2]])
+        m.unit,m.frame=spec[4],spec[5]
+        if spec[3] then
+          local value=type(m.value)=="table" and m.value[spec[3]] or nil
+          m.valid=addon.finite(value) m.value=value
+          if m.valid then m.error=nil end
+        end
+        if m.valid and key=="gravity" then m.value=addon.vec(m.value) end
+        m.valid=m.valid and os.clock()<=m.validUntil
+        if not m.valid then m.value=nil end
+        break
+      end
+    end
+    out[key]=m
+  end
+  out.verticalSpeed=addon.copy(out.altitudeRate) out.yawRate=addon.copy(out.headingRate)
+  return out
+end
+function M.flightTelemetry(sensorIds)
+  local out={measurements=normalized(cached,sensorIds or {}),timestamp=math.huge,revision=cached.revision}
+  for key in pairs(flightFields) do
+    local m=out.measurements[key]
+    if m.valid then out[key]=addon.copy(m.value) end
+    if key~="gravity" and key~="pressure" and m.observedAt then out.timestamp=math.min(out.timestamp,m.observedAt) end
+  end
+  if out.timestamp==math.huge then out.timestamp=0 end
+  return out
+end
+function M.acquire(rescan,diagnosticsOnly)
+  if rescan and not diagnosticsOnly then inventory=addon.inventory(true) slow={} slowAt=-math.huge generation=generation+1 end
+  local acquiredGeneration=generation
   local now=os.clock()
   local readSlow=now-slowAt>=1
   local snap={ok=true,available=false,status="Create Avionics peripherals missing",devices={},counts={},measurements={},errors={},timestamp=now,frame="world"}
   for _, name in ipairs({"altitude","gimbal","nav","propeller","throttle","analog"}) do snap[name]={} snap.counts[name]=0 end
-  local branches={}
+  local branches,diagnosticBranches={},{}
   for _, row in ipairs(inventory) do
     local def=definition(row)
     if def then
@@ -9454,47 +9926,115 @@ function M.acquire(rescan)
       snap.counts[def.role]=snap.counts[def.role]+1
       snap.devices[#snap.devices+1]={name=row.name,types=addon.copy(row.types),methods=addon.copy(row.methods),roles={[def.role]=true}}
       local entry={name=row.name,types=addon.copy(row.types),data={},ok=false,timestamp=now}
+      if def.slow and slow[row.name] then entry=addon.copy(slow[row.name]) end
       snap[def.role][#snap[def.role]+1]=entry
-      branches[#branches+1]=function()
+      local queue=def.slow and diagnosticBranches or branches
+      if (diagnosticsOnly and def.slow) or (not diagnosticsOnly and not def.slow) then queue[#queue+1]=function()
         if def.slow and not readSlow and slow[row.name] then
           for key,value in pairs(addon.copy(slow[row.name])) do entry[key]=value end
         else
           local methods={}
           for _, method in pairs(def.fields) do methods[#methods+1]=method end
-          local values,errors=addon.read(row.device,methods)
-          for field,method in pairs(def.fields) do entry.data[field]=addon.copy(values[method]) end
-          entry.errors=errors
-          entry.ok=next(errors)==nil and next(entry.data)~=nil
-          if def.slow then slow[row.name]=addon.copy(entry) end
+          local started=os.clock()
+          local values,errors,timings=addon.read(row.device,methods,0.15,{priority=def.slow and "diagnostics" or "flight"})
+          entry.measurements={} entry.errors={} entry.ok=true
+          entry.timestamp=started
+          for field,method in pairs(def.fields) do
+            local present=type(row.device[method])=="function"
+            local valid=validField(field,values[method]) and errors[method]==nil
+            local err=errors[method] or (not present and "method unavailable" or "unexpected value type")
+            local timing=timings and timings[method] or {}
+            local observed=timing.startedAt or started
+            local measure={valid=valid,source=row.name,method=method,timestamp=observed,observedAt=observed,receivedAt=timing.receivedAt or os.clock(),validUntil=observed+(def.slow and 1 or 0.5)}
+            if valid then entry.data[field]=addon.copy(values[method]) measure.value=addon.copy(values[method]) else measure.error=err end
+            if (field=="angles" or field=="angularRates") and type(values[method])=="table" and not errors[method] then
+              measure.value=addon.copy(values[method])
+            end
+            entry.measurements[field]=measure
+            local nullableAxis=field=="axis" and addon.hasType(row,"propeller_bearing") and values[method]==nil and not errors[method]
+            measure.required=(required[def.role] or {})[field]==true
+            measure.available=present and not nullableAxis
+            if nullableAxis then measure.error="axis unavailable" end
+            if not valid and not nullableAxis and (present or measure.required) then entry.errors[method]=err end
+            if not valid and (required[def.role] or {})[field] then entry.ok=false end
+          end
+          if def.slow and generation==acquiredGeneration then slow[row.name]=addon.copy(entry) end
         end
-        for method,err in pairs(entry.errors or {}) do snap.errors[#snap.errors+1]=row.name..":"..method..": "..err end
+      end
       end
     end
   end
-  if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
-  if readSlow then slowAt=now end
-  snap.ok=#snap.errors==0
-  if snap.available then snap.status=snap.ok and "Create Avionics peripherals ready" or "Avionics telemetry degraded" end
-  snap.lastFault=snap.errors[1]
-  local function healthy(rows)
-    for _,entry in ipairs(rows) do if entry.ok then return entry.data,entry.timestamp end end
-    return {},now
+  local function publish(partial)
+    snap.errors={}
+    for role in pairs(required) do
+      for _,entry in ipairs(snap[role]) do
+        for method,err in pairs(entry.errors or {}) do snap.errors[#snap.errors+1]=entry.name..":"..method..": "..err end
+      end
+    end
+    snap.ok=#snap.errors==0
+    snap.diagnosticsPending=partial
+    if snap.available then snap.status=snap.ok and "Create Avionics peripherals ready" or "Avionics telemetry degraded" end
+    snap.lastFault=snap.errors[1]
+    snap.conventions={headingZero="+Z (south)",pitchAxis="body X",rollAxis="body Z"}
+    snap.measurements=normalized(snap)
+    revision=revision+1 snap.revision=revision
+    cached=snap
   end
-  local a=healthy(snap.altitude)
-  local g=healthy(snap.gimbal)
-  local n=healthy(snap.nav)
-  local angle,rate=g.angles or {},g.angularRates or {}
-  local fields={altitude={a.height,"m","world"},verticalSpeed={a.verticalSpeed,"m/s","world"},pressure={a.airPressure,"fraction","world"},
-    pitch={angle[1],"deg","body"},roll={angle[2],"deg","body"},pitchRate={rate[1],"deg/s","body"},yawRate={rate[2],"deg/s","body"},rollRate={rate[3],"deg/s","body"},heading={n.heading,"deg","world"},gravity={addon.vec(g.gravity),"m/s2","body"}}
-  snap.conventions={headingZero="+Z (south)",pitchAxis="body X",rollAxis="body Z"}
-  for key,field in pairs(fields) do snap.measurements[key]=addon.measure(field[1],field[2],field[3],"Avionics",now) end
-  revision=revision+1 snap.revision=revision cached=snap
+  if diagnosticsOnly then
+    if readSlow and #diagnosticBranches>0 then
+      diagnosticsPending=true
+      addon.parallel(diagnosticBranches)
+      if acquiredGeneration==generation then slowAt=now end
+      diagnosticsPending=false
+    end
+    return
+  end
+  if #branches>0 then addon.parallel(branches) end
+  publish(diagnosticsPending)
+  lastAcquiredAt=os.clock()
 end
+function M.acquireDiagnostics() return M.acquire(false,true) end
 function M.snapshot() return addon.copy(cached) end
 function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=cached.lastFault,counts=addon.copy(cached.counts),errors=addon.copy(cached.errors),timestamp=cached.timestamp,revision=cached.revision} end
 function M.health()
   local health=M.status()
+  local now=os.clock()
+  health.readiness={}
+  for role in pairs(required) do
+    for _,entry in ipairs(cached[role] or {}) do health.readiness[entry.name]=addon.copy(entry.measurements) end
+  end
   health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
+  health.lastSuccess=health.lastSuccess or lastAcquiredAt
+  health.lastSuccessAge=health.lastSuccess and math.max(0,now-health.lastSuccess) or nil
+  health.acquisitionStale=health.lastSuccessAge==nil or health.lastSuccessAge>0.5
+  health.staleFast=false
+  health.fastReadiness={}
+  health.flightReady=true
+  for role in pairs({gimbal=true,altitude=true,nav=true}) do
+    for _,entry in ipairs(cached[role] or {}) do
+      local measurements=normalized(cached,{[role]=entry.name})
+      local fields={}
+      for key,spec in pairs(flightFields) do
+        if spec[1]==role and key~="gravity" and key~="pressure" then
+          local m=measurements[key]
+          local raw=entry.measurements and entry.measurements[spec[2]] or {}
+          local acquired=raw.valid==true
+          if spec[3] then acquired=type(raw.value)=="table" and addon.finite(raw.value[spec[3]]) end
+          local stale=m.validUntil~=nil and now>m.validUntil and (acquired or raw.required==true)
+          fields[key]={valid=m.valid,stale=stale,observedAt=m.observedAt,validUntil=m.validUntil,error=m.error}
+          health.staleFast=health.staleFast or stale
+          health.flightReady=health.flightReady and m.valid
+        end
+      end
+      health.fastReadiness[entry.name]=fields
+    end
+  end
+  if not next(health.fastReadiness) then health.flightReady=false end
+  health.degraded=not health.ok or health.staleFast or health.acquisitionStale
+  if health.degraded then
+    health.ok=false
+    health.status="Avionics telemetry degraded"
+  end
   return health
 end
 function M.list() return addon.copy(cached.devices) end
@@ -9505,7 +10045,7 @@ function M.probe(name)
       local def=definition(row)
       local methods={}
       for _,method in pairs(def and def.fields or {}) do methods[#methods+1]=method end
-      local values,errors=addon.read(row.device,methods)
+      local values,errors=addon.read(row.device,methods,0.15,{priority="diagnostics"})
       return {name=name,types=addon.copy(row.types),methods=addon.copy(row.methods),values=values,errors=errors}
     end
   end
@@ -9513,6 +10053,7 @@ function M.probe(name)
 end
 function M.start(ctx)
   M.stop()
+  lastAcquiredAt=nil
   runner=addon.periodic(ctx,"avionicsd",0.1,M.acquire)
   runner.onError=function(err)
     revision=revision+1
@@ -9520,8 +10061,14 @@ function M.start(ctx)
     cached.status="Avionics acquisition failed" cached.revision=revision
   end
   if runner.error then runner.onError(runner.error) end
+  diagnosticRunner=addon.periodic(ctx,"avionicsd-diagnostics",1,M.acquireDiagnostics)
+  diagnosticRunner.onError=function() diagnosticsPending=false end
 end
-function M.stop() if runner then runner:stop() runner=nil end end
+function M.stop()
+  if runner then runner:stop() runner=nil end
+  if diagnosticRunner then diagnosticRunner:stop() diagnosticRunner=nil end
+  diagnosticsPending=false generation=generation+1
+end
 return M
 ]=],
   ["system/services/combatd.lua"] = [=[
@@ -9533,12 +10080,16 @@ local permissions = require("system.security.permissions")
 local sable = require("system.services.sabled")
 local log = require("system.libraries.log")
 local radarNet = require("system.services.radarnetd")
+local adapters = require("system.navigation.combat_adapters")
 local M = {}
 local ctx, runner, inventory, settings = nil, nil, {}, {}
 local tracks, revision, pending, tokens, serial = {}, 0, {}, {}, 0
 local active, firing, uncertain = nil, nil, {}
 local probeResult
 local lastFault
+local slowReads={}
+local lastCycleCompletedAt
+local slowMethods={getRange=true,getDishCount=true,getRotationSpeed=true}
 local cached = { ok = false, status = "waiting for combat", devices = {}, radars = {}, targets = {}, cannons = {}, errors = {}, revision = 0, timestamp = 0 }
 local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", "getRotationSpeed", "getDishCount", "getScanGeometry"},
   cannon = {"getInfo", "isComputerControl"}, controller = {"getAngle"} }
@@ -9602,27 +10153,110 @@ local function origin(position, calibration)
 end
 
 function M.acquire(rescan)
-  if rescan then inventory = addon.inventory() end
+  if rescan then inventory = addon.inventory(true) slowReads={} end
   local now = os.clock()
+  local cycleStart,completed,lastPartialAt=now,0,now
+  local previousSnapshot,done,present=cached,{},{}
+  for _,item in ipairs(inventory) do present[item.name]=true end
+  for id in pairs(slowReads) do if not present[id] then slowReads[id]=nil end end
+  for _,target in pairs(tracks) do
+    for source,report in pairs(target.observations or {}) do if not present[source] then
+      target.retiredFriendly=target.retiredFriendly or report.friendly==true
+      target.retiredSynthetic=target.retiredSynthetic or report.synthetic==true
+      target.observations[source]=nil
+      if target.sources then target.sources[source]=nil end
+    end end
+  end
   local trackCount=0
   for id,target in pairs(tracks) do if now-target.timestamp>10 then tracks[id]=nil else trackCount=trackCount+1 end end
   local snap = {ok = true, devices = {}, radars = {}, targets = {}, cannons = {}, controllers = {}, unknownCombatDevices = {}, errors = {}, timestamp = now, frame = "world"}
+  local function acquisition()
+    local elapsed=os.clock()-cycleStart
+    return {startedAt=cycleStart,completed=completed,pending=#inventory-completed,
+      elapsed=elapsed,overrun=elapsed>0.2,targetHz=5,
+      cycleCapacityHz=elapsed>0 and 1/elapsed or nil,budget=addon.metrics()}
+  end
+  local function publishPartial()
+    if os.clock()-lastPartialAt<0.2 or completed==#inventory then return end
+    lastPartialAt=os.clock()
+    local partial=addon.copy(snap)
+    for _,key in ipairs({"radars","cannons","controllers","devices","unknownCombatDevices"}) do
+      local included={} for _,row in ipairs(partial[key]) do included[row.id or row.name]=true end
+      for _,row in ipairs(previousSnapshot[key] or {}) do
+        local id=row.id or row.name
+        if not included[id] and (row.remote or present[id] and not done[id]) then
+          local pendingRow=addon.copy(row)
+          pendingRow.pending=true pendingRow.stale=true
+          for _,measure in pairs(pendingRow.measurements or {}) do measure.valid=false end
+          partial[key][#partial[key]+1]=pendingRow
+        end
+      end
+    end
+    partial.timestamp=os.clock() partial.acquisition=acquisition()
+    partial.targets={}
+    for _,target in pairs(tracks) do
+      local row=addon.copy(target)
+      row.pending=present[row.radarId] and not done[row.radarId] or nil
+      row.stale=row.pending or not row.freshnessKnown or os.clock()-row.timestamp>5
+      if os.clock()-row.timestamp<=10 then partial.targets[#partial.targets+1]=row end
+    end
+    local targetIds={} for _,row in ipairs(partial.targets) do targetIds[row.id]=true end
+    for _,row in ipairs(previousSnapshot.targets or {}) do
+      if not targetIds[row.id] and row.remote and os.clock()-row.timestamp<=10 then
+        local retained=addon.copy(row) retained.pending=true retained.stale=true
+        partial.targets[#partial.targets+1]=retained
+      end
+    end
+    partial.network=cached.network partial.zone=cached.zone
+    partial.counts={radars=#partial.radars,targets=#partial.targets,cannons=#partial.cannons,unknown=#partial.unknownCombatDevices}
+    partial.available=#partial.radars+#partial.cannons+#partial.controllers>0
+    partial.ok=false partial.status="combat acquisition overrun; partial results, "..partial.acquisition.pending.." devices pending"
+    revision=revision+1 partial.revision=revision cached=partial
+  end
   local branches={}
   for _, item in ipairs(inventory) do
     branches[#branches+1]=function()
+    local now=os.clock()
     item.role = role(item)
     if item.role ~= "unknown" then
       local public = {id = item.name, name = item.name, types = item.types, methods = item.methods, role = item.role}
       snap.devices[#snap.devices + 1] = public
       local methods = READS[item.role]
       local radarConfig = item.role=="radar" and settings.radars[item.name]
-      if item.role=="radar" and knownRadar(item) and item.set.getScanGeometry then
-        methods={"getTracks","getScanGeometry"}
-      elseif radarConfig and (radarConfig.positionMode=="manual" or (radarConfig.origin and radarConfig.positionMode==nil)) then
-        methods = {}
-        for _,method in ipairs(READS.radar) do if method~="getPosition" then methods[#methods+1]=method end end
+      local adapter
+      if item.role=="radar" then
+        adapter=adapters.radar(item,(radarConfig or {}).apiProfile,
+          radarConfig and (radarConfig.positionMode=="manual" or radarConfig.origin))
+        methods=adapter.methods
       end
-      local values, errors = addon.read(item.device, methods)
+      local proxy,readMethods,observed,received={},{},{},{}
+      local cache=slowReads[item.name] or {} slowReads[item.name]=cache
+      for _,method in ipairs(methods) do
+        local saved=cache[method]
+        if not (item.role=="radar" and slowMethods[method] and saved and now-saved.observedAt<1) then
+          readMethods[#readMethods+1]=method
+          if type(item.device[method])=="function" then
+            proxy[method]=function()
+              observed[method]=os.clock()
+              local ok,value=pcall(item.device[method])
+              received[method]=os.clock()
+              if not ok then error(value,0) end
+              return value
+            end
+          end
+        end
+      end
+      local values, errors = addon.read(proxy, readMethods)
+      for _,method in ipairs(methods) do if item.role=="radar" and slowMethods[method] then
+        if observed[method] then
+          cache[method]={value=values[method],error=errors[method],observedAt=observed[method],receivedAt=received[method]}
+        elseif cache[method] then
+          local saved=cache[method]
+          values[method],errors[method]=saved.value,saved.error
+          observed[method],received[method]=saved.observedAt,saved.receivedAt
+        end
+      end end
+      now=observed.getTracks or observed.getInfo or os.clock()
       local scan=type(values.getScanGeometry)=="table" and values.getScanGeometry.version==1 and values.getScanGeometry or nil
       if scan then
         values.getPosition,values.getRange,values.getRotation=scan.position,scan.range,scan.rotation
@@ -9641,6 +10275,9 @@ function M.acquire(rescan)
           effectiveCal = addon.copy(cal)
           effectiveCal.frame = "world"
         end
+        if adapter.profile=="5.0-EA" and addon.hasType(item,"create_radar:plane_radar") and cal.positionMode~="manual" and not cal.origin then
+          effectiveCal=addon.copy(cal) effectiveCal.frame="world"
+        end
         local pos, frame = origin(values.getPosition, effectiveCal)
         local radar = {id = item.name, name = item.name, position = pos, frame = frame, rawPosition = addon.vec(values.getPosition),
           range = addon.finite(values.getRange) and values.getRange or nil, heading = nil,
@@ -9649,7 +10286,8 @@ function M.acquire(rescan)
           verticalFov=addon.finite(cal.verticalFov) and cal.verticalFov or nil,
           rotationSpeed = values.getRotationSpeed, dishCount = values.getDishCount,
           rawTrackCount = type(values.getTracks)=="table" and #values.getTracks or nil,
-          readErrors = addon.copy(errors), timestamp = now,
+          readErrors = addon.copy(errors), timestamp = now,observedAt=now,receivedAt=received.getTracks or os.clock(),
+          fieldTimes={observedAt=addon.copy(observed),receivedAt=addon.copy(received)},
           capabilities={tracks=item.set.getTracks==true,position=item.set.getPosition==true,
             range=item.set.getRange==true,rotation=item.set.getRotation==true,dishes=item.set.getDishCount==true},
           trackApi="getTracks", classificationSource="not exposed"}
@@ -9662,7 +10300,12 @@ function M.acquire(rescan)
           radar.fov,radar.fovSource=scan.fov,"scanner API"
         end
         radar.kind=addon.hasType(item,"create_radar:plane_radar") and "fixed" or item.set.getRotation and "rotating" or "unknown"
-        radar.apiProfile=cal.apiProfile or "auto"
+        radar.apiProfile=adapter.profile
+        radar.profileEvidence,radar.adapterOrigin,radar.profileLimitation=adapter.evidence,adapter.origin,adapter.limitation
+        if adapter.profile=="bridge" and not scan then
+          radar.readErrors.getScanGeometry="bridge geometry v1 unavailable"
+          snap.errors[#snap.errors+1]=item.name..": bridge geometry v1 unavailable"
+        end
         radar.positionSource = (cal.origin and cal.positionMode==nil) and "configured world origin" or
           cal.positionMode=="manual" and "configured "..tostring(cal.frame) or "API"
         radar.positionIssue = not pos and frame or nil
@@ -9686,41 +10329,82 @@ function M.acquire(rescan)
           end
         elseif addon.finite(cal.heading) then radar.heading = cal.heading end
         radar.measurements={position=addon.measure(pos,"m",frame,item.name,now),heading=addon.measure(radar.heading,"deg","world",item.name,now),range=addon.measure(radar.range,"m",frame,item.name,now),fov=addon.measure(radar.fov,"deg","radar calibrated",item.name,now)}
+        radar.measurements.position.timestamp=observed.getScanGeometry or observed.getPosition or now
+        radar.measurements.heading.timestamp=observed.getScanGeometry or observed.getRotation or now
+        radar.measurements.range.timestamp=observed.getRange or observed.getScanGeometry or now
         snap.radars[#snap.radars + 1] = radar
-        for _, raw in ipairs(type(values.getTracks) == "table" and values.getTracks or {}) do
+        local badRecords=0
+        for index, raw in ipairs(type(values.getTracks) == "table" and values.getTracks or {}) do
+          if index>512 then
+            snap.errors[#snap.errors+1]=item.name..": track processing capped at 512 entries"
+            break
+          end
+          if type(raw)=="table" then
           local id, position = raw.id and tostring(raw.id), addon.vec(raw.position)
           if id and position and (tracks[id] or trackCount<settings.radar.maxTargets) then
             local old = tracks[id]
             if not old then trackCount=trackCount+1 end
-            local changed = not old or (addon.finite(raw.scannedTime) and (not addon.finite(old.scannedTime) or raw.scannedTime>old.scannedTime))
             local target = old or {id = id, history = {}, timestamp=now, position=position}
+            target.observations=target.observations or {}
+            local previous=target.observations[item.name]
+            local numeric=addon.finite(raw.scannedTime)
+            local progressed=previous and numeric and addon.finite(previous.scannedTime) and raw.scannedTime>previous.scannedTime
+            local verified=progressed and now-previous.observedAt>=0 and now-previous.observedAt<=5 or false
+            local same=previous and numeric and raw.scannedTime==previous.scannedTime
+            local observation={scannedTime=raw.scannedTime,receivedAt=received.getTracks or now,
+              observedAt=progressed and now or same and previous.observedAt or now,
+              verified=verified or same and previous.verified or false,
+              friendly=raw.friendly,synthetic=raw.synthetic}
+            -- Only verified new boolean evidence can remove a safety flag.
+            if previous then
+              if numeric and addon.finite(previous.scannedTime) and raw.scannedTime<previous.scannedTime then
+                observation.scannedTime=previous.scannedTime
+              end
+              if not verified or type(raw.friendly)~="boolean" then
+                observation.friendly=previous.friendly==true or raw.friendly==true or raw.friendly
+              end
+              if not verified or type(raw.synthetic)~="boolean" then
+                observation.synthetic=previous.synthetic==true or raw.synthetic==true or raw.synthetic
+              end
+            end
+            local sourceCount=0 for _ in pairs(target.observations) do sourceCount=sourceCount+1 end
+            if previous or sourceCount<128 then target.observations[item.name]=observation
+            else target.classificationUncertain=true end
+            local changed = not old or (verified and (not addon.finite(target.scannedTime) or raw.scannedTime>target.scannedTime))
             if changed then
-              target.timestamp, target.position, target.scannedTime = now, position, raw.scannedTime
-              target.history[#target.history + 1] = {position = position, timestamp = now}
+              target.timestamp, target.position, target.scannedTime = observation.observedAt, position, raw.scannedTime
+              if not same then target.history[#target.history + 1] = {position = position, timestamp = now} end
               if #target.history > 20 then table.remove(target.history, 1) end
               target.category, target.entityType, target.radarId = raw.category, raw.entityType, item.name
               target.velocity, target.frame = addon.vec(raw.velocity), "world"
               target.velocityUnit = raw.category=="entity" and "blocks/tick" or "API units (unverified)"
               target.renderName = type(raw.name) == "string" and raw.name or type(raw.displayName) == "string" and raw.displayName or nil
-              target.freshnessKnown=addon.finite(raw.scannedTime)
+              target.freshnessKnown=observation.verified
             end
+            if target.radarId==item.name and not observation.verified then target.freshnessKnown=false end
             target.label = settings.aliases[id] or target.renderName or ("ID " .. id:sub(1, 8))
             target.labelSource = settings.aliases[id] and "alias" or target.renderName and "api" or "id"
             target.sources=target.sources or {}
-            target.sources[item.name]=now
-            if type(raw.friendly)=="boolean" then target.friendly=raw.friendly else target.friendly=nil end
-            if type(raw.synthetic)=="boolean" then target.synthetic=raw.synthetic else target.synthetic=nil end
+            if target.observations[item.name] then target.sources[item.name]=now end
+            target.friendly,target.synthetic=target.retiredFriendly or nil,target.retiredSynthetic or nil
+            for _,report in pairs(target.observations) do
+              if report.friendly==true then target.friendly=true elseif target.friendly==nil and report.friendly==false then target.friendly=false end
+              if report.synthetic==true then target.synthetic=true elseif target.synthetic==nil and report.synthetic==false then target.synthetic=false end
+            end
+            target.classificationSource="per-radar scan evidence; true wins conflicts"
             if type(raw.friendly)=="boolean" or type(raw.synthetic)=="boolean" then radar.classificationSource="API friendly/synthetic" end
             tracks[id] = target
           end
+          else badRecords=badRecords+1 end
         end
+        if badRecords>0 then snap.errors[#snap.errors+1]=item.name..": malformed track records: "..badRecords end
       elseif item.role == "cannon" then
         local info = type(values.getInfo) == "table" and values.getInfo or {}
         local cal = settings.profiles[item.name] or {}
         local pos, frame = origin({x=info.x,y=info.y,z=info.z}, cal)
         snap.cannons[#snap.cannons + 1] = {id=item.name,name=item.name,position=pos,frame=frame,
           yaw=info.yaw,pitch=info.pitch,assembled=info.assembled,computerControl=info.computerControl,
-          targetYaw=info.targetYaw,targetPitch=info.targetPitch,info=info,calibrated=cal.validated==true,timestamp=now,
+          targetYaw=info.targetYaw,targetPitch=info.targetPitch,info=info,calibrated=cal.validated==true,timestamp=now,observedAt=now,receivedAt=received.getInfo or os.clock(),
           measurements={position=addon.measure(pos,"m",frame,item.name,now),yaw=addon.measure(info.yaw,"deg","mount",item.name,now),pitch=addon.measure(info.pitch,"deg","mount",item.name,now)}}
       else snap.controllers[#snap.controllers + 1] = {id=item.name,name=item.name,values=values} end
     else
@@ -9728,9 +10412,13 @@ function M.acquire(rescan)
       snap.devices[#snap.devices+1]={id=item.name,name=item.name,types=addon.copy(item.types),methods=addon.copy(item.methods),role="unknown (list only)"}
       if text:find("radar",1,true) or text:find("cannon",1,true) then snap.unknownCombatDevices[#snap.unknownCombatDevices+1] = {name=item.name,types=item.types,methods=item.methods} end
     end
+    done[item.name]=true completed=completed+1 publishPartial()
     end
   end
-  if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
+  if #branches>0 then addon.parallel(branches) end
+  now=os.clock() snap.timestamp=now snap.acquisition=acquisition()
+  snap.acquisition.effectiveHz=lastCycleCompletedAt and now>lastCycleCompletedAt and 1/(now-lastCycleCompletedAt) or nil
+  lastCycleCompletedAt=now
   for _,key in ipairs({"devices","radars","cannons","controllers"}) do table.sort(snap[key],function(a,b) return a.name<b.name end) end
   for token,entry in pairs(tokens) do if now>entry.expires then tokens[token]=nil end end
   for id, target in pairs(tracks) do
@@ -9780,6 +10468,7 @@ function M.acquire(rescan)
   snap.available = #snap.radars+#snap.cannons+#snap.controllers>0
   snap.ok=#snap.errors==0
   snap.status = not snap.ok and "combat telemetry degraded" or snap.available and "combat peripherals ready" or "no supported combat peripheral"
+  if snap.ok and snap.acquisition.overrun then snap.status="combat acquisition overrun; inspect measured cadence/budget" end
   lastFault=snap.errors[1]
   snap.lastFault=lastFault
   cached = snap
@@ -9787,7 +10476,7 @@ function M.acquire(rescan)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
-function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=lastFault,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=lastFault,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain),acquisition=addon.copy(cached.acquisition)} end
 function M.health()
   local health=M.status()
   health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
@@ -9807,13 +10496,13 @@ function M.autoConfigureRadars(actor)
   for _,radar in ipairs(cached.radars) do if not radar.remote then
     if radar.autoGeometry and radar.rawPosition and radar.scanPositionFrame=="world" then
       local cal=updated.radars[radar.id] or {}
-      cal.positionMode="api" cal.frame="world" cal.apiProfile="auto"
+      cal.positionMode="api" cal.frame="world" cal.apiProfile="bridge"
       -- Retain the old manual origin/coordinates for recovery without using them.
       if cal.origin then cal.manualOriginBackup=cal.origin cal.origin=nil end
       updated.radars[radar.id]=cal count=count+1
     else missing=missing+1 end
   end end
-  if count==0 then return false,"Scanner API missing; install the Radar API bridge on the source PC" end
+  if count==0 then return false,"No valid optional bridge geometry; stock 4.x/EA require manual Setup (position/orientation)" end
   local saved,why=safeWrite.write("/system/config/combat.cfg",textutils.serialize(updated))
   if not saved then return false,why end
   settings=updated M.rescan()
@@ -9826,7 +10515,7 @@ function M.validateRadar(value)
   if value.headingSign~=1 and value.headingSign~=-1 then return false,"headingSign must be +1 or -1" end
   if not addon.finite(value.headingOffset) then return false,"heading offset invalid" end
   if value.positionMode~=nil and value.positionMode~="api" and value.positionMode~="manual" then return false,"invalid radar position source" end
-  if value.apiProfile~=nil and value.apiProfile~="auto" and value.apiProfile~="4.x" and value.apiProfile~="5.0-EA" then return false,"unknown radar API profile" end
+  if value.apiProfile~=nil and value.apiProfile~="auto" and value.apiProfile~="4.x" and value.apiProfile~="5.0-EA" and value.apiProfile~="bridge" then return false,"unknown radar API profile" end
   if value.positionMode=="manual" then
     if not addon.vec({x=value.positionX,y=value.positionY,z=value.positionZ}) then return false,"manual position requires finite X/Y/Z" end
     if value.frame=="world" and sable.status().inSublevel then return false,"moving sublevel requires local body coordinates" end
@@ -9852,6 +10541,7 @@ function M.configure(actor, section, id, value)
     local signKeys=section=="profiles" and {"yawSign","pitchSign"} or {"headingSign"}
     for _,key in ipairs(signKeys) do if value[key]~=1 and value[key]~=-1 then return false,key.." must be +1 or -1" end end
     if section=="radars" then
+      local valid,why=M.validateRadar(value) if not valid then return false,why end
       if value.positionMode~=nil and value.positionMode~="api" and value.positionMode~="manual" then return false,"invalid radar position source" end
       if value.positionMode=="manual" then
         if not addon.vec({x=value.positionX,y=value.positionY,z=value.positionZ}) then return false,"manual position requires finite X/Y/Z" end
@@ -9877,12 +10567,14 @@ function M.configure(actor, section, id, value)
 end
 
 function M.solution(cannonId, targetId)
+  if cached.acquisition and cached.acquisition.pending>0 then return nil,"combat acquisition incomplete; command blocked" end
   local cannon, target = find(cached.cannons, cannonId), find(cached.targets, type(targetId)=="table" and targetId.id or targetId)
   if not cannon or not target then return nil, "select cannon and target" end
   if target.remote then return nil,"remote Rednet contact: display/alerts only" end
+  if target.classificationUncertain then return nil,"classification source limit exceeded; command blocked" end
   if target.friendly==true then return nil,"API marks target friendly; command blocked" end
   if target.synthetic==true then return nil,"API marks synthetic contact; command blocked" end
-  if target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale" end
+  if not target.freshnessKnown or target.stale or os.clock()-target.timestamp > 5 then return nil, "target stale/unverified scan progression" end
   if os.clock()-(cannon.timestamp or 0)>0.5 then return nil,"cannon telemetry stale" end
   local profile = settings.profiles[cannon.id] or {}
   if not profile.validated then return nil, "cannon profile not calibrated" end
@@ -9895,11 +10587,21 @@ function M.solution(cannonId, targetId)
   if disc < 0 then return nil, "target out of ballistic range" end
   local pitch = math.deg(math.atan((v2-math.sqrt(disc))/(g*rel.distance)))
   local bearing=rel.bearing
-  if profile.headingFrame=="body" then
+  if profile.headingFrame=="body" or profile.frame=="body" then
     local nav=require("system.services.avionicsd").snapshot()
+    for _,axis in ipairs({"pitch","roll"}) do
+      local measure=(nav.measurements or {})[axis]
+      local stamp=measure and (measure.observedAt or measure.timestamp)
+      if not measure or not measure.valid or not addon.finite(measure.value) or not addon.finite(stamp) or
+        os.clock()-stamp<0 or os.clock()-stamp>0.5 or (measure.validUntil and os.clock()>measure.validUntil) then
+        return nil,"body attitude unavailable/stale; yaw-only solution blocked"
+      end
+      if math.abs(measure.value)>0.01 then return nil,"inclined body mount unsupported; yaw-only solution blocked" end
+    end
     local heading=(nav.measurements or {}).heading
-    if not heading or not heading.valid or os.clock()-heading.timestamp>0.5 then return nil,"ship heading unavailable" end
-    bearing=geometry.wrap(bearing-heading.value)
+    local stamp=heading and (heading.observedAt or heading.timestamp)
+    if not heading or not heading.valid or not addon.finite(heading.value) or not addon.finite(stamp) or os.clock()-stamp<0 or os.clock()-stamp>0.5 or (heading.validUntil and os.clock()>heading.validUntil) then return nil,"ship heading unavailable" end
+    if profile.headingFrame=="body" then bearing=geometry.wrap(bearing-heading.value) end
   end
   local yaw = bearing*(profile.yawSign or 1)+(profile.yawOffset or 0)
   pitch = pitch*(profile.pitchSign or 1)+(profile.pitchOffset or 0)
@@ -10008,11 +10710,11 @@ local function processCommand(command)
   firing=row
   command.outputAttempted=true
   local value, fireErr = addon.call(row.device,"fire",true)
-  if fireErr or value == false then return false,fireErr or "fire refused" end
+  if fireErr or not adapters.fireResult(value,true) then return false,fireErr or "fire refused" end
   local timer = os.startTimer(0.1)
   while true do local _, id=os.pullEvent("timer") if id==timer then break end end
   local released, stopErr = addon.call(row.device,"fire",false)
-  if released==false then stopErr=stopErr or "fire release refused" end
+  if not adapters.fireResult(released,false) then stopErr=stopErr or "fire release state mismatch" end
   if not stopErr then firing=nil end
   log.warn("combat", "confirmed fire " .. command.cannonId .. " target=" .. command.targetId)
   return stopErr==nil,stopErr or "Fire pulse completed"
@@ -10023,6 +10725,7 @@ function M.start(context)
   if stopped==false then error(why) end
   ctx = context
   lastFault=nil
+  tracks={} cached.targets={} slowReads={} lastCycleCompletedAt=nil
   loadSettings()
   runner = addon.periodic(ctx,"combatd",0.2,M.acquire)
   runner.onError = function(err)
@@ -10049,7 +10752,7 @@ function M.start(context)
           local row=firing
           local cleared,clearErr=addon.bounded(function()
             local value,err=addon.call(row.device,"fire",false)
-            if err or value==false then error(err or "fire release refused") end
+            if err or not adapters.fireResult(value,false) then error(err or "fire release state mismatch") end
           end,0.5)
           if cleared then firing=nil else uncertain[row.name]=tostring(clearErr) end
         end
@@ -10097,21 +10800,79 @@ local M = {
   listeners = {},
 }
 
-local function readScale()
-  local cfg = config.load("/system/config/system.cfg", {})
-  local value = tonumber(cfg.displayScale) or 0.5
-  if value < 0.5 then value = 0.5 end
-  if value > 5 then value = 5 end
-  return math.floor(value * 2 + 0.5) / 2
+local function normalizeScale(value)
+  value = tonumber(value) or 0.5
+  if value ~= value then value = 0.5 end
+  return math.floor(math.max(0.5, math.min(5, value)) * 2 + 0.5) / 2
 end
 
-function M.setScale(scale)
+local function validTarget(target)
+  return type(target) == "string" and target:find("%S") ~= nil and not target:find("%c")
+end
+
+function M.getPreference()
   local cfg = config.load("/system/config/system.cfg", {})
-  scale = tonumber(scale) or readScale()
-  if scale < 0.5 then scale = 0.5 end
-  if scale > 5 then scale = 5 end
-  cfg.displayScale = math.floor(scale * 2 + 0.5) / 2
-  config.save("/system/config/system.cfg", cfg)
+  return validTarget(cfg.displayTarget) and cfg.displayTarget or "auto"
+end
+
+local function readScale(target)
+  local cfg = config.load("/system/config/system.cfg", {})
+  local scales = type(cfg.displayScales) == "table" and cfg.displayScales or {}
+  return normalizeScale(scales[target] or cfg.displayScale)
+end
+
+function M.setTarget(target)
+  local ok, err = M.setPreference(target)
+  if not ok then return false, err end
+  if target ~= "auto" and target ~= "computer" and M.display.monitorSide ~= target then
+    return false, "Display unavailable; preference saved; using computer"
+  end
+  return true
+end
+
+function M.setPreference(target)
+  if not validTarget(target) then return false, "Invalid display target" end
+  local cfg = config.load("/system/config/system.cfg", {})
+  cfg.displayTarget = target
+  local ok, err = config.save("/system/config/system.cfg", cfg)
+  if not ok then return false, err end
+  M.refreshDisplay()
+  return true
+end
+
+function M.listDisplays()
+  local preference = M.getPreference()
+  local rows = {
+    {name = "auto", label = "Auto", available = true, selected = preference == "auto"},
+    {name = "computer", label = "Computer", available = true, selected = preference == "computer"},
+  }
+  local names, found = {}, false
+  for name, device in pairs(M.devices) do
+    if device.type == "monitor" or (device.types and device.types.monitor) then
+      names[#names + 1] = name
+    end
+  end
+  table.sort(names)
+  for _, name in ipairs(names) do
+    rows[#rows + 1] = {name = name, label = name, available = true, selected = preference == name}
+    if preference == name then found = true end
+  end
+  if preference ~= "auto" and preference ~= "computer" and not found then
+    rows[#rows + 1] = {name = preference, label = preference, available = false, selected = true}
+  end
+  return rows
+end
+
+function M.setScale(scale, target)
+  local cfg = config.load("/system/config/system.cfg", {})
+  target = target or M.display.monitorSide or M.getPreference()
+  if not validTarget(target) then return false, "Invalid display target" end
+  scale = normalizeScale(tonumber(scale) or readScale(target))
+  if type(cfg.displayScales) ~= "table" then cfg.displayScales = {} end
+  cfg.displayScales[target] = scale
+  if target == "auto" then cfg.displayScale = scale end
+  local ok, err = config.save("/system/config/system.cfg", cfg)
+  if not ok then return false, err end
   return M.refreshDisplay()
 end
 
@@ -10148,10 +10909,13 @@ function M.hasType(kind)
 end
 
 function M.useMonitor()
+  local preference = M.getPreference()
+  if preference == "computer" then return false end
   if not peripheral or not peripheral.wrap then return false end
   local names = {}
   for name, device in pairs(M.devices) do
-    if device.type == "monitor" or (device.types and device.types.monitor) then
+    if (preference == "auto" or preference == name) and
+        (device.type == "monitor" or (device.types and device.types.monitor)) then
       names[#names + 1] = name
     end
   end
@@ -10161,9 +10925,10 @@ function M.useMonitor()
     if b == M.display.monitorSide then return false end
     return a < b
   end)
-  local scale = readScale()
+  local scale
   local monitor, side, w, h
   for _, name in ipairs(names) do
+    scale = readScale(name)
     local ok, candidate, width, height = pcall(function()
       local device = peripheral.wrap(name)
       if not device then error("Monitor detached") end
@@ -10192,6 +10957,7 @@ function M.useMonitor()
 end
 
 function M.refreshDisplay()
+  if not M.nativeTerm then M.nativeTerm = term.native and term.native() or term.current() end
   if M.ctx and M.ctx.invalidateDisplay then M.ctx.invalidateDisplay() end
   M.scan()
   local oldW, oldH = M.display.width, M.display.height
@@ -10222,6 +10988,20 @@ end
 
 function M.getTarget()
   return M.displayTerm or M.nativeTerm or term.current()
+end
+
+function M.outputFailed(target, problem)
+  if target ~= M.getTarget() then return false end
+  M.nativeTerm = M.nativeTerm or (term.native and term.native())
+  M.displayTerm, M.redirected = M.nativeTerm, false
+  term.redirect(M.nativeTerm)
+  M.getDisplay()
+  log.error("deviced", "display output failed: " .. tostring(problem))
+  if M.ctx and M.ctx.invalidateDisplay then pcall(M.ctx.invalidateDisplay) end
+  if M.ctx and M.ctx.notifications then
+    pcall(function() M.ctx.notifications:push("error", "Display", "Monitor unavailable; using computer", 5) end)
+  end
+  return true
 end
 
 function M.getDisplay()
@@ -10269,7 +11049,7 @@ function M.stop()
   end
   M.listeners = {}
   M.ctx = nil
-  if M.redirected and M.nativeTerm then
+  if M.nativeTerm then
     term.redirect(M.nativeTerm)
     M.redirected = false
     M.displayTerm = M.nativeTerm
@@ -10306,6 +11086,7 @@ local state, reason, owner, targets, timestamp = "disarmed","not calibrated",nil
 local rescuePending, lastTick, inventoryDirty = false, nil, true
 local tested, rescueTested, session = {}, false, false
 local outputResults, rescueResults = {}, {}
+local rankConfig, mixerRank
 
 local function authorize(actor, permission)
   local process = ctx and actor and ctx.scheduler.processes[actor.pid]
@@ -10325,6 +11106,7 @@ local function migrate()
     c.gains[axis] = c.gains[axis] or {kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}
   end
   c.enabled = false
+  rankConfig,mixerRank=nil,nil
 end
 
 local function persist()
@@ -10338,8 +11120,16 @@ local function selected(rows,name)
 end
 
 function M.telemetry()
-  local snap = avionics.snapshot()
   local c = cfg.control or {sensors={}}
+  if avionics.flightTelemetry then
+    local t=avionics.flightTelemetry(c.sensors)
+    local sub=sable.flightStatus and sable.flightStatus() or sable.status()
+    local observed=sub.timestamp
+    if not observed then observed=sable.snapshot().timestamp end
+    t.inSublevel=sub.inSublevel==true and addon.finite(observed) and os.clock()-observed<=0.5
+    return t
+  end
+  local snap = avionics.snapshot()
   local g = selected(snap.gimbal,c.sensors.gimbal)
   local a = selected(snap.altitude,c.sensors.altitude)
   local nav = selected(snap.nav,c.sensors.nav)
@@ -10353,7 +11143,10 @@ end
 
 local function endpoint(channel)
   if channel.backend=="redstone" then return channel.side and sides[channel.side] and ("redstone:"..channel.side) end
-  if channel.backend=="avionics" then return channel.name and ("avionics:"..channel.name) end
+  if channel.backend=="avionics" and type(channel.name)=="string" and channel.name~="" then return "avionics:"..channel.name end
+  if channel.backend=="relay" and type(channel.name)=="string" and channel.name~="" and sides[channel.side] then
+    return "relay:"..channel.name..":"..channel.side
+  end
 end
 
 local function deviceFor(channel)
@@ -10363,12 +11156,18 @@ end
 local function channelValid(channel)
   if type(channel)~="table" or type(channel.id)~="string" or channel.id=="" then return false,"output ID missing" end
   if not endpoint(channel) then return false,"invalid endpoint" end
-  for _, key in ipairs({"min","max","neutral","rescue"}) do if not addon.finite(channel[key]) then return false,key.." missing" end end
+  for _, key in ipairs({"min","max","neutral","rescue"}) do
+    if not addon.finite(channel[key]) or channel[key]%1~=0 then return false,key.." must be an integer" end
+  end
   if channel.min < 0 or channel.max > 15 or channel.min>channel.max then return false,"signal limits must be within 0..15" end
   if channel.neutral<channel.min or channel.neutral>channel.max or channel.rescue<channel.min or channel.rescue>channel.max then return false,"neutral/rescue outside limits" end
   if channel.backend=="avionics" then
     local row=deviceFor(channel)
     if not row or not row.set.setSignal or not (addon.hasType(row,"analog_transmission") or addon.hasType(row,"throttle_lever")) then return false,"supported Avionics signal endpoint missing" end
+  end
+  if channel.backend=="relay" then
+    local row=deviceFor(channel)
+    if not row or not addon.hasType(row,"redstone_relay") or not row.set.setAnalogOutput then return false,"redstone relay endpoint missing" end
   end
   return true
 end
@@ -10416,7 +11215,8 @@ function M.validate()
     end
     matrix[#matrix+1]=row
   end
-  if rank(matrix)<4 then errors[#errors+1]="outputs cannot independently correct all four axes" end
+  if rankConfig~=c then mixerRank,rankConfig=rank(matrix),c end
+  if mixerRank<4 then errors[#errors+1]="outputs cannot independently correct all four axes" end
   for _, axis in ipairs(axes) do
     local g=c.gains[axis] or {}
     for _, key in ipairs({"kp","ki","kd","limit","slew","integralLimit","deadband"}) do
@@ -10550,6 +11350,11 @@ local function writeOutputs(values, force, results)
             if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value) return true end
             local row=deviceFor(channel)
             if not row then return false,"actuator detached: "..tostring(channel.name) end
+            if channel.backend=="relay" then
+              local accepted,problem=addon.call(row.device,"setAnalogOutput",channel.side,value)
+              if problem then error(problem) end
+              return accepted~=false,accepted==false and "relay refused" or nil
+            end
             local returned,problem=addon.call(row.device,"setSignal",value)
             if problem then error(problem) end
             return returned~=false,returned==false and "actuator refused" or nil
@@ -10569,6 +11374,18 @@ local function writeOutputs(values, force, results)
     if result.state~="confirmed" then failures[#failures+1]=id..": "..result.state..": "..tostring(result.error) end
   end
   return #failures==0,table.concat(failures,"; "),results
+end
+
+function M.endpoints()
+  local rows={}
+  for _,row in ipairs(inventory) do
+    if addon.hasType(row,"redstone_relay") and row.set.setAnalogOutput then
+      rows[#rows+1]={name=row.name,backend="relay",sides={"top","bottom","left","right","front","back"}}
+    elseif row.set.setSignal and (addon.hasType(row,"analog_transmission") or addon.hasType(row,"throttle_lever")) then
+      rows[#rows+1]={name=row.name,backend="avionics"}
+    end
+  end
+  return rows
 end
 
 function M.calibrate(actor,kind,id, confirmed)
@@ -11009,12 +11826,21 @@ local config=require("system.libraries.config")
 local safeWrite=require("system.libraries.safe_write")
 local permissions=require("system.security.permissions")
 local M={protocol="mintcraft.radar.v1",securityWarning="INSECURE Rednet: unauthenticated and unencrypted; station IDs can be spoofed"}
-local ctx,runner,listener,modem,problem
+local ctx,runner,ingressRunner,listener,modem,problem
 local nodes,settings,sequence={}, {},0
 local session=tostring(os.epoch and os.epoch("utc") or os.clock())
 local announced,lastAlert={},-math.huge
 local ENVELOPE="mintcraft.radar.hmac-sha256.v1"
 local MAX_PAYLOAD=65536
+local VERIFY_EVENT="mintcraft_radar_verify"
+local verifySequence=0
+local ingress,admission,metrics
+local function resetIngress()
+  ingress={trusted={},discovery={}}
+  admission={since=os.clock(),trusted=0,discovery=0,senders={},count=0}
+  metrics={queued=0,coalesced=0,accepted=0,rejected=0,dropped=0,rateDrops=0,queueDrops=0,shapeDrops=0,processed=0,highWater=0}
+end
+resetIngress()
 local function authentication()
   if (settings.sharedKey or "")=="" then
     if settings.allowInsecure then return "insecure" end
@@ -11084,7 +11910,7 @@ function M.configure(actor,value)
   local nextSettings=addon.copy(value)
   nextSettings.sharedKey=value.sharedKey or "" nextSettings.allowInsecure=value.allowInsecure==true
   local saved,why=save(nextSettings)
-  if saved then if changed then nodes={} else pruneDiscovery() end if runner then runner:rescan() end end
+  if saved then resetIngress() if changed then nodes={} else pruneDiscovery() end if runner then runner:rescan() end end
   return saved,why
 end
 local function open()
@@ -11098,12 +11924,79 @@ local function open()
   end end
   problem="No modem; connect a wired/wireless modem"
 end
+-- This event-bus callback does no crypto, decoding, copying or history traversal.
+-- Sender IDs only select reserved capacity; they are not authentication evidence.
+local function enqueue(sender,packet,protocol)
+  if not ctx or protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
+  local now=os.clock()
+  if now-admission.since>=1 then
+    admission={since=now,trusted=0,discovery=0,senders={},count=0}
+  end
+  local lane=settings.trusted[tostring(sender)] and "trusted" or "discovery"
+  local limit=lane=="trusted" and 128 or 16
+  local attempts=admission.senders[sender]
+  if admission[lane]>=limit or (attempts and attempts>=8) or (not attempts and admission.count>=64) then
+    metrics.dropped=metrics.dropped+1 metrics.rateDrops=metrics.rateDrops+1 return false
+  end
+  admission[lane]=admission[lane]+1
+  if not attempts then admission.count=admission.count+1 end
+  admission.senders[sender]=(attempts or 0)+1
+  -- Invalid traffic consumes admission too, before even cheap shape checks.
+  if type(packet)~="table" or ((settings.sharedKey or "")~="" and
+    (packet.format~=ENVELOPE or packet.sender~=sender or type(packet.payload)~="string" or
+    #packet.payload>MAX_PAYLOAD or type(packet.mac)~="string" or #packet.mac~=64)) then
+    metrics.dropped=metrics.dropped+1 metrics.shapeDrops=metrics.shapeDrops+1 return false
+  end
+  local queue=ingress[lane]
+  -- Latest arrival replaces pending raw input without changing FIFO position.
+  -- Neither claimed sequence numbers nor paired IDs are trusted before HMAC.
+  for _,row in ipairs(queue) do
+    if row.sender==sender then
+      row.packet=packet row.received=now
+      metrics.coalesced=metrics.coalesced+1 return true
+    end
+  end
+  if #queue>=16 then
+    metrics.dropped=metrics.dropped+1 metrics.queueDrops=metrics.queueDrops+1 return false
+  end
+  queue[#queue+1]={sender=sender,packet=packet,protocol=protocol,received=now}
+  metrics.queued=metrics.queued+1
+  metrics.highWater=math.max(metrics.highWater,#ingress.trusted+#ingress.discovery)
+  return true
+end
+local function drainIngress()
+  local active=ingress
+  -- Four paired slots sustain 16 stations at 5 Hz; discovery retains one slot.
+  for _,lane in ipairs({"trusted","trusted","trusted","trusted","discovery"}) do
+    local queue=ingress[lane]
+    if #queue==0 then queue=ingress[lane=="trusted" and "discovery" or "trusted"] end
+    local row=table.remove(queue,1)
+    if row then
+      metrics.processed=metrics.processed+1
+      local accepted=M.receive(row.sender,row.packet,row.protocol,row.received)
+      local key=accepted and "accepted" or "rejected"
+      metrics[key]=metrics[key]+1
+      -- A queued wake gives other raw workers a dispatch between HMACs without
+      -- imposing a server-tick timer wait. Never reuse a token across restarts.
+      if #ingress.trusted+#ingress.discovery>0 then
+        verifySequence=verifySequence+1
+        local token=verifySequence
+        os.queueEvent(VERIFY_EVENT,token)
+        repeat
+          local event,id=os.pullEvent(VERIFY_EVENT)
+          if event==VERIFY_EVENT and id==token then break end
+        until false
+        if ingress~=active or not ctx then return end
+      end
+    end
+  end
+end
 -- Accept only bounded primitive measurement fields. Packets cannot request commands.
-function M.receive(sender,packet,protocol)
+function M.receive(sender,packet,protocol,receivedAt)
   if protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
   local mode,crypto=authentication()
   if not mode then return false end
-  local transportAge=0
+  local transportAge=receivedAt and math.max(0,os.clock()-receivedAt) or 0
   if mode=="keyed" then
     if type(packet)~="table" or packet.format~=ENVELOPE or packet.sender~=sender or
       type(packet.payload)~="string" or #packet.payload>MAX_PAYLOAD or
@@ -11138,14 +12031,16 @@ function M.receive(sender,packet,protocol)
     signedSessions[packet.session]={sequence=packet.sequence,sentAt=packet.sentAt}
   end
   if old and old.session==packet.session and packet.sequence<=old.sequence then return false end
-  if old and os.clock()-old.received<0.15 then return false end
+  local admittedAt=receivedAt or os.clock()
+  -- Worker scheduling jitter must not rate-limit healthy 5 Hz arrivals.
+  if old and admittedAt-(old.admittedAt or old.received)<0.15 then return false end
   if not old and not settings.trusted[tostring(sender)] then
     -- Discovery has its own quota: strangers cannot consume paired station slots.
     local count=0
     for id in pairs(nodes) do if not settings.trusted[tostring(id)] then count=count+1 end end
     if count>=16 then return false end
   end
-  local node={id=sender,label=packet.label,session=packet.session,sequence=packet.sequence,received=os.clock(),radars={},targets={},signedSessions=signedSessions}
+  local node={id=sender,label=packet.label,session=packet.session,sequence=packet.sequence,received=os.clock(),admittedAt=admittedAt,radars={},targets={},signedSessions=signedSessions}
   for _,radar in ipairs(packet.radars) do
     if type(radar)~="table" then return false end
     local pos=addon.vec(radar.position)
@@ -11200,7 +12095,16 @@ function M.snapshot()
   table.sort(result.nodes,function(a,b) return a.id<b.id end)
   return result
 end
-function M.status() local snap=M.snapshot() return {enabled=snap.enabled,modem=snap.modem,error=snap.error,warning=snap.warning,authenticated=snap.authenticated,encrypted=false,stations=#snap.nodes} end
+function M.status()
+  local mode,why=authentication()
+  local warning=mode=="keyed" and "Shared-key authenticated Rednet; NOT encrypted; key holders can impersonate stations" or M.securityWarning
+  local count=0 for _ in pairs(nodes) do count=count+1 end
+  local stats={} for key,value in pairs(metrics) do stats[key]=value end
+  stats.pending=#ingress.trusted+#ingress.discovery
+  stats.trustedPending=#ingress.trusted stats.discoveryPending=#ingress.discovery
+  return {enabled=settings.enabled,modem=modem,error=problem or (settings.enabled and (mode and warning or why) or nil),
+    warning=warning,authenticated=mode=="keyed",encrypted=false,stations=count,ingress=stats}
+end
 function M.rescan() if runner then runner:rescan() end end
 function M.publish(snapshot)
   local mode,crypto=authentication()
@@ -11284,14 +12188,18 @@ function M.start(context)
   settings.trusted=trusted
   for _,key in ipairs({"x","y","z"}) do if not addon.finite(settings[key]) then settings[key]=0 end end
   if not addon.finite(settings.radius) or settings.radius<=0 then settings.radius=100 end
-  listener=ctx.eventBus:on("rednet_message",M.receive)
-  if settings.enabled then require("system.libraries.log").warn("radarnet",M.snapshot().error or M.securityWarning) end
+  resetIngress()
+  listener=ctx.eventBus:on("rednet_message",enqueue)
+  if settings.enabled then require("system.libraries.log").warn("radarnet",M.status().error or M.securityWarning) end
+  ingressRunner=addon.periodic(ctx,"radarnet-ingress",0.05,drainIngress)
   runner=addon.periodic(ctx,"radarnetd",0.2,M.tick)
 end
 function M.stop()
+  if ingressRunner then ingressRunner:stop() ingressRunner=nil end
   if runner then runner:stop() runner=nil end
   if ctx and listener then ctx.eventBus:off(listener) end
   ctx=nil listener=nil modem=nil problem=nil nodes={}
+  resetIngress()
   -- Shared Rednet modems belong to Messenger too: never close them here.
 end
 return M
@@ -11301,6 +12209,10 @@ local log = require("system.libraries.log")
 local addon = require("system.libraries.addon")
 local runner, revision, detected, slowAt, slowData = nil, 0, nil, -math.huge, nil
 local diagnostics, diagnosticsAt, diagnosticsErrors = {}, -math.huge, {}
+local diagnosticsReceivedAt
+local diagnosticsTimings={}
+local diagnosticRunner,generation=nil,0
+local slowFields={uuid="getUniqueId",name="getName",centerOfMass="getCenterOfMass",mass="getMass",inverseMass="getInverseMass",inertiaTensor="getInertiaTensor",inverseInertiaTensor="getInverseInertiaTensor"}
 
 local M = {
   ctx = nil,
@@ -11349,42 +12261,69 @@ local function detect()
   return sub, aero, names
 end
 
+local readAero
 local function readSublevel(sub)
-  local out = { errors = {} }
-  local okGrid,grid,gridErr=addon.bounded(function() return call(sub,"isInPlotGrid") end,0.05)
-  if not okGrid then gridErr,grid=tostring(grid),nil end
+  local out = { errors = {}, observedAt=os.clock(),timings={} }
+  local gridValues,gridErrors,gridTimings=addon.read(sub,{"isInPlotGrid"},0.15,{priority="flight"})
+  local grid,gridErr=gridValues.isInPlotGrid,gridErrors.isInPlotGrid
+  if type(sub.isInPlotGrid)~="function" then gridErr="isInPlotGrid unavailable" end
+  local gridTiming=gridTimings and gridTimings.isInPlotGrid or {}
+  out.observedAt=gridTiming.startedAt or out.observedAt
+  out.receivedAt=gridTiming.receivedAt or os.clock()
   out.plotGrid = grid
   if gridErr then out.errors.isInPlotGrid = gridErr end
   if grid ~= true then out.inSublevel = false return out end
 
   local fast={logicalPose="getLogicalPose",lastPose="getLastPose",velocity="getVelocity",linearVelocity="getLinearVelocity",angularVelocity="getAngularVelocity"}
-  local slow={uuid="getUniqueId",name="getName",centerOfMass="getCenterOfMass",mass="getMass",inverseMass="getInverseMass",inertiaTensor="getInertiaTensor",inverseInertiaTensor="getInverseInertiaTensor"}
   local methods={}
   for _,method in pairs(fast) do methods[#methods+1]=method end
-  local values,errors=addon.read(sub,methods,0.1)
-  for field,method in pairs(fast) do out[field]=addon.copy(values[method]) end
-  for method,err in pairs(errors) do out.errors[method]=err end
-  if os.clock()-diagnosticsAt>=1 then
-    methods={}
-    for _,method in pairs(slow) do methods[#methods+1]=method end
-    local data,problems=addon.read(sub,methods,0.1)
-    diagnostics={}
-    diagnosticsErrors=problems
-    for field,method in pairs(slow) do diagnostics[field]=addon.copy(data[method]) end
-    for method,err in pairs(problems) do out.errors[method]=err end
-    diagnosticsAt=os.clock()
+  local started=os.clock()
+  local values,errors,timings=addon.read(sub,methods,0.15,{priority="flight"})
+  for field,method in pairs(fast) do
+    out[field]=addon.copy(values[method])
+    out.timings[field]=addon.copy(timings and timings[method] or {startedAt=started,receivedAt=os.clock()})
   end
+  for method,err in pairs(errors) do out.errors[method]=err end
   for method,err in pairs(diagnosticsErrors) do out.errors[method]=err end
   for field,value in pairs(diagnostics) do out[field]=addon.copy(value) end
+  for field,value in pairs(diagnosticsTimings) do out.timings[field]=addon.copy(value) end
+  out.diagnosticsAt=diagnosticsAt
+  out.diagnosticsReceivedAt=diagnosticsReceivedAt
 
   out.inSublevel = grid == true
   return out
 end
 
-local function readAero(aero, subData)
+function M.acquireDiagnostics()
+  if not detected or not detected[1] then return end
+  local token=generation
+  local sub,aero=detected[2],detected[3]
+  local poseData=addon.copy(M.lastSnapshot and M.lastSnapshot.sublevel)
+  if sub and poseData and poseData.inSublevel and os.clock()-diagnosticsAt>=1 then
+    local methods={}
+    for _,method in pairs(slowFields) do methods[#methods+1]=method end
+    local started=os.clock()
+    local data,problems,timing=addon.read(sub,methods,0.15,{priority="diagnostics"})
+    if token~=generation then return end
+    local nextData,nextTimings={},{}
+    for field,method in pairs(slowFields) do
+      nextData[field]=addon.copy(data[method])
+      nextTimings[field]=addon.copy(timing and timing[method] or {startedAt=started,receivedAt=os.clock()})
+    end
+    diagnostics,diagnosticsTimings,diagnosticsErrors=nextData,nextTimings,problems
+    diagnosticsAt,diagnosticsReceivedAt=started,os.clock()
+  end
+  if os.clock()-slowAt>=1 then
+    local data=readAero(aero,poseData)
+    if token==generation then slowAt,slowData=os.clock(),data end
+  end
+end
+
+readAero=function(aero, subData)
   if not aero then return nil end
-  local values,errors=addon.read(aero,{"getGravity","getMagneticNorth","getUniversalDrag","getRaw","getDefault"},0.1)
-  local out = {errors=errors}
+  local started=os.clock()
+  local values,errors,timings=addon.read(aero,{"getGravity","getMagneticNorth","getUniversalDrag","getRaw","getDefault"},0.15,{priority="diagnostics"})
+  local out = {errors=errors,observedAt=started,timings=timings or {}}
   out.gravity = addon.vec(values.getGravity)
   out.magneticNorth = addon.vec(values.getMagneticNorth)
   out.universalDrag = values.getUniversalDrag
@@ -11392,10 +12331,19 @@ local function readAero(aero, subData)
   out.default = addon.copy(values.getDefault)
   local position = subData and subData.logicalPose and (subData.logicalPose.position or subData.logicalPose.pos)
   if position then
-    local ok,value,err=addon.bounded(function() return call(aero,"getAirPressure",position) end,0.05)
-    if ok then out.airPressure=value if err then out.errors.getAirPressure=err end
-    else out.errors.getAirPressure=tostring(value) end
+    position=addon.vec(position)
+    local pressureStarted=os.clock()
+    local data,problems,timing=addon.read({getAirPressure=function()
+      if not position then error("invalid pressure position") end
+      local value,err=call(aero,"getAirPressure",position.x,position.y,position.z)
+      if err then error(err) end
+      return value
+    end},{"getAirPressure"},0.15,{priority="diagnostics"})
+    out.airPressure=data.getAirPressure
+    out.errors.getAirPressure=problems.getAirPressure
+    out.timings.getAirPressure=timing and timing.getAirPressure or {startedAt=pressureStarted,receivedAt=os.clock()}
   end
+  out.receivedAt=os.clock()
   return out
 end
 
@@ -11421,7 +12369,11 @@ local function publish(result)
 end
 
 function M.acquire(rescan)
-  if rescan or not detected then detected = table.pack(pcall(detect)) diagnosticsAt=-math.huge end
+  if rescan or not detected then
+    detected = table.pack(pcall(detect)) generation=generation+1
+    diagnostics,diagnosticsErrors,diagnosticsTimings={},{},{}
+    diagnosticsAt,slowAt,slowData=-math.huge,-math.huge,nil
+  end
   local okDetect, sub, aero, names = table.unpack(detected, 1, detected.n)
   if not okDetect then
     M.lastStatus = { available = false, inSublevel = false, error = tostring(sub), apiNames = {} }
@@ -11453,23 +12405,13 @@ function M.acquire(rescan)
       log.warn("sabled", "sublevel read failed: " .. tostring(data))
     end
   end
-  local okAero, aeroData = true, slowData
-  if rescan or os.clock()-slowAt>=1 then
-    okAero, aeroData = pcall(readAero, aero, subData)
-    if okAero then slowAt, slowData = os.clock(), aeroData end
-  end
-  if okAero then
-    result.aero = aeroData
-  else
-    log.warn("sabled", "aero read failed: " .. tostring(aeroData))
-  end
+  result.aero=slowData
 
   local inSublevel = subData and subData.inSublevel == true
   result.errors={}
   for source,data in pairs({sublevel=subData or {},aero=result.aero or {}}) do
     for method,err in pairs(data.errors or {}) do result.errors[#result.errors+1]=source..":"..method..": "..err end
   end
-  if not okAero then result.errors[#result.errors+1]=tostring(aeroData) end
   if result.error then result.errors[#result.errors+1]=result.error end
   result.error=result.errors[1]
   result.ok = #result.errors==0
@@ -11479,7 +12421,28 @@ function M.acquire(rescan)
   publish(result)
   result.measurements = {}
   for key, unit in pairs({ mass = "kg", linearVelocity = "m/s", angularVelocity = "rad/s", centerOfMass = "m" }) do
-    result.measurements[key] = addon.measure(subData and subData[key], unit, key == "centerOfMass" and "body" or "world", "CC:Sable", result.timestamp)
+    local stamp=subData and ((key=="mass" or key=="centerOfMass") and subData.diagnosticsAt or subData.observedAt)
+    local timing=subData and subData.timings and subData.timings[key] or {}
+    stamp=timing.startedAt or stamp
+    local value=subData and subData[key]
+    local valid=key=="mass" and addon.finite(value) or key~="mass" and addon.vec(value)~=nil
+    local m=addon.measure(valid and value or nil, unit, key == "centerOfMass" and "unknown" or "world", "CC:Sable", stamp or 0)
+    local received=timing.receivedAt or (subData and ((key=="mass" or key=="centerOfMass") and subData.diagnosticsReceivedAt or subData.receivedAt))
+    m.observedAt,m.receivedAt,m.validUntil=stamp,received,stamp and stamp+((key=="mass" or key=="centerOfMass") and 1 or 0.5)
+    m.valid=m.valid and os.clock()<=m.validUntil
+    result.measurements[key]=m
+  end
+  for key,unit in pairs({gravity="m/s2",magneticNorth="direction",airPressure="fraction"}) do
+    local data=result.aero or {}
+    local value=data[key]
+    local valid=key=="airPressure" and addon.finite(value) or key~="airPressure" and addon.vec(value)~=nil
+    local method=({gravity="getGravity",magneticNorth="getMagneticNorth",airPressure="getAirPressure"})[key]
+    local timing=data.timings and data.timings[method] or {}
+    local observed=timing.startedAt or data.observedAt
+    local m=addon.measure(valid and value or nil,unit,"world","CC:Sable",observed or 0)
+    m.observedAt,m.receivedAt,m.validUntil=observed,timing.receivedAt or data.receivedAt,(observed or 0)+1
+    m.valid=m.valid and os.clock()<=m.validUntil
+    result.measurements[key]=m
   end
 
   if M.ctx and M.ctx.notifications then
@@ -11494,7 +12457,7 @@ function M.acquire(rescan)
 end
 
 function M.start(ctx)
-  if runner then runner:stop() end
+  M.stop()
   M.ctx = ctx
   detected,slowData,slowAt,diagnostics,diagnosticsAt,diagnosticsErrors=nil,nil,-math.huge,{},-math.huge,{}
   runner = addon.periodic(ctx, "sabled", 0.1, M.acquire)
@@ -11507,15 +12470,30 @@ function M.start(ctx)
     publish(result)
   end
   if runner.error then runner.onError(runner.error) end
+  diagnosticRunner=addon.periodic(ctx,"sabled-diagnostics",1,M.acquireDiagnostics)
 end
 
 function M.stop()
   if runner then runner:stop() runner = nil end
+  if diagnosticRunner then diagnosticRunner:stop() diagnosticRunner=nil end
+  generation=generation+1
   M.ctx = nil
 end
 
 function M.snapshot()
   return addon.copy(M.lastSnapshot or { ok = false, status = "waiting for Sable", revision = 0, timestamp = 0 })
+end
+function M.flightStatus()
+  local sub=M.lastSnapshot and M.lastSnapshot.sublevel or {}
+  return {inSublevel=M.lastStatus.inSublevel==true,timestamp=sub.observedAt or 0,
+    observedAt=sub.observedAt,receivedAt=sub.receivedAt,validUntil=sub.observedAt and sub.observedAt+0.5,
+    ok=M.lastStatus.ok,available=M.lastStatus.available,revision=revision}
+end
+function M.pose()
+  local snap=M.lastSnapshot or {}
+  local timing=snap.sublevel and snap.sublevel.timings and snap.sublevel.timings.logicalPose or {}
+  return {logicalPose=addon.copy(snap.sublevel and snap.sublevel.logicalPose),timestamp=timing.startedAt or (snap.sublevel and snap.sublevel.observedAt) or 0,
+    frame="world",inSublevel=M.lastStatus.inSublevel==true,revision=revision}
 end
 
 function M.rescan() if runner then runner:rescan() end end
@@ -11785,6 +12763,7 @@ local config = require("system.libraries.config")
 local version = require("system.libraries.version")
 local source = require("system.libraries.update_source")
 local safeWrite = require("system.libraries.safe_write")
+local httpClient = require("system.network.http_client")
 local operation
 
 local M = {
@@ -11874,7 +12853,16 @@ local function restoreTree(from, to)
   return true
 end
 
-local function httpGet(url)
+local function responseBody(handle, url, limit)
+  local response, err = httpClient.readResponse(handle, limit, url)
+  if not response then return nil, err end
+  if type(response.code) ~= "number" or response.code < 200 or response.code >= 300 then
+    return nil, "GitHub HTTP " .. tostring(response.code)
+  end
+  return response.body
+end
+
+local function httpGet(url, limit)
   if not http or not http.get then return nil, "HTTP API disabled" end
   local ok, handle, problem, failureHandle = pcall(http.get, url, { ["User-Agent"] = "MintCraftOS" })
   if not ok then return nil, tostring(handle) end
@@ -11882,15 +12870,10 @@ local function httpGet(url)
     if failureHandle and failureHandle.close then pcall(failureHandle.close) end
     return nil, tostring(problem or "request failed")
   end
-  local codeOK,code=pcall(function() return handle.getResponseCode and handle.getResponseCode() or 200 end)
-  if not codeOK or code<200 or code>=300 then
-    pcall(handle.close) return nil,"GitHub HTTP "..tostring(code)
-  end
-  local readOk, data = pcall(handle.readAll)
-  pcall(handle.close)
-  if not readOk then return nil, tostring(data) end
-  return data
+  return responseBody(handle, url, limit or 256)
 end
+
+local function getCommit(url) return httpGet(url, 262144) end
 
 function M.loadConfig()
   local cfg=config.load(M.cfgPath,{})
@@ -11955,11 +12938,11 @@ end
 function M.downloadInstaller(pinned)
   if not pinned then
     local err
-    pinned, err = source.resolve(M.loadConfig(), httpGet)
+    pinned, err = source.resolve(M.loadConfig(), getCommit)
     if not pinned then return nil, err end
   end
   local url = source.url(pinned, "install.lua")
-  local data, err = httpGet(url)
+  local data, err = httpGet(url, 1048576)
   if not data then return nil, err end
 
   local path = "/var/tmp/mintcraft_update.lua"
@@ -12113,13 +13096,13 @@ function M.rollback() return exclusive("Rollback", rollback) end
 local function apply()
   if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
     or fs.exists("/var/tmp/mintcraft-restore") then return false, "Recover pending update before applying" end
-  local pinned, err = source.resolve(M.loadConfig(), httpGet)
+  local pinned, err = source.resolve(M.loadConfig(), getCommit)
   if not pinned then return false, err end
   local remote, problem = httpGet(source.url(pinned, "VERSION"))
   if not remote then return false, problem end
   local comparison, invalid = version.compare(trim(remote), M.localVersion())
   if comparison ~= 1 then return false, invalid or "Pinned release is not newer than installed version" end
-  local data,downloadErr=httpGet(source.url(pinned,"install.lua"))
+  local data,downloadErr=httpGet(source.url(pinned,"install.lua"),1048576)
   if not data then return false,downloadErr end
   if not data:find("-- MintCraft installer protocol: 2",1,true) then return false,"Unsupported installer; use a pinned manual installation" end
   local environment=setmetatable({print=function() end},{__index=_ENV})
@@ -12280,9 +13263,8 @@ function M.start(ctx)
   end
   table.insert(M.listeners, ctx.eventBus:on("http_success", function(address, handle)
     if address ~= url then return end
-    local ok, data = pcall(handle.readAll)
-    pcall(handle.close)
-    finish(ok and trim(data) or nil, not ok and tostring(data) or nil)
+    local data, err = responseBody(handle, url, 256)
+    finish(data and trim(data) or nil, err)
   end))
   table.insert(M.listeners, ctx.eventBus:on("http_failure", function(address, problem, handle)
     if address ~= url then return end
@@ -12939,7 +13921,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.7
+0.18.8
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

@@ -45,10 +45,66 @@ visual/logged, limited to one every 2 seconds; stale, friendly and synthetic con
 do not trigger them. X/Z determine entry; Y positions the circle in the 3D schematic.
 Filters affect the display, not perimeter detection. No automatic firing or movement.
 
-Rednet is not authenticated or encrypted; inclusion by computer ID is not secure
-authentication. Remote contacts are display/alert only and cannot be used for aim/fire.
+Rednet is not encrypted. Configure the same shared key (16..256 bytes) on each
+station for HMAC-SHA256 authentication; key holders can impersonate any station.
+Without a key, networking is blocked unless allowInsecure is explicitly enabled.
+Inclusion by computer ID alone is not authentication. A configured key never falls
+back to unsigned packets, even when allowInsecure is set. Authenticated envelopes
+bind the sender and payload, require UTC freshness and reject recorded sequences.
+Remote contacts are display/alert only and cannot be used for aim/fire.
 Do not use this perimeter as an authoritative defence or safety mechanism.
 Official transport reference: https://tweaked.cc/module/rednet.html
+
+## Bounded Ingress
+
+The actual Rednet listener only admits raw packets; it does not run HMAC or
+deserialize. A separate raw periodic worker verifies at most five packets per
+50 ms cycle. Paired-ID and discovery lanes each hold at most 16 packets, with
+at most one pending per sender. New admitted arrivals replace that sender's raw
+packet without changing its queue position; claimed sequences are not inspected
+until authentication. This retains the latest arrival, not necessarily the latest
+authentic packet: a spoof can replace pending input but cannot authenticate it.
+Each cycle reserves four verifications for paired IDs and one for discovery;
+unused capacity can serve the other lane. At an ideal 20 cycles/s this is a
+100-verification/s ceiling, with 80/s reserved for 16 paired stations at 5 Hz and
+20/s for discovery. These are work-count budgets, not measured throughput;
+server lag or expensive payloads reduce the achieved cycle rate. Pairing reserves capacity,
+never bypasses authentication. Spoofed paired IDs can still deny that sender's
+slot: Rednet IDs are not proof of identity.
+
+Verification yields via a queued mintcraft_radar_verify event between packets,
+so other raw workers can run without a timer tick per verification. Wake tokens
+are unique across restarts; reset/stop during a yield prevents further draining.
+One HMAC plus decoding/validation remains synchronous and cannot be preempted.
+The current kernel does not classify this custom event as internal, so it can
+also request a frame pass. No kernel changes or native event impersonation are
+used to suppress that pass.
+
+The periodic worker waits at least 50 ms after completing its work: five packets
+therefore take verification/dispatch time PLUS that wait, not a guaranteed 50 ms
+cycle. For example, a native Lua 5.2 test measured about 150 ms for five invalid
+64 KiB HMACs, with four heartbeat dispatches between them. Including only the
+minimum periodic wait would yield about 25 verifications/s at that payload size,
+before kernel/render overhead. This host measurement is not a Minecraft result,
+a CPU deadline, or a guarantee of 16 x 5 Hz under maximum-size traffic. Overload
+coalesces pending input instead of accumulating a backlog.
+
+Before verification, fixed one-second admission windows allow at most 128 paired
+and 16 discovery attempts globally, and eight attempts per sender. Malformed and
+invalid-signature traffic consumes these limits too. Sender accounting is bounded
+to 64 entries per window. Excess packets are dropped, not retried. Keyed payloads
+are capped at 64 KiB each. Limits bound work counts and retained packet slots,
+not wall-clock latency or total CC transport allocation under hostile traffic.
+Explicit insecure mode still receives CC-decoded tables and cannot provide the
+same authenticated serialized-byte bound.
+
+status().ingress reports cumulative queued/coalesced/processed/accepted/rejected counts,
+dropped counts by admission rate, queue capacity and envelope shape, highWater,
+and current pending counts. Status scans only bounded station metadata, not
+contact/history snapshots. Stop discards queues and terminates both workers
+without closing shared modems; saved configuration changes discard pending input
+and reset ingress counters. receive() remains a synchronous verification API for
+trusted local callers and compatibility tests, not an event-bus callback.
 
 ## Refresh
 

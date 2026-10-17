@@ -25,4 +25,18 @@ candidate=assert(fresh.candidate())
 assert(candidate.positionX==0 and candidate.frame=="world" and candidate.headingValidated~=true)
 local auto=setup.new({radars={{id="plane",capabilities={position=true},rawPosition={x=1,y=2,z=3},frame="world"}}},"plane",{radars={}},false,function() end,function() return true end)
 assert(auto.candidate().positionMode=="api")
+local advertised=setup.new({radars={{id="bearing",capabilities={position=true},
+  apiProfile="4.x",profileEvidence="version not detectable",adapterOrigin="stock Radar API",
+  profileLimitation="bearing receiver may fail"}}},"bearing",{radars={}},false,function() end,function() return true end)
+assert(advertised.drafts.bearing==nil)
+local fields=advertised:fields()
+local hasBridge=false local hasEvidence=false
+for _,field in ipairs(fields) do
+  for _,option in ipairs(field.options or {}) do if option=="bridge" then hasBridge=true end end
+  if field.label=="Preuve API" then hasEvidence=field.get()=="version not detectable" end
+end
+assert(hasBridge and hasEvidence,"profile capabilities unavailable in setup")
+assert(advertised.drafts.bearing.positionMode=="manual","advertised broken getPosition treated as a successful read")
+advertised.entries.bearing.text="1 2 3" advertised.drafts.bearing.apiProfile="bridge"
+assert(advertised.candidate().apiProfile=="bridge","profile selection not persisted in draft")
 print("radar setup coordinate parsing, preserved config and safe defaults passed")

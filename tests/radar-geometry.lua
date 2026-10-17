@@ -20,4 +20,18 @@ row.running=true
 local other={id="b",name="B",position={x=1200,y=100,z=400},range=600,heading=180,fov=60,halfHeight=80,running=true,remote=true}
 local _,_,multiple,labels=render({row,other},true)
 assert(multiple>0 and #labels==2,"multi radar circles/beam labels absent")
+local snap={radars={row},targets={}}
+local view={three=true,yaw=41,pitch=32}
+local first=instruments.radar(70,30,snap,"a",nil,view)
+local before=instruments.stats()
+snap.targets={{id="contact",label="Contact",position={x=30,y=0,z=20},history={}}}
+instruments.radar(70,30,snap,"a","contact",view)
+local after=instruments.stats()
+assert(after.backgroundBuilds==before.backgroundBuilds and after.backgroundHits==before.backgroundHits+1,"contact redraw rebuilt static geometry")
+snap.targets={}
+local third=instruments.radar(70,30,snap,"a",nil,view)
+for y=1,30 do
+  local a,b,c=first:getLine(y) local x,z,q=third:getLine(y)
+  assert(a..b..c==x..z..q,"contact overlay contaminated cached background")
+end
 print("radar 3D rings, measured beams, rotation, stopped state and multi-sensor volume passed")
