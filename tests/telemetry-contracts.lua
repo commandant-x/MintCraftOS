@@ -17,6 +17,8 @@ av.acquireDiagnostics()
 assert(av.status().ok,"absent optional methods degraded service")
 local ids={gimbal="g",altitude="a",nav="n"}
 local f=av.flightTelemetry(ids)
+assert(av.flightTelemetry({}).heading==90 and av.flightTelemetry({}).pitch==3,"unique sensors not selected automatically")
+assert(not av.flightTelemetry({nav="detached"}).heading,"explicit missing sensor silently replaced")
 assert(f.pitch==3 and f.headingRate==2 and f.altitude==100 and f.timestamp==10)
 assert(not f.measurements.pressure.valid and f.measurements.pitch.observedAt==10)
 -- Inject an older optional sample to exercise mixed acquisition ages.
@@ -188,4 +190,9 @@ peripheral.getNames=function() return {"g"} end
 devices.g.getAngles=nil
 now=61 av.acquire(true)
 assert(not av.health().ok,"missing required angles reported healthy")
-print("telemetry contract, partial failure, freshness and frame tests passed")
+devices.n2={getHeading=function() return 180 end} types.n2="navigation_table"
+peripheral.getNames=function() return {"n","n2"} end
+av.acquire(true)
+assert(not av.flightTelemetry({}).heading,"ambiguous automatic sensor chosen silently")
+assert(av.flightTelemetry({nav="n2"}).heading==180,"explicit sensor selection ignored")
+print("telemetry contract, automatic/ambiguous sensor selection, freshness and frame tests passed")

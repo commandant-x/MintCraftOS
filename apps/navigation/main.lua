@@ -58,7 +58,7 @@ function M.run(ctx)
       for _,role in ipairs({"gimbal","altitude","nav"}) do
         local names={""}
         for _,row in ipairs(app.av[role] or {}) do names[#names+1]=row.name end
-        field(draft.sensors,role,role,nil,names)
+        field(draft.sensors,role,role.." (blank = auto)",nil,names)
       end
     elseif app.page=="manual" then
       local binding=draft.manualInputs[app.index]
@@ -118,7 +118,7 @@ function M.run(ctx)
       local mass=self.sub.sublevel and self.sub.sublevel.mass
       local velocity=addon.vec(self.sub.sublevel and self.sub.sublevel.linearVelocity)
       local speed=velocity and math.sqrt(velocity.x^2+velocity.y^2+velocity.z^2)
-      local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
+      local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Source: "..tostring(t.headingSource or "missing heading sensor"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
       for i=1,math.min(#rows,h-y) do renderer.writeAt(x,y+i-1,renderer.crop(rows[i],w-x+1)) end
     elseif self.page=="control" then
       local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),"Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Heading: "..fmt(self.flight.targets and self.flight.targets.heading,"deg"),"Readiness:"}
@@ -127,7 +127,9 @@ function M.run(ctx)
       lines(w,h,rows)
     elseif self.page=="calibration" then
       local channel=draft.channels[self.index]
-      lines(w,h,{"Output: "..tostring(channel and channel.id or "none"),"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Test is 0.3s, then calibrated rescue",tostring(self.flight.state)..": "..tostring(self.flight.reason),"Verify axis direction and limits physically","Hover / manual / rescue require confirmation","Software rescue only; no power-loss guarantee"},6)
+      local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Direction verified: "..tostring(channel and channel.validated==true),"Test is 0.3s, then calibrated rescue",tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
+      for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
+      lines(w,h,rows,6)
       self.testValue=self.testValue or {value=channel and channel.neutral or 0}
       ui.input(1,4,w,"Test signal",self.testValue.value,false)
       if self.form.edit then self.form:draw(w,h,{forms.field(self.testValue,"value","Test signal","number")}) end
@@ -197,11 +199,18 @@ function M.run(ctx)
       elseif id=="test" then
         if self.dirty then self.message="Save changes first" return true end
         local channel=draft.channels[self.index]
-        if channel then confirm("Test "..channel.id.." at signal "..tostring(self.testValue and self.testValue.value).."?",function() report(flight.testOutput(actor,channel.id,self.testValue.value,true)) end) end return true
+        if channel then
+          self.testValue=self.testValue or {value=channel.neutral}
+          confirm("Test "..channel.id.." at signal "..tostring(self.testValue.value).."?",function() report(flight.testOutput(actor,channel.id,self.testValue.value,true)) end)
+        else self.message="Add and save outputs in Outputs first" end return true
       elseif id=="channel" or id=="hover" or id=="manual" or id=="rescue" or id=="rescueConfirm" then
         if self.dirty then self.message="Save changes first" return true end
         local channel=draft.channels[self.index]
-        confirm("Physically verify "..id.." before confirming",function() report(flight.calibrate(actor,id,channel and channel.id,true)) end) return true
+        confirm("Physically verify "..id.." before confirming",function()
+          local ok,message=flight.calibrate(actor,id,channel and channel.id,true)
+          report(ok,message)
+          if ok then draft=flight.configuration() end
+        end) return true
       elseif self.page=="calibration" and y==4 then
         local channel=draft.channels[self.index]
         self.testValue=self.testValue or {value=channel and channel.neutral or 0}

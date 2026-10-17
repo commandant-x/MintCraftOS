@@ -38,8 +38,12 @@ local function normalized(snap,ids)
   local out={}
   for key,spec in pairs(flightFields) do
     local m={valid=false,error="sensor unavailable",frame=spec[5],unit=spec[4]}
-    for _,entry in ipairs(snap[spec[1]] or {}) do
-      if (ids and entry.name==ids[spec[1]]) or (not ids and entry.measurements and entry.measurements[spec[2]].valid) then
+    local rows=snap[spec[1]] or {}
+    local requested=ids and ids[spec[1]]
+    if requested=="" then requested=nil end
+    if ids and not requested and #rows>1 then m.error="multiple sensors: select one in Sensors" end
+    for _,entry in ipairs(rows) do
+      if (requested and entry.name==requested) or (ids and not requested and #rows==1) or (not ids and entry.measurements and entry.measurements[spec[2]].valid) then
         m=addon.copy(entry.measurements[spec[2]])
         m.unit,m.frame=spec[4],spec[5]
         if spec[3] then

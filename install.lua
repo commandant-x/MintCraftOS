@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2789,7 +2789,7 @@ function M.run(ctx)
       for _,role in ipairs({"gimbal","altitude","nav"}) do
         local names={""}
         for _,row in ipairs(app.av[role] or {}) do names[#names+1]=row.name end
-        field(draft.sensors,role,role,nil,names)
+        field(draft.sensors,role,role.." (blank = auto)",nil,names)
       end
     elseif app.page=="manual" then
       local binding=draft.manualInputs[app.index]
@@ -2849,7 +2849,7 @@ function M.run(ctx)
       local mass=self.sub.sublevel and self.sub.sublevel.mass
       local velocity=addon.vec(self.sub.sublevel and self.sub.sublevel.linearVelocity)
       local speed=velocity and math.sqrt(velocity.x^2+velocity.y^2+velocity.z^2)
-      local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
+      local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Source: "..tostring(t.headingSource or "missing heading sensor"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
       for i=1,math.min(#rows,h-y) do renderer.writeAt(x,y+i-1,renderer.crop(rows[i],w-x+1)) end
     elseif self.page=="control" then
       local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),"Pitch/roll setpoint: 0 deg at arm","Altitude: "..fmt(self.flight.targets and self.flight.targets.altitude,"m"),"Heading: "..fmt(self.flight.targets and self.flight.targets.heading,"deg"),"Readiness:"}
@@ -2858,7 +2858,9 @@ function M.run(ctx)
       lines(w,h,rows)
     elseif self.page=="calibration" then
       local channel=draft.channels[self.index]
-      lines(w,h,{"Output: "..tostring(channel and channel.id or "none"),"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Test is 0.3s, then calibrated rescue",tostring(self.flight.state)..": "..tostring(self.flight.reason),"Verify axis direction and limits physically","Hover / manual / rescue require confirmation","Software rescue only; no power-loss guarantee"},6)
+      local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Direction verified: "..tostring(channel and channel.validated==true),"Test is 0.3s, then calibrated rescue",tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
+      for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
+      lines(w,h,rows,6)
       self.testValue=self.testValue or {value=channel and channel.neutral or 0}
       ui.input(1,4,w,"Test signal",self.testValue.value,false)
       if self.form.edit then self.form:draw(w,h,{forms.field(self.testValue,"value","Test signal","number")}) end
@@ -2928,11 +2930,18 @@ function M.run(ctx)
       elseif id=="test" then
         if self.dirty then self.message="Save changes first" return true end
         local channel=draft.channels[self.index]
-        if channel then confirm("Test "..channel.id.." at signal "..tostring(self.testValue and self.testValue.value).."?",function() report(flight.testOutput(actor,channel.id,self.testValue.value,true)) end) end return true
+        if channel then
+          self.testValue=self.testValue or {value=channel.neutral}
+          confirm("Test "..channel.id.." at signal "..tostring(self.testValue.value).."?",function() report(flight.testOutput(actor,channel.id,self.testValue.value,true)) end)
+        else self.message="Add and save outputs in Outputs first" end return true
       elseif id=="channel" or id=="hover" or id=="manual" or id=="rescue" or id=="rescueConfirm" then
         if self.dirty then self.message="Save changes first" return true end
         local channel=draft.channels[self.index]
-        confirm("Physically verify "..id.." before confirming",function() report(flight.calibrate(actor,id,channel and channel.id,true)) end) return true
+        confirm("Physically verify "..id.." before confirming",function()
+          local ok,message=flight.calibrate(actor,id,channel and channel.id,true)
+          report(ok,message)
+          if ok then draft=flight.configuration() end
+        end) return true
       elseif self.page=="calibration" and y==4 then
         local channel=draft.channels[self.index]
         self.testValue=self.testValue or {value=channel and channel.neutral or 0}
@@ -2960,7 +2969,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3044,7 +3053,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3354,7 +3363,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3469,7 +3478,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3611,7 +3620,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.9",
+  version = "0.18.10",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4061,7 +4070,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.9",
+  version = "0.18.10",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4603,7 +4612,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.9",
+    version = "0.18.10",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4981,7 +4990,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.9",
+  version = "0.18.10",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -6622,21 +6631,21 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.9", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.9", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.9", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.9", permissions = { "rednet.send", "rednet.receive" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.9", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.9", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.9", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.9", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.9", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.9", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.9", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.9", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.9", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.9", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.9", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.10", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.10", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.10", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.10", permissions = { "rednet.send", "rednet.receive" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.10", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.10", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.10", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.10", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.10", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.10", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.10", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.10", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.10", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.10", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.10", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7395,7 +7404,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.9",
+    version = meta.version or "0.18.10",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -8552,6 +8561,18 @@ function M.atan2(y, x)
   if x > 0 then return math.atan(y / x) end
   if x < 0 then return math.atan(y / x) + (y >= 0 and math.pi or -math.pi) end
   return y > 0 and math.pi / 2 or y < 0 and -math.pi / 2 or 0
+end
+
+-- Same convention as Avionics NavTable: rotate body +Z, atan2(world X,Z).
+function M.heading(orientation)
+  if type(orientation)~="table" then return nil end
+  local x,y,z,w=orientation.x or orientation[1],orientation.y or orientation[2],orientation.z or orientation[3],orientation.w or orientation[4]
+  if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil end
+  local norm=x*x+y*y+z*z+w*w
+  if norm<1e-12 then return nil end
+  local forwardX,forwardZ=2*(x*z+w*y)/norm,1-2*(x*x+y*y)/norm
+  if forwardX*forwardX+forwardZ*forwardZ<1e-8 then return nil end
+  return math.deg(M.atan2(forwardX,forwardZ))%360
 end
 
 function M.relative(position, origin, heading)
@@ -9907,8 +9928,12 @@ local function normalized(snap,ids)
   local out={}
   for key,spec in pairs(flightFields) do
     local m={valid=false,error="sensor unavailable",frame=spec[5],unit=spec[4]}
-    for _,entry in ipairs(snap[spec[1]] or {}) do
-      if (ids and entry.name==ids[spec[1]]) or (not ids and entry.measurements and entry.measurements[spec[2]].valid) then
+    local rows=snap[spec[1]] or {}
+    local requested=ids and ids[spec[1]]
+    if requested=="" then requested=nil end
+    if ids and not requested and #rows>1 then m.error="multiple sensors: select one in Sensors" end
+    for _,entry in ipairs(rows) do
+      if (requested and entry.name==requested) or (ids and not requested and #rows==1) or (not ids and entry.measurements and entry.measurements[spec[2]].valid) then
         m=addon.copy(entry.measurements[spec[2]])
         m.unit,m.frame=spec[4],spec[5]
         if spec[3] then
@@ -11153,6 +11178,18 @@ function M.telemetry()
     local observed=sub.timestamp
     if not observed then observed=sable.snapshot().timestamp end
     t.inSublevel=sub.inSublevel==true and addon.finite(observed) and os.clock()-observed<=0.5
+    if not addon.finite(t.heading) and not (c.sensors.nav and c.sensors.nav~="") and sable.pose then
+      local pose=sable.pose()
+      if t.inSublevel and pose.inSublevel and pose.frame=="world" and addon.finite(pose.timestamp) and os.clock()-pose.timestamp<=0.5 then
+        local heading=geometry.heading(pose.logicalPose and pose.logicalPose.orientation)
+        if heading then
+          t.heading=heading t.headingSource="Sable orientation (+Z)"
+          t.timestamp=math.min(t.timestamp,pose.timestamp)
+          t.measurements=t.measurements or {}
+          t.measurements.heading={valid=true,value=heading,source="sable",method="getLogicalPose",frame="world",unit="deg",observedAt=pose.timestamp,validUntil=pose.timestamp+0.5}
+        end
+      end
+    elseif addon.finite(t.heading) then t.headingSource="Avionics navigation table" end
     return t
   end
   local snap = avionics.snapshot()
@@ -11261,7 +11298,8 @@ function M.validate()
   if not t.inSublevel then errors[#errors+1]="not on a Sable sublevel" end
   if os.clock()-t.timestamp>0.5 then errors[#errors+1]="flight telemetry stale" end
   for _, axis in ipairs(axes) do
-    if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then errors[#errors+1]=axis..": sensor/rate unavailable" end
+    if not addon.finite(t[axis]) then errors[#errors+1]=axis..": sensor unavailable (check Sensors / Devices)" end
+    if not addon.finite(t[axis.."Rate"]) then errors[#errors+1]=axis..": rate unavailable (gimbal / altitude sensor)" end
   end
   return #errors==0,errors
 end
@@ -13947,7 +13985,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.9
+0.18.10
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

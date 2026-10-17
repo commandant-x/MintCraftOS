@@ -56,6 +56,18 @@ function M.telemetry()
     local observed=sub.timestamp
     if not observed then observed=sable.snapshot().timestamp end
     t.inSublevel=sub.inSublevel==true and addon.finite(observed) and os.clock()-observed<=0.5
+    if not addon.finite(t.heading) and not (c.sensors.nav and c.sensors.nav~="") and sable.pose then
+      local pose=sable.pose()
+      if t.inSublevel and pose.inSublevel and pose.frame=="world" and addon.finite(pose.timestamp) and os.clock()-pose.timestamp<=0.5 then
+        local heading=geometry.heading(pose.logicalPose and pose.logicalPose.orientation)
+        if heading then
+          t.heading=heading t.headingSource="Sable orientation (+Z)"
+          t.timestamp=math.min(t.timestamp,pose.timestamp)
+          t.measurements=t.measurements or {}
+          t.measurements.heading={valid=true,value=heading,source="sable",method="getLogicalPose",frame="world",unit="deg",observedAt=pose.timestamp,validUntil=pose.timestamp+0.5}
+        end
+      end
+    elseif addon.finite(t.heading) then t.headingSource="Avionics navigation table" end
     return t
   end
   local snap = avionics.snapshot()
@@ -164,7 +176,8 @@ function M.validate()
   if not t.inSublevel then errors[#errors+1]="not on a Sable sublevel" end
   if os.clock()-t.timestamp>0.5 then errors[#errors+1]="flight telemetry stale" end
   for _, axis in ipairs(axes) do
-    if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then errors[#errors+1]=axis..": sensor/rate unavailable" end
+    if not addon.finite(t[axis]) then errors[#errors+1]=axis..": sensor unavailable (check Sensors / Devices)" end
+    if not addon.finite(t[axis.."Rate"]) then errors[#errors+1]=axis..": rate unavailable (gimbal / altitude sensor)" end
   end
   return #errors==0,errors
 end

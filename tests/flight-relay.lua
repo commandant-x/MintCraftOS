@@ -39,6 +39,18 @@ local flight=require("system.services.flightd")
 local process={pid=7,state="ready",meta={appId="navigation"},permissions={}}
 flight.start({scheduler={processes={[7]=process}}})
 flight.step(true)
+local sableMock=package.loaded["system.services.sabled"]
+local poseTime=now
+sableMock.pose=function() return {inSublevel=true,frame="world",timestamp=poseTime,
+  logicalPose={orientation={0,math.sin(math.pi/4),0,math.cos(math.pi/4)}}} end
+readings.heading=nil
+assert(math.abs(flight.telemetry().heading-90)<1e-6,"Sable quaternion heading unavailable")
+assert(flight.telemetry().headingSource:find("Sable",1,true))
+poseTime=now-0.6
+assert(not flight.telemetry().heading,"expired Sable pose used for control")
+poseTime=now
+readings.heading=359
+assert(flight.telemetry().heading==359,"Sable replaced valid Avionics heading")
 assert(#flight.endpoints()==1 and flight.endpoints()[1].backend=="relay")
 assert(flight.validate())
 assert(flight.arm({pid=7}))
@@ -61,4 +73,9 @@ assert(not flight.configure({pid=7},cfg),"malformed endpoint crashes/accepted")
 present=false flight.step(true)
 assert(#flight.endpoints()==0 and not flight.validate(),"detached relay still ready")
 assert(fastReads>0)
+present=true flight.step(true)
+cfg=flight.configuration() cfg.sensors.nav="detached_navigation_table"
+assert(flight.configure({pid=7},cfg))
+readings.heading=nil
+assert(not flight.telemetry().heading,"Sable silently replaced explicitly selected missing nav sensor")
 print("relay mapping, independent sides, rescue, duplicate/range checks and slim telemetry passed")

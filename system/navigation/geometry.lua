@@ -8,6 +8,18 @@ function M.atan2(y, x)
   return y > 0 and math.pi / 2 or y < 0 and -math.pi / 2 or 0
 end
 
+-- Same convention as Avionics NavTable: rotate body +Z, atan2(world X,Z).
+function M.heading(orientation)
+  if type(orientation)~="table" then return nil end
+  local x,y,z,w=orientation.x or orientation[1],orientation.y or orientation[2],orientation.z or orientation[3],orientation.w or orientation[4]
+  if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil end
+  local norm=x*x+y*y+z*z+w*w
+  if norm<1e-12 then return nil end
+  local forwardX,forwardZ=2*(x*z+w*y)/norm,1-2*(x*x+y*y)/norm
+  if forwardX*forwardX+forwardZ*forwardZ<1e-8 then return nil end
+  return math.deg(M.atan2(forwardX,forwardZ))%360
+end
+
 function M.relative(position, origin, heading)
   position, origin = addon.vec(position), addon.vec(origin)
   if not position or not origin then return nil, "world origin/position unavailable" end
