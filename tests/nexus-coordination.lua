@@ -40,7 +40,9 @@ disk={getMountPath=function() return '/disk' end}
 rednet={isOpen=function() return true end,send=function(to,packet,protocol) queue[#queue+1]={sender=current,to=to,packet=packet,protocol=protocol} return true end}
 for _,path in ipairs(paths) do machines[0].put('/'..path,source[path]) end
 local actor={pid=4}
-local ctx={scheduler={processes={[4]={state='ready',meta={appId='nexus'},permissions={}}}},eventBus={on=function(_,_,fn) callback=fn return 1 end,off=function() end}}
+local notifications={}
+local ctx={scheduler={processes={[4]={state='ready',meta={appId='nexus'},permissions={}}}},eventBus={on=function(_,_,fn) callback=fn return 1 end,off=function() end},
+ notifications={push=function(_,kind,title,message) notifications[#notifications+1]={kind=kind,title=title,message=message} end}}
 service.start(ctx) assert(service.setup(actor,string.rep('m',64),'factory')) assert(service.request(actor,'scan')) service.tick()
 for id=1,2 do assert(service.select(actor,id,true,'factory')) end
 local agents={}
@@ -76,9 +78,46 @@ assert(owners[1] and owners[2],'All work stayed on one agent')
 local before=#snapshot.jobs
 for _=1,5 do now=now+0.5 service.tick() end
 assert(#service.snapshot().jobs==before,'Shared endpoint repeatedly rescheduled before refresh interval')
+assert(service.request(actor,'mission',{id=1,type='observe',endpoint='battery_0',asset='net:battery_0'})) service.tick()
+local lostJob=service.snapshot().jobs[#service.snapshot().jobs].id
+now=now+16 use(2) agents[2]:tick() masterDelivery()
+local replacing=service.snapshot()
+local released=false local successor
+for _,job in ipairs(replacing.jobs) do
+ if job.id==lostJob then released=job.state=='failed' end
+ if job.asset=='net:battery_0' and job.node==2 and job.state=='sent' then successor=job end
+end
+assert(released and successor,'Lost agent did not release its observation lease to another agent')
+assert(replacing.resources.energy==0,'Reassignment made an offline agent sample fresh')
+local pending=queue queue={}
+for _,packet in ipairs(pending) do
+ if packet.to==2 then use(2) agents[2]:receive(packet.sender,packet.packet,packet.protocol)
+ elseif packet.to==0 then queue[#queue+1]=packet end
+end
+now=now+1 masterDelivery()
+assert(service.snapshot().resources.energy==800,'Replacement agent did not restore the measurement')
+local late=wire.sign(wire.nodeKey(string.rep('m',64),1),1,0,'result','late-owner-result',{id=lostJob,result={ok=true,energy=999999,capacity=1000000}})
+callback(1,late,wire.name) service.tick()
+assert(service.snapshot().resources.energy==800,'Released lease accepted a late result')
+assert(#service.snapshot().monitoring.active>0 and #notifications>0,'Agent loss did not raise centralized alerts')
+assert(service.request(actor,'ackAlerts')) service.tick()
+for _,entry in ipairs(service.snapshot().monitoring.active) do assert(entry.acknowledged,'Alert acknowledgement missing') end
+local alertsBefore=#notifications now=now+1 service.tick()
+assert(#notifications==alertsBefore,'Unchanged alert repeatedly notified')
+assert(not service.request({pid=99},'ackAlerts'),'Inactive process could acknowledge alerts')
+local thresholds=service.snapshot().monitoring.rules
+thresholds.energyLowPercent=-1
+assert(service.request(actor,'monitorConfig',{rules=thresholds})) service.tick()
+assert(service.snapshot().monitoring.rules.energyLowPercent==10,'Invalid monitoring thresholds saved')
+thresholds.energyLowPercent=20
+assert(service.request(actor,'monitorConfig',{rules=thresholds})) service.tick()
+assert(service.snapshot().monitoring.rules.energyLowPercent==20)
 assert(service.request(actor,'pause')) service.tick()
+local pausedJobs=#service.snapshot().jobs
 now=now+40 service.tick()
-assert(#service.snapshot().jobs==before,'Pause did not stop coordination')
+assert(#service.snapshot().jobs==pausedJobs,'Pause did not stop coordination')
 service.start(ctx)
 assert(#service.snapshot().assets==2,'Infrastructure reports lost after MASTER restart')
-print('NEXUS coordination: automatic shared-device assignment, two active workers, aggregate results, refresh throttling, pause and persistence passed')
+for _,entry in ipairs(service.snapshot().monitoring.active) do assert(entry.acknowledged,'Alert acknowledgement lost on restart') end
+assert(service.snapshot().monitoring.rules.energyLowPercent==20,'Monitoring rules lost on restart')
+print('NEXUS coordination: balanced workers, lease failover, late-result rejection, fresh totals, alert dedup/ack, validated rules, pause and persistence passed')

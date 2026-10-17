@@ -12,6 +12,10 @@ local ok,err=pcall(function()
     activeMissions=id%3,lastSeenSeconds=id%5,capabilities={'ping','inventory','storage','sum'},
     peripherals={{name='back',type='modem'},{name='left',type='inventory'}}} end
   package.loaded['system.services.nexusd']={version='0.2.0',snapshot=function() return snapshot end,request=function() return true end}
+  snapshot.monitoring={running=true,rules={enabled=true,offlineSeconds=15,staleSeconds=60,energyLowPercent=10,diskLowPercent=5,inventoryHighPercent=90},
+    active={{kind='error',source='Agent 30',message='Agent heartbeat lost',acknowledged=false},
+      {kind='warn',source='battery_0',message='Energy remaining 8.0%',acknowledged=true}},
+    history={{phase='opened',source='Agent 30',message='Agent heartbeat lost'}}}
   local app local win={closed=false}
   local ctx={pid=4,args={},windowManager={create=function(_,options) app=options.app return win end},
     startTimer=function() return 1 end,onCleanup=function() end,pullEvent=function() return coroutine.yield() end}
@@ -19,7 +23,7 @@ local ok,err=pcall(function()
   assert(coroutine.resume(co))
   app.page='map' app.selected=30
   local renderer=require('system.gui.renderer')
-  for _,page in ipairs({'map','fleet'}) do app.page=page app.scroll=1
+  for _,page in ipairs({'map','fleet','alerts','monitoring'}) do app.page=page app.scroll=1
   for _,size in ipairs({{100,34},{26,20},{18,9}}) do
     local target=window.create(term.current(),1,1,size[1],size[2],true)
     local old=term.redirect(target)

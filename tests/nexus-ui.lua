@@ -30,7 +30,7 @@ local co=coroutine.create(function() require('apps.nexus.main').run(ctx) end)
 assert(coroutine.resume(co)) assert(app and app.page=='computers')
 for _,size in ipairs({{18,9},{26,20},{100,35}}) do
  width,height=table.unpack(size)
- for _,page in ipairs({'dashboard','computers','map','missions','fleet','setup'}) do
+ for _,page in ipairs({'dashboard','computers','map','missions','fleet','alerts','monitoring','setup'}) do
   app.page=page app:draw(width,height)
  end
 end
@@ -86,4 +86,16 @@ for stage=1,2 do
  if stage==1 then assert(#calls==previous,'Reset executed before final confirmation') end
 end
 assert(calls[#calls].action=='auto' and calls[#calls].args.allowReset and #calls[#calls].args.ids==64,'Frozen destructive recovery scope missing')
+app.page='monitoring' app.commands.open=false app:draw(width,height)
+local field=app.form.boxes[1]
+app:handle({name='mouse_click',args={1,field.x,field.y}})
+assert(app.rules.enabled==false,'Monitoring toggle did not respond to touch')
+app.commands.open=true app:draw(width,height)
+for _,candidate in ipairs(app.commands.menuBoxes) do if candidate.id=='monitorConfig' then target=candidate end end
+app:handle({name='mouse_click',args={1,target.x,target.y}})
+assert(calls[#calls].action=='monitorConfig' and calls[#calls].args.rules.enabled==false)
+app.page='alerts' app.commands.open=true app:draw(width,height)
+for _,candidate in ipairs(app.commands.menuBoxes) do if candidate.id=='ackAlerts' then target=candidate end end
+app:handle({name='mouse_click',args={1,target.x,target.y}})
+assert(calls[#calls].action=='ackAlerts')
 print('NEXUS UI: responsive 2D network, 64-node touch paging/selection, bounds, deployment confirmation and modal isolation passed')

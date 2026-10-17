@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3162,7 +3162,7 @@ return M
 {
   id = "nexus",
   name = "NEXUS OVERMIND",
-  version = "0.3.0",
+  version = "0.4.0",
   module = "apps.nexus.main",
   category = "Network",
   iconPath = "/system/themes/icons/nexus.nfp",
@@ -3184,8 +3184,10 @@ function M.run(ctx,args)
     settings={key="",group=args.group or "factory"},message="",snapshot=nexus.snapshot()}
   if app.snapshot.role~="master" then app.page="setup" end
   if not args.group and app.snapshot.group then app.settings.group=app.snapshot.group end
+  app.rules={}
+  for key,value in pairs(app.snapshot.monitoring and app.snapshot.monitoring.rules or {enabled=true,offlineSeconds=15,staleSeconds=60,energyLowPercent=10,diskLowPercent=5,inventoryHighPercent=90}) do app.rules[key]=value end
   local pages={{id="dashboard",label="Dashboard"},{id="computers",label="Deploy"},{id="map",label="Network"},
-    {id="missions",label="Missions"},{id="fleet",label="Infrastructure"},{id="setup",label="Setup"}}
+    {id="missions",label="Missions"},{id="fleet",label="Infrastructure"},{id='alerts',label='Alerts'},{id='monitoring',label='Monitoring'},{id="setup",label="Setup"}}
   local win,timer
   local function report(ok,err) app.message=ok and "" or tostring(err) end
   local function request(action,options) report(nexus.request(actor,action,options)) end
@@ -3196,6 +3198,8 @@ function M.run(ctx,args)
     if app.page=="missions" then return {{id="groupPing",label="Ping group"},{id="groupInventory",label="Inventory group"},
       {id="groupStorage",label="Storage group"},{id="assign",label="Auto assign check"}} end
     if app.page=='fleet' then return {{id='scan',label='Rescan'}} end
+    if app.page=='alerts' then return {{id='ackAlerts',label='Acknowledge all'}} end
+    if app.page=='monitoring' then return {{id='monitorConfig',label='Save thresholds'}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
   function app:draw(w,h)
@@ -3207,7 +3211,12 @@ function M.run(ctx,args)
     local s=self.snapshot
     renderer.writeAt(1,3,renderer.crop("MASTER "..s.master.." | "..s.online.." online / "..s.managed.." managed",w),theme.get("accent"))
     self.boxes={}
-    if self.page=="setup" then
+    if self.page=='monitoring' then
+      self.form:draw(w,h,{forms.field(self.rules,'enabled','Alerts enabled','boolean'),
+        forms.field(self.rules,'offlineSeconds','Offline alert (s)','number'),forms.field(self.rules,'staleSeconds','Stale sample (s)','number'),
+        forms.field(self.rules,'energyLowPercent','Energy low (%)','number'),forms.field(self.rules,'diskLowPercent','Disk free low (%)','number'),
+        forms.field(self.rules,'inventoryHighPercent','Slot use high (%)','number')})
+    elseif self.page=="setup" then
       self.form:draw(w,h,{forms.field(self.settings,"group","Deployment group","string"),forms.field(self.settings,"key","Key (empty = automatic HTTPS)","secret")})
     elseif self.page=="computers" then
       local drive=s.drives[self.driveIndex or 1]
@@ -3264,7 +3273,23 @@ function M.run(ctx,args)
       end
     else
       local lines={}
-      if self.page=='fleet' then
+      if self.page=='alerts' then
+        local state=s.monitoring or {active={},history={}}
+        local function alertLine(text)
+          text=tostring(text)
+          for offset=1,math.max(1,#text),w do lines[#lines+1]=text:sub(offset,offset+w-1) end
+        end
+        lines[#lines+1]='Monitoring: '..(state.running and 'running' or 'paused / disabled')
+        lines[#lines+1]='Active alerts: '..#state.active..(state.truncated and ' (limit reached)' or '')
+        for _,entry in ipairs(state.active) do
+          alertLine((entry.acknowledged and '[ack] ' or '[new] ')..entry.kind..' | '..entry.source)
+          alertLine(entry.message)
+        end
+        lines[#lines+1]='Recent transitions:'
+        for index=#state.history,1,-1 do local entry=state.history[index]
+          alertLine(tostring(entry.phase)..' | '..entry.source..' | '..entry.message)
+        end
+      elseif self.page=='fleet' then
         lines[#lines+1]='Coordination: '..(s.automation and s.automation.enabled and 'running' or 'paused')
         lines[#lines+1]='Endpoints: '..#(s.assets or {})
         if s.resources then
@@ -3277,7 +3302,7 @@ function M.run(ctx,args)
             or (data.energy and ('Energy '..data.energy..' / '..(data.capacity or '?')))
             or (data.amount and ('Fluid '..data.amount..' mB')) or data.error or 'Awaiting first measurement'
           lines[#lines+1]=value..(data.partial and ' (partial)' or '')
-          lines[#lines+1]=asset.kind..' | age '..(asset.age and math.floor(asset.age)..'s' or '?')
+          lines[#lines+1]=asset.lastError or (asset.kind..' | age '..(asset.age and math.floor(asset.age)..'s' or '?'))
         end
       elseif self.page=="missions" then
         lines[#lines+1]="Group: "..self.settings.group.." | newest first"
@@ -3287,7 +3312,7 @@ function M.run(ctx,args)
         end
       else
         lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
-          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,"Monitored endpoints: "..#(s.assets or {}),
+          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,"Monitored endpoints: "..#(s.assets or {}),'Alerts: '..#(s.monitoring and s.monitoring.active or {}),
           "Automation: "..((s.automation and s.automation.enabled) and "ON" or "OFF"),
           s.automation and s.automation.message or ""}
         for _,row in ipairs(s.computers) do if row.authorized then
@@ -3331,6 +3356,8 @@ function M.run(ctx,args)
         else report(nexus.setup(actor,self.settings.key,self.settings.group)) end
         self.settings.key="" self.snapshot=nexus.snapshot()
       elseif id=="scan" then request("scan")
+      elseif id=='monitorConfig' then request('monitorConfig',{rules=self.rules})
+      elseif id=='ackAlerts' then request('ackAlerts')
       elseif id=="groupPing" or id=="groupInventory" or id=="groupStorage" then
         local kinds={groupPing="ping",groupInventory="inventory",groupStorage="storage"}
         request("groupMission",{type=kinds[id],group=self.settings.group})
@@ -3350,10 +3377,10 @@ function M.run(ctx,args)
       else request("mission",{id=self.selected,type=id}) end
       return true
     elseif handled then return true end
-    if self.page=="setup" then return self.form:handle(event) end
+    if self.page=="setup" or self.page=='monitoring' then return self.form:handle(event) end
     if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1]*(self.page=="map" and (self.networkPageSize or 1) or 1) return true end
     if event.name=="mouse_click" then
-      if self.page=='fleet' or self.page=='missions' or self.page=='dashboard' then
+      if self.page=='fleet' or self.page=='missions' or self.page=='dashboard' or self.page=='alerts' then
         local direction=ui.toolbarHit(self.contentBar,event.args[2],event.args[3])
         if direction then self.scroll=math.max(1,math.min(self.contentMax,self.scroll+(direction=='next' and 1 or -1)*self.contentPageSize)) return true end
       end
@@ -3390,7 +3417,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3474,7 +3501,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3784,7 +3811,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3899,7 +3926,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4041,7 +4068,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.25",
+  version = "0.18.26",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4497,7 +4524,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.25",
+  version = "0.18.26",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5039,7 +5066,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.25",
+    version = "0.18.26",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5417,7 +5444,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.25",
+  version = "0.18.26",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -7058,22 +7085,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.25", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.25", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.25", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.25", permissions = { "rednet.send", "rednet.receive" } })
-  register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.3.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.25", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.25", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.25", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.25", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.25", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.25", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.25", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.25", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.25", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.25", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.25", permissions = { "network.http", "system.update" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.26", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.26", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.26", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.26", permissions = { "rednet.send", "rednet.receive" } })
+  register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.26", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.26", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.26", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.26", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.26", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.26", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.26", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.26", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.26", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.26", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.26", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7834,7 +7861,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.25",
+    version = meta.version or "0.18.26",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -9848,8 +9875,11 @@ function M.new(cfg,options)
   function self:tick()
     if os.clock()-self.lastScan>=10 then self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock() end
     if self.modems>0 and os.clock()>=self.nextHeartbeat then
+      local _,free=pcall(fs.getFreeSpace,'/') local _,capacity=pcall(fs.getCapacity,'/')
+      local diskFree=type(free)=='number' and free==free and free>=0 and free<1e15 and free or nil
+      local diskCapacity=type(capacity)=='number' and capacity==capacity and capacity>=0 and capacity<1e15 and capacity or nil
       self:send("heartbeat",{version=wire.version,release=cfg.active,provisionToken=cfg.provisionToken,label=tostring(os.getComputerLabel() or "Agent "..cfg.id):sub(1,64),
-        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe"},queueDepth=#self.work+(self.working and 1 or 0)})
+        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe"},queueDepth=#self.work+(self.working and 1 or 0),diskFree=diskFree,diskCapacity=diskCapacity})
       self.nextHeartbeat=os.clock()+5
     end
   end
@@ -10148,6 +10178,90 @@ function M.generate()
 end
 return M
 ]=],
+  ["system/nexus/monitor.lua"] = [=[
+local M={}
+M.defaults={enabled=true,offlineSeconds=15,staleSeconds=60,energyLowPercent=10,diskLowPercent=5,inventoryHighPercent=90}
+local function finite(x) return type(x)=='number' and x==x and math.abs(x)<1e15 end
+function M.rules(value)
+  if type(value)~='table' or type(value.enabled)~='boolean' then return nil,'Invalid monitoring configuration' end
+  local result={enabled=value.enabled}
+  for key,range in pairs({offlineSeconds={5,120},staleSeconds={10,300},energyLowPercent={0,100},diskLowPercent={0,100},inventoryHighPercent={1,100}}) do
+    local n=value[key]
+    if not finite(n) or n<range[1] or n>range[2] then return nil,'Invalid threshold: '..key end
+    result[key]=n
+  end
+  return result
+end
+function M.fresh(asset,rows,now,utc,rules)
+  if asset.lastError then return false end
+  local row=rows[asset.sampleOwner or asset.owner]
+  if not row or not row.seenAt or now-row.seenAt>15 or not finite(asset.receivedAt) then return false end
+  local stamp=asset.receivedAt
+  if asset.result and finite(asset.result.measuredAt) then stamp=math.min(stamp,asset.result.measuredAt/1000) end
+  return utc>=stamp-5 and utc-stamp<=rules.staleSeconds
+end
+function M.orphaned(job,rows,now)
+  if job.type~='observe' then return false end
+  local row=rows[job.node]
+  if not row or not row.seenAt then return true end
+  if now-row.seenAt>15 then return true end
+  for _,device in ipairs(row.peripherals or {}) do
+    if type(device)=='table' and device.name==job.endpoint and (device.kind=='inventory' or device.kind=='energy_storage' or device.kind=='fluid_storage') then return false end
+  end
+  return true
+end
+function M.evaluate(assets,rows,members,rules,previous,now,utc)
+  local found={}
+  if not rules.enabled then return found end
+  local function add(key,kind,source,message)
+    found[key]={kind=kind,source=source,message=message}
+  end
+  local function low(key,source,ratio,limit,label)
+    if ratio<=limit or (previous[key] and ratio<math.min(100,limit+2)) then add(key,'warn',source,label..string.format(' %.1f%%',ratio)) end
+  end
+  for id,row in pairs(rows) do if members[tostring(id)] and row.seenAt then
+    local source='Agent '..id
+    if now-row.seenAt>rules.offlineSeconds then
+      add('agent:'..id..':offline','error',source,'Agent heartbeat lost')
+      if previous['agent:'..id..':disk'] then found['agent:'..id..':disk']=previous['agent:'..id..':disk'] end
+    elseif finite(row.diskFree) and finite(row.diskCapacity) and row.diskCapacity>0 then
+      low('agent:'..id..':disk',source,row.diskFree/row.diskCapacity*100,rules.diskLowPercent,'Internal disk free')
+    elseif previous['agent:'..id..':disk'] then found['agent:'..id..':disk']=previous['agent:'..id..':disk']
+    end
+  end end
+  for key,asset in pairs(assets) do if members[tostring(asset.owner)] then
+    local source=tostring(asset.endpoint):sub(1,64)
+    local prefix='asset:'..key..':'
+    if asset.lastError then add(prefix..'fault','error',source,tostring(asset.lastError):sub(1,120)) end
+    if not M.fresh(asset,rows,now,utc,rules) then
+      if asset.result then add(prefix..'stale','warn',source,'Measurement unavailable or stale') end
+      for _,condition in ipairs({'energy','full','fault'}) do if previous[prefix..condition] and not found[prefix..condition] then found[prefix..condition]=previous[prefix..condition] end end
+    else
+      local data=asset.result
+      if data and data.ok==false then
+        add(prefix..'fault','error',source,data.error or 'Measurement failed')
+        for _,condition in ipairs({'energy','full'}) do if previous[prefix..condition] then found[prefix..condition]=previous[prefix..condition] end end
+      elseif data and data.ok then
+        if finite(data.energy) and finite(data.capacity) and data.capacity>0 then low(prefix..'energy',source,data.energy/data.capacity*100,rules.energyLowPercent,'Energy remaining')
+        elseif previous[prefix..'energy'] then found[prefix..'energy']=previous[prefix..'energy'] end
+        if not data.partial and finite(data.used) and finite(data.slots) and data.slots>0 then
+          local ratio=data.used/data.slots*100
+          if ratio>=rules.inventoryHighPercent or (previous[prefix..'full'] and ratio>math.max(0,rules.inventoryHighPercent-2)) then
+            add(prefix..'full','warn',source,string.format('Occupied inventory slots %.1f%%',ratio))
+          end
+        elseif previous[prefix..'full'] then found[prefix..'full']=previous[prefix..'full']
+        end
+      end
+    end
+  end end
+  for key,value in pairs(previous) do
+    local id=tonumber(key:match('^agent:(%d+):'))
+    if id and members[tostring(id)] and (not rows[id] or not rows[id].seenAt) then found[key]=value end
+  end
+  return found
+end
+return M
+]=],
   ["system/nexus/observe.lua"] = [=[
 local M={}
 local function number(value) return type(value)=='number' and value==value and value>=0 and value<1e15 and value or nil end
@@ -10202,7 +10316,7 @@ return M
 ]=],
   ["system/nexus/protocol.lua"] = [=[
 local crypto=require("system.libraries.password_crypto")
-local M={name="mintcraft.nexus.v1",version="0.3.0",maxPayload=8192}
+local M={name="mintcraft.nexus.v1",version="0.4.0",maxPayload=8192}
 local function integer(x) return type(x)=="number" and x==x and x>=0 and x<2147483647 and x%1==0 end
 local function utc() assert(os.epoch,"UTC clock required") return os.epoch("utc") end
 function M.hash(text) return (crypto.digest(text):gsub(".",function(c) return string.format("%02x",c:byte()) end)) end
@@ -13073,6 +13187,7 @@ local automation=require("system.nexus.automation")
 local tasks=require("system.nexus.tasks")
 local fleet=require("system.nexus.fleet")
 local observe=require("system.nexus.observe")
+local monitor=require("system.nexus.monitor")
 local keygen=require("system.nexus.keygen")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
@@ -13085,6 +13200,47 @@ local seen,admission={}, {at=0,count=0}
 local notice="MASTER not configured"
 local autoMessage="Automatic deployment disabled"
 local bundle,nodeKeys,assets=nil,{},{}
+local rules=addon.copy(monitor.defaults)
+local alerts={active={},history={}}
+local alertsDirty=false
+local function alertEvent(entry,phase,utc)
+  alerts.history[#alerts.history+1]={key=entry.key,kind=entry.kind,source=entry.source,message=entry.message,phase=phase,at=utc}
+  while #alerts.history>64 do table.remove(alerts.history,1) end
+  if phase=='opened' then
+    pcall(log[entry.kind=='error' and 'error' or 'warn'],'nexus',entry.source..': '..entry.message)
+  else pcall(log.info,'nexus',entry.source..': '..phase) end
+end
+local function updateAlerts()
+  if alertsDirty then store.save('/var/nexus/alerts.cfg',alerts) alertsDirty=false end
+  if not config.automation or not config.automation.enabled then return end
+  if os.clock()-(M.startedAt or 0)<5 then return end
+  local utc=os.epoch('utc')/1000
+  local desired=monitor.evaluate(assets,rows,config.members,rules,alerts.active,os.clock(),utc)
+  local keys={} for key in pairs(desired) do keys[#keys+1]=key end table.sort(keys)
+  local active,opened={},{} local changed=alerts.truncated~=(#keys>192)
+  for index,key in ipairs(keys) do if index<=192 then
+    local value=desired[key] local old=alerts.active[key]
+    local entry={key=key,kind=value.kind,source=value.source,message=value.message,firstAt=old and old.firstAt or utc,
+      acknowledged=old and old.acknowledged or false}
+    active[key]=entry
+    if not old then alertEvent(entry,'opened',utc) opened[#opened+1]=entry changed=true
+    elseif old.message~=entry.message or old.source~=entry.source then changed=true end
+  end end
+  for key,old in pairs(alerts.active) do if not desired[key] then
+    local assetKey=key:match('^asset:(.*):[^:]+$') local id=key:match('^agent:(%d+):')
+    local phase=not rules.enabled and 'disabled' or ((assetKey and not assets[assetKey] or id and not config.members[id]) and 'removed' or 'resolved')
+    alertEvent(old,phase,utc) changed=true
+  end end
+  alerts.active=active alerts.truncated=#keys>192
+  if context.notifications and #opened>0 then
+    if #opened>3 then
+      local kind='warn' for _,entry in ipairs(opened) do if entry.kind=='error' then kind='error' break end end
+      pcall(context.notifications.push,context.notifications,kind,'NEXUS alerts',#opened..' new conditions; see Alerts',5)
+    else for _,entry in ipairs(opened) do pcall(context.notifications.push,context.notifications,entry.kind,'NEXUS '..entry.source,entry.message,5) end end
+  end
+  if changed then alertsDirty=true revision=revision+1 end
+  if alertsDirty then store.save('/var/nexus/alerts.cfg',alerts) alertsDirty=false end
+end
 local function nodeKey(id)
   if not nodeKeys[id] then nodeKeys[id]=wire.nodeKey(config.key,id) end
   return nodeKeys[id]
@@ -13270,7 +13426,7 @@ end
 function M.request(actor,action,args)
   local ok,err=actorAllowed(actor) if not ok then return false,err end
   if #actions>=8 then return false,"NEXUS action queue full" end
-  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="groupMission" and action~="assign" and action~="reboot" and action~="shutdown" and action~="auto" and action~="resetAuto" and action~="setupAuto" and action~="pause" then return false,"Unknown NEXUS action" end
+  if action~="scan" and action~="prepare" and action~="deploy" and action~="seal" and action~="mission" and action~="groupMission" and action~="assign" and action~="reboot" and action~="shutdown" and action~="auto" and action~="resetAuto" and action~="setupAuto" and action~="pause" and action~='monitorConfig' and action~='ackAlerts' then return false,"Unknown NEXUS action" end
   if action~="scan" and action~="setupAuto" and config.role~="master" then return false,"Configure MASTER first" end
   args=type(args)=="table" and addon.copy(args) or {}
   actions[#actions+1]={actor={pid=actor.pid},action=action,args=args}
@@ -13339,6 +13495,13 @@ local function execute(action)
       nextValue.automation.resetToken=wire.hash(config.key..":reset:"..nextId()):sub(1,40)
     end
     saveConfig(nextValue) publish("Automatic deployment enabled for "..#ids.." explicitly authorized computers")
+  elseif action.action=='monitorConfig' then
+    local value,err=monitor.rules(args.rules) assert(value,err)
+    store.save('/system/config/nexus-monitor.cfg',value) rules=value M.monitorAt=nil
+    publish('Monitoring thresholds saved; no machine commands enabled')
+  elseif action.action=='ackAlerts' then
+    for _,entry in pairs(alerts.active) do entry.acknowledged=true end
+    alertsDirty=true store.save('/var/nexus/alerts.cfg',alerts) alertsDirty=false revision=revision+1
   elseif action.action=="pause" then
     local nextValue=addon.copy(config)
     nextValue.automation=nextValue.automation or {} nextValue.automation.enabled=false
@@ -13505,6 +13668,8 @@ local function receive(item)
     row.label=type(body.label)=="string" and body.label:sub(1,64) or row.label
     row.peripherals=body.peripherals row.capabilities=body.capabilities
     row.queueDepth=type(body.queueDepth)=='number' and math.max(0,math.min(9,body.queueDepth)) or 0
+    row.diskFree=type(body.diskFree)=='number' and body.diskFree==body.diskFree and body.diskFree>=0 and body.diskFree<1e15 and body.diskFree or nil
+    row.diskCapacity=type(body.diskCapacity)=='number' and body.diskCapacity==body.diskCapacity and body.diskCapacity>0 and body.diskCapacity<1e15 and body.diskCapacity or nil
     rows[id]=row revision=revision+1
     send(id,"ack",{heartbeat=message.id})
   elseif message.kind=="result" then
@@ -13514,7 +13679,7 @@ local function receive(item)
       job.state=job.result.ok==true and "completed" or "failed"
       if job.asset and assets[job.asset] then
         local asset=assets[job.asset]
-        asset.result=job.result asset.receivedAt=os.epoch('utc')/1000 asset.owner=id
+        asset.result=job.result asset.receivedAt=os.epoch('utc')/1000 asset.owner=id asset.sampleOwner=id asset.lastError=nil
         store.save('/var/nexus/assets.cfg',assets)
       end
       store.save("/var/nexus/jobs.cfg",jobs) revision=revision+1 break
@@ -13524,12 +13689,27 @@ end
 local function coordinate()
   local policy=config.automation
   if not policy or not policy.enabled then return end
+  local changed=false
+  for _,job in ipairs(jobs) do
+    if (job.state=='queued' or job.state=='sent') and monitor.orphaned(job,rows,os.clock()) then
+      job.state='failed' job.result={ok=false,error='Observation owner unavailable; lease released'} changed=true
+      local asset=job.asset and assets[job.asset]
+      if asset then asset.attemptAt=0 asset.lastError=job.result.error end
+    end
+  end
+  local pending={} for _,job in ipairs(jobs) do if job.asset and (job.state=='queued' or job.state=='sent') then pending[job.asset]=true end end
+  for key,asset in pairs(assets) do
+    if not pending[key] and os.epoch('utc')/1000-math.max(asset.receivedAt or 0,asset.attemptAt or 0)>300
+      and monitor.orphaned({type='observe',node=asset.owner,endpoint=asset.endpoint},rows,os.clock()) then assets[key]=nil changed=true end
+  end
+  if changed then store.save('/var/nexus/jobs.cfg',jobs) store.save('/var/nexus/assets.cfg',assets) revision=revision+1 end
   local active=0 for _,job in ipairs(jobs) do if job.state=='queued' or job.state=='sent' then active=active+1 end end
   if active>=96 then return end
   local nextTask=fleet.plan(rows,config.members,jobs,policy,assets,os.clock(),os.epoch('utc')/1000)
   if not nextTask then return end
   local job=mission({id=nextTask.node,type='observe',endpoint=nextTask.endpoint,asset=nextTask.asset})
   local old=assets[nextTask.asset] or {}
+  if old.result and not old.sampleOwner then old.sampleOwner=old.owner end
   old.key=nextTask.asset old.endpoint=nextTask.endpoint old.kind=nextTask.kind old.owner=nextTask.node
   old.attemptAt=os.epoch('utc')/1000 old.jobId=job.id
   assets[nextTask.asset]=old
@@ -13548,12 +13728,21 @@ function M.tick()
     M.coordinationAt=os.clock()
     local ok,err=pcall(coordinate) if not ok then publish('Coordination: '..tostring(err):sub(1,160)) end
   end
+  if not M.monitorAt or os.clock()-M.monitorAt>=1 then
+    M.monitorAt=os.clock()
+    local ok,err=pcall(updateAlerts) if not ok then publish('Monitoring: '..tostring(err):sub(1,160)) end
+  end
   for _,job in ipairs(jobs) do
     if (job.state=="queued" or job.state=="sent") and os.clock()-job.lastAttempt>=5 then
       if job.expiresAt and os.epoch("utc")>=job.expiresAt then job.state="failed" job.result={error="Mission deadline expired"}
       elseif not config.members[tostring(job.node)] then job.state="failed" job.result={error="Agent authorization removed"}
       elseif job.attempts>=3 then job.state="failed" job.result={error="Timeout; no confirmed result"}
       else job.attempts=job.attempts+1 job.lastAttempt=os.clock() job.state="sent" send(job.node,"mission",{id=job.id,type=job.type,count=job.count,expiresAt=job.expiresAt,endpoint=job.endpoint}) end
+      if job.state=='failed' and job.type=='observe' and job.asset and assets[job.asset] then
+        local asset=assets[job.asset]
+        asset.lastError=job.result.error or 'Observation failed'
+        store.save('/var/nexus/assets.cfg',assets)
+      end
       store.save("/var/nexus/jobs.cfg",jobs) revision=revision+1 break
     end
   end
@@ -13562,12 +13751,18 @@ function M.snapshot()
   local result={role=config.role,group=config.group,computers={},drives=addon.copy(drives),jobs=addon.copy(jobs),
     message=notice,revision=revision,master=ownId(),online=0,managed=0,discovered=0,
     automation={enabled=type(config.automation)=="table" and config.automation.enabled==true,message=autoMessage},assets={},
-    resources={live=0,stale=0,items=0,energy=0,capacity=0,fluid=0,partial=false}}
+    resources={live=0,stale=0,items=0,energy=0,capacity=0,fluid=0,partial=false},
+    monitoring={rules=addon.copy(rules),running=rules.enabled and type(config.automation)=='table' and config.automation.enabled==true,
+      active={},history=addon.copy(alerts.history),truncated=alerts.truncated==true}}
+  for _,entry in pairs(alerts.active) do result.monitoring.active[#result.monitoring.active+1]=addon.copy(entry) end
+  table.sort(result.monitoring.active,function(a,b) return a.key<b.key end)
   for _,asset in pairs(assets) do
     if config.members[tostring(asset.owner)] then
       local value=addon.copy(asset)
-      value.age=value.receivedAt and math.max(0,os.epoch('utc')/1000-value.receivedAt) or nil
-      value.stale=not value.age or value.age>60
+      local stamp=value.receivedAt
+      if stamp and value.result and type(value.result.measuredAt)=='number' then stamp=math.min(stamp,value.result.measuredAt/1000) end
+      value.age=stamp and math.max(0,os.epoch('utc')/1000-stamp) or nil
+      value.stale=not monitor.fresh(value,rows,os.clock(),os.epoch('utc')/1000,rules)
       result.assets[#result.assets+1]=value
       local data=value.result
       if not value.stale and data and data.ok then
@@ -13598,7 +13793,8 @@ function M.snapshot()
 end
 function M.start(ctx)
   M.stop() context=ctx
-  M.release=nil M.autoAt=nil M.coordinationAt=nil bundle=nil nodeKeys={} autoMessage="Automatic deployment disabled"
+  M.release=nil M.autoAt=nil M.coordinationAt=nil M.monitorAt=nil bundle=nil nodeKeys={} autoMessage="Automatic deployment disabled"
+  M.startedAt=os.clock() alertsDirty=false
   rows,drives,seen={}, {},{} lastScan=-math.huge
   store.recover("/system/config/nexus.cfg") config=store.load("/system/config/nexus.cfg",{role="off",members={}})
   local malformed=type(config.members)~="table" or (config.role~="off" and config.role~="master")
@@ -13628,11 +13824,32 @@ function M.start(ctx)
   for key,asset in pairs(savedAssets) do
     if assetCount<128 and type(key)=='string' and #key<=100 and type(asset)=='table' and validId(asset.owner)
       and type(asset.endpoint)=='string' and #asset.endpoint<=64 then
-      assets[key]={key=key,owner=asset.owner,endpoint=asset.endpoint,kind=type(asset.kind)=='string' and asset.kind:sub(1,32) or 'unknown',
-        attemptAt=type(asset.attemptAt)=='number' and asset.attemptAt or 0,
-        receivedAt=type(asset.receivedAt)=='number' and asset.receivedAt or nil,result=asset.result and observe.normalize(asset.result) or nil}
+      assets[key]={key=key,owner=asset.owner,sampleOwner=validId(asset.sampleOwner) and asset.sampleOwner or asset.owner,endpoint=asset.endpoint,kind=type(asset.kind)=='string' and asset.kind:sub(1,32) or 'unknown',
+        attemptAt=type(asset.attemptAt)=='number' and asset.attemptAt==asset.attemptAt and asset.attemptAt>=0 and asset.attemptAt<=os.epoch('utc')/1000+5 and asset.attemptAt or 0,
+        receivedAt=validId(asset.sampleOwner) and type(asset.receivedAt)=='number' and asset.receivedAt==asset.receivedAt and asset.receivedAt>=0 and asset.receivedAt<=os.epoch('utc')/1000+5 and asset.receivedAt or nil,
+        lastError=type(asset.lastError)=='string' and asset.lastError:sub(1,120) or nil,result=asset.result and observe.normalize(asset.result) or nil}
       assetCount=assetCount+1
     end
+  end
+  store.recover('/system/config/nexus-monitor.cfg')
+  rules=monitor.rules(store.load('/system/config/nexus-monitor.cfg',monitor.defaults)) or addon.copy(monitor.defaults)
+  store.recover('/var/nexus/alerts.cfg') local saved=store.load('/var/nexus/alerts.cfg',{})
+  alerts={active={},history={},truncated=saved.truncated==true}
+  local function entry(value,key)
+    if type(value)~='table' or type(key)~='string' or #key>160 or (value.kind~='warn' and value.kind~='error')
+      or type(value.source)~='string' or type(value.message)~='string' then return nil end
+    return {key=key,kind=value.kind,source=value.source:sub(1,64),message=value.message:sub(1,180),
+      firstAt=type(value.firstAt)=='number' and value.firstAt or os.epoch('utc')/1000,acknowledged=value.acknowledged==true,
+      phase=type(value.phase)=='string' and value.phase:sub(1,16) or nil,at=type(value.at)=='number' and value.at or nil}
+  end
+  local count=0
+  for key,value in pairs(type(saved.active)=='table' and saved.active or {}) do
+    local value=entry(value,key)
+    if value and count<192 then alerts.active[key]=value count=count+1 end
+  end
+  local history=type(saved.history)=='table' and saved.history or {}
+  for index=math.max(1,#history-63),#history do local value=entry(history[index],type(history[index])=='table' and history[index].key)
+    if value then alerts.history[#alerts.history+1]=value end
   end
   if ctx.eventBus then listener=ctx.eventBus:on("rednet_message",enqueue) end
   runner=addon.periodic(ctx,"nexusd",0.25,M.tick)
@@ -15967,7 +16184,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.25
+0.18.26
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

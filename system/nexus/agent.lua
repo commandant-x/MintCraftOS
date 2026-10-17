@@ -20,8 +20,11 @@ function M.new(cfg,options)
   function self:tick()
     if os.clock()-self.lastScan>=10 then self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock() end
     if self.modems>0 and os.clock()>=self.nextHeartbeat then
+      local _,free=pcall(fs.getFreeSpace,'/') local _,capacity=pcall(fs.getCapacity,'/')
+      local diskFree=type(free)=='number' and free==free and free>=0 and free<1e15 and free or nil
+      local diskCapacity=type(capacity)=='number' and capacity==capacity and capacity>=0 and capacity<1e15 and capacity or nil
       self:send("heartbeat",{version=wire.version,release=cfg.active,provisionToken=cfg.provisionToken,label=tostring(os.getComputerLabel() or "Agent "..cfg.id):sub(1,64),
-        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe"},queueDepth=#self.work+(self.working and 1 or 0)})
+        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe"},queueDepth=#self.work+(self.working and 1 or 0),diskFree=diskFree,diskCapacity=diskCapacity})
       self.nextHeartbeat=os.clock()+5
     end
   end

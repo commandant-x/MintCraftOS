@@ -12,8 +12,10 @@ function M.run(ctx,args)
     settings={key="",group=args.group or "factory"},message="",snapshot=nexus.snapshot()}
   if app.snapshot.role~="master" then app.page="setup" end
   if not args.group and app.snapshot.group then app.settings.group=app.snapshot.group end
+  app.rules={}
+  for key,value in pairs(app.snapshot.monitoring and app.snapshot.monitoring.rules or {enabled=true,offlineSeconds=15,staleSeconds=60,energyLowPercent=10,diskLowPercent=5,inventoryHighPercent=90}) do app.rules[key]=value end
   local pages={{id="dashboard",label="Dashboard"},{id="computers",label="Deploy"},{id="map",label="Network"},
-    {id="missions",label="Missions"},{id="fleet",label="Infrastructure"},{id="setup",label="Setup"}}
+    {id="missions",label="Missions"},{id="fleet",label="Infrastructure"},{id='alerts',label='Alerts'},{id='monitoring',label='Monitoring'},{id="setup",label="Setup"}}
   local win,timer
   local function report(ok,err) app.message=ok and "" or tostring(err) end
   local function request(action,options) report(nexus.request(actor,action,options)) end
@@ -24,6 +26,8 @@ function M.run(ctx,args)
     if app.page=="missions" then return {{id="groupPing",label="Ping group"},{id="groupInventory",label="Inventory group"},
       {id="groupStorage",label="Storage group"},{id="assign",label="Auto assign check"}} end
     if app.page=='fleet' then return {{id='scan',label='Rescan'}} end
+    if app.page=='alerts' then return {{id='ackAlerts',label='Acknowledge all'}} end
+    if app.page=='monitoring' then return {{id='monitorConfig',label='Save thresholds'}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
   function app:draw(w,h)
@@ -35,7 +39,12 @@ function M.run(ctx,args)
     local s=self.snapshot
     renderer.writeAt(1,3,renderer.crop("MASTER "..s.master.." | "..s.online.." online / "..s.managed.." managed",w),theme.get("accent"))
     self.boxes={}
-    if self.page=="setup" then
+    if self.page=='monitoring' then
+      self.form:draw(w,h,{forms.field(self.rules,'enabled','Alerts enabled','boolean'),
+        forms.field(self.rules,'offlineSeconds','Offline alert (s)','number'),forms.field(self.rules,'staleSeconds','Stale sample (s)','number'),
+        forms.field(self.rules,'energyLowPercent','Energy low (%)','number'),forms.field(self.rules,'diskLowPercent','Disk free low (%)','number'),
+        forms.field(self.rules,'inventoryHighPercent','Slot use high (%)','number')})
+    elseif self.page=="setup" then
       self.form:draw(w,h,{forms.field(self.settings,"group","Deployment group","string"),forms.field(self.settings,"key","Key (empty = automatic HTTPS)","secret")})
     elseif self.page=="computers" then
       local drive=s.drives[self.driveIndex or 1]
@@ -92,7 +101,23 @@ function M.run(ctx,args)
       end
     else
       local lines={}
-      if self.page=='fleet' then
+      if self.page=='alerts' then
+        local state=s.monitoring or {active={},history={}}
+        local function alertLine(text)
+          text=tostring(text)
+          for offset=1,math.max(1,#text),w do lines[#lines+1]=text:sub(offset,offset+w-1) end
+        end
+        lines[#lines+1]='Monitoring: '..(state.running and 'running' or 'paused / disabled')
+        lines[#lines+1]='Active alerts: '..#state.active..(state.truncated and ' (limit reached)' or '')
+        for _,entry in ipairs(state.active) do
+          alertLine((entry.acknowledged and '[ack] ' or '[new] ')..entry.kind..' | '..entry.source)
+          alertLine(entry.message)
+        end
+        lines[#lines+1]='Recent transitions:'
+        for index=#state.history,1,-1 do local entry=state.history[index]
+          alertLine(tostring(entry.phase)..' | '..entry.source..' | '..entry.message)
+        end
+      elseif self.page=='fleet' then
         lines[#lines+1]='Coordination: '..(s.automation and s.automation.enabled and 'running' or 'paused')
         lines[#lines+1]='Endpoints: '..#(s.assets or {})
         if s.resources then
@@ -105,7 +130,7 @@ function M.run(ctx,args)
             or (data.energy and ('Energy '..data.energy..' / '..(data.capacity or '?')))
             or (data.amount and ('Fluid '..data.amount..' mB')) or data.error or 'Awaiting first measurement'
           lines[#lines+1]=value..(data.partial and ' (partial)' or '')
-          lines[#lines+1]=asset.kind..' | age '..(asset.age and math.floor(asset.age)..'s' or '?')
+          lines[#lines+1]=asset.lastError or (asset.kind..' | age '..(asset.age and math.floor(asset.age)..'s' or '?'))
         end
       elseif self.page=="missions" then
         lines[#lines+1]="Group: "..self.settings.group.." | newest first"
@@ -115,7 +140,7 @@ function M.run(ctx,args)
         end
       else
         lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
-          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,"Monitored endpoints: "..#(s.assets or {}),
+          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,"Monitored endpoints: "..#(s.assets or {}),'Alerts: '..#(s.monitoring and s.monitoring.active or {}),
           "Automation: "..((s.automation and s.automation.enabled) and "ON" or "OFF"),
           s.automation and s.automation.message or ""}
         for _,row in ipairs(s.computers) do if row.authorized then
@@ -159,6 +184,8 @@ function M.run(ctx,args)
         else report(nexus.setup(actor,self.settings.key,self.settings.group)) end
         self.settings.key="" self.snapshot=nexus.snapshot()
       elseif id=="scan" then request("scan")
+      elseif id=='monitorConfig' then request('monitorConfig',{rules=self.rules})
+      elseif id=='ackAlerts' then request('ackAlerts')
       elseif id=="groupPing" or id=="groupInventory" or id=="groupStorage" then
         local kinds={groupPing="ping",groupInventory="inventory",groupStorage="storage"}
         request("groupMission",{type=kinds[id],group=self.settings.group})
@@ -178,10 +205,10 @@ function M.run(ctx,args)
       else request("mission",{id=self.selected,type=id}) end
       return true
     elseif handled then return true end
-    if self.page=="setup" then return self.form:handle(event) end
+    if self.page=="setup" or self.page=='monitoring' then return self.form:handle(event) end
     if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1]*(self.page=="map" and (self.networkPageSize or 1) or 1) return true end
     if event.name=="mouse_click" then
-      if self.page=='fleet' or self.page=='missions' or self.page=='dashboard' then
+      if self.page=='fleet' or self.page=='missions' or self.page=='dashboard' or self.page=='alerts' then
         local direction=ui.toolbarHit(self.contentBar,event.args[2],event.args[3])
         if direction then self.scroll=math.max(1,math.min(self.contentMax,self.scroll+(direction=='next' and 1 or -1)*self.contentPageSize)) return true end
       end
