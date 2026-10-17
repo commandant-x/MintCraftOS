@@ -8,6 +8,7 @@ local M = {
   ctx = nil,
   listener = nil,
   deviceListeners = {},
+  securityWarning = "INSECURE Rednet: unauthenticated and unencrypted; senders can be spoofed",
 }
 
 local function computerId()
@@ -25,7 +26,12 @@ local function label()
 end
 
 local function parse(data, sender)
-  local packet = type(data) == "string" and textutils.unserialize(data) or data
+  if type(data)=="string" and #data>8192 then return nil end
+  local packet=data
+  if type(data)=="string" then
+    local ok,value=pcall(textutils.unserialize,data)
+    packet=ok and value or nil
+  end
   if type(packet) == "table" and packet.type == "message" and type(packet.text) == "string" then
     return {
       type = "message", id = sender,
@@ -75,6 +81,7 @@ function M.open()
 end
 
 function M.statusText()
+  if M.side then return M.status.." | "..M.securityWarning end
   return M.status
 end
 
@@ -106,6 +113,7 @@ function M.start(ctx)
   M.open()
   if ctx and ctx.eventBus and not M.listener then
     M.listener = ctx.eventBus:on("rednet_message", function(sender, data, proto)
+      if type(sender)~="number" or sender~=sender or sender<0 or sender==math.huge or sender%1~=0 then return end
       if proto ~= nil and proto ~= M.protocol and proto ~= "mintcraft.public" then return end
       local packet = parse(data, sender)
       if not packet then return end

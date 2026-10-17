@@ -11,7 +11,8 @@ local function write(path, content)
 end
 
 local function validPath(path)
-  if type(path) ~= "string" or path:sub(1, 1) == "/" or path:find("\\", 1, true) then return false end
+  if type(path) ~= "string" or path == "" or path:sub(1, 1) == "/" or path:sub(-1) == "/"
+    or path:find("//", 1, true) or path:find("[%c:]") or path:find("\\", 1, true) then return false end
   for part in path:gmatch("[^/]+") do if part == "." or part == ".." then return false end end
   return path == "VERSION" or path == "boot.lua" or path == "startup.lua"
     or path:match("^system/") or path:match("^apps/")
@@ -49,6 +50,7 @@ function M.install(files,options)
     end
   end
   if options and options.beforeInstall then options.beforeInstall(plan) end
+  assert(not fs.exists(root), "Installation started while preparing; recover before retrying")
   local changed, touched = {}, {}
   local ok, err = pcall(function()
     fs.makeDir(root)
@@ -75,7 +77,11 @@ function M.install(files,options)
     for _, entry in ipairs(entries) do
       table.insert(touched, entry)
       write("/" .. entry.path, files[entry.path])
+      -- The durable journal/backup, not the validated staging copy, drives undo.
+      -- Reclaim each consumed copy so a fresh install fits a standard CC disk.
+      fs.delete(root .. "/stage/" .. entry.path)
     end
+    write(root .. "/committed", "committed")
   end)
   if not ok then
     local rollbackErrors = {}
@@ -83,8 +89,12 @@ function M.install(files,options)
       local entry = touched[i]
       local restored, problem = pcall(function()
         local path = "/" .. entry.path
-        if fs.exists(path) then fs.delete(path) end
-        if entry.existed then fs.copy(root .. "/backup/" .. entry.path, path) end
+        assert(not fs.exists(path) or not fs.isDir(path), "Destination changed to directory")
+        if entry.existed then
+          local h = assert(fs.open(root .. "/backup/" .. entry.path, "r"), "Missing recovery backup")
+          local data = h.readAll() h.close()
+          write(path, data)
+        elseif fs.exists(path) then fs.delete(path) end
       end)
       if not restored then table.insert(rollbackErrors, tostring(problem)) end
     end
@@ -95,29 +105,39 @@ function M.install(files,options)
     end
     error(err)
   end
-  fs.delete(root)
+  pcall(fs.delete, root)
   return true
 end
 
 function M.recover()
+  if not fs.exists(root) then return true, "No pending installation" end
   local h = fs.open(root .. "/journal.cfg", "r")
   if not h then return false, "No recovery journal; inspect " .. root end
-  local entries = textutils.unserialize(h.readAll())
+  local parsed, entries = pcall(function() return textutils.unserialize(h.readAll()) end)
   h.close()
-  if type(entries) ~= "table" then return false, "Invalid recovery journal" end
-  for _, entry in ipairs(entries) do
-    if type(entry) ~= "table" or not validPath(entry.path) or type(entry.existed) ~= "boolean" then
+  if not parsed or type(entries) ~= "table" then return false, "Invalid recovery journal" end
+  local seen, count = {}, 0
+  for index, entry in pairs(entries) do
+    if type(index) ~= "number" or index % 1 ~= 0 or index < 1 or index > #entries
+      or type(entry) ~= "table" or not validPath(entry.path) or seen[entry.path] or type(entry.existed) ~= "boolean" then
       return false, "Invalid recovery entry"
     end
-    if entry.existed and not fs.exists(root .. "/backup/" .. entry.path) then
+    seen[entry.path], count = true, count + 1
+    if fs.exists("/" .. entry.path) and fs.isDir("/" .. entry.path) then return false, "Recovery target is a directory" end
+    if entry.existed and (not fs.exists(root .. "/backup/" .. entry.path) or fs.isDir(root .. "/backup/" .. entry.path)) then
       return false, "Missing backup: " .. entry.path
     end
   end
+  if count ~= #entries then return false, "Incomplete recovery journal" end
   local ok, err = pcall(function()
+    if fs.exists(root .. "/committed") then fs.delete(root) return end
     for _, entry in ipairs(entries) do
       local target = "/" .. entry.path
-      if fs.exists(target) then fs.delete(target) end
-      if entry.existed then fs.copy(root .. "/backup/" .. entry.path, target) end
+      if entry.existed then
+        local backup = assert(fs.open(root .. "/backup/" .. entry.path, "r"))
+        local data = backup.readAll() backup.close()
+        write(target, data)
+      elseif fs.exists(target) then fs.delete(target) end
     end
     fs.delete(root)
   end)

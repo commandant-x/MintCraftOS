@@ -20,7 +20,8 @@ function M.new()
     self.fields=fields self.boxes={}
     self.scroll=math.max(1,math.min(self.scroll,math.max(1,#fields-math.max(1,h-6)+1)))
     if self.edit then
-      ui.input(1,4,w,self.error or self.edit.label,self.text,true)
+      local shown=(self.edit.kind=="secret" or self.edit.kind=="password") and string.rep("*",#self.text) or self.text
+      ui.input(1,4,w,self.error or self.edit.label,shown,true)
       self.actions=ui.toolbar(1,3,w,{{id="apply",label="Apply"},{id="cancel",label="Cancel"}})
       if h>=12 then keyboard.draw(1,h-7,w,self.keyboard) end
       if h<12 then renderer.writeAt(1,5,renderer.crop("Enlarge for touch keyboard",w),colors.orange) end
@@ -31,6 +32,7 @@ function M.new()
       local field=fields[i]
       local y=4+i-self.scroll
       local value=field.get()
+      if field.kind=="secret" or field.kind=="password" then value=string.rep("*",#tostring(value or "")) end
       if field.kind=="boolean" then value=value and "[x]" or "[ ]" end
       ui.input(1,y,w,field.label,value,false)
       self.boxes[#self.boxes+1]={x=1,y=y,w=w,h=1,field=field}

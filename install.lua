@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -28,7 +28,7 @@ local BOOKMARKS = ROOT .. "/bookmarks.json"
 local SETTINGS = ROOT .. "/settings.db"
 local DOWNLOADS = ROOT .. "/downloads.json"
 
-local REDIRECTS = { [301] = true, [302] = true, [307] = true, [308] = true }
+local REDIRECTS = { [301] = true, [302] = true, [303] = true, [307] = true, [308] = true }
 
 local ERROR_DEFS = {
   ["BRW-000"] = { title = "Unknown browser error", hint = "The browser received an unexpected failure." },
@@ -233,6 +233,25 @@ local function cacheKey(url)
   return tostring(url or ""):gsub("[^%w%-_%.]", "_"):sub(1, 80)
 end
 
+local function header(headers,name)
+  for key,value in pairs(headers or {}) do
+    if tostring(key):lower()==name then return tostring(value) end
+  end
+  return nil
+end
+
+local function cacheTime()
+  return os.epoch and os.epoch("utc")/1000 or 0
+end
+
+local function cachePolicy(headers)
+  local control=(header(headers,"cache-control") or ""):lower()
+  if control:find("no-store",1,true) or control:find("private",1,true) then return nil end
+  if control:find("no-cache",1,true) then return 0 end
+  local age=math.max(0,tonumber(header(headers,"age")) or 0)
+  return math.max(0,math.min(3600,tonumber(control:match('max%-age%s*=%s*"?(%d+)')) or 60)-age)
+end
+
 local function filenameFromUrl(url)
   local name = tostring(url or ""):match("/([^/%?#]+)[%?#]?$") or "download.txt"
   name = name:gsub("[^%w%._%-]", "_")
@@ -418,7 +437,7 @@ function M.run(ctx)
     end
   end
 
-  local function loadUrl(url, addToHistory,target)
+  local function loadUrl(url, addToHistory,target,bypass)
     local t = target or tab()
     url = normalizeAddress(url, settings.search)
     if url:match("^mint://crafttube") then
@@ -492,10 +511,48 @@ function M.run(ctx)
     for redirects = 0, settings.maxRedirects do
       app.status = "Loading " .. current
       local cachePath = CACHE .. "/" .. cacheKey(current) .. ".html"
-      if settings.cache and fs.exists(cachePath) then
-        response = { url = current, code = 200, body = readFile(cachePath) or "", headers = {}, size = fs.getSize(cachePath) }
+      local metaPath=cachePath..".json"
+      local cached
+      if settings.cache and not t.private and not bypass and fs.exists(cachePath) and fs.getSize(cachePath)<=524288 then
+        local meta=loadData(metaPath,{})
+        if type(meta)=="table" and meta.url==current and type(meta.headers)=="table" and
+          type(meta.expires)=="number" and not header(meta.headers,"vary") then
+          local body=readFile(cachePath)
+          if body then cached={url=current,code=200,body=body,headers=meta.headers,size=#body,expires=meta.expires} end
+        end
+      end
+      local requestHeaders=headersFor(current,previous)
+      if bypass then requestHeaders["Cache-Control"]="no-cache" end
+      local allowedHop,deniedHop=ctx.security.require("network.http",current)
+      if not allowedHop then response=nil err=deniedHop
+      elseif cached and cacheTime()>0 and cached.expires>cacheTime() then
+        response=cached
       else
-        response, err = httpClient.get(current, { headers = headersFor(current, previous) })
+        if cached then
+          requestHeaders["If-None-Match"]=header(cached.headers,"etag")
+          requestHeaders["If-Modified-Since"]=header(cached.headers,"last-modified")
+        end
+        response, err = httpClient.get(current, { headers=requestHeaders,redirect=false,timeout=10,maxBytes=524288,allowStatus={[304]=true} })
+        if response and response.code==304 then
+          if cached then
+            for key,value in pairs(response.headers or {}) do
+              for old in pairs(cached.headers) do if old:lower()==key:lower() then cached.headers[old]=nil end end
+              cached.headers[key]=value
+            end
+            response=cached
+          else response=nil err="REQUEST_FAILED: unexpected 304 without cached body" end
+        end
+        if settings.cache and not t.private and response and response.code==200 then
+          local ttl=cachePolicy(response.headers)
+          if ttl and not header(response.headers,"vary") then
+            -- Publish metadata last; URL matching also prevents truncated-key collisions.
+            if fs.exists(metaPath) then fs.delete(metaPath) end
+            if writeFile(cachePath,response.body) then saveData(metaPath,{url=current,headers=response.headers,expires=cacheTime()+ttl}) end
+          else
+            if fs.exists(metaPath) then fs.delete(metaPath) end
+            if fs.exists(cachePath) then fs.delete(cachePath) end
+          end
+        end
       end
       if not response then
         local code = classifyError(err)
@@ -522,9 +579,6 @@ function M.run(ctx)
     if #response.body>524288 then
       t.page=errorPage("BRW-000","Page exceeds the 512 KiB reader limit",current) t.title=t.page.title
       app.status="Page too large" return
-    end
-    if settings.cache and response and response.code == 200 then
-      writeFile(CACHE .. "/" .. cacheKey(current) .. ".html", response.body)
     end
     local page = parseHtml(response.body, response.url or current, app.lastW or 60)
     page.status = response.code
@@ -566,7 +620,7 @@ function M.run(ctx)
     url = url or (target or tab()).url
     local allowed, denied = ctx.security.require("network.http", url)
     if not allowed then app.status = "BRW-003 " .. tostring(denied) return end
-    local response, err = httpClient.get(url, { headers = headersFor(url, tab().url) })
+    local response, err = httpClient.get(url, { headers = headersFor(url, tab().url),binary=true,timeout=60,maxBytes=8388608 })
     if not response then app.status = classifyError(err) .. " " .. tostring(err) return end
     local filename = filenameFromUrl(url)
     local path = fs.combine(settings.downloadDir, filename)
@@ -583,7 +637,7 @@ function M.run(ctx)
     elseif tostring(link.url):match("^mint://settings") then
       ctx.apps.launch("settings")
     else
-      enqueue("load",{url=link.url,history=true})
+      enqueue("load",{url=link.url,history=true,bypass=link.text=="Reload"})
     end
   end
 
@@ -683,7 +737,7 @@ function M.run(ctx)
       elseif y == 2 then
         if x == 1 then enqueue("history",-1) return true end
         if x == 3 then enqueue("history",1) return true end
-        if x == 5 then enqueue("load",{url=t.url,history=false}) return true end
+        if x == 5 then enqueue("load",{url=t.url,history=false,bypass=true}) return true end
         if x == 7 then enqueue("load",{url=settings.home,history=true}) return true end
         if x == 9 then addBookmark() return true end
         if x == 11 then enqueue("download",t.url) return true end
@@ -705,7 +759,7 @@ function M.run(ctx)
   local win = ctx.windowManager:create({ title = "Browser", w = math.min(82, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
   worker=appWorker.new(ctx,"Browser requests",function(request)
     local target=app.tabs[request.index]
-    if request.action=="load" then loadUrl(request.value.url,request.value.history,target)
+    if request.action=="load" then loadUrl(request.value.url,request.value.history,target,request.value.bypass)
     elseif request.action=="history" then goHistory(request.value,target)
     elseif request.action=="download" then download(request.value,target) end
   end,function(request,ok,err)
@@ -714,7 +768,7 @@ function M.run(ctx)
       target.page=errorPage(classifyError(err),tostring(err),target.url) target.title=target.page.title
       target.loading=false app.status=tostring(err) pcall(log.warn,"browser",app.status)
     elseif app.status=="Loading..." then app.status="Ready" end
-  end,20)
+  end,70)
   enqueue("load",{url=tab().url,history=false})
   while not win.closed do ctx.pullEvent() end
 end
@@ -725,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -783,7 +837,7 @@ function M.run(ctx)
     if app.configKind=="network" then
       local object=app.networkConfig
       local rows={}
-      for _,entry in ipairs({{"group","World/dimension group","string"},{"x","Zone centre X","number"},{"y","Zone centre Y","number"},{"z","Zone centre Z","number"},{"radius","Zone radius m","number"},{"alerts","Perimeter alerts","boolean"}}) do
+      for _,entry in ipairs({{"group","World/dimension group","string"},{"sharedKey","Shared key (16+ chars)","secret"},{"allowInsecure","Allow unauthenticated Rednet","boolean"},{"x","Zone centre X","number"},{"y","Zone centre Y","number"},{"z","Zone centre Z","number"},{"radius","Zone radius m","number"},{"alerts","Perimeter alerts","boolean"}}) do
         rows[#rows+1]=forms.field(object,entry[1],entry[2],entry[3])
       end return rows
     end
@@ -1084,19 +1138,20 @@ function M.run(ctx)
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Combat",w=math.min(120,w-2),h=math.min(38,h-2),x=2,y=2,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end if trackTimer then os.cancelTimer(trackTimer) end combat.release(ctx.pid) end)
-  timer=os.startTimer(0.05) trackTimer=os.startTimer(0.5)
+  timer=ctx.startTimer(0.05) trackTimer=ctx.startTimer(0.5)
   while not win.closed do
     local event=ctx.pullEvent()
     if event.name=="timer" and event.args[1]==timer then
       if not win.minimized then refresh() end
-      timer=os.startTimer(win.minimized and 1 or (app.page=="radar" or app.page=="three") and 0.05 or 0.2)
+      timer=ctx.startTimer(win.minimized and 1 or (app.page=="radar" or app.page=="three") and 0.05 or 0.2)
     elseif event.name=="timer" and event.args[1]==trackTimer then
       if app.tracking and not win.minimized and not app.confirm then
         local ok,err=combat.requestAim(actor,app.cannonId,app.targetId)
         if not ok then app.tracking=false app.message=tostring(err) end
-      end trackTimer=os.startTimer(0.5)
+      end trackTimer=ctx.startTimer(0.5)
     elseif event.name=="mintcraft_combat_result" and event.args[1]==ctx.pid then
       report(event.args[3],event.args[4])
+      if ctx.invalidate then ctx.invalidate() end
       if not event.args[3] then app.tracking=false end
     end
   end
@@ -1107,7 +1162,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1119,11 +1174,13 @@ local ui = require("system.gui.components")
 local config = require("system.libraries.config")
 local httpClient = require("system.network.http_client")
 local audiod = require("system.services.audiod")
+local appWorker = require("system.libraries.app_worker")
 
 local M = {}
 
 local cfgPath = "/system/config/crafttube.cfg"
 local dataPath = "/home/user/config/crafttube.db"
+local normalizeVideo
 
 local defaultCfg = {
   provider = "invidious",
@@ -1149,8 +1206,9 @@ end
 
 local function loadCfg()
   local cfg = config.load(cfgPath, {})
+  if type(cfg)~="table" then cfg={} end
   for key, value in pairs(defaultCfg) do
-    if cfg[key] == nil or cfg[key] == "" then cfg[key] = value end
+    if type(cfg[key])~=type(value) or cfg[key] == "" then cfg[key] = value end
   end
   return cfg
 end
@@ -1160,31 +1218,46 @@ local function saveCfg(cfg)
 end
 
 local function loadData()
-  return config.load(dataPath, { favorites = {}, history = {} })
+  local data=config.load(dataPath, { favorites = {}, history = {} })
+  if type(data)~="table" then data={} end
+  for _,key in ipairs({"favorites","history"}) do
+    local rows={}
+    if type(data[key])=="table" then
+      for i=1,math.min(30,#data[key]) do
+        local row=data[key][i]
+        if type(row)=="table" and type(row.id)=="string" and type(row.title)=="string" then rows[#rows+1]=normalizeVideo(row) end
+      end
+    end
+    data[key]=rows
+  end
+  return data
 end
 
 local function saveData(data)
   return config.save(dataPath, data)
 end
 
-local function normalizeVideo(raw)
+normalizeVideo = function(raw)
   if type(raw) ~= "table" then return nil end
   local id = raw.id
+  local snippet=type(raw.snippet)=="table" and raw.snippet or {}
   if type(id) == "table" then id = id.videoId or id.id end
   id = raw.videoId or raw.video_id or id
-  local title = raw.title or raw.name or (raw.snippet and raw.snippet.title)
+  local title = raw.title or raw.name or snippet.title
   if not id and raw.url then id = tostring(raw.url):match("[?&]v=([%w%-_]+)") or tostring(raw.url):match("youtu%.be/([%w%-_]+)") end
   if not title or title == "" then title = id or "Untitled" end
   local duration = raw.duration or raw.length or raw.lengthText
   if not duration and raw.lengthSeconds then
     local seconds = tonumber(raw.lengthSeconds) or 0
+    if seconds~=seconds or seconds==math.huge or seconds==-math.huge then seconds=0 end
+    seconds=math.max(0,math.min(86400,math.floor(seconds)))
     duration = string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
   end
   return {
     id = tostring(id or title),
     title = tostring(title),
-    channel = tostring(raw.channel or raw.channelTitle or raw.author or (raw.snippet and raw.snippet.channelTitle) or "-"),
-    description = tostring(raw.description or (raw.snippet and raw.snippet.description) or ""),
+    channel = tostring(raw.channel or raw.channelTitle or raw.author or snippet.channelTitle or "-"),
+    description = tostring(raw.description or snippet.description or ""),
     duration = tostring(duration or "-"),
     views = tostring(raw.viewCountText or raw.views or raw.viewCount or "-"),
     published = tostring(raw.publishedText or raw.published or ""),
@@ -1193,10 +1266,11 @@ local function normalizeVideo(raw)
 end
 
 local function listFromJson(json)
-  local source = json and (json.items or json.results or json.videos or json)
+  local source = type(json)=="table" and (json.items or json.results or json.videos or json)
   local out = {}
   if type(source) == "table" then
-    for _, item in ipairs(source) do
+    for i=1,math.min(#source,100) do
+      local item=source[i]
       local video = normalizeVideo(item)
       if video then table.insert(out, video) end
     end
@@ -1246,6 +1320,13 @@ function M.run(ctx)
     scroll = 1,
     keyboard = {},
   }
+  local worker
+  local function enqueue(action)
+    local cfg={}
+    for key,value in pairs(app.cfg) do cfg[key]=value end
+    local ok,err=worker:submit({action=action,input=app.input,cfg=cfg,video=findById(app.rows,app.selected)})
+    app.status=ok and "Loading..." or tostring(err)
+  end
 
   local actions = {
     { id = "search", label = "Search" },
@@ -1277,31 +1358,26 @@ function M.run(ctx)
     app.status = status or tostring(#app.rows) .. " results"
   end
 
-  local function searchWithProxy(proxy)
-    local url = proxy .. app.cfg.searchPath .. urlEncode(app.input)
+  local function searchWithProxy(proxy,request)
+    if type(proxy)~="string" then return nil,"Invalid proxy" end
+    local url = proxy .. request.cfg.searchPath .. urlEncode(request.input)
     local allowed, denied = ctx.security.require("network.http", url)
     if not allowed then return nil, denied end
-    local response, err = httpClient.json(url)
+    local response, err = httpClient.json(url,{timeout=5,maxBytes=1048576})
     if not response then return nil, err end
     return listFromJson(response.json)
   end
 
-  local function search()
-    app.mode = "search"
-    if app.input == "" then app.status = "Enter search text" return end
-    if not app.cfg.proxy or app.cfg.proxy == "" then
-      app.cfg.proxy = defaultCfg.proxy
-      saveCfg(app.cfg)
-    end
-    local proxies = { app.cfg.proxy }
-    for _, proxy in ipairs(app.cfg.fallbackProxies or {}) do table.insert(proxies, proxy) end
+  local function search(request)
+    if request.input == "" then app.status = "Enter search text" return end
+    local proxies = { request.cfg.proxy }
+    for i=1,math.min(4,#request.cfg.fallbackProxies) do table.insert(proxies,request.cfg.fallbackProxies[i]) end
     app.status = "Searching..."
     local lastErr
     for _, proxy in ipairs(proxies) do
-      local rows, err = searchWithProxy(proxy)
+      local rows, err = searchWithProxy(proxy,request)
       if rows and #rows > 0 then
-        app.cfg.proxy = proxy
-        saveCfg(app.cfg)
+        if app.cfg.proxy==request.cfg.proxy then app.cfg.proxy = proxy saveCfg(app.cfg) end
         showRows(rows, "Search complete via " .. proxy)
         return
       end
@@ -1318,15 +1394,16 @@ function M.run(ctx)
     app.status = "Favorite saved"
   end
 
-  local function openVideo()
-    local video = selectedVideo()
+  local function openVideo(request)
+    local video = request.video
     if not video then app.status = "No video selected" return end
-    if app.cfg.proxy and app.cfg.proxy ~= "" and app.cfg.detailsPath and app.cfg.detailsPath ~= "" then
-      local detailsUrl = app.cfg.proxy .. app.cfg.detailsPath .. urlEncode(video.id)
-      local allowed = ctx.security.require("network.http", detailsUrl)
-      if not allowed then return end
-      local response = httpClient.json(detailsUrl)
-      if response and response.json then
+    if request.cfg.proxy ~= "" and request.cfg.detailsPath ~= "" then
+      local detailsUrl = request.cfg.proxy .. request.cfg.detailsPath .. urlEncode(video.id)
+      local allowed,denied = ctx.security.require("network.http", detailsUrl)
+      if not allowed then app.status=tostring(denied) return end
+      local response,err = httpClient.json(detailsUrl,{timeout=8,maxBytes=1048576})
+      if not response then app.status=tostring(err) return end
+      if response and type(response.json)=="table" then
         local detail = normalizeVideo(response.json.video or response.json.item or response.json)
         if detail then
           video = detail
@@ -1339,27 +1416,28 @@ function M.run(ctx)
     app.status = "Opened details"
   end
 
-  local function playSelected()
-    local video = selectedVideo()
+  local function playSelected(request)
+    local video = request.video
     if not video then app.status = "No video selected" return end
-    if not app.cfg.audioProxy or app.cfg.audioProxy == "" then
+    if request.cfg.audioProxy == "" then
       app.status = "Start DFPWM proxy on http://127.0.0.1:8787"
       return
     end
-    local base = app.cfg.audioProxy:gsub("/+$", "")
-    local audioPath = app.cfg.audioPath or defaultCfg.audioPath
+    local base = request.cfg.audioProxy:gsub("/+$", "")
+    local audioPath = request.cfg.audioPath
     local url = base .. audioPath .. urlEncode(video.id)
     local allowed, denied = ctx.security.require("network.http", url)
     if not allowed then app.status = denied return end
     app.status = "Downloading DFPWM audio..."
-    local response, err = httpClient.get(url, { binary = true })
+    local response, err = httpClient.get(url, { binary = true,maxBytes=4194304,timeout=125 })
     if not response then app.status = tostring(err) return end
     if not fs.exists("/var/tmp") then fs.makeDir("/var/tmp") end
-    local path = "/var/tmp/crafttube_audio.dfpwm"
+    local path = "/var/tmp/crafttube_audio_"..tostring(ctx.pid)..".dfpwm"
     local handle = fs.open(path, "wb")
     if not handle then app.status = "Cannot write audio temp file" return end
-    handle.write(response.body)
-    handle.close()
+    local wrote,writeErr=pcall(handle.write,response.body)
+    pcall(handle.close)
+    if not wrote then app.status=tostring(writeErr) return end
     local ok, playErr = audiod.playDfPWM(path)
     app.status = ok and ("Playing " .. video.title) or tostring(playErr)
   end
@@ -1382,7 +1460,7 @@ function M.run(ctx)
   app.keyboard.onText = function(ch) app.input = app.input .. ch end
   app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
   app.keyboard.onEnter = function()
-    if app.mode == "proxy" or app.mode == "audio" then saveProxy() else search() end
+    if app.mode == "proxy" or app.mode == "audio" then saveProxy() else enqueue("search") end
   end
 
   function app:draw(w, h)
@@ -1440,20 +1518,20 @@ function M.run(ctx)
       local _, x, y = table.unpack(event.args)
       if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
       local action = ui.toolbarHit(self.toolbar, x, y)
-      if action == "search" then self.mode = "search" search() return true end
-      if action == "play" then playSelected() return true end
+      if action == "search" then self.mode = "search" enqueue("search") return true end
+      if action == "play" then enqueue("play") return true end
       if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
       if action == "audio" then self.mode = "audio" self.input = self.cfg.audioProxy or "" return true end
       if action == "fav" then toggleFavorite() return true end
       if action == "history" then showRows(self.data.history, "History") return true end
       if action == "details" then
         local video = selectedVideo()
-        if video then openVideo() end
+        if video then enqueue("details") end
         return true
       end
       if y >= 4 then
         local item = self.rows[self.scroll + math.floor((y - 4) / 3)]
-        if item then self.selected = item.id openVideo() return true end
+        if item then self.selected = item.id enqueue("details") return true end
       end
     end
     return false
@@ -1462,6 +1540,18 @@ function M.run(ctx)
   showRows(app.data.favorites, "Favorites")
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "CraftTube", w = math.min(78, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
+  worker=appWorker.new(ctx,"CraftTube requests",function(request)
+    if request.action=="search" then search(request)
+    elseif request.action=="details" then openVideo(request)
+    elseif request.action=="play" then playSelected(request) end
+  end,function(_,ok,err)
+    if not ok then app.status=tostring(err) end
+  end,140)
+  ctx.onCleanup(function()
+    local path="/var/tmp/crafttube_audio_"..tostring(ctx.pid)..".dfpwm"
+    if fs.exists(path) then pcall(fs.delete,path) end
+  end)
+  if app.input~="" then enqueue("search") end
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -1471,7 +1561,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1557,7 +1647,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -1567,6 +1657,9 @@ local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local autocomplete = require("system.dev.autocomplete")
 local safeWrite = require("system.libraries.safe_write")
+local fileNames = require("system.libraries.file_names")
+local theme = require("system.gui.theme")
+local ui = require("system.gui.components")
 
 local M = {}
 
@@ -1580,7 +1673,7 @@ end
 
 local function readFile(path)
   if path and fs.exists(path) then
-    local h = fs.open(path, "r")
+    local h = assert(fs.open(path, "r"), "Cannot read " .. path)
     local text = h.readAll() or ""
     h.close()
     return splitLines(text)
@@ -1618,10 +1711,15 @@ local function insertText(app, text)
     app.cx = #insertLines[#insertLines] + 1
     app.lines[app.cy] = app.lines[app.cy] .. after
   end
+  if app.persistDraft then app.persistDraft() end
 end
 
-local function compile(app)
-  local tmp = "/var/tmp/editor_compile_" .. tostring(app.pid) .. ".lua"
+local function compile(app, allowed)
+  local prefix = "/var/tmp/editor_compile_" .. tostring(app.pid)
+  local tmp, suffix = prefix .. ".lua", 0
+  while fs.exists(tmp) do suffix = suffix + 1 tmp = prefix .. "_" .. tostring(suffix) .. ".lua" end
+  allowed("filesystem.read", tmp)
+  allowed("filesystem.write", tmp)
   local ok, result = pcall(function()
     if not writeFile(tmp, app.lines) then return "Compile failed: cannot write temporary file" end
     local fn, err = loadfile(tmp)
@@ -1632,27 +1730,148 @@ local function compile(app)
 end
 
 function M.run(ctx)
+  local function allowed(permission, path)
+    local ok, reason = ctx.security.require(permission, path)
+    if not ok then error(reason or ("Permission denied: " .. permission), 0) end
+  end
+  local path = fileNames.absolute(ctx.args.path or "/home/user/documents/untitled.lua")
+  local readOK, initial = pcall(function()
+    allowed("filesystem.read", path)
+    return readFile(ctx.args.path and path)
+  end)
   local app = {
     pid = ctx.pid or 0,
-    path = ctx.args.path or "/home/user/documents/untitled.lua",
-    lines = readFile(ctx.args.path),
+    path = path,
+    lines = readOK and initial or {""},
     cx = 1,
     cy = 1,
     scroll = 1,
-    status = "Editor ready",
+    status = readOK and "Editor ready" or tostring(initial),
     caps = false,
     shift = false,
     keyboard = {},
     revision = 0,
+    keyboardVisible = true,
   }
+  local savedText = readOK and table.concat(app.lines, "\n") or nil
+  local base
+  if readOK then
+    local ok, value = pcall(function()
+      allowed("filesystem.read", path)
+      return fs.exists(path) and table.concat(readFile(path), "\n") or false
+    end)
+    if ok then base = value end
+  end
+  local draftPath = "/home/user/.editor-drafts/" .. path:gsub(".", function(c) return string.format("%02x", c:byte()) end) .. ".draft"
+  local draftBlocked = not readOK
+  local draftSnapshot = false
+  local function text() return table.concat(app.lines, "\n") end
+  local function dirty() return savedText == nil or text() ~= savedText end
+  local function draftAllowed()
+    allowed("filesystem.read", draftPath)
+    allowed("filesystem.write", draftPath)
+  end
+  local recovered, recoveryError = pcall(function()
+    allowed("filesystem.read", draftPath)
+    if not fs.exists(draftPath) then return end
+    local h = assert(fs.open(draftPath, "r"), "Cannot read draft")
+    local data = h.readAll()
+    h.close()
+    draftSnapshot = data
+    local record = textutils.unserialize(data)
+    if type(record) ~= "table" or record.path ~= path or type(record.text) ~= "string"
+      or (type(record.base) ~= "string" and record.base ~= false) then error("Invalid recovery draft: " .. draftPath, 0) end
+    if record.text ~= savedText then
+      app.lines, base = splitLines(record.text), record.base
+      app.status = "Recovered unsaved draft"
+    end
+  end)
+  if not recovered then draftBlocked, app.status = true, tostring(recoveryError) end
+
+  local function checkDraft()
+    local current = false
+    if fs.exists(draftPath) then
+      local h = assert(fs.open(draftPath, "r"), "Cannot read draft")
+      current = h.readAll()
+      h.close()
+    end
+    if current ~= draftSnapshot then error("Recovery draft changed in another editor; retained", 0) end
+  end
+
+  app.persistDraft = function()
+    if draftBlocked then return end
+    local ok, problem = pcall(function()
+      draftAllowed()
+      checkDraft()
+      if not dirty() then
+        if fs.exists(draftPath) then fs.delete(draftPath) end
+        draftSnapshot = false
+        return
+      end
+      if base == nil then error("Original file unreadable; draft not replaced", 0) end
+      local dir = fs.getDir(draftPath)
+      if not fs.exists(dir) then fs.makeDir(dir) end
+      local content = textutils.serialize({path=path, text=text(), base=base})
+      local written, reason = safeWrite.write(draftPath, content)
+      if not written then error(reason, 0) end
+      draftSnapshot = content
+    end)
+    if not ok then app.status = "Draft recovery unavailable: " .. tostring(problem) end
+  end
+
+  local function clearDraft()
+    if draftBlocked then return end
+    draftAllowed()
+    checkDraft()
+    if fs.exists(draftPath) then fs.delete(draftPath) end
+    draftSnapshot = false
+  end
+
+  local function keyboardHeight(h)
+    return app.keyboardVisible and not app.closePrompt and h >= keyboard.height() + 5 and keyboard.height() or 0
+  end
 
   local function visibleHeight(h)
-    return math.max(0, h - keyboard.height() - 3)
+    return math.max(0, h - keyboardHeight(h) - 3)
   end
 
   local function save()
-    local ok, message = safeWrite.write(app.path, table.concat(app.lines, "\n"))
+    local ok, message = pcall(function()
+      allowed("filesystem.read", path)
+      allowed("filesystem.write", path)
+      if fileNames.protected(path) then error("Protected path", 0) end
+      local current = fs.exists(path) and table.concat(readFile(path), "\n") or false
+      if base == nil or current ~= base then error("File changed on disk; original retained", 0) end
+      local written, reason = safeWrite.write(path, text())
+      if not written then error(reason, 0) end
+      base, savedText = text(), text()
+      local cleaned, problem = pcall(clearDraft)
+      return cleaned and reason or (reason .. "; draft cleanup failed: " .. tostring(problem))
+    end)
     app.status = ok and message or ("Save failed: " .. tostring(message))
+    return ok
+  end
+
+  local closeWindow
+  local closeBoxes, closeState = {}, {first=1}
+  local toolbar, toolbarState = {}, {first=1}
+  local actions = {{id="save",label="Save"},{id="compile",label="Compile"},{id="keyboard",label="Keyboard"}}
+  local function closeChoice(choice)
+    if choice == "cancel" then app.closePrompt, closeWindow = false, nil
+    elseif choice == "save" then
+      if save() then closeWindow.closed = true end
+    elseif choice == "discard" then
+      local ok, problem = pcall(clearDraft)
+      if ok then closeWindow.closed = true else app.status = "Discard failed: " .. tostring(problem) end
+    end
+  end
+  function app:canClose(win)
+    if not dirty() then pcall(clearDraft) return true end
+    self.persistDraft()
+    self.closePrompt, closeWindow = true, win
+    self.status = "Unsaved changes"
+    if ctx.invalidate then ctx.invalidate() end
+    return false
   end
 
   local completionCache
@@ -1681,6 +1900,7 @@ function M.run(ctx)
     app.cx = #beforeCursor[#beforeCursor] + 1
     app.status = "Inserted " .. sug.label
     app.revision = app.revision + 1
+    app.persistDraft()
     return true
   end
 
@@ -1697,6 +1917,7 @@ function M.run(ctx)
       table.remove(app.lines, app.cy)
       app.cy, app.cx = app.cy - 1, #previous + 1
     end
+    app.persistDraft()
   end
   app.keyboard.onEnter = function() insertText(app, "\n") end
   app.keyboard.onTab = applySuggestion
@@ -1707,26 +1928,46 @@ function M.run(ctx)
   end
 
   function app:draw(w, h)
+    self.lastH = h
+    if w < 1 or h < 1 then return end
     local sug = suggestion()
-    renderer.writeAt(1, 1, renderer.crop("[Save] [Compile] " .. self.path, w), colors.white, colors.gray)
-    local maxLines = math.max(0, h - keyboard.height() - 3)
+    if self.closePrompt then
+      closeBoxes = ui.toolbar(1, 1, w, {{id="save",label="Save"},{id="discard",label="Discard"},{id="cancel",label="Cancel"}}, closeState)
+    else
+      toolbar = ui.toolbar(1, 1, w, actions, toolbarState)
+    end
+    local kbH = keyboardHeight(h)
+    local maxLines = visibleHeight(h)
     if self.cy < self.scroll then self.scroll = self.cy end
-    if self.cy >= self.scroll + maxLines then self.scroll = self.cy - maxLines + 1 end
+    if maxLines > 0 and self.cy >= self.scroll + maxLines then self.scroll = self.cy - maxLines + 1 end
     for row = 1, maxLines do
       local lineNo = self.scroll + row - 1
       local text = self.lines[lineNo] or ""
       local marker = lineNo == self.cy and ">" or " "
-      renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), theme.get("windowFg"), theme.get("windowBg"))
     end
-    renderer.writeAt(1, h - keyboard.height() - 1, renderer.crop(self.status, w), colors.white, colors.gray)
-    renderer.writeAt(1, h - keyboard.height(), renderer.crop(sug and ("Tab: " .. sug.label .. " [" .. sug.kind .. "]") or "", w), colors.black, colors.orange)
+    if h - kbH - 1 >= 2 then renderer.writeAt(1, h - kbH - 1, renderer.crop(self.status .. (dirty() and " * " or " ") .. self.path, w), theme.get("buttonFg"), theme.get("buttonBg")) end
+    if h - kbH >= 2 then renderer.writeAt(1, h - kbH, renderer.crop(sug and ("Tab: " .. sug.label .. " [" .. sug.kind .. "]") or "", w), theme.get("windowFg"), theme.get("warning")) end
     self.keyboard.x = 1
-    self.keyboard.y = h - keyboard.height() + 1
+    self.keyboard.y = h - kbH + 1
     self.keyboard.hint = sug and ("Tab: " .. sug.label) or ""
-    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+    if kbH > 0 then keyboard.draw(1, self.keyboard.y, w, self.keyboard) else self.keyboard.boxes = {} end
   end
 
   function app:handle(event)
+    if self.closePrompt then
+      if event.name == "key" and event.args[1] == keys.escape then closeChoice("cancel") return true end
+      if event.name == "mouse_click" and event.args[1] == 1 then
+        for _, box in ipairs(closeBoxes) do
+          if ui.hit(box, event.args[2], event.args[3]) then
+            if box.delta then closeState.first = math.max(1, math.min(3, closeState.first + box.delta))
+            else closeChoice(box.id) end
+            break
+          end
+        end
+      end
+      return true
+    end
     if event.name == "char" or event.name == "paste" then
       insertText(self, event.args[1])
       return true
@@ -1750,13 +1991,32 @@ function M.run(ctx)
       end
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
-      if y == 1 and x <= 6 then
+      local action
+      if y == 1 then
+        for _, box in ipairs(toolbar) do
+          if ui.hit(box, x, y) then
+            if box.delta then toolbarState.first = math.max(1, math.min(#actions, toolbarState.first + box.delta)) return true end
+            action = box.id
+            break
+          end
+        end
+      end
+      if action == "save" then
         save()
         return true
-      elseif y == 1 and x >= 8 and x <= 16 then
-        compile(self)
+      elseif action == "compile" then
+        local ok, problem = pcall(function()
+          allowed("dev.compile", path)
+          allowed("filesystem.read", "/var/tmp")
+          compile(self, allowed)
+        end)
+        if not ok then self.status = "Compile failed: " .. tostring(problem) end
         return true
-      elseif event.monitorTouch and keyboard.handle(event, self.keyboard) then
+      elseif action == "keyboard" then
+        self.keyboardVisible = not self.keyboardVisible
+        self.keyboard.boxes = {}
+        return true
+      elseif self.keyboardVisible and keyboardHeight(self.lastH or 18) > 0 and event.monitorTouch and keyboard.handle(event, self.keyboard) then
         return true
       else
         local vh = visibleHeight(self.lastH or 18)
@@ -1783,7 +2043,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -1794,16 +2054,22 @@ local keyboard = require("system.gui.keyboard")
 local config = require("system.libraries.config")
 local ui = require("system.gui.components")
 local fileNames = require("system.libraries.file_names")
+local safeWrite = require("system.libraries.safe_write")
+local theme = require("system.gui.theme")
 
 local M = {}
+local trash = "/home/user/.trash"
+local metadata = trash .. "/.mintcraft-metadata"
 
 local function sortedList(path)
   local rows = {}
   local directories = {}
   if fs.exists(path) and fs.isDir(path) then
     for _, name in ipairs(fs.list(path)) do
-      table.insert(rows, name)
-      directories[name] = fs.isDir(fs.combine(path, name))
+      if path ~= trash or name ~= ".mintcraft-metadata" then
+        table.insert(rows, name)
+        directories[name] = fs.isDir(fs.combine(path, name))
+      end
     end
   end
   table.sort(rows, function(a, b)
@@ -1836,12 +2102,10 @@ local function uniquePath(dir, prefix, ext)
 end
 
 local function trashPath(path)
-  local trash = "/home/user/.trash"
-  if not fs.exists(trash) then fs.makeDir(trash) end
   local name = fs.getName(path)
   local candidate = fs.combine(trash, name)
   local i = 1
-  while fs.exists(candidate) do
+  while fs.exists(candidate) or fs.exists(fs.combine(metadata, fs.getName(candidate))) do
     candidate = fs.combine(trash, name .. "." .. tostring(i))
     i = i + 1
   end
@@ -1882,13 +2146,97 @@ function M.run(ctx)
     { label = "Rename", id = "rename" },
     { label = "Delete", id = "delete" },
     { label = "Restore", id = "restore" },
+    { label = "Delete forever", id = "delete_forever" },
+    { label = "Empty trash", id = "empty_trash" },
     { label = "Refresh", id = "refresh" },
   }
   local toolbar = {}
   local toolbarState = {first = 1}
 
+  local function allowed(permission, path)
+    local ok, reason = ctx.security.require("filesystem." .. permission, path)
+    if not ok then error(reason or ("Permission denied: " .. permission), 0) end
+  end
+
+  local function writable(path)
+    path = fileNames.absolute(path)
+    allowed("read", path)
+    allowed("write", path)
+    if isProtected(path) or path == trash or path == metadata or path:sub(1, #metadata + 1) == metadata .. "/" then
+      error("Protected path", 0)
+    end
+    return path
+  end
+
+  local function attempt(fn, ...)
+    local ok, problem = pcall(fn, ...)
+    if not ok then ctx.notifications:push("error", "Files", tostring(problem), 4) end
+    return ok
+  end
+
+  -- Persist the original path before the move; interrupted moves retain recovery metadata.
+  local function moveToTrash(from)
+    writable(from)
+    if from:sub(1, #trash + 1) == trash .. "/" then error("Use Delete forever inside trash", 0) end
+    allowed("write", trash)
+    allowed("read", trash)
+    allowed("read", metadata)
+    allowed("write", metadata)
+    if not fs.exists(metadata) then fs.makeDir(metadata) end
+    local to = trashPath(from)
+    local info = fs.combine(metadata, fs.getName(to))
+    allowed("write", to)
+    allowed("write", info)
+    local ok, reason = safeWrite.write(info, textutils.serialize({original = from, name = fs.getName(from)}))
+    if not ok then error("Cannot record trash location: " .. tostring(reason), 0) end
+    fs.move(from, to)
+  end
+
+  local function restore(from)
+    writable(from)
+    local info = fs.combine(metadata, fs.getName(from))
+    allowed("read", info)
+    local to
+    if fs.exists(info) then
+      local h = assert(fs.open(info, "r"), "Cannot read trash metadata")
+      local content = h.readAll()
+      h.close()
+      local data = textutils.unserialize(content)
+      if type(data) ~= "table" or type(data.original) ~= "string" or type(data.name) ~= "string"
+        or fs.getName(data.original) ~= data.name or fileNames.absolute(data.original) ~= data.original then
+        error("Invalid trash metadata; item retained", 0)
+      end
+      to = data.original
+    else
+      -- Legacy trash entries have no original location. Preserve their exact names.
+      to = fs.combine("/home/user", fs.getName(from))
+    end
+    to = writable(to)
+    if to:sub(1, #trash + 1) == trash .. "/" then error("Invalid restore location", 0) end
+    if fs.exists(to) then error("Restore target already exists; item retained", 0) end
+    local dir = fs.getDir(to)
+    allowed("write", dir)
+    if not fs.exists(dir) then fs.makeDir(dir) end
+    allowed("write", info)
+    fs.move(from, to)
+    if fs.exists(info) then fs.delete(info) end
+    ctx.notifications:push("success", "Files", "Restored to " .. to, 3)
+  end
+
+  local function deleteForever(path)
+    writable(path)
+    local info = fs.combine(metadata, fs.getName(path))
+    local trashed = parent(path) == trash
+    if trashed then allowed("read", info) allowed("write", info) end
+    fs.delete(path)
+    if trashed and fs.exists(info) then fs.delete(info) end
+  end
+
   local function refresh()
-    local ok, rows, directories = pcall(sortedList, app.path)
+    local ok, rows, directories = pcall(function()
+      allowed("read", app.path)
+      return sortedList(app.path)
+    end)
     if not ok then
       ctx.notifications:push("error", "Files", "Cannot read folder: " .. tostring(rows), 4)
       app.files, app.directories = {}, {}
@@ -1913,6 +2261,7 @@ function M.run(ctx)
 
   local function navigate(path, backwards)
     path = fileNames.absolute(path)
+    allowed("read", path)
     if not fs.exists(path) or not fs.isDir(path) then
       ctx.notifications:push("warn", "Files", "Folder is no longer available", 3)
       return false
@@ -1929,10 +2278,12 @@ function M.run(ctx)
 
   local function openFile(path)
     path = fileNames.absolute(path)
+    allowed("read", path)
     if fs.isDir(path) then
       navigate(path)
       return
     end
+    allowed("read", "/system/config/mime.db")
     local target = mimeApp(path)
     if target then
       ctx.apps.launch(target, { path = path })
@@ -1942,7 +2293,9 @@ function M.run(ctx)
   end
 
   local function submitInput()
+    if not app.mode then return end
     local function target(name)
+      allowed("read", app.path)
       local path, problem = fileNames.target(app.path, name)
       if not path then ctx.notifications:push("warn", "Files", problem, 3) end
       return path
@@ -1951,6 +2304,7 @@ function M.run(ctx)
       local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_file_", ".txt"))
       local path = target(name)
       if not path then return end
+      writable(path)
       local h = fs.open(path, "w")
       if not h then ctx.notifications:push("error", "Files", "Cannot create file", 3) return end
       h.close()
@@ -1959,13 +2313,16 @@ function M.run(ctx)
       local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_folder_", ""))
       local path = target(name)
       if not path then return end
+      writable(path)
       fs.makeDir(path)
       app.selected = name
     elseif app.mode == "rename" and app.selected then
       local old = fs.combine(app.path, app.selected)
-      if isProtected(old) then ctx.notifications:push("error", "Files", "Protected path", 3) return end
+      writable(old)
+      if app.path == trash then error("Restore trash items before renaming", 0) end
       local new = target(app.input)
       if not new then return end
+      writable(new)
       if app.input ~= "" and not fs.exists(new) then
         fs.move(old, new)
         app.selected = app.input
@@ -1986,34 +2343,38 @@ function M.run(ctx)
     elseif action == "home" then
       navigate("/home/user")
     elseif action == "new_file" then
+      allowed("read", app.path)
       setMode("new_file", basename(uniquePath(app.path, "new_file_", ".txt")))
     elseif action == "new_dir" then
+      allowed("read", app.path)
       setMode("new_dir", basename(uniquePath(app.path, "new_folder_", "")))
     elseif action == "rename" then
       if app.selected then setMode("rename", app.selected) end
     elseif action == "delete" then
       if app.selected then
         local full = selectedPath()
-        if isProtected(full) then
+        if isProtected(full) or full == trash then
           ctx.notifications:push("error", "Files", "Protected path", 3)
         else
-          app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+          writable(full)
+          app.confirm = (app.path == trash or app.path:sub(1,#trash+1) == trash .. "/") and "delete_forever" or "trash"
+          app.confirmPath = full
         end
       end
     elseif action == "restore" then
       if app.selected and app.path == "/home/user/.trash" then
         local from = selectedPath()
-        local restoredName = app.selected:gsub("%.%d+$", "")
-        local to = fs.combine("/home/user", restoredName)
-        if fs.exists(from) and not fs.exists(to) then
-          fs.move(from, to)
-          ctx.notifications:push("success", "Files", "Restored to /home/user", 3)
-          app.selected = nil
-          refresh()
-        else
-          ctx.notifications:push("warn", "Files", "Cannot restore", 3)
-        end
+        restore(from)
+        app.selected = nil
+        refresh()
       end
+    elseif action == "delete_forever" and app.selected then
+      app.confirmPath = writable(selectedPath())
+      app.confirm = "delete_forever"
+    elseif action == "empty_trash" then
+      allowed("read", trash)
+      allowed("write", trash)
+      app.confirm, app.confirmPath = "empty_trash", trash
     elseif action == "refresh" then
       app.scroll = 1
       refresh()
@@ -2028,37 +2389,42 @@ function M.run(ctx)
     app.input = app.input:sub(1, -2)
     app.keyboard.hint = tostring(app.mode or "input") .. ": " .. app.input
   end
-  app.keyboard.onEnter = submitInput
-  app.keyboard.onTab = submitInput
+  app.keyboard.onEnter = function() attempt(submitInput) end
+  app.keyboard.onTab = app.keyboard.onEnter
 
   function app:draw(w, h)
-    if self.mode then
+    if w < 1 or h < 1 then return end
+    if self.confirm then
+      toolbar = ui.toolbar(1, 1, w, {{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
+    elseif self.mode then
       toolbar = ui.toolbar(1, 1, w, {{id = "cancel", label = "Cancel"}})
     else
       toolbar = ui.toolbar(1, 1, w, actions, toolbarState)
     end
-    renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), colors.black, colors.lightGray)
+    if h >= 2 then renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), theme.get("windowFg"), theme.get("windowBg")) end
     local files = self.files
-    local kbH = self.mode and keyboard.height() or 0
+    local kbH = self.mode and h >= keyboard.height() + 5 and keyboard.height() or 0
     local listTop = 3
-    local listH = math.max(1, h - listTop - kbH)
+    local listH = math.max(0, h - listTop - kbH)
     self.listBottom = listTop + listH - 1
     ui.list(1, listTop, w, listH, files, self.selected, self.scroll, function(name)
       local prefix = self.directories[name] and "[D] " or "[F] "
       return prefix .. name
     end)
     if self.confirm then
-      local verb = self.confirm == "trash" and "Move to trash" or "Delete system file"
-      renderer.writeAt(1, h, renderer.crop(verb .. " " .. tostring(self.selected) .. "? Tap Delete again.", w), colors.white, colors.red)
+      local verb = self.confirm == "trash" and "Move to trash" or self.confirm == "empty_trash" and "Empty trash forever" or "Delete forever"
+      if h >= 2 then renderer.writeAt(1, h, renderer.crop(verb .. " " .. tostring(self.confirmPath) .. "?", w), theme.get("buttonFg"), theme.get("error")) end
     elseif self.mode then
       self.keyboard.x = 1
-      self.keyboard.y = h - keyboard.height() + 1
-      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
-      renderer.writeAt(1, self.keyboard.y - 1, renderer.crop(tostring(self.mode) .. ": " .. self.input, w), colors.white, colors.gray)
+      self.keyboard.y = h - kbH + 1
+      if kbH > 0 then keyboard.draw(1, self.keyboard.y, w, self.keyboard) else self.keyboard.boxes = {} end
+      if h >= 3 then renderer.writeAt(1, h - kbH, renderer.crop(tostring(self.mode) .. ": " .. self.input, w), theme.get("buttonFg"), theme.get("buttonBg")) end
     end
   end
 
   function app:handle(event)
+    if self.confirm and event.name == "key" and event.args[1] == keys.escape then self.confirm = nil return true end
+    if self.confirm and event.name ~= "mouse_click" then return true end
     if event.name == "key" then
       local key = event.args[1]
       if self.mode then
@@ -2070,12 +2436,12 @@ function M.run(ctx)
           self.keyboard.hint = tostring(self.mode) .. ": " .. self.input
           return true
         elseif key == keys.enter or key == keys.tab then
-          submitInput()
+          attempt(submitInput)
           return true
         end
       end
-      if key == keys.backspace then perform("back") return true end
-      if key == keys.enter and self.selected then openFile(selectedPath()) return true end
+      if key == keys.backspace then attempt(perform, "back") return true end
+      if key == keys.enter and self.selected then attempt(openFile, selectedPath()) return true end
     elseif event.name == "char" and self.mode then
       self.input = self.input .. event.args[1]
       return true
@@ -2096,28 +2462,39 @@ function M.run(ctx)
         end
       end
       if self.confirm then
-        if action == "delete" and self.selected then
-          local full = fs.combine(self.path, self.selected)
-          if self.confirm == "trash" then
-            fs.move(full, trashPath(full))
-            ctx.notifications:push("success", "Files", "Moved to trash", 3)
-          else
-            fs.delete(full)
-            ctx.notifications:push("warn", "Files", "Deleted", 3)
-          end
-          self.selected = nil
+        if action == "confirm" then
+          local succeeded = attempt(function()
+            if self.confirm == "trash" then moveToTrash(self.confirmPath)
+            elseif self.confirm == "empty_trash" then
+              allowed("read", trash)
+              allowed("write", trash)
+              local names = sortedList(trash)
+              -- Preflight the entire batch before deleting any item.
+              for _, name in ipairs(names) do
+                writable(fs.combine(trash, name))
+                allowed("read", fs.combine(metadata, name))
+                allowed("write", fs.combine(metadata, name))
+              end
+              for _, name in ipairs(names) do
+                local path = fs.combine(trash, name)
+                fs.delete(path)
+                local info = fs.combine(metadata, name)
+                if fs.exists(info) then fs.delete(info) end
+              end
+            else deleteForever(self.confirmPath) end
+          end)
+          if succeeded then self.selected, self.confirm = nil, nil end
           refresh()
-        end
-        self.confirm = nil
+        elseif action == "cancel" then self.confirm = nil end
         return true
       end
       if action == "cancel" then setMode(nil) return true end
-      if action then perform(action) return true end
+      if action then attempt(perform, action) return true end
       if not self.mode and y >= 3 and y <= (self.listBottom or 2) then
         local files = self.files
         local name = files[self.scroll + y - 3]
         if name then
-          if self.selected == name then openFile(fs.combine(self.path, name)) else self.selected = name end
+          if self.selected == name then attempt(openFile, fs.combine(self.path, name)) else self.selected = name end
           return true
         end
       end
@@ -2141,7 +2518,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2149,12 +2526,13 @@ return M
   ["apps/logs/main.lua"] = [=[
 local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
-local ui = require("system.gui.components")
+local menu = require("system.gui.action_menu")
+local theme = require("system.gui.theme")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { filter = "all" }
+  local app = { filter = "all", menu = menu.new() }
   local actions = {
     { id = "all", label = "All" },
     { id = "error", label = "Error" },
@@ -2165,13 +2543,12 @@ function M.run(ctx)
   }
 
   local function parse(line)
-    local ok, row = pcall(textutils.unserialize, line)
-    if ok and type(row) == "table" then return row end
-    return { level = "info", source = "raw", message = line, time = "" }
+    return log.parse(line)
   end
 
   local function format(row)
-    return tostring(row.time or "") .. " " .. tostring(row.level or "?") .. " " .. tostring(row.source or "?") .. ": " .. tostring(row.message or "")
+    local text = tostring(row.time or "") .. " " .. tostring(row.level or "?") .. " " .. tostring(row.source or "?") .. ": " .. tostring(row.message or "")
+    return (text:gsub("[%c]", " "))
   end
 
   local function matches(row, filter)
@@ -2180,33 +2557,34 @@ function M.run(ctx)
   end
 
   function app:draw(w, h)
-    self.toolbar = ui.toolbar(1, 1, w, actions)
-    renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), colors.black, colors.lightGray)
-    local raw = log.tail(120)
-    local lines = {}
-    for _, line in ipairs(raw) do
-      local row = parse(line)
-      if matches(row, self.filter) then table.insert(lines, format(row)) end
+    renderer.fill(1, 1, w, h, theme.get("windowBg"))
+    menu.bar(self.menu, 1, 1, w, actions, {selector=true,label="Filter: " .. self.filter,title="Log filters",selected=self.filter})
+    if h >= 2 then renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), theme.get("windowFg"), theme.get("windowBg")) end
+    if self.revision ~= log.revision() or self.cachedFilter ~= self.filter then
+      self.lines = {}
+      for _, line in ipairs(log.tail(120)) do
+        local row = parse(line)
+        if matches(row, self.filter) then table.insert(self.lines, format(row)) end
+      end
+      self.revision, self.cachedFilter = log.revision(), self.filter
     end
+    local lines = self.lines
     local start = math.max(1, #lines - h + 3)
     local y = 3
     for i = start, #lines do
-      renderer.writeAt(1, y, renderer.crop(lines[i], w), colors.black, colors.lightGray)
+      if y > h then break end
+      renderer.writeAt(1, y, renderer.crop(lines[i], w), theme.get("windowFg"), theme.get("windowBg"))
       y = y + 1
       if y > h then break end
     end
+    if h >= 5 then menu.overlay(self.menu, w, h) end
   end
 
   function app:handle(event)
-    if event.name == "mouse_click" then
-      local _, x, y = table.unpack(event.args)
-      local action = ui.toolbarHit(self.toolbar, x, y)
-      if action then
-        if action ~= "refresh" then self.filter = action end
-        return true
-      end
-    end
-    return false
+    local action, handled = menu.handle(self.menu, event)
+    if action == "refresh" then log.invalidate()
+    elseif action then self.filter = action end
+    return handled
   end
 
   local sw, sh = term.getSize()
@@ -2220,7 +2598,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2339,7 +2717,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -2558,11 +2936,11 @@ function M.run(ctx)
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end flight.release(ctx.pid,"Navigation closed/crashed/killed") end)
-  timer=os.startTimer(0.2)
+  timer=ctx.startTimer(0.2)
   while not win.closed do
     local event=ctx.pullEvent()
     if event.name=="timer" and event.args[1]==timer then
-      if not win.minimized then refresh() end timer=os.startTimer(0.2)
+      if not win.minimized then refresh() end timer=ctx.startTimer(0.2)
     end
   end
 end
@@ -2572,7 +2950,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -2580,6 +2958,7 @@ return M
   ["apps/services/main.lua"] = [=[
 local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
+local theme = require("system.gui.theme")
 
 local M = {}
 
@@ -2593,21 +2972,23 @@ function M.run(ctx)
   local protected = { deviced = true, notifd = true, logd = true }
 
   function app:draw(w, h)
+    renderer.fill(1, 1, w, h, theme.get("windowBg"))
     self.toolbar = ui.toolbar(1, 1, w, actions)
-    renderer.writeAt(1, 2, renderer.crop("SERVICE       STATE      AUTO", w), colors.black, colors.gray)
+    renderer.writeAt(1, 2, renderer.crop("SERVICE       STATE      AUTO", w), theme.get("titleFg"), theme.get("titleBg"))
     local rows = ctx.system.services:list()
     for i = 1, math.min(#rows, h - 4) do
       local s = rows[self.scroll + i - 1]
       if s then
-        local bg = s.name == self.selected and colors.cyan or colors.lightGray
+        local bg = s.name == self.selected and theme.get("accent") or theme.get("windowBg")
         local mark = protected[s.name] and " protected" or ""
-        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart) .. mark, w), colors.black, bg)
+        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart) .. mark, w), theme.get("windowFg"), bg)
       end
     end
     local selected
     for _, s in ipairs(rows) do if s.name == self.selected then selected = s end end
     if selected then
-      renderer.writeAt(1, h, renderer.crop("Last error: " .. tostring(selected.error or "-"), w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, h - 1, renderer.crop("Last success: " .. tostring(selected.lastSuccess or "unknown"), w), theme.get("windowFg"), theme.get("windowBg"))
+      renderer.writeAt(1, h, renderer.crop("Last error: " .. tostring(selected.error or "-"), w), theme.get("windowFg"), theme.get("windowBg"))
     end
   end
 
@@ -2629,8 +3010,8 @@ function M.run(ctx)
       elseif action == "stop" then
         ctx.system.services:stop(self.selected)
       elseif action == "restart" then
-        ctx.system.services:stop(self.selected)
-        ctx.system.services:start(self.selected)
+        local stopped = ctx.system.services:stop(self.selected)
+        if stopped then ctx.system.services:start(self.selected) end
       end
       return true
     end
@@ -2653,7 +3034,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -2670,416 +3051,293 @@ local audiod = require("system.services.audiod")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 local profile = require("system.libraries.profile")
-
+local menu = require("system.gui.action_menu")
 local M = {}
+local pages = {}
+for _, entry in ipairs({{"system","System"},{"display","Display"},{"desktop","Desktop"},{"network","Network"},
+  {"storage","Storage"},{"sound","Sound"},{"security","Security"},{"apps","Apps"},{"packages","Packages"},
+  {"dev","Dev"},{"nav","Navigation"},{"combat","Combat"}}) do pages[#pages+1]={id=entry[1],label=entry[2]} end
 
-function M.run(ctx)
-  local app = { page = ctx.args and ctx.args.page=="apps" and "apps" or "system", scroll = 1, mode = nil, input = "", keyboard = {}, appMessage="" }
-  if app.page=="apps" then app.tabState={first=8} end
-
-  local pages = {
-    { id = "system", label = "System" },
-    { id = "display", label = "Display" },
-    { id = "desktop", label = "Desktop" },
-    { id = "network", label = "Network" },
-    { id = "storage", label = "Storage" },
-    { id = "sound", label = "Sound" },
-    { id = "security", label = "Security" },
-    { id = "apps", label = "Apps" },
-    { id = "packages", label = "Packages" },
-    { id = "dev", label = "Dev" },
-    { id = "nav", label = "Navigation" },
-    { id = "combat", label = "Combat" },
-  }
-
-  local function computerId()
-    if os.getComputerID then return os.getComputerID() end
-    if os.computerID then return os.computerID() end
-    return 0
-  end
-
-  local function pseudoIp()
-    local id = computerId()
-    return "10.0." .. tostring(math.floor(id / 256) % 256) .. "." .. tostring(id % 256)
-  end
-
-  local function monitorGrade(display)
-    local cells = (display.width or 0) * (display.height or 0)
-    if display.target ~= "monitor" then return "computer" end
-    if cells >= 4500 then return "A"
-    elseif cells >= 2500 then return "B"
-    elseif cells >= 1200 then return "C"
-    else return "D"
-    end
-  end
-
-  local function httpStatus()
-    local status = networkd.getStatus()
-    return status.http and "available" or "missing"
-  end
-
-  local function rednetStatus()
-    if deviced.scanError then return "device scan unavailable" end
-    return deviced.hasType("modem") and "modem detected" or "no modem"
-  end
-
-  local function sizeLabel(bytes)
-    bytes = tonumber(bytes) or 0
-    if bytes >= 1024 * 1024 then return string.format("%.1f MB", bytes / 1024 / 1024) end
-    if bytes >= 1024 then return string.format("%.1f KB", bytes / 1024) end
-    return tostring(bytes) .. " B"
-  end
-
-  function app:draw(w, h)
-    self.tabState = self.tabState or {first = 1}
-    self.tabBoxes = ui.tabs(1, 1, w, pages, self.page, self.tabState)
-
-    if self.page == "system" then
-      renderer.writeAt(1, 3, "Computer ID: " .. tostring(computerId()), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Label: " .. tostring(os.getComputerLabel and (os.getComputerLabel() or "-") or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "MintCraft: " .. version.current(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "CraftOS over CC:Tweaked", colors.gray, colors.lightGray)
-      renderer.button(1, 10, 16, "Set label", false)
-    elseif self.page == "display" then
-      local d = deviced.getDisplay()
-      renderer.writeAt(1, 3, "Target: " .. tostring(d.target), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Resolution: " .. tostring(d.width) .. "x" .. tostring(d.height), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Monitor side: " .. tostring(d.monitorSide or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Scale: " .. tostring(d.scale or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Monitor grade: " .. monitorGrade(d), colors.black, colors.lightGray)
-        renderer.writeAt(1, 8, "Graphics: " .. tostring(d.width * 2) .. "x" .. tostring(d.height * 3) .. " subpixels", colors.black, colors.lightGray)
-      renderer.button(1, 9, 18, "Refresh display", false)
-      renderer.writeAt(1, 11, "Set scale:", colors.black, colors.lightGray)
-      renderer.button(1, 12, 8, "0.5", d.scale == 0.5)
-      renderer.button(10, 12, 8, "1.0", d.scale == 1)
-      renderer.button(19, 12, 8, "1.5", d.scale == 1.5)
-      renderer.button(28, 12, 8, "2.0", d.scale == 2)
-    elseif self.page == "nav" then
-      local sabled = require("system.services.sabled")
-      local avionicsd = require("system.services.avionicsd")
-      local st = sabled.status()
-      local av = avionicsd.status()
-      local counts = av.counts or {}
-      local nav = config.load("/system/config/navigation.cfg", {})
-      local aircraft = nav.aircraft or {}
-      renderer.writeAt(1, 3, "CC:Sable: " .. tostring(st.available and "available" or "missing"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, renderer.crop("Avionics: " .. tostring(av.available and "ready" or "missing") .. " alt=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " prop=" .. tostring(counts.propeller or 0), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, renderer.crop("Aircraft: " .. tostring(aircraft.name or "-") .. " mass=" .. tostring(aircraft.massKg or "-") .. "kg weight=" .. tostring(aircraft.declaredWeightNewton or "-") .. "N", w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 9, "Frequencies:", colors.black, colors.lightGray)
-      for i, command in ipairs(aircraft.commands or {}) do
-        if i > 5 or i > h - 15 then break end
-        renderer.writeAt(1, 9 + i, renderer.crop(tostring(command.name) .. " -> " .. tostring(command.frequency), w), colors.black, colors.lightGray)
-      end
-      renderer.writeAt(1, 15, "Redstone profiles:", colors.black, colors.lightGray)
-      for i, profile in ipairs(nav.redstoneProfiles or {}) do
-        if i > h - 17 then break end
-        renderer.writeAt(1, 15 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
-      end
-      renderer.button(1, h - 2, 18, "Open Navigation", false)
-    elseif self.page == "combat" then
-      local combatd = require("system.services.combatd")
-      local st = combatd.status()
-      local counts = st.counts or {}
-      local combat = config.load("/system/config/combat.cfg", {})
-      renderer.writeAt(1, 3, "Combat: " .. tostring(st.available and "ready" or "missing"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, renderer.crop("Radar=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, renderer.crop("Mode: semi-auto=" .. tostring(combat.semiAuto ~= false) .. " confirmFire=" .. tostring(combat.requireFireConfirmation ~= false), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, renderer.crop("Ballistics: gravity=" .. tostring(combat.ballistics and combat.ballistics.gravity or "-") .. " muzzle=" .. tostring(combat.ballistics and combat.ballistics.muzzleVelocity or "-"), w), colors.black, colors.lightGray)
-      if st.errors and #st.errors > 0 then renderer.writeAt(1, 9, renderer.crop("Error: " .. tostring(st.errors[1]), w), colors.red, colors.lightGray) end
-      renderer.button(1, h - 2, 14, "Open Combat", false)
-    elseif self.page == "desktop" then
-      renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Context menu: desktop double tap on monitor", colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Windows: drag, minimize, maximize, close", colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
-      renderer.button(1, 9, 14, "Mint", theme.currentId == "mint")
-      renderer.button(16, 9, 14, "Dark", theme.currentId == "dark")
-    elseif self.page == "network" then
-      local status = networkd.getStatus()
-      local crafttube = config.load("/system/config/crafttube.cfg", {})
-      renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "WebSocket: " .. tostring(status.websocket and "available" or "missing"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, renderer.crop("CraftTube " .. tostring(crafttube.provider or "proxy") .. ": " .. tostring(crafttube.proxy or ""), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
-      renderer.button(1, 10, 16, "Open Browser", false)
-      renderer.button(18, 10, 18, "Messenger", false)
-      renderer.button(38, 10, 18, "CraftTube", false)
-    elseif self.page == "storage" then
-      local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
-      local cap = fs.getCapacity and fs.getCapacity("/") or nil
-      renderer.writeAt(1, 3, "Root: /", colors.black, colors.lightGray)
-      if cap and free then
-        renderer.writeAt(1, 4, "Used: " .. sizeLabel(cap - free) .. " / " .. sizeLabel(cap), colors.black, colors.lightGray)
-        renderer.writeAt(1, 5, "Free: " .. sizeLabel(free), colors.black, colors.lightGray)
-      elseif free then
-        renderer.writeAt(1, 4, "Free: " .. sizeLabel(free), colors.black, colors.lightGray)
-      else
-        renderer.writeAt(1, 4, "Storage metrics unavailable", colors.black, colors.lightGray)
-      end
-      renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
-    elseif self.page == "sound" then
-      local st = audiod.status()
-      renderer.writeAt(1, 3, "Audio service: " .. tostring(st.ready and "ready" or "stopped"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Enabled: " .. tostring(st.enabled and "yes" or "no"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Speakers: " .. tostring(st.count or 0), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Default side: " .. tostring(st.defaultSide or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Volume: " .. tostring(st.volume) .. "  Notify: " .. tostring(st.notificationVolume), colors.black, colors.lightGray)
-      renderer.button(1, 9, 12, st.enabled and "Disable" or "Enable", false)
-      renderer.button(15, 9, 12, "Test", false)
-      renderer.writeAt(1, 11, "Volume:", colors.black, colors.lightGray)
-      renderer.button(1, 12, 8, "0.5", st.volume == 0.5)
-      renderer.button(10, 12, 8, "1.0", st.volume == 1)
-      renderer.button(19, 12, 8, "1.5", st.volume == 1.5)
-      renderer.button(28, 12, 8, "2.0", st.volume == 2)
-      local speakers = st.speakers or {}
-      renderer.writeAt(1, 14, "Detected speakers:", colors.black, colors.lightGray)
-      for i = 1, math.min(#speakers, h - 15) do
-        renderer.writeAt(1, 14 + i, renderer.crop(tostring(speakers[i].side) .. "  tap to use", w), colors.black, colors.lightGray)
-      end
-    elseif self.page == "security" then
-      local cfg = config.load("/system/config/security.cfg", {})
-      local user = securityd.currentUser()
-      renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "users"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "User: " .. tostring(user and user.name or "admin"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Service: " .. securityd.statusText(), colors.black, colors.lightGray)
-      renderer.button(1, 8, 10, "Lock", false)
-      renderer.button(13, 8, 12, "Unlock", false)
-      renderer.button(27, 8, 12, "Admin", user and user.name == "admin")
-      renderer.button(41, 8, 12, "Guest", user and user.name == "guest")
-      renderer.button(1, 10, 18, "Set password", false)
-      renderer.writeAt(1, 12, "Policy: app permissions + user permissions.", colors.gray, colors.lightGray)
-      renderer.writeAt(1, 13, "Locked sessions deny sensitive actions.", colors.gray, colors.lightGray)
-      local users = securityd.users()
-      for i = 1, math.min(#users, h - 14) do
-        local item = users[i]
-        renderer.writeAt(1, 14 + i, renderer.crop((item.active and "* " or "  ") .. item.name .. "  " .. item.role .. "  " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
-      end
-    elseif self.page == "apps" then
-      local rows = ctx.apps.list(true,true)
-      self.appBarState=self.appBarState or {}
-      self.appBar=ui.toolbar(1,2,w,{{id="full",label="Full"},{id="pocket",label="Pocket"},{id="auto",label="Auto"}},self.appBarState)
-      renderer.writeAt(1,3,renderer.crop("Profile: "..profile.mode(),w),colors.black,colors.gray)
-      self.appRows={}
-      local height=math.max(1,h-5)
-      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-height+1)))
-      for i = 1, math.min(#rows, height) do
-        local item = rows[self.scroll + i - 1]
-        if item then
-          local essential=profile.isCore(item.id)
-          renderer.writeAt(1,i+3,renderer.crop((profile.appEnabled(item.id) and "[x] " or "[ ] ")..item.name..(essential and " *" or ""),w),essential and colors.gray or colors.black,colors.lightGray)
-          self.appRows[#self.appRows+1]={id=item.id,x=1,y=i+3,w=w,h=1}
-        end
-      end
-      self.appPager=ui.toolbar(1,h-1,8,{{id="up",label="^"},{id="down",label="v"}})
-      renderer.writeAt(9,h-1,renderer.crop(self.appMessage,math.max(1,w-8)),colors.gray,colors.lightGray)
-    elseif self.page == "packages" then
-      local rows = ctx.system.packages.installed()
-      renderer.writeAt(1, 3, renderer.crop("PACKAGE          VERSION", w), colors.black, colors.gray)
-      if #rows == 0 then renderer.writeAt(1, 4, "No package installed", colors.gray, colors.lightGray) end
-      for i = 1, math.min(#rows, h - 4) do
-        local item = rows[self.scroll + i - 1]
-        if item then renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. item.version, w), colors.black, colors.lightGray) end
-      end
-    elseif self.page == "dev" then
-      renderer.writeAt(1, 3, "Editor: embedded in Files for text and Lua files", colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
-      renderer.button(1, 7, 14, "Open Files", false)
-    end
-    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
-      self.keyboard.x = 1
-      self.keyboard.y = math.max(1, h - keyboard.height() + 1)
-      if self.mode == "label" then
-        self.keyboard.hint = "Label: " .. self.input
-      elseif self.mode == "unlock" then
-        self.keyboard.hint = "Unlock password: " .. string.rep("*", #self.input)
-      elseif self.mode == "adminLogin" then
-        self.keyboard.hint = "Admin password: " .. string.rep("*", #self.input)
-      else
-        self.keyboard.hint = "New admin password: " .. string.rep("*", #self.input)
-      end
-      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
-    end
-    renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
-  end
-
-  app.keyboard.onText = function(ch) app.input = app.input .. ch end
-  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
-  app.keyboard.onEnter = function()
-    if app.mode == "label" and os.setComputerLabel then os.setComputerLabel(app.input) end
-    if app.mode == "unlock" then
-      local ok, msg = securityd.unlock(app.input)
-      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
-    elseif app.mode == "adminLogin" then
-      local ok, msg = securityd.login("admin", app.input)
-      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
-    elseif app.mode == "setPassword" then
-      local allowed, denied = app.securityRequire("system.auth", "set admin password")
-      if allowed then
-        local ok, msg = securityd.setPassword("admin", app.input)
-        if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", ok and "Password changed" or tostring(msg), 3) end
-      elseif app.systemNotifications then
-        app.systemNotifications:push("warn", "Security", tostring(denied), 3)
-      end
-    end
-    app.mode = nil
-    app.input = ""
-  end
-  app.systemNotifications = ctx.notifications
-  app.securityRequire = ctx.security.require
-
-  function app:handle(event)
-    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
-      if event.name == "char" then self.input = self.input .. event.args[1] return true end
-      if event.name == "key" and event.args[1] == keys.backspace then self.input = self.input:sub(1, -2) return true end
-      if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
-      if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
-    end
-    if event.name == "mouse_scroll" and (self.page == "apps" or self.page == "packages") then
-      self.scroll = math.max(1, self.scroll + event.args[1])
-      return true
-    end
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    if self.page=="apps" and y~=1 then
-      local action=ui.toolbarHit(self.appBar,x,y) or ui.toolbarHit(self.appPager,x,y)
-      for _,box in ipairs(self.appBar or {}) do if box.delta and ui.hit(box,x,y) then self.appBarState.first=math.max(1,(self.appBarState.first or 1)+box.delta) return true end end
-      if action=="up" or action=="down" then self.scroll=math.max(1,self.scroll+(action=="down" and 1 or -1)) return true end
-      local value=profile.configuration()
-      local changed=false
-      if action=="full" or action=="pocket" or action=="auto" then
-        value.mode=action=="full" and "desktop" or action value.apps={} changed=true
-      else
-        for _,box in ipairs(self.appRows or {}) do if ui.hit(box,x,y) then
-          if profile.isCore(box.id) then self.appMessage="Essential app" return true end
-          value.apps[box.id]=not profile.appEnabled(box.id) changed=true break
-        end end
-      end
-      if changed then
-        local allowed,reason=ctx.security.require("system.config","app selection")
-        if not allowed then self.appMessage=tostring(reason) return true end
-        local ok,message=profile.configure(value)
-        self.appMessage=ok and "Saved" or tostring(message)
-        return true
-      end
-    end
-    if y == 1 then
-      for _, page in ipairs(self.tabBoxes or {}) do
-        if ui.hit(page, x, y) then
-          if page.delta then
-            self.tabState.first = math.max(1, math.min(#pages, self.tabState.first + page.delta))
-            return true
-          end
-          self.page = page.id
-          self.scroll = 1
-          return true
-        end
-      end
-    end
-
-    if self.page == "desktop" and y == 9 and x <= 14 then
-      theme.set("mint")
-      ctx.notifications:push("success", "Settings", "Mint theme applied", 3)
-      return true
-    elseif self.page == "desktop" and y == 9 and x >= 16 and x <= 29 then
-      theme.set("dark")
-      ctx.notifications:push("success", "Settings", "Dark theme applied", 3)
-      return true
-    elseif self.page == "display" and y == 9 and x <= 18 then
-      deviced.refreshDisplay()
-      return true
-    elseif self.page == "display" and y == 12 then
-      if x <= 8 then deviced.setScale(0.5) return true end
-      if x >= 10 and x <= 17 then deviced.setScale(1) return true end
-      if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
-      if x >= 28 and x <= 35 then deviced.setScale(2) return true end
-    elseif self.page == "nav" and y == select(2, term.getSize()) - 2 and x <= 18 then
-      ctx.apps.launch("navigation")
-      return true
-    elseif self.page == "combat" and y == select(2, term.getSize()) - 2 and x <= 14 then
-      ctx.apps.launch("combat")
-      return true
-    elseif self.page == "sound" and y == 9 and x <= 12 then
-      local st = audiod.status()
-      audiod.setEnabled(not st.enabled)
-      ctx.notifications:push("success", "Audio", "Audio " .. tostring(not st.enabled and "enabled" or "disabled"), 2)
-      return true
-    elseif self.page == "sound" and y == 9 and x >= 15 and x <= 26 then
-      local ok, err = audiod.test()
-      ctx.notifications:push(ok and "success" or "warn", "Audio", ok and "Test note sent" or tostring(err), 3)
-      return true
-    elseif self.page == "sound" and y == 12 then
-      if x <= 8 then audiod.setVolume(0.5) return true end
-      if x >= 10 and x <= 17 then audiod.setVolume(1) return true end
-      if x >= 19 and x <= 26 then audiod.setVolume(1.5) return true end
-      if x >= 28 and x <= 35 then audiod.setVolume(2) return true end
-    elseif self.page == "sound" and y >= 15 then
-      local st = audiod.status()
-      local item = (st.speakers or {})[y - 14]
-      if item then
-        local ok, err = audiod.use(item.side)
-        ctx.notifications:push(ok and "success" or "warn", "Audio", ok and ("Using " .. item.side) or tostring(err), 3)
-        return true
-      end
-    elseif self.page == "security" and y == 8 and x <= 10 then
-      securityd.lock()
-      ctx.notifications:push("warn", "Security", "Session locked", 3)
-      return true
-    elseif self.page == "security" and y == 8 and x >= 13 and x <= 24 then
-      self.mode = "unlock"
-      self.input = ""
-      return true
-    elseif self.page == "security" and y == 8 and x >= 27 and x <= 38 then
-      self.mode = "adminLogin"
-      self.input = ""
-      return true
-    elseif self.page == "security" and y == 8 and x >= 41 and x <= 52 then
-      securityd.logout()
-      ctx.notifications:push("info", "Security", "Guest session", 3)
-      return true
-    elseif self.page == "security" and y == 10 and x <= 18 then
-      self.mode = "setPassword"
-      self.input = ""
-      return true
-    elseif self.page == "system" and y == 10 and x <= 16 then
-      self.mode = "label"
-      self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
-      return true
-    elseif self.page == "network" and y == 10 and x <= 16 then
-      ctx.apps.launch("browser")
-      return true
-    elseif self.page == "network" and y == 10 and x >= 18 and x <= 35 then
-      ctx.apps.launch("messenger")
-      return true
-    elseif self.page == "network" and y == 10 and x >= 38 and x <= 55 then
-      ctx.apps.launch("crafttube")
-      return true
-    elseif self.page == "dev" and y == 7 and x <= 14 then
-      ctx.apps.launch("files")
-      return true
-    end
-    return false
-  end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Settings", w = math.min(72, sw - 4), h = math.min(18, sh - 3), x = 8, y = 4, app = app })
-  while not win.closed do ctx.pullEvent() end
+local function computerId()
+  return os.getComputerID and os.getComputerID() or os.computerID and os.computerID() or 0
+end
+local function sizeLabel(value)
+  if type(value)~="number" then return tostring(value or "unavailable") end
+  if value>=1048576 then return string.format("%.1f MB",value/1048576) end
+  if value>=1024 then return string.format("%.1f KB",value/1024) end
+  return value.." B"
 end
 
+function M.run(ctx)
+  local app={page=ctx.args and ctx.args.page=="apps" and "apps" or "system",scroll=1,input="",keyboard={},
+    appMessage="",views=menu.new(),actions=menu.new()}
+  local function notify(ok,title,message)
+    if ctx.notifications then ctx.notifications:push(ok and "success" or "warn",title,tostring(message or (ok and "Saved" or "Failed")),3) end
+  end
+  local function allowed(permission)
+    local ok,err=ctx.security.require(permission,"Settings")
+    if not ok then notify(false,"Settings",err) end
+    return ok
+  end
+  local actor={pid=ctx.pid,appId=ctx.appId,permissions=ctx.permissions or {}}
+  local closed=false
+  local function authenticate(action,password,oldPassword)
+    if app.authBusy then notify(false,"Security","Authentication already in progress") return end
+    local scheduler=ctx.system and ctx.system.scheduler
+    if not scheduler then notify(false,"Security","Authentication worker unavailable") return end
+    app.authBusy=true app.authCancel=false app.appMessage="Hashing password; 0%"
+    local options={cancelled=function() return closed or app.authCancel end,
+      progress=function(done,total)
+        app.appMessage="Hashing password; "..math.floor(done/total*100).."%"
+        if ctx.invalidate and not closed then ctx.invalidate() end
+      end}
+    local pid=scheduler:spawn("Settings authentication",function()
+      local called,ok,message=pcall(function()
+        if action=="unlock" then return securityd.unlock(password,options) end
+        if action=="adminLogin" then return securityd.login("admin",password,options) end
+        return securityd.setPassword("admin",password,oldPassword,actor,options)
+      end)
+      password,oldPassword=nil,nil
+      app.authBusy=false
+      if not closed then
+        if app.authCancel then ok,message=false,"Authentication cancelled"
+        elseif not called then ok,message=false,"Authentication failed" end
+        app.appMessage=tostring(message or (ok and "Password changed" or "Authentication failed"))
+        notify(ok,"Security",app.appMessage)
+        if ctx.invalidate then ctx.invalidate() end
+        os.queueEvent("mintcraft_app_result",ctx.pid)
+      end
+    end,{eventMode="raw",appId=ctx.appId,permissions=ctx.permissions,protected=true})
+    local ok,err=scheduler:start(pid)
+    if ok==false then app.authBusy=false notify(false,"Security",err) end
+  end
+  if ctx.onCleanup then ctx.onCleanup(function()
+    -- Let the raw worker cancel before commit and release the shared auth mutex.
+    closed=true app.authCancel=true app:cancelInput()
+  end) end
+  function app:beginInput(mode)
+    menu.dismiss(self.views,self.actions) self.mode,self.input=mode,""
+    if mode=="label" then self.input=os.getComputerLabel and (os.getComputerLabel() or "") or "" end
+  end
+  function app:cancelInput() self.mode,self.input,self.oldPassword,self.newPassword=nil,"",nil,nil end
+  function app:items()
+    local result={}
+    local function add(id,label,active) result[#result+1]={id=id,label=label,active=active} end
+    if self.authBusy then add("cancelAuth","Cancel authentication") return result end
+    if self.page=="system" then add("label","Set label")
+    elseif self.page=="display" then
+      add("refresh","Refresh")
+      for _,v in ipairs({0.5,1,1.5,2}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+    elseif self.page=="desktop" then add("theme:mint","Mint",theme.currentId=="mint") add("theme:dark","Dark",theme.currentId=="dark")
+    elseif self.page=="network" then add("launch:browser","Browser") add("launch:messenger","Messenger") add("launch:crafttube","CraftTube")
+    elseif self.page=="nav" then add("launch:navigation","Open Navigation")
+    elseif self.page=="combat" then add("launch:combat","Open Combat")
+    elseif self.page=="dev" then add("launch:files","Open Files")
+    elseif self.page=="sound" then
+      local st=audiod.status() add("audio",st.enabled and "Disable" or "Enable") add("test","Test")
+      for _,v in ipairs({0.5,1,1.5,2}) do add("volume:"..v,"Volume "..v,st.volume==v) end
+      for _,speaker in ipairs(st.speakers or {}) do add("speaker:"..speaker.side,"Use "..speaker.side) end
+    elseif self.page=="security" then
+      add("lock","Lock") add("unlock","Unlock") add("adminLogin","Admin") add("guest","Guest") add("passwordOld","Change password")
+    elseif self.page=="apps" then add("profile:desktop","Full") add("profile:pocket","Pocket") add("profile:auto","Auto")
+    elseif self.page=="storage" then
+      if self.cleanupPending then add("cleanupConfirm","Confirm prune") add("cleanupCancel","Cancel")
+      else add("cleanup","Prune old backups") end
+    end
+    return result
+  end
+  function app:lines()
+    local rows={}
+    local function line(value) rows[#rows+1]=tostring(value) end
+    local id=computerId()
+    local ip="10.0."..(math.floor(id/256)%256).."."..(id%256)
+    if self.page=="system" then
+      line("Computer ID: "..id) line("Label: "..tostring(os.getComputerLabel and (os.getComputerLabel() or "-") or "-"))
+      line("MintCraft: "..version.current()) line("Pseudo IP: "..ip) line("CraftOS over CC:Tweaked")
+    elseif self.page=="display" then
+      local d=deviced.getDisplay() local cells=(d.width or 0)*(d.height or 0)
+      line("Target: "..tostring(d.target)) line("Resolution: "..tostring(d.width).."x"..tostring(d.height))
+      line("Monitor side: "..tostring(d.monitorSide or "-")) line("Scale: "..tostring(d.scale or "-"))
+      line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
+      line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
+    elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Icons: NFP 7x6 with text fallback") line("Keyboard: AZERTY")
+    elseif self.page=="network" then
+      local st=networkd.getStatus() local tube=config.load("/system/config/crafttube.cfg",{})
+      line("HTTP: "..(st.http and "available" or "missing")) line("WebSocket: "..(st.websocket and "available" or "missing"))
+      line("Rednet: "..(deviced.scanError and "scan unavailable" or deviced.hasType("modem") and "modem detected" or "no modem"))
+      line("Pseudo IP: "..ip) line("CraftTube "..tostring(tube.provider or "proxy")..": "..tostring(tube.proxy or ""))
+    elseif self.page=="storage" then
+      local free=fs.getFreeSpace and fs.getFreeSpace("/") local cap=fs.getCapacity and fs.getCapacity("/")
+      line("Root: /") if type(cap)=="number" and type(free)=="number" then line("Used: "..sizeLabel(cap-free).." / "..sizeLabel(cap)) end
+      line("Free: "..sizeLabel(free)) line("Trash: /home/user/.trash")
+      local ok, updated=pcall(require,"system.services.updated")
+      if ok and updated.storageInfo then
+        local ready,info=pcall(updated.storageInfo)
+        if ready then
+          line("Update backups: "..sizeLabel(info.bytes))
+          for _,backup in ipairs(info.backups or {}) do line(backup.id.." "..sizeLabel(backup.bytes)..(backup.protected and " protected" or "")) end
+        else line("Update storage unavailable") end
+      end
+      if self.cleanupPending then line("Prune old backups? Protected checkpoints remain.") end
+    elseif self.page=="sound" then
+      local st=audiod.status() line("Audio service: "..(st.ready and "ready" or "stopped")) line("Enabled: "..tostring(st.enabled==true))
+      line("Speakers: "..tostring(st.count or 0)) line("Default side: "..tostring(st.defaultSide or "-"))
+      line("Volume: "..tostring(st.volume).." Notify: "..tostring(st.notificationVolume))
+      for _,speaker in ipairs(st.speakers or {}) do line("Speaker: "..speaker.side) end
+    elseif self.page=="security" then
+      local cfg=config.load("/system/config/security.cfg",{}) local user=securityd.currentUser()
+      line("Security: "..(cfg.enabled~=false and "enabled" or "disabled")) line("Mode: "..tostring(cfg.mode or "users"))
+      line("User: "..tostring(user and user.name or "?")) line("Service: "..securityd.statusText())
+      for _,item in ipairs(securityd.users()) do line((item.active and "* " or "  ")..item.name.."  "..item.role.."  "..table.concat(item.permissions or {},",")) end
+    elseif self.page=="packages" then
+      local installed=ctx.system.packages.installed() line("PACKAGE          VERSION")
+      if #installed==0 then line("No package installed") end
+      for _,item in ipairs(installed) do line(item.name.."          "..item.version) end
+    elseif self.page=="dev" then line("Editor: Files") line("Autocomplete: enabled") line("Keyboard: AZERTY")
+    elseif self.page=="nav" then
+      local st=require("system.services.sabled").status() local av=require("system.services.avionicsd").status()
+      local counts=av.counts or {} local nav=config.load("/system/config/navigation.cfg",{}) local aircraft=nav.aircraft or {}
+      line("CC:Sable: "..(st.available and "available" or "missing")) line("Sublevel: "..(st.inSublevel and "ready" or "not detected"))
+      line("APIs: "..table.concat(st.apiNames or {},",")) line("Avionics: "..(av.available and "ready" or "missing"))
+      line("Alt="..tostring(counts.altitude or 0).." Gimbal="..tostring(counts.gimbal or 0).." Prop="..tostring(counts.propeller or 0))
+      line("Aircraft: "..tostring(aircraft.name or "-").." mass="..tostring(aircraft.massKg or "-").."kg weight="..tostring(aircraft.declaredWeightNewton or "-").."N")
+      line("Frequencies:") for _,cmd in ipairs(aircraft.commands or {}) do line(tostring(cmd.name).." -> "..tostring(cmd.frequency)) end
+      line("Redstone profiles:") for _,item in ipairs(nav.redstoneProfiles or {}) do line(tostring(item.name).." -> "..tostring(item.side).." "..tostring(item.pulseSeconds).."s") end
+    elseif self.page=="combat" then
+      local st=require("system.services.combatd").status() local counts=st.counts or {} local cfg=config.load("/system/config/combat.cfg",{})
+      line("Combat: "..(st.available and "ready" or "missing"))
+      line("Radar="..tostring(counts.radars or 0).." Targets="..tostring(counts.targets or 0).." Cannons="..tostring(counts.cannons or 0).." Unknown="..tostring(counts.unknown or 0))
+      line("Semi-auto: "..tostring(cfg.semiAuto~=false).." confirmFire="..tostring(cfg.requireFireConfirmation~=false))
+      line("Ballistics: gravity="..tostring(cfg.ballistics and cfg.ballistics.gravity or "-").." muzzle="..tostring(cfg.ballistics and cfg.ballistics.muzzleVelocity or "-"))
+      for _,err in ipairs(st.errors or {}) do line("Error: "..tostring(err)) end
+    end
+    return rows
+  end
+  function app:draw(w,h)
+    self.width,self.height=w,h
+    local label="Settings" for _,page in ipairs(pages) do if page.id==self.page then label=page.label break end end
+    menu.bar(self.views,1,1,w,pages,{selector=true,label=label,selected=self.page,title="Settings"})
+    menu.bar(self.actions,1,2,w,self:items(),{title=label.." actions"})
+    local fg,bg=theme.get("windowFg"),theme.get("windowBg")
+    local function text(y,value) if y>=3 and y<=h-2 then renderer.writeAt(1,y,renderer.crop(tostring(value),w),fg,bg) end end
+    self.appRows={}
+    if self.page=="apps" then
+      text(3,"Profile: "..profile.mode()) text(4,"Activation only; files kept") text(5,"Services: restart required")
+      local rows=ctx.apps.list(true,true) local count=math.max(0,h-7)
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-count+1)))
+      for i=1,count do local item=rows[self.scroll+i-1] if not item then break end
+        text(i+5,(profile.appEnabled(item.id) and "[x] " or "[ ] ")..item.name..(profile.isCore(item.id) and " *" or ""))
+        self.appRows[#self.appRows+1]={id=item.id,x=1,y=i+5,w=w,h=1}
+      end
+    else
+      local wrapped={}
+      for _,line in ipairs(self:lines()) do
+        if #line==0 then wrapped[#wrapped+1]="" end
+        for first=1,#line,math.max(1,w) do wrapped[#wrapped+1]=line:sub(first,first+w-1) end
+      end
+      local count=math.max(0,h-4) self.scroll=math.max(1,math.min(self.scroll,math.max(1,#wrapped-count+1)))
+      for i=1,count do text(i+2,wrapped[self.scroll+i-1] or "") end
+    end
+    self.pager=ui.toolbar(1,h-1,math.min(8,w),{{id="up",label="^"},{id="down",label="v"}})
+    if w>8 then renderer.writeAt(9,h-1,renderer.crop(self.appMessage,w-8),fg,bg) end
+    renderer.writeAt(1,h,renderer.crop("Settings",w),fg,bg)
+    if self.mode then
+      local hints={label="Label",unlock="Unlock password",adminLogin="Admin password",passwordOld="Current admin password",passwordNew="New password",passwordConfirm="Confirm password"}
+      self.keyboard.x=1 self.keyboard.y=math.max(1,h-keyboard.height()+1)
+      self.keyboard.hint=(hints[self.mode] or "Password")..": "..(self.mode=="label" and self.input or string.rep("*",#self.input))
+      keyboard.draw(1,self.keyboard.y,w,self.keyboard)
+    else menu.overlay(self.views,w,h) menu.overlay(self.actions,w,h) end
+  end
+  function app:configure(value)
+    if not allowed("system.config") then return end
+    local ok,err=profile.configure(value) self.appMessage=ok and "Saved; restart services" or tostring(err)
+  end
+  function app:action(id)
+    if id=="cancelAuth" then self.authCancel=true self.appMessage="Cancelling authentication" return end
+    if self.authBusy then notify(false,"Security","Authentication already in progress") return end
+    if id=="cleanup" then
+      if allowed("system.storage.manage") then self.cleanupPending=true end return
+    elseif id=="cleanupCancel" then self.cleanupPending=false return
+    elseif id=="cleanupConfirm" then
+      if not self.cleanupPending then return end
+      self.cleanupPending=false
+      if not allowed("system.storage.manage") then return end
+      local updated=require("system.services.updated")
+      local ok,err=updated.cleanup("updates",{confirm=true})
+      self.appMessage=tostring(err or (ok and "Backups pruned" or "Cleanup failed")) notify(ok,"Storage",err) return
+    end
+    if id:sub(1,7)=="launch:" then ctx.apps.launch(id:sub(8)) return end
+    if id=="unlock" or id=="adminLogin" then self:beginInput(id) return end
+    if id=="passwordOld" then if allowed("system.security.admin") then self:beginInput(id) end return end
+    if id=="lock" or id=="guest" then
+      if not allowed("system.auth") then return end
+      local ok,err if id=="lock" then ok,err=securityd.lock() else ok,err=securityd.logout() end
+      notify(ok,"Security",err or (id=="lock" and "Session locked" or "Guest session")) return
+    end
+    if id:sub(1,8)=="profile:" then local value=profile.configuration() value.mode=id:sub(9) value.apps={} self:configure(value) return end
+    if id=="audio" or id=="test" or id:sub(1,7)=="volume:" or id:sub(1,8)=="speaker:" then
+      if not allowed("audio.control") then return end
+      local ok,err
+      if id=="audio" then ok,err=audiod.setEnabled(not audiod.status().enabled)
+      elseif id=="test" then ok,err=audiod.test()
+      elseif id:sub(1,7)=="volume:" then ok,err=audiod.setVolume(tonumber(id:sub(8))) else ok,err=audiod.use(id:sub(9)) end
+      notify(ok,"Audio",err) return
+    end
+    if not allowed("system.config") then return end
+    if id=="label" then self:beginInput(id)
+    elseif id=="refresh" then deviced.refreshDisplay()
+    elseif id:sub(1,6)=="scale:" then local ok,err=deviced.setScale(tonumber(id:sub(7))) notify(ok,"Display",err)
+    elseif id:sub(1,6)=="theme:" then local ok,err=theme.set(id:sub(7)) notify(ok~=false,"Theme",err or "Theme applied") end
+  end
+  app.keyboard.onText=function(ch) app.input=(app.input..ch):sub(1,1024) end
+  app.keyboard.onBackspace=function() app.input=app.input:sub(1,-2) end
+  app.keyboard.onEnter=function()
+    local mode,input=app.mode,app.input
+    if mode=="passwordOld" then app.oldPassword=input app:beginInput("passwordNew") return end
+    if mode=="passwordNew" then app.newPassword=input app:beginInput("passwordConfirm") return end
+    if mode=="passwordConfirm" then
+      if input~=app.newPassword then notify(false,"Security","Passwords do not match")
+      elseif allowed("system.security.admin") then authenticate("setPassword",input,app.oldPassword) end
+    elseif mode=="unlock" or mode=="adminLogin" then authenticate(mode,input)
+    elseif mode=="label" and allowed("system.config") and os.setComputerLabel then os.setComputerLabel(input) end
+    app:cancelInput()
+  end
+  function app:handle(event)
+    if self.mode then
+      if event.name=="char" or event.name=="paste" then self.keyboard.onText(event.args[1])
+      elseif event.name=="key" then
+        if event.args[1]==keys.escape then self:cancelInput()
+        elseif event.args[1]==keys.backspace then self.keyboard.onBackspace()
+        elseif event.args[1]==keys.enter then self.keyboard.onEnter() end
+      elseif event.name=="mouse_click" and event.monitorTouch then keyboard.handle(event,self.keyboard) end
+      return true
+    end
+    local source,id,handled=menu.route({{name="views",state=self.views},{name="actions",state=self.actions}},event)
+    if handled then
+      if id and source=="views" then self.page=id self.scroll=1 self.appMessage="" self.cleanupPending=false menu.dismiss(self.actions)
+      elseif id then self:action(id) end return true
+    end
+    if event.name=="mouse_scroll" then self.scroll=math.max(1,self.scroll+event.args[1]) return true end
+    if event.name~="mouse_click" then return false end
+    local _,x,y=table.unpack(event.args) local direction=ui.toolbarHit(self.pager,x,y)
+    if direction then self.scroll=math.max(1,self.scroll+(direction=="down" and 1 or -1)) return true end
+    if self.page=="apps" then for _,box in ipairs(self.appRows) do if ui.hit(box,x,y) then
+      if profile.isCore(box.id) then self.appMessage="Essential app" return true end
+      local value=profile.configuration() value.apps[box.id]=not profile.appEnabled(box.id) self:configure(value) return true
+    end end end
+    return false
+  end
+  local sw,sh=term.getSize()
+  local win=ctx.windowManager:create({title="Settings",w=math.min(72,sw),h=math.min(22,sh-1),x=1,y=1,app=app})
+  while not win.closed do ctx.pullEvent() end
+end
 return M
 ]=],
   ["apps/store/app.cfg"] = [=[
 {
   id = "store",
   name = "Store",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3194,7 +3452,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -3202,6 +3460,7 @@ return M
   ["apps/taskmanager/main.lua"] = [=[
 local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
+local theme = require("system.gui.theme")
 
 local M = {}
 
@@ -3241,10 +3500,12 @@ function M.run(ctx)
     local now = os.clock()
     if not sample or now - sampleTime >= 1 then
       local rows = ctx.listProcesses()
-      local ready = 0
-      for _, process in ipairs(rows) do if process.state == "ready" then ready = ready + 1 end end
-      sample = { rows = rows, memory = memoryStats(), disk = diskStats(),
-        cpu = #rows > 0 and math.floor(ready / #rows * 100 + 0.5) or 0 }
+      local ready,runtime=0,0
+      for _,process in ipairs(rows) do
+        if process.state=="ready" then ready=ready+1 end
+        runtime=runtime+(process.runtimeMs or 0)
+      end
+      sample={rows=rows,memory=memoryStats(),disk=diskStats(),ready=ready,runtimeMs=runtime}
       sampleTime = now
     end
     return sample
@@ -3258,28 +3519,36 @@ function M.run(ctx)
     local snapshot = metrics()
     local rows = snapshot.rows
     local total = #rows
-    local cpuEstimate = snapshot.cpu
 
     self.toolbar = ui.toolbar(1, 1, w, actions)
-    renderer.writeAt(1, 2, renderer.crop("MintCraft Task Manager", w), colors.black, colors.lightGray)
-    renderer.writeAt(2, 3, renderer.crop("CPU est. CC: " .. cpuEstimate .. "%  Proc: " .. tostring(total), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 4, renderer.crop(snapshot.memory, w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 5, renderer.crop(snapshot.disk, w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), colors.black, colors.gray)
+    if h<9 then
+      renderer.writeAt(1,2,renderer.crop("Live: "..snapshot.ready.." | CPU unavailable",w),theme.get("windowFg"),theme.get("windowBg"))
+      if h>=4 then renderer.writeAt(1,3,renderer.crop(snapshot.memory,w),theme.get("windowFg"),theme.get("windowBg")) end
+      if h>=5 then renderer.writeAt(1,4,renderer.crop(snapshot.disk,w),theme.get("windowFg"),theme.get("windowBg")) end
+      self.listBottom=0 return
+    end
+    renderer.writeAt(1, 2, renderer.crop("MintCraft Task Manager", w), theme.get("windowFg"), theme.get("windowBg"))
+    renderer.writeAt(2,3,renderer.crop("CPU: unavailable | Live: "..snapshot.ready.." / "..total,w-2),theme.get("windowFg"),theme.get("windowBg"))
+    renderer.writeAt(2, 4, renderer.crop(snapshot.memory, w - 2), theme.get("windowFg"), theme.get("windowBg"))
+    renderer.writeAt(2, 5, renderer.crop(snapshot.disk, w - 2), theme.get("windowFg"), theme.get("windowBg"))
+    renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), theme.get("windowFg"), theme.get("buttonBg"))
 
-    for i = 1, math.min(#rows, h - 7) do
+    local visible=math.max(0,h-7-(self.selectedPid and 2 or 0))
+    self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-visible+1)))
+    self.listBottom=7+visible
+    for i = 1, math.min(#rows, visible) do
       local p = rows[self.scroll + i - 1]
       if p then
-        local bg = p.pid == self.selectedPid and colors.cyan or colors.lightGray
-        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. tostring(p.appId or "-") .. "   " .. p.name, w), colors.black, bg)
+        local bg = p.pid == self.selectedPid and colors.cyan or theme.get("windowBg")
+        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. tostring(p.appId or "-") .. "   " .. p.name, w), theme.get("windowFg"), bg)
       end
     end
     if self.selectedPid then
       for _, p in ipairs(rows) do
         if p.pid == self.selectedPid then
           local perms = table.concat(p.permissions or {}, ",")
-          renderer.writeAt(1, h - 1, renderer.crop("Window: " .. tostring(p.windowId or "-") .. " Started: " .. tostring(p.startedAt or "-"), w), colors.gray, colors.lightGray)
-          renderer.writeAt(1, h, renderer.crop("Perms: " .. (perms ~= "" and perms or "-") .. " Err: " .. tostring(p.error or "-"), w), colors.gray, colors.lightGray)
+          renderer.writeAt(1,h-1,renderer.crop("Active wall time: "..tostring(p.runtimeMs or "?").."ms | Resumes: "..tostring(p.resumes or "?"),w),theme.get("buttonBg"),theme.get("windowBg"))
+          renderer.writeAt(1, h, renderer.crop("Perms: " .. (perms ~= "" and perms or "-") .. " Err: " .. tostring(p.error or "-"), w), theme.get("buttonBg"), theme.get("windowBg"))
           break
         end
       end
@@ -3303,7 +3572,7 @@ function M.run(ctx)
       sample = nil
       return true
     end
-    if y >= 8 then
+    if y >= 8 and y<=(self.listBottom or 0) then
       local rows = metrics().rows
       local p = rows[self.scroll + y - 8]
       if p then self.selectedPid = p.pid return true end
@@ -3322,7 +3591,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.6",
+  version = "0.18.7",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -3335,6 +3604,7 @@ local ui = require("system.gui.components")
 local autocomplete = require("system.dev.autocomplete")
 local securityd = require("system.services.securityd")
 local fileNames = require("system.libraries.file_names")
+local authentication = require("system.libraries.auth_worker")
 
 local M = {}
 
@@ -3383,7 +3653,7 @@ local help = {
   unlock = "unlock <password> - unlock current user",
   login = "login <user> [password] - switch user",
   logout = "logout - switch to guest",
-  passwd = "passwd <password> - change admin password",
+  passwd = "passwd <old-password> <new-password> - change admin password",
 }
 
 local function trashPath(name)
@@ -3544,22 +3814,23 @@ local function runCommand(app, ctx, input)
     local allowed, denied = ctx.security.require("system.auth", "lock")
     if allowed then securityd.lock() ctx.security.audit("lock", "terminal") append(app, "locked") else append(app, denied) end
   elseif cmd == "unlock" then
-    local ok, msg = securityd.unlock(rest)
+    local ok, msg = securityd.unlock(rest,app.authOptions)
     append(app, tostring(msg or ok))
   elseif cmd == "login" then
     local name, password = rest:match("^(%S+)%s*(.*)$")
     if not name then append(app, "Usage: login <user> [password]") else
-      local ok, msg = securityd.login(name, password or "")
+      local ok, msg = securityd.login(name, password or "",app.authOptions)
       append(app, tostring(msg or ok))
     end
   elseif cmd == "logout" then
     securityd.logout()
     append(app, "guest session")
   elseif cmd == "passwd" then
-    if rest == "" then append(app, "Usage: passwd <new-admin-password>") else
-      local allowed, denied = ctx.security.require("system.auth", "passwd")
+    local oldPassword,newPassword=rest:match("^(%S+)%s+(.+)$")
+    if not newPassword then append(app,"Usage: passwd <old-password> <new-password>; use Settings for an empty old password") else
+      local allowed, denied = ctx.security.require("system.security.admin", "passwd")
       if allowed then
-        local ok, msg = securityd.setPassword("admin", rest)
+        local ok, msg = securityd.setPassword("admin",newPassword,oldPassword,{pid=ctx.pid,appId=ctx.appId,permissions=ctx.permissions},app.authOptions)
         append(app, ok and "password changed" or tostring(msg))
       else
         append(app, denied)
@@ -3587,6 +3858,7 @@ local function runCommand(app, ctx, input)
 end
 
 function M.run(ctx)
+  local authWorker
   local app = {
     lines = { "MintCraft Terminal", "Type help for commands." },
     input = "",
@@ -3642,6 +3914,13 @@ function M.run(ctx)
       table.insert(app.history, input)
       if #app.history > 100 then table.remove(app.history, 1) end
       app.historyIndex = nil
+    end
+    if sensitive(input) then
+      if app.authBusy then append(app,"Authentication already running") return end
+      app.authBusy=true
+      local queued,problem=authWorker:submit(input)
+      if not queued then app.authBusy=false append(app,tostring(problem)) end
+      return
     end
     local ok, err = pcall(runCommand, app, ctx, input)
     suggestionInput = nil
@@ -3746,6 +4025,13 @@ function M.run(ctx)
 
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Terminal", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
+  authWorker=authentication.new(ctx,function(input,options)
+    app.authOptions=options
+    return runCommand(app,ctx,input)
+  end,function(ok)
+    app.authBusy=false app.authOptions=nil suggestionInput=nil
+    if not ok then append(app,"Authentication command failed") pcall(log.error,"terminal","Authentication command failed") end
+  end)
   while not win.closed do ctx.pullEvent() end
 end
 
@@ -3755,7 +4041,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.6",
+  version = "0.18.7",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -3873,6 +4159,71 @@ if not require then
 end
 
 local ok, err = pcall(function()
+  -- A tree rollback can temporarily move /system itself out of the way.
+  local restoreStage = "/var/tmp/mintcraft-restore"
+  if not fs.exists("/system") and fs.exists(restoreStage .. "/previous") then
+    local metadata = assert(fs.open(restoreStage .. "/target.cfg", "r"), "Missing interrupted restore target")
+    local target = textutils.unserialize(metadata.readAll()) metadata.close()
+    assert(target == "/system" and fs.isDir(restoreStage .. "/previous"), "Invalid interrupted system restore")
+    fs.move(restoreStage .. "/previous", "/system")
+  end
+  -- Do not load the installer or any other potentially half-written module yet.
+  local installRoot = "/var/tmp/mintcraft-install"
+  if fs.exists(installRoot) then
+    local h = assert(fs.open(installRoot .. "/journal.cfg", "r"), "Incomplete installation; inspect " .. installRoot)
+    local entries = textutils.unserialize(h.readAll()) h.close()
+    assert(type(entries) == "table", "Invalid installation journal")
+    local seen, count = {}, 0
+    for index, entry in pairs(entries) do
+      assert(type(index) == "number" and index % 1 == 0 and index >= 1 and index <= #entries
+        and type(entry) == "table" and type(entry.path) == "string" and type(entry.existed) == "boolean", "Invalid installation entry")
+      local path = entry.path
+      assert(not seen[path] and path:sub(1,1) ~= "/" and path:sub(-1) ~= "/"
+        and not path:find("//",1,true) and not path:find("[%c:\\]"), "Invalid installation path")
+      for part in path:gmatch("[^/]+") do assert(part ~= "." and part ~= "..", "Invalid installation path") end
+      assert(path == "VERSION" or path == "boot.lua" or path == "startup.lua" or path:match("^system/")
+        or path:match("^apps/") or path:match("^home/") or path:match("^packages/"), "Protected installation path")
+      assert(not fs.exists("/" .. path) or not fs.isDir("/" .. path), "Installation target is a directory")
+      if entry.existed then
+        assert(fs.exists(installRoot .. "/backup/" .. path) and not fs.isDir(installRoot .. "/backup/" .. path), "Missing installation backup")
+      end
+      seen[path], count = true, count + 1
+    end
+    assert(count == #entries, "Incomplete installation journal")
+    if not fs.exists(installRoot .. "/committed") then
+      for _, entry in ipairs(entries) do
+        local target = "/" .. entry.path
+        if entry.existed then
+          local input = assert(fs.open(installRoot .. "/backup/" .. entry.path, "r"))
+          local data = input.readAll() input.close()
+          fs.makeDir(fs.getDir(target))
+          local output = assert(fs.open(target, "w"))
+          local written, problem = pcall(output.write, data)
+          local closed, closeErr = pcall(output.close)
+          assert(written and closed, tostring(written and closeErr or problem))
+        elseif fs.exists(target) then fs.delete(target) end
+      end
+    end
+    fs.delete(installRoot)
+  end
+  -- Recover with uncached, dependency-free modules before loading boot code/defaults.
+  local safeWrite = assert(loadfile("/system/libraries/safe_write.lua"))()
+  local recovered, problem = safeWrite.recoverRestore()
+  assert(recovered, problem)
+  recovered, problem = safeWrite.recoverAll("/")
+  assert(recovered, problem)
+  local installer = assert(loadfile("/system/libraries/installer.lua"))()
+  recovered, problem = installer.recover()
+  assert(recovered, problem)
+  if fs.exists("/var/tmp/mintcraft-rollback.cfg") then
+    recovered, problem = assert(loadfile("/system/boot/recovery.lua"))("--resume-rollback")
+    assert(recovered, problem)
+  end
+  local manifest = assert(loadfile("/system/package/manifest.lua"))()
+  recovered, problem = safeWrite.recoverTransaction("/var/tmp/mintcraft-package", function(path)
+    return path == "packages/installed.db" or manifest.ownedPath(path)
+  end)
+  assert(recovered, problem)
   local bootloader = require("system.boot.bootloader")
   bootloader.start()
 end)
@@ -4232,7 +4583,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.6",
+    version = "0.18.7",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -4275,6 +4626,113 @@ return M
   ["system/boot/recovery.lua"] = [=[
 local reason = ...
 
+-- Kept dependency-free so a damaged module tree can still restore a checkpoint.
+local function restoreRaw(resumeOnly)
+  if _G.mintcraftStorageOperation then return false, "Storage operation in progress; backup retained" end
+  local root, pending, stage = "/var/backups/update", "/var/tmp/mintcraft-rollback.cfg", "/var/tmp/mintcraft-restore"
+  local function readConfig(path)
+    local h = assert(fs.open(path, "r"), "Cannot read " .. path)
+    local ok, value = pcall(function() return textutils.unserialize(h.readAll()) end)
+    h.close()
+    assert(ok and value ~= nil, "Invalid metadata: " .. path)
+    return value
+  end
+  local function writeConfig(path, value)
+    fs.makeDir(fs.getDir(path))
+    local h = assert(fs.open(path, "w"), "Cannot write " .. path)
+    local ok, err = pcall(h.write, textutils.serialize(value))
+    local closed, problem = pcall(h.close)
+    assert(ok and closed, tostring(ok and problem or err))
+  end
+  local function filePath(path)
+    if type(path) ~= "string" or path:find("..", 1, true) or path:find("//", 1, true)
+      or path:find("[%c:\\]") or path:sub(-1) == "/" then return false end
+    if path == "/system/config" then return false end
+    for part in path:gmatch("[^/]+") do
+      if part == "." or part == ".." or part:find(".mintcraft-save",1,true) then return false end
+    end
+    return path == "/VERSION" or path == "/boot.lua" or path == "/startup.lua"
+      or ((path:match("^/system/") or path:match("^/apps/")) and not path:match("^/system/config/"))
+  end
+  local function run()
+    if resumeOnly and not fs.exists(pending) then return true, "No pending rollback" end
+    local pointer = pending
+    if not fs.exists(pointer) then
+      pointer = root .. "/latest.cfg"
+      if not fs.exists(pointer) then pointer = root .. "/previous.cfg" end
+    end
+    local info = readConfig(pointer)
+    assert(type(info) == "table" and type(info.id) == "string" and info.id:match("^%d+%-?%d*$"), "Invalid rollback id")
+    local backupDir = root .. "/" .. info.id
+    local manifest = readConfig(backupDir .. "/manifest.cfg")
+    assert(type(manifest) == "table" and manifest.id == info.id and type(manifest.paths) == "table"
+      and (manifest.kind == nil or manifest.kind == "files"), "Invalid rollback manifest")
+    local full = {["/VERSION"]=true,["/boot.lua"]=true,["/startup.lua"]=true,["/system"]=true,["/apps"]=true,["/packages"]=true}
+    local seen, count = {}, 0
+    for index, path in pairs(manifest.paths) do
+      assert(type(index) == "number" and index % 1 == 0 and index >= 1 and index <= #manifest.paths
+        and type(path) == "string" and not seen[path], "Invalid rollback sequence")
+      if manifest.kind == "files" then
+        assert(filePath(path) and type(manifest.existed) == "table" and type(manifest.existed[path]) == "boolean", "Invalid incremental rollback")
+        assert(not fs.exists(path) or not fs.isDir(path), "Expected live file")
+      else assert(full[path], "Invalid tree rollback path") end
+      if manifest.kind ~= "files" or manifest.existed[path] then
+        assert(fs.exists(backupDir .. path), "Missing backup: " .. path)
+        local directory = manifest.kind ~= "files" and (path == "/system" or path == "/apps" or path == "/packages")
+        assert(fs.isDir(backupDir .. path) == (directory or false), "Invalid backup type")
+      end
+      seen[path], count = true, count + 1
+    end
+    assert(count > 0 and count == #manifest.paths, "Incomplete rollback manifest")
+    if fs.exists(stage) then
+      local target = readConfig(stage .. "/target.cfg")
+      assert(type(target) == "string" and seen[target] and target ~= "/packages", "Invalid pending restore target")
+      local old, nextPath = stage .. "/previous", stage .. "/next"
+      if fs.exists(old) and not fs.exists(target) then fs.move(old, target)
+      elseif fs.exists(old) and fs.exists(nextPath) then error("Ambiguous interrupted restore") end
+      fs.delete(stage)
+    end
+    writeConfig(pending, {id=info.id})
+    for _, path in ipairs(manifest.paths) do
+      if path ~= "/packages" then
+        if manifest.kind == "files" and not manifest.existed[path] then
+          if fs.exists(path) then fs.delete(path) end
+        else
+          fs.makeDir(stage)
+          writeConfig(stage .. "/target.cfg", path)
+          fs.copy(backupDir .. path, stage .. "/next")
+          if path == "/system" and fs.exists("/system/config") then
+            if fs.exists(stage .. "/next/config") then fs.delete(stage .. "/next/config") end
+            fs.copy("/system/config", stage .. "/next/config")
+          end
+          if path == "/apps" and fs.exists("/apps") then
+            local core = {browser=true,combat=true,crafttube=true,devices=true,editor=true,files=true,logs=true,
+              messenger=true,navigation=true,services=true,settings=true,store=true,taskmanager=true,terminal=true,update=true}
+            for _, name in ipairs(fs.list("/apps")) do
+              if not core[name] then
+                if fs.exists(stage .. "/next/" .. name) then fs.delete(stage .. "/next/" .. name) end
+                fs.copy("/apps/" .. name, stage .. "/next/" .. name)
+              end
+            end
+          end
+          fs.makeDir(fs.getDir(path))
+          if fs.exists(path) then fs.move(path, stage .. "/previous") end
+          fs.move(stage .. "/next", path)
+          fs.delete(stage)
+        end
+      end
+    end
+    fs.delete(pending)
+    return true, "Rollback restored; reboot required. Backups retained."
+  end
+  local ok, result, detail = pcall(run)
+  if not ok then return false, tostring(result) .. "; backups retained" end
+  return result, detail
+end
+
+if reason == "--raw-rollback" then return restoreRaw(false) end
+if reason == "--resume-rollback" then return restoreRaw(true) end
+
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.yellow)
 term.clear()
@@ -4313,38 +4771,6 @@ while true do
       print("No crash log found.")
     end
   elseif cmd == "rollback" then
-    local function restoreRaw()
-      local latestPath = "/var/backups/update/latest.cfg"
-      if not fs.exists(latestPath) then return false, "No rollback backup." end
-      local handle = fs.open(latestPath, "r")
-      if not handle then return false, "Cannot read rollback metadata." end
-      local data = handle.readAll()
-      handle.close()
-      local ok, latest = pcall(textutils.unserialize, data)
-      if not ok or type(latest) ~= "table" or not latest.id then return false, "Invalid rollback metadata." end
-      local backupDir = "/var/backups/update/" .. latest.id
-      local manifestPath = backupDir .. "/manifest.cfg"
-      local manifest = latest
-      if fs.exists(manifestPath) then
-        local mf = fs.open(manifestPath, "r")
-        if mf then
-          local parsed = mf.readAll()
-          mf.close()
-          local mok, value = pcall(textutils.unserialize, parsed)
-          if mok and type(value) == "table" then manifest = value end
-        end
-      end
-      if type(manifest.paths) ~= "table" then return false, "Invalid rollback manifest." end
-      for _, path in ipairs(manifest.paths) do
-        local source = backupDir .. path
-        if not fs.exists(source) then return false, "Missing backup " .. source end
-        if fs.exists(path) then fs.delete(path) end
-        local dir = fs.getDir(path)
-        if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-        fs.copy(source, path)
-      end
-      return true, "Rollback restored " .. tostring(manifest.fromVersion or "previous") .. ". Reboot now."
-    end
     local ok, updated = pcall(require, "system.services.updated")
     local success, message
     if ok and updated and updated.rollback then
@@ -4535,7 +4961,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.6",
+  version = "0.18.7",
   theme = "mint",
   displayScale = 0.5,
   debug = true,
@@ -5596,7 +6022,8 @@ function M.new()
     self.fields=fields self.boxes={}
     self.scroll=math.max(1,math.min(self.scroll,math.max(1,#fields-math.max(1,h-6)+1)))
     if self.edit then
-      ui.input(1,4,w,self.error or self.edit.label,self.text,true)
+      local shown=(self.edit.kind=="secret" or self.edit.kind=="password") and string.rep("*",#self.text) or self.text
+      ui.input(1,4,w,self.error or self.edit.label,shown,true)
       self.actions=ui.toolbar(1,3,w,{{id="apply",label="Apply"},{id="cancel",label="Cancel"}})
       if h>=12 then keyboard.draw(1,h-7,w,self.keyboard) end
       if h<12 then renderer.writeAt(1,5,renderer.crop("Enlarge for touch keyboard",w),colors.orange) end
@@ -5607,6 +6034,7 @@ function M.new()
       local field=fields[i]
       local y=4+i-self.scroll
       local value=field.get()
+      if field.kind=="secret" or field.kind=="password" then value=string.rep("*",#tostring(value or "")) end
       if field.kind=="boolean" then value=value and "[x]" or "[ ]" end
       ui.input(1,y,w,field.label,value,false)
       self.boxes[#self.boxes+1]={x=1,y=y,w=w,h=1,field=field}
@@ -6119,21 +6547,22 @@ local compositor = require("system.gui.compositor")
 local M = {}
 
 local function bootApps(ctx)
-  apps.register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.6", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" } })
-  apps.register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.6", permissions = { "network.http" } })
-  apps.register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.6", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  apps.register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.6", permissions = { "rednet.send", "rednet.receive" } })
-  apps.register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.6", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  apps.register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.6", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  apps.register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.6", permissions = { "filesystem.read", "filesystem.write" } })
-  apps.register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.6", permissions = { "system.config", "audio.control", "system.auth" } })
-  apps.register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.6", permissions = { "process.list", "process.kill" } })
-  apps.register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.6", permissions = { "logs.read" } })
-  apps.register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.6", permissions = { "services.list", "services.control" } })
-  apps.register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.6", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  apps.register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.6", permissions = { "devices.list", "peripheral.probe" } })
-  apps.register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.6", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  apps.register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.6", permissions = { "network.http", "system.update" } })
+  local register=apps.registerBuiltin
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.7", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.7", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.7", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.7", permissions = { "rednet.send", "rednet.receive" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.7", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.7", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.7", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.7", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.7", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.7", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.7", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.7", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.7", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.7", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.7", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -6176,7 +6605,7 @@ function M.start()
   bootApps(ctx)
 
   local screen = compositor.new(devices.getTarget)
-  ctx.invalidateDisplay = function() screen:invalidate() end
+  ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() end
   ctx.renderStats = function() return screen:stats() end
   local lastClock
   local function drawFrame()
@@ -6191,6 +6620,7 @@ function M.start()
   ctx.notifications:push("success", "MintCraft OS", "System ready", 3)
   drawFrame()
   local clockTimer = os.startTimer(0.5)
+  local diagnosticTimer=os.startTimer(1)
 
   while true do
     local raw = table.pack(os.pullEventRaw())
@@ -6207,6 +6637,12 @@ function M.start()
       local event = input.normalize(raw, devices.getDisplay())
 
       if event then
+        if event.name=="timer" and event.args[1]==diagnosticTimer then
+          diagnosticTimer=os.startTimer(1)
+          for _,id in ipairs({"settings","devices","services","taskmanager","logs","messenger"}) do ctx.wm:invalidate(id) end
+        elseif event.name=="peripheral" or event.name=="peripheral_detach" or event.name=="monitor_resize" or event.name=="term_resize" then
+          ctx.wm:invalidate()
+        end
         if event.name == "terminate" then
           ctx.notifications:push("warn", "Terminate", "Use Recovery or reboot from Terminal", 4)
         else
@@ -6234,6 +6670,7 @@ return M
 ]=],
   ["system/kernel/scheduler.lua"] = [=[
 local log = require("system.libraries.log")
+local permissions = require("system.security.permissions")
 
 local Scheduler = {}
 Scheduler.__index = Scheduler
@@ -6243,7 +6680,17 @@ local function eventMatches(filter, event)
 end
 
 function Scheduler.new()
-  return setmetatable({ processes = {}, nextPid = 1, ctx = nil }, Scheduler)
+  return setmetatable({ processes = {}, nextPid = 1, ctx = nil, history={}, historyLimit=64, timerOwners={} }, Scheduler)
+end
+
+local function safeLog(level,source,message)
+  if type(log[level])=="function" then pcall(log[level],source,message) end
+end
+
+local function milliseconds()
+  if not os.epoch then return nil end
+  local ok,value=pcall(os.epoch,"utc")
+  return ok and type(value)=="number" and value or nil
 end
 
 function Scheduler:spawn(name, fn, meta)
@@ -6261,6 +6708,8 @@ function Scheduler:spawn(name, fn, meta)
     startedAt = os.epoch("utc"),
     window = nil,
     windows = {},
+    resumes = 0,
+    runtimeMs = 0,
   }
 
   self.processes[pid] = process
@@ -6279,9 +6728,22 @@ function Scheduler:closeWindows(process)
   for _, win in ipairs(process.windows) do win.closed = true end
   if not process.cleaned then
     process.cleaned = true
-    for _, callback in ipairs(process.cleanup or {}) do
+    local cleanup=process.cleanup or {}
+    process.cleanup=nil
+    for _, callback in ipairs(cleanup) do
       local ok, err = pcall(callback, process.state)
-      if not ok then log.error("process", "cleanup: " .. tostring(err)) end
+      if not ok then safeLog("error","process","cleanup: "..tostring(err)) end
+    end
+    process.windowId=process.window and process.window.id
+    process.co,process.window,process.windows,process.filter=nil,nil,{},nil
+    process.finishedAt=milliseconds()
+    for id,owner in pairs(self.timerOwners) do if owner==process.pid then
+      if os.cancelTimer then pcall(os.cancelTimer,id) end self.timerOwners[id]=nil
+    end end
+    self.history[#self.history+1]=process.pid
+    while #self.history>self.historyLimit do
+      local old=table.remove(self.history,1)
+      if self.processes[old] and self.processes[old].state~="ready" then self.processes[old]=nil end
     end
   end
 end
@@ -6290,12 +6752,16 @@ function Scheduler:resume(process, event)
   if process.state ~= "ready" then return end
 
   local ok, filterOrErr
+  local started=milliseconds()
+  process.resumes=process.resumes+1
   if process.meta.eventMode == "raw" then
     if event.raw then ok, filterOrErr = coroutine.resume(process.co, table.unpack(event.raw,1,event.raw.n or #event.raw))
     else ok, filterOrErr = coroutine.resume(process.co, event.name, table.unpack(event.args, 1, event.args.n or #event.args)) end
   else
     ok, filterOrErr = coroutine.resume(process.co, event)
   end
+  local finished=milliseconds()
+  if started and finished then process.runtimeMs=process.runtimeMs+math.max(0,finished-started) process.runtimeAvailable=true end
   if not ok then
     self:crash(process.pid, filterOrErr)
     return
@@ -6314,20 +6780,26 @@ function Scheduler:crash(pid, err)
   if not process or process.state ~= "ready" then return false, "Process not running" end
   process.state = "crashed"
   process.error = tostring(err)
-  log.error("process", process.name .. ": " .. tostring(err))
   self:closeWindows(process)
+  safeLog("error","process",process.name..": "..tostring(err))
   if self.ctx and self.ctx.notifications then
-    self.ctx.notifications:push("error", "App crashed", process.name, 5)
+    pcall(self.ctx.notifications.push,self.ctx.notifications,"error", "App crashed", process.name, 5)
   end
   return true
 end
 
 function Scheduler:dispatch(event)
+  local timerOwner=event.name=="timer" and self.timerOwners[event.args[1]]
   for _, process in pairs(self.processes) do
     local match = process.meta.eventMode == "raw" and event.raw and {name=event.raw[1]} or event
     if process.state == "ready" and eventMatches(process.filter, match) then
       self:resume(process, event)
     end
+  end
+  if timerOwner then
+    local process=self.processes[timerOwner]
+    if process then for _,win in ipairs(process.windows) do win.dirty=true end end
+    self.timerOwners[event.args[1]]=nil
   end
 end
 
@@ -6337,7 +6809,7 @@ function Scheduler:kill(pid, serviceStop)
   if process.meta.protected and serviceStop~=true then return false,"critical worker; use its service controls" end
   process.state = "killed"
   self:closeWindows(process)
-  log.warn("process", "killed " .. process.name .. " #" .. tostring(pid))
+  safeLog("warn","process","killed "..process.name.." #"..tostring(pid))
   return true
 end
 
@@ -6361,9 +6833,12 @@ function Scheduler:list()
       appId = process.meta and process.meta.appId or nil,
       filter = process.filter,
       error = process.error,
-      permissions = process.permissions,
-      windowId = process.window and process.window.id or nil,
+      permissions = {table.unpack(process.permissions)},
+      windowId = process.window and process.window.id or process.windowId,
       startedAt = process.startedAt,
+      finishedAt = process.finishedAt,
+      resumes = process.resumes,
+      runtimeMs = process.runtimeAvailable and process.runtimeMs or nil,
     })
   end
   table.sort(rows, function(a, b) return a.pid < b.pid end)
@@ -6374,6 +6849,16 @@ function Scheduler:makeContext(pid)
   local scheduler = self
   return {
     pid = pid,
+    startTimer = function(seconds)
+      local id=os.startTimer(seconds) scheduler.timerOwners[id]=pid return id
+    end,
+    cancelTimer = function(id)
+      if scheduler.timerOwners[id]==pid then scheduler.timerOwners[id]=nil if os.cancelTimer then os.cancelTimer(id) end end
+    end,
+    invalidate = function()
+      local process=scheduler.processes[pid]
+      if process then for _,win in ipairs(process.windows) do win.dirty=true end end
+    end,
     onCleanup = function(callback)
       local process = scheduler.processes[pid]
       process.cleanup = process.cleanup or {}
@@ -6386,10 +6871,20 @@ function Scheduler:makeContext(pid)
       end
     end,
     listProcesses = function()
+      if permissions.require then
+        local process=scheduler.processes[pid]
+        local ok=permissions.require({pid=pid,appId=process.meta.appId,permissions=process.permissions},"process.list")
+        if not ok then return {} end
+      end
       return scheduler:list()
     end,
     kill = function(targetPid)
-      log.warn("process", "pid " .. tostring(pid) .. " requested kill " .. tostring(targetPid))
+      local process=scheduler.processes[pid]
+      if not process or process.state~="ready" then return false,"Owner not running" end
+      if not permissions.require then return false,"Permission service unavailable" end
+      local ok,reason=permissions.require({pid=pid,appId=process.meta.appId,permissions=process.permissions},"process.kill",tostring(targetPid))
+      if not ok then return false,reason end
+      safeLog("warn","process","pid "..tostring(pid).." requested kill "..tostring(targetPid))
       return scheduler:kill(targetPid)
     end,
   }
@@ -6437,13 +6932,14 @@ function M.call(device, method, ...)
   return value
 end
 
-function M.read(device, methods)
+function M.read(device, methods, timeout)
   local values, errors, branches = {}, {}, {}
   for _, name in ipairs(methods) do
     if type(device[name]) == "function" then
       branches[#branches + 1] = function()
-        local value, err = M.call(device, name)
-        values[name], errors[name] = value, err
+        local ok, value, err = M.bounded(function() return M.call(device, name) end, timeout or 0.15)
+        if ok then values[name], errors[name] = value, err
+        else errors[name] = tostring(value) end
       end
     end
   end
@@ -6499,7 +6995,7 @@ function M.periodic(ctx, name, interval, refresh, timeout)
     while not runner.stopped do
       local started = os.clock()
       local ok, err = M.bounded(function() refresh(runner.dirty) end, timeout or 0.5)
-      if ok then runner.dirty = false else
+      if ok then runner.dirty = false runner.error = nil runner.lastSuccess = os.clock() else
         runner.error = tostring(err)
         if runner.onError then runner.onError(runner.error) end
       end
@@ -6551,6 +7047,7 @@ function M.new(ctx,name,perform,finished,timeout)
         running=false
         if not stopped then
           finished(request,table.unpack(result,1,result.n))
+          if ctx.invalidate then ctx.invalidate() end
           os.queueEvent("mintcraft_app_result",ctx.pid)
         end
       end
@@ -6585,6 +7082,7 @@ end
 
 function M.register(id, name, module, meta)
   meta = meta or {}
+  if M.registry[id] and M.registry[id].builtin and meta.builtin~=true then return false,"Built-in app ID is protected" end
   M.registry[id] = {
     id = id,
     name = name,
@@ -6592,10 +7090,17 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.6",
+    version = meta.version or "0.18.7",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
+    builtin = meta.builtin == true,
   }
+  return true
+end
+
+function M.registerBuiltin(id,name,module,meta)
+  meta=meta or {} meta.builtin=true
+  return M.register(id,name,module,meta)
 end
 
 function M.get(id)
@@ -6616,6 +7121,12 @@ function M.launch(id, args)
   local app = M.registry[id]
   if not app then return false, "Unknown app: " .. tostring(id) end
   if not M.ctx then return false, "App context not ready" end
+  if not app.builtin then
+    local message="Third-party execution disabled: CC host has no verified CPU/memory isolation"
+    pcall(log.warn,"apps",message)
+    if M.ctx.notifications then pcall(M.ctx.notifications.push,M.ctx.notifications,"warn","App not trusted",message,5) end
+    return false,message
+  end
   if M.ctx.services and profile.dependencies then
     for _,service in ipairs(profile.dependencies(id)) do
       local ok,err=M.ctx.services:start(service)
@@ -6641,7 +7152,7 @@ function M.launch(id, args)
     local procCtx = scheduler:makeContext(pid)
     procCtx.appId = id
     procCtx.args = args or {}
-    procCtx.permissions = app.permissions
+    procCtx.permissions = {table.unpack(app.permissions)}
     procCtx.security = {
       require = function(permission, target)
         return permissions.require({ pid = pid, appId = id, permissions = app.permissions }, permission, target)
@@ -6653,10 +7164,12 @@ function M.launch(id, args)
     procCtx.windowManager = {
       create = function(_, opts)
         opts.ownerPid = pid
+        opts.appId = id
         opts.onError = function(err)
           scheduler:crash(pid, err)
         end
         local win = M.ctx.wm:create(opts)
+        win.appId=id
         scheduler:attachWindow(pid, win)
         return win
       end,
@@ -6674,10 +7187,45 @@ end
 
 return M
 ]=],
+  ["system/libraries/auth_worker.lua"] = [=[
+local M={}
+-- Authentication must release its shared mutex before its coroutine is retired.
+function M.new(ctx,perform,finished)
+  local scheduler=assert(ctx.system and ctx.system.scheduler,"Authentication scheduler unavailable")
+  local closed,busy,current=false,false,nil
+  ctx.onCleanup(function() closed=true if current then current.cancelled=true end end)
+  local worker={}
+  function worker:submit(request)
+    if closed or busy then return false,closed and "App closed" or "Authentication already running" end
+    busy=true current={cancelled=false}
+    local operation=current
+    local options={cancelled=function() return closed or operation.cancelled end,
+      progress=function() if not closed and ctx.invalidate then ctx.invalidate() end end}
+    local pid=scheduler:spawn("Authentication",function()
+      local result=table.pack(pcall(perform,request,options))
+      request=nil busy=false current=nil
+      if not closed then
+        finished(table.unpack(result,1,result.n))
+        if ctx.invalidate then ctx.invalidate() end
+        os.queueEvent("mintcraft_app_result",ctx.pid)
+      end
+    end,{eventMode="raw",appId=ctx.appId,permissions=ctx.permissions,protected=true})
+    local ok,err=scheduler:start(pid)
+    if not ok then busy=false current=nil return false,err end
+    return true
+  end
+  function worker:cancel() if current then current.cancelled=true end end
+  return worker
+end
+return M
+]=],
   ["system/libraries/config.lua"] = [=[
 local M = {}
+local safeWrite = require("system.libraries.safe_write")
 
 function M.load(path, fallback)
+  local recovered, problem = safeWrite.recover(path)
+  if not recovered then error(problem, 0) end
   if not fs.exists(path) then return fallback end
   local handle = fs.open(path, "r")
   if not handle then return fallback end
@@ -6691,14 +7239,12 @@ end
 function M.save(path, value)
   local dir = fs.getDir(path)
   if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-  local handle = fs.open(path, "w")
-  if not handle then return false, "Cannot write " .. path end
-  handle.write(textutils.serialize(value))
-  handle.close()
-  return true
+  return safeWrite.write(path, textutils.serialize(value))
 end
 
 function M.ensure(path, value)
+  local recovered, problem = safeWrite.recover(path)
+  if not recovered then return false, problem end
   if not fs.exists(path) then
     return M.save(path, value)
   end
@@ -6711,13 +7257,21 @@ return M
 local M = {}
 
 function M.absolute(path)
-  return "/" .. fs.combine("", path):gsub("^/+", "")
+  local parts = {}
+  for part in tostring(path or ""):gsub("\\", "/"):gmatch("[^/]+") do
+    if part == ".." then table.remove(parts)
+    elseif part ~= "." then parts[#parts + 1] = part end
+  end
+  return "/" .. table.concat(parts, "/")
 end
 
 function M.protected(path)
   path = M.absolute(path)
   return path == "/" or path == "/system" or path == "/apps"
-    or path == "/boot.lua" or path == "/startup.lua" or path == "/VERSION"
+    or path == "/boot.lua" or path == "/startup.lua" or path == "/VERSION" or path == "/install.lua"
+    or path == "/home" or path == "/home/user"
+    or path == "/rom" or path:match("^/rom/") ~= nil
+    or path == "/packages" or path:match("^/packages/") ~= nil
     or path:match("^/system/") ~= nil or path:match("^/apps/") ~= nil
 end
 
@@ -6747,7 +7301,8 @@ local function write(path, content)
 end
 
 local function validPath(path)
-  if type(path) ~= "string" or path:sub(1, 1) == "/" or path:find("\\", 1, true) then return false end
+  if type(path) ~= "string" or path == "" or path:sub(1, 1) == "/" or path:sub(-1) == "/"
+    or path:find("//", 1, true) or path:find("[%c:]") or path:find("\\", 1, true) then return false end
   for part in path:gmatch("[^/]+") do if part == "." or part == ".." then return false end end
   return path == "VERSION" or path == "boot.lua" or path == "startup.lua"
     or path:match("^system/") or path:match("^apps/")
@@ -6785,6 +7340,7 @@ function M.install(files,options)
     end
   end
   if options and options.beforeInstall then options.beforeInstall(plan) end
+  assert(not fs.exists(root), "Installation started while preparing; recover before retrying")
   local changed, touched = {}, {}
   local ok, err = pcall(function()
     fs.makeDir(root)
@@ -6811,7 +7367,11 @@ function M.install(files,options)
     for _, entry in ipairs(entries) do
       table.insert(touched, entry)
       write("/" .. entry.path, files[entry.path])
+      -- The durable journal/backup, not the validated staging copy, drives undo.
+      -- Reclaim each consumed copy so a fresh install fits a standard CC disk.
+      fs.delete(root .. "/stage/" .. entry.path)
     end
+    write(root .. "/committed", "committed")
   end)
   if not ok then
     local rollbackErrors = {}
@@ -6819,8 +7379,12 @@ function M.install(files,options)
       local entry = touched[i]
       local restored, problem = pcall(function()
         local path = "/" .. entry.path
-        if fs.exists(path) then fs.delete(path) end
-        if entry.existed then fs.copy(root .. "/backup/" .. entry.path, path) end
+        assert(not fs.exists(path) or not fs.isDir(path), "Destination changed to directory")
+        if entry.existed then
+          local h = assert(fs.open(root .. "/backup/" .. entry.path, "r"), "Missing recovery backup")
+          local data = h.readAll() h.close()
+          write(path, data)
+        elseif fs.exists(path) then fs.delete(path) end
       end)
       if not restored then table.insert(rollbackErrors, tostring(problem)) end
     end
@@ -6831,29 +7395,39 @@ function M.install(files,options)
     end
     error(err)
   end
-  fs.delete(root)
+  pcall(fs.delete, root)
   return true
 end
 
 function M.recover()
+  if not fs.exists(root) then return true, "No pending installation" end
   local h = fs.open(root .. "/journal.cfg", "r")
   if not h then return false, "No recovery journal; inspect " .. root end
-  local entries = textutils.unserialize(h.readAll())
+  local parsed, entries = pcall(function() return textutils.unserialize(h.readAll()) end)
   h.close()
-  if type(entries) ~= "table" then return false, "Invalid recovery journal" end
-  for _, entry in ipairs(entries) do
-    if type(entry) ~= "table" or not validPath(entry.path) or type(entry.existed) ~= "boolean" then
+  if not parsed or type(entries) ~= "table" then return false, "Invalid recovery journal" end
+  local seen, count = {}, 0
+  for index, entry in pairs(entries) do
+    if type(index) ~= "number" or index % 1 ~= 0 or index < 1 or index > #entries
+      or type(entry) ~= "table" or not validPath(entry.path) or seen[entry.path] or type(entry.existed) ~= "boolean" then
       return false, "Invalid recovery entry"
     end
-    if entry.existed and not fs.exists(root .. "/backup/" .. entry.path) then
+    seen[entry.path], count = true, count + 1
+    if fs.exists("/" .. entry.path) and fs.isDir("/" .. entry.path) then return false, "Recovery target is a directory" end
+    if entry.existed and (not fs.exists(root .. "/backup/" .. entry.path) or fs.isDir(root .. "/backup/" .. entry.path)) then
       return false, "Missing backup: " .. entry.path
     end
   end
+  if count ~= #entries then return false, "Incomplete recovery journal" end
   local ok, err = pcall(function()
+    if fs.exists(root .. "/committed") then fs.delete(root) return end
     for _, entry in ipairs(entries) do
       local target = "/" .. entry.path
-      if fs.exists(target) then fs.delete(target) end
-      if entry.existed then fs.copy(root .. "/backup/" .. entry.path, target) end
+      if entry.existed then
+        local backup = assert(fs.open(root .. "/backup/" .. entry.path, "r"))
+        local data = backup.readAll() backup.close()
+        write(target, data)
+      elseif fs.exists(target) then fs.delete(target) end
     end
     fs.delete(root)
   end)
@@ -6864,49 +7438,379 @@ return M
 ]=],
   ["system/libraries/log.lua"] = [=[
 local M = {}
-
 local LOG_PATH = "/var/logs/system.log"
+local MAX_BYTES, MAX_RECORDS = 65536, 512
+local revision, cachedRevision, cached = 0, -1, {}
 
-local function ensure()
-  if not fs.exists("/var") then fs.makeDir("/var") end
-  if not fs.exists("/var/logs") then fs.makeDir("/var/logs") end
+local function safeString(value)
+  local ok, result = pcall(tostring, value)
+  return ok and result or "<unprintable>"
+end
+
+local function quote(value)
+  local value = safeString(value):sub(1, 8192)
+  return '"' .. value:gsub('[%z\1-\31\\"]', function(c)
+    return string.format("\\%03d", c:byte())
+  end) .. '"'
+end
+
+local function encode(row)
+  return "{time=" .. quote(row.time) .. ",level=" .. quote(row.level) ..
+    ",source=" .. quote(row.source) .. ",message=" .. quote(row.message) .. "}"
+end
+
+local function withFile(path, mode, fn)
+  local handle, reason = fs.open(path, mode)
+  if not handle then error(reason or "log unavailable", 0) end
+  local ok, result = pcall(fn, handle)
+  local closed, err = pcall(handle.close)
+  if not ok then error(result, 0) end
+  if not closed then error(err, 0) end
+  return result
+end
+
+-- Rotate only owned logs, never crash/recovery/probe files.
+local function rotate(bytes)
+  if fs.exists(LOG_PATH) and fs.getSize(LOG_PATH) + bytes > MAX_BYTES then
+    if fs.exists(LOG_PATH .. ".2") then fs.delete(LOG_PATH .. ".2") end
+    if fs.exists(LOG_PATH .. ".1") then fs.move(LOG_PATH .. ".1", LOG_PATH .. ".2") end
+    fs.move(LOG_PATH, LOG_PATH .. ".1")
+  end
+  -- Pre-quota installations may already contain oversized owned archives.
+  for _, suffix in ipairs({".1", ".2"}) do
+    local path = LOG_PATH .. suffix
+    if fs.exists(path) and fs.getSize(path) > MAX_BYTES then fs.delete(path) end
+  end
 end
 
 function M.write(level, source, message)
-  ensure()
-  local handle = fs.open(LOG_PATH, "a")
-  if handle then
-    handle.writeLine(textutils.serialize({
-      time = os.date(),
-      level = level,
-      source = source,
-      message = tostring(message),
-    }))
-    handle.close()
-  end
+  local ok, err = pcall(function()
+    if not fs.exists("/var/logs") then fs.makeDir("/var/logs") end
+    local line = encode({time=os.date(),level=level,source=source,message=message})
+    if #line + 1 > MAX_BYTES then error("log record too large", 0) end
+    rotate(#line + 1)
+    withFile(LOG_PATH, "a", function(handle) handle.writeLine(line) end)
+  end)
+  -- Even failed appends can rotate files or leave a partial record.
+  revision = revision + 1
+  return ok, not ok and safeString(err) or nil
 end
 
-function M.info(source, message) M.write("info", source, message) end
-function M.warn(source, message) M.write("warn", source, message) end
-function M.error(source, message) M.write("error", source, message) end
-function M.debug(source, message) M.write("debug", source, message) end
+function M.info(source, message) return M.write("info", source, message) end
+function M.warn(source, message) return M.write("warn", source, message) end
+function M.error(source, message) return M.write("error", source, message) end
+function M.debug(source, message) return M.write("debug", source, message) end
+function M.revision() return revision end
+function M.invalidate() revision = revision + 1 end
+
+local function decode(line)
+  local ok, row = pcall(function() return textutils.unserialize(line) end)
+  if ok and type(row) == "table" then return row end
+end
+
+function M.parse(line)
+  return decode(line) or {level="info",source="raw",message=line,time=""}
+end
+
+local function readTail()
+  local rows = {}
+  local function push(line)
+    rows[#rows + 1] = line
+    if #rows > MAX_RECORDS then table.remove(rows, 1) end
+  end
+  for _, path in ipairs({LOG_PATH .. ".2", LOG_PATH .. ".1", LOG_PATH}) do
+    if fs.exists(path) then
+      withFile(path, "r", function(handle)
+        local pending
+        while true do
+          local line = handle.readLine()
+          if not line then break end
+          if pending then
+            pending = pending .. "\n" .. line
+            local row = decode(pending)
+            if row then push(encode(row)) pending = nil
+            elseif line:match("^%s*}%s*$") or #pending > MAX_BYTES then
+              push(pending:sub(1, MAX_BYTES):gsub("\n", " ")) pending = nil
+            end
+          elseif line:match("^%s*{%s*$") then pending = line
+          else push(line) end
+        end
+        if pending then push(pending:gsub("\n", " ")) end
+      end)
+    end
+  end
+  return rows
+end
 
 function M.tail(limit)
-  limit = limit or 20
-  if not fs.exists(LOG_PATH) then return {} end
-  local lines = {}
-  local handle = fs.open(LOG_PATH, "r")
-  while true do
-    local line = handle.readLine()
-    if not line then break end
-    table.insert(lines, line)
-    if #lines > limit then table.remove(lines, 1) end
+  limit = tonumber(limit) or 20
+  if limit ~= limit then limit = 20 end
+  limit = math.max(0, math.min(MAX_RECORDS, math.floor(limit)))
+  if cachedRevision ~= revision then
+    local ok, rows = pcall(readTail)
+    if ok then cached = rows end
+    cachedRevision = revision
   end
-  handle.close()
-  return lines
+  local out = {}
+  for i = math.max(1, #cached - limit + 1), #cached do out[#out + 1] = cached[i] end
+  return out
 end
 
 return M
+]=],
+  ["system/libraries/password_crypto.lua"] = [=[
+-- MIT License
+--
+-- Copyright (c) 2023 Miguel Oliveira
+-- Copyright (c) 2016 John Schember (HMAC adapter, lua-hashings/hashings/hmac.lua)
+--
+-- Permission is hereby granted, free of charge, to any person obtaining a copy
+-- of this software and associated documentation files (the "Software"), to deal
+-- in the Software without restriction, including without limitation the rights
+-- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-- copies of the Software, and to permit persons to whom the Software is
+-- furnished to do so, subject to the following conditions:
+--
+-- The above copyright notice and this permission notice shall be included in all
+-- copies or substantial portions of the Software.
+--
+-- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+-- SOFTWARE.
+-- Vendored SHA256/PBKDF2 from CCryptolib, commit 14489aa1ec408f8a07e1292be5ef91dfe8567c74.
+-- https://github.com/migeyel/ccryptolib/blob/14489aa1ec408f8a07e1292be5ef91dfe8567c74/ccryptolib/sha256.lua
+-- Changes: standalone packing, fixed FIPS constants (portable Lua 5.2), no hardware path, credential wrapper.
+local M = {}
+assert(bit32, "CC bit32 API required for password hashing")
+
+local expect = function(n, value, ...)
+  for _, kind in ipairs({...}) do if type(value) == kind then return end end
+  error("Invalid argument " .. n, 3)
+end
+local function lassert(value, message) assert(value, message) end
+local rol, shr = bit32.lrotate, bit32.rshift
+local bxor, bnot, band = bit32.bxor, bit32.bnot, bit32.band
+local unpack = table.unpack or unpack
+local function packWords(width, ...)
+  local out = {}
+  for _, value in ipairs({...}) do
+    local bytes = {}
+    for i = width, 1, -1 do bytes[i] = string.char(value % 256) value = math.floor(value / 256) end
+    out[#out + 1] = table.concat(bytes)
+  end
+  return table.concat(out)
+end
+local function unpackWords(count, data, offset)
+  local out = {}
+  offset = offset or 1
+  for i = 1, count do
+    local a, b, c, d = data:byte(offset, offset + 3)
+    out[i] = ((a * 256 + b) * 256 + c) * 256 + d
+    offset = offset + 4
+  end
+  return unpack(out)
+end
+local fmt1x8, fmt16x4, fmt8x4 = 8, 16, 8
+local function p1x8(_, value) return packWords(8, value) end
+-- SHA compression appends its schedule to the input table. Fixed-width pack
+-- formats must ignore those extra words, just like the upstream string.pack.
+local function p16x4(_, ...) local words={...} return packWords(4,unpack(words,1,16)) end
+local function p8x4(_, ...) local words={...} return packWords(4,unpack(words,1,8)) end
+local function u16x4(_, data, offset) return unpackWords(16, data, offset) end
+local function u8x4(_, data, offset) return unpackWords(8, data, offset) end
+-- FIPS 180-4 section 4.2.2. Avoid upstream floating-point prime discovery:
+-- stock Lua 5.2 '%' loses remainders for huge powers (unlike CC's runtime).
+local K = {
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2,
+}
+local h0 = {0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19}
+
+local function compress(h, w)
+    local h0, h1, h2, h3, h4, h5, h6, h7 = unpack(h)
+    local K = K
+
+    -- Message schedule.
+    for j = 17, 64 do
+        local wf = w[j - 15]
+        local w2 = w[j - 2]
+        local s0 = bxor(rol(wf, 25), rol(wf, 14), shr(wf, 3))
+        local s1 = bxor(rol(w2, 15), rol(w2, 13), shr(w2, 10))
+        w[j] = w[j - 16] + s0 + w[j - 7] + s1
+    end
+
+    -- Block.
+    local a, b, c, d, e, f, g, h = h0, h1, h2, h3, h4, h5, h6, h7
+    for j = 1, 64 do
+        local s1 = bxor(rol(e, 26), rol(e, 21), rol(e, 7))
+        local ch = bxor(band(e, f), band(bnot(e), g))
+        local temp1 = h + s1 + ch + K[j] + w[j]
+        local s0 = bxor(rol(a, 30), rol(a, 19), rol(a, 10))
+        local maj = bxor(band(a, b), band(a, c), band(b, c))
+        local temp2 = s0 + maj
+
+        h = g
+        g = f
+        f = e
+        e = d + temp1
+        d = c
+        c = b
+        b = a
+        a = temp1 + temp2
+    end
+
+    return {
+        (h0 + a) % 2 ^ 32,
+        (h1 + b) % 2 ^ 32,
+        (h2 + c) % 2 ^ 32,
+        (h3 + d) % 2 ^ 32,
+        (h4 + e) % 2 ^ 32,
+        (h5 + f) % 2 ^ 32,
+        (h6 + g) % 2 ^ 32,
+        (h7 + h) % 2 ^ 32,
+    }
+end
+
+--- Hashes data using SHA256.
+--- @param data string Input bytes.
+--- @return string hash The 32-byte hash value.
+local function digest(data)
+    expect(1, data, "string")
+
+    -- Pad input.
+    local bitlen = #data * 8
+    local padlen = -(#data + 9) % 64
+    data = data .. "\x80" .. ("\0"):rep(padlen) .. p1x8(fmt1x8, bitlen)
+
+    -- Digest.
+    local h = h0
+    for i = 1, #data, 64 do
+        h = compress(h, {u16x4(fmt16x4, data, i)})
+    end
+
+    return p8x4(fmt8x4, unpack(h))
+end
+
+-- Reports once every ~10ms on a standard CCEmuX emulator.
+local PBKDF2_CB_ITERATIONS = 50
+
+--- Hashes a password using PBKDF2-HMAC-SHA256.
+--- @param password string The password to hash.
+--- @param salt string The password's salt.
+--- @param iter number The number of iterations to perform.
+--- @param progress fun(iter: number)? An optional function to periodically call with the current iteration number as argument.
+--- @return string dk The 32-byte derived key.
+local function pbkdf2(password, salt, iter, progress)
+    expect(1, password, "string")
+    expect(2, salt, "string")
+    expect(3, iter, "number")
+    lassert(iter % 1 == 0, "iteration number must be an integer", 2)
+    lassert(iter > 0, "iteration number must be positive", 2)
+    expect(4, progress, "function", "nil")
+
+    -- Pad password.
+    if #password > 64 then password = digest(password) end
+    password = {u16x4(fmt16x4, password .. ("\0"):rep(64), 1)}
+
+    -- Compute password blocks.
+    local ikp = {}
+    local okp = {}
+    for i = 1, 16 do
+        ikp[i] = bxor(password[i], 0x36363636)
+        okp[i] = bxor(password[i], 0x5c5c5c5c)
+    end
+
+    local hikp = compress(h0, ikp)
+    local hokp = compress(h0, okp)
+
+    -- 96-byte padding.
+    local pad96 = {2 ^ 31, 0, 0, 0, 0, 0, 0, 0x300}
+
+    -- First iteration.
+    local pre = p16x4(fmt16x4, unpack(ikp))
+    local hs = {u8x4(fmt8x4, digest(pre .. salt .. "\0\0\0\1"), 1)}
+    for i = 1, 8 do hs[i + 8] = pad96[i] end
+    hs = compress(hokp, hs)
+
+    -- Second iteration onwards.
+    local out = {unpack(hs)}
+    for i = 2, iter do
+        for j = 1, 8 do hs[j + 8] = pad96[j] end
+        hs = compress(hikp, hs)
+        for j = 1, 8 do hs[j + 8] = pad96[j] end
+        hs = compress(hokp, hs)
+        for j = 1, 8 do out[j] = bxor(out[j], hs[j]) end
+        if progress and i % PBKDF2_CB_ITERATIONS == 0 then progress(i) end
+    end
+
+    return p8x4(fmt8x4, unpack(out))
+end
+
+M.digest = digest
+M.pbkdf2 = pbkdf2
+
+local sequence = 0
+local function hex(value) return (value:gsub(".", function(c) return string.format("%02x", c:byte()) end)) end
+-- HMAC construction from MIT-licensed user-none/lua-hashings/hashings/hmac.lua.
+-- Adapter uses the vetted digest above instead of the upstream hash object.
+function M.mac(key, payload)
+  expect(1,key,"string") expect(2,payload,"string")
+  if #key > 64 then key = digest(key) end
+  key = key .. string.rep("\0",64-#key)
+  local inner, outer = {}, {}
+  for i=1,64 do
+    inner[i]=string.char(bxor(key:byte(i),0x36))
+    outer[i]=string.char(bxor(key:byte(i),0x5c))
+  end
+  return hex(digest(table.concat(outer)..digest(table.concat(inner)..payload)))
+end
+local function control(options, total)
+  options = options or {}
+  local function clock() return os.epoch and os.epoch("utc") / 1000 or os.clock() end
+  local last = clock()
+  return function(i)
+    if options.cancelled and options.cancelled() then error("Authentication cancelled",0) end
+    if options.progress and i % 5000 == 0 then options.progress(i,total or 600000) end
+    if sleep and clock()-last >= 0.02 then sleep(0) last=clock() end
+  end
+end
+function M.create(password, options)
+  assert(type(password) == "string" and #password <= 1024, "Invalid password")
+  sequence = sequence + 1
+  -- Salts need uniqueness, not secrecy. Do not use this source for keys/nonces.
+  local source = tostring(os.epoch and os.epoch("utc") or os.clock()) .. ":" ..
+    tostring(os.getComputerID and os.getComputerID() or 0) .. ":" .. sequence
+  for _ = 1, 16 do source = source .. string.char(math.random(0,255)) end
+  local salt = hex(digest(source):sub(1,16))
+  local iterations = 600000
+  return {algorithm="pbkdf2-hmac-sha256", salt=salt, iterations=iterations,
+    digest=hex(pbkdf2(password,salt,iterations,control(options)))}
+end
+function M.verify(password, value, options)
+  if type(password) ~= "string" or #password > 1024 or type(value) ~= "table"
+    or value.algorithm ~= "pbkdf2-hmac-sha256" or type(value.salt) ~= "string"
+    or #value.salt ~= 32 or not value.salt:match("^[0-9a-f]+$")
+    or type(value.iterations) ~= "number" or value.iterations % 1 ~= 0
+    or value.iterations < 600000 or value.iterations > 2000000
+    or type(value.digest) ~= "string" or #value.digest ~= 64
+    or not value.digest:match("^[0-9a-f]+$") then return false end
+  local actual = hex(pbkdf2(password,value.salt,value.iterations,control(options,value.iterations)))
+  local difference = 0
+  for i = 1, 64 do difference = bit32.bor(difference, bxor(actual:byte(i),value.digest:byte(i))) end
+  return difference == 0
+end
+return M
+
 ]=],
   ["system/libraries/profile.lua"] = [=[
 local M={name="MintCraftOS apps"}
@@ -6960,6 +7864,218 @@ return M
   ["system/libraries/safe_write.lua"] = [=[
 local M = {}
 
+local function recognizedStage(path)
+  local stage = path .. ".mintcraft-save"
+  if not fs.isDir(stage) then return false end
+  if fs.exists(stage .. "/marker") then
+    local h = fs.open(stage .. "/marker", "r")
+    if not h then return false end
+    local ok, data = pcall(h.readAll) pcall(h.close)
+    if not ok or data ~= "MintCraft safe save 1" then return false end
+    for _, name in ipairs(fs.list and fs.list(stage) or {"marker"}) do
+      if (name ~= "marker" and name ~= "previous" and name ~= "next") or fs.isDir(stage .. "/" .. name) then return false end
+    end
+    return true
+  end
+  -- Older saves had no marker. Only accept their exact recovery layout.
+  if not fs.exists(stage .. "/previous") or fs.isDir(stage .. "/previous") then return false end
+  if fs.exists(stage .. "/next") and fs.isDir(stage .. "/next") then return false end
+  if fs.list then
+    for _, name in ipairs(fs.list(stage)) do if name ~= "previous" and name ~= "next" then return false end end
+  end
+  return not fs.exists(path) or fs.exists(stage .. "/next")
+end
+
+function M.recover(path)
+  local stage = path .. ".mintcraft-save"
+  if not fs.exists(stage) then return true end
+  if not recognizedStage(path) then return false, "Unrecognized save directory retained: " .. stage end
+  local old, nextFile = stage .. "/previous", stage .. "/next"
+  local ok, err = pcall(function()
+    assert(fs.isDir(stage), "Invalid save stage: " .. stage)
+    assert(not fs.exists(path) or not fs.isDir(path), "Save target is a directory")
+    if fs.exists(old) then
+      assert(not fs.isDir(old), "Invalid previous save")
+      if not fs.exists(path) then
+        fs.move(old, path)
+      else
+        -- A target plus no next file means the final rename completed.
+        assert(not fs.exists(nextFile), "Ambiguous save state; inspect " .. stage)
+      end
+    end
+    fs.delete(stage)
+  end)
+  return ok, ok and "Recovered" or (tostring(err) .. "; recovery retained: " .. stage)
+end
+
+function M.recoverAll(root)
+  root = root or "/"
+  root = "/" .. fs.combine(root, ""):gsub("^/+", "")
+  if not fs.exists(root) then return true end
+  if fs.isReadOnly and fs.isReadOnly(root) then return true end
+  if fs.getDrive and fs.getDrive(root) ~= fs.getDrive("/") then return true end
+  for _, name in ipairs(fs.list(root)) do
+    local path = "/" .. fs.combine(root, name):gsub("^/+", "")
+    local writable = not fs.isReadOnly or not fs.isReadOnly(path)
+    local internal = not fs.getDrive or fs.getDrive(path) == fs.getDrive("/")
+    if (root == "/" and name ~= "system" and name ~= "home" and name ~= "packages" and name ~= "var")
+      or (root == "/system" and name ~= "config")
+      or (root == "/var" and name ~= "tmp" and name ~= "cache" and name ~= "logs") then
+      -- Root-level arbitrary files are recovered lazily by their owning API.
+    elseif writable and internal and name:sub(-15) == ".mintcraft-save" then
+      local target = path:sub(1, -16)
+      if recognizedStage(target) then
+        local ok, err = M.recover(target)
+        if not ok then return false, err end
+      end
+    elseif writable and internal and fs.isDir(path) and path ~= "/var/backups"
+      and path ~= "/var/tmp/mintcraft-install" and path ~= "/var/tmp/mintcraft-package"
+      and path ~= "/var/tmp/mintcraft-restore" then
+      local ok, err = M.recoverAll(path)
+      if not ok then return false, err end
+    end
+  end
+  return true
+end
+
+function M.recoverRestore()
+  local stage = "/var/tmp/mintcraft-restore"
+  if not fs.exists(stage) then return true end
+  local ok, err = pcall(function()
+    local h = assert(fs.open(stage .. "/target.cfg", "r"), "Restore target missing; inspect " .. stage)
+    local target = textutils.unserialize(h.readAll()) h.close()
+    assert(target == "/VERSION" or target == "/boot.lua" or target == "/startup.lua"
+      or target == "/system" or target == "/apps" or
+      (type(target) == "string" and (target:match("^/system/") or target:match("^/apps/"))
+      and not target:find("..", 1, true) and not target:find("//", 1, true)
+      and not target:find("[%c:\\]") and target:sub(-1) ~= "/"), "Invalid restore target")
+    for part in target:gmatch("[^/]+") do assert(part ~= "." and part ~= "..", "Non-canonical restore target") end
+    assert(target ~= "/system/config" and not target:match("^/system/config/"), "Config restore target is protected")
+    local old, nextPath = stage .. "/previous", stage .. "/next"
+    if fs.exists(old) and not fs.exists(target) then fs.move(old, target)
+    elseif fs.exists(old) and fs.exists(nextPath) then error("Ambiguous interrupted restore") end
+    if fs.exists(nextPath) then
+      local pending = assert(fs.open("/var/tmp/mintcraft-rollback.cfg", "r"), "Unverified restore copy retained")
+      local info = textutils.unserialize(pending.readAll()) pending.close()
+      assert(type(info) == "table" and type(info.id) == "string" and info.id:match("^%d+%-?%d*$")
+        and fs.exists("/var/backups/update/" .. info.id .. target), "Sole restore copy retained")
+    end
+    fs.delete(stage)
+  end)
+  return ok, ok and "Recovered" or (tostring(err) .. "; restore data retained")
+end
+
+local function read(path)
+  local h = assert(fs.open(path, "r"), "Cannot read " .. path)
+  local ok, value = pcall(h.readAll)
+  pcall(h.close)
+  assert(ok, tostring(value))
+  return value
+end
+
+local function write(path, value)
+  local dir = fs.getDir(path)
+  if dir ~= "" then fs.makeDir(dir) end
+  local h = assert(fs.open(path, "w"), "Cannot write " .. path)
+  local ok, err = pcall(h.write, value)
+  local closed, closeErr = pcall(h.close)
+  assert(ok and closed, tostring(ok and closeErr or err))
+end
+
+-- The entire journal and every backup are validated before the first live mutation.
+function M.recoverTransaction(root, allowed)
+  if not fs.exists(root) then return true end
+  local ok, err = pcall(function()
+    local journal = root .. "/journal.cfg"
+    if not fs.exists(journal) then
+      assert(fs.exists(root .. "/protocol") and read(root .. "/protocol") == "MintCraft transaction 1", "Unrecognized transaction retained")
+      local function checkBackups(path, relative)
+        if not fs.exists(path) then return end
+        for _, name in ipairs(fs.list(path)) do
+          local backup, key = path .. "/" .. name, relative == "" and name or relative .. "/" .. name
+          if fs.isDir(backup) then checkBackups(backup, key)
+          else
+            assert(allowed(key) and fs.exists("/" .. key) and not fs.isDir("/" .. key)
+              and read(backup) == read("/" .. key), "Sole or changed backup retained: " .. key)
+          end
+        end
+      end
+      checkBackups(root .. "/backup", "")
+      fs.delete(root) return
+    end
+    local entries = textutils.unserialize(read(journal))
+    assert(type(entries) == "table", "Invalid transaction journal")
+    local seen, count = {}, 0
+    for index, entry in pairs(entries) do
+      assert(type(index) == "number" and index % 1 == 0 and index >= 1 and index <= #entries,
+        "Invalid transaction sequence")
+      assert(type(entry) == "table" and allowed(entry.path) and not seen[entry.path]
+        and type(entry.existed) == "boolean", "Invalid transaction entry")
+      seen[entry.path], count = true, count + 1
+      local target, backup = "/" .. entry.path, root .. "/backup/" .. entry.path
+      assert(not fs.exists(target) or not fs.isDir(target), "Unexpected directory: " .. target)
+      if entry.existed then
+        assert(fs.exists(backup) and not fs.isDir(backup), "Missing backup: " .. backup)
+      end
+    end
+    assert(count == #entries, "Incomplete transaction journal")
+    local committed = fs.exists(root .. "/committed") and not fs.isDir(root .. "/committed") and read(root .. "/committed") == "committed"
+    if not committed then
+      for i = #entries, 1, -1 do
+        local entry = entries[i]
+        local target = "/" .. entry.path
+        if entry.existed then
+          write(target, read(root .. "/backup/" .. entry.path))
+        elseif fs.exists(target) then fs.delete(target) end
+      end
+    end
+    fs.delete(root)
+  end)
+  return ok, ok and "Recovered" or (tostring(err) .. "; recovery retained: " .. root)
+end
+
+function M.transaction(root, changes, allowed)
+  if fs.exists(root) then return false, "Pending transaction: " .. root end
+  local entries, paths = {}, {}
+  local ok, err = pcall(function()
+    for path, value in pairs(changes) do
+      assert(allowed(path) and (type(value) == "string" or value == false), "Invalid transaction path")
+      assert(not fs.exists("/" .. path) or not fs.isDir("/" .. path), "Destination is a directory")
+      paths[#paths + 1] = path
+    end
+    table.sort(paths)
+    fs.makeDir(root)
+    write(root .. "/protocol", "MintCraft transaction 1")
+    for _, path in ipairs(paths) do
+      local target = "/" .. path
+      assert(M.recover(target))
+      local existed = fs.exists(target)
+      if existed then
+        fs.makeDir(fs.getDir(root .. "/backup/" .. path))
+        fs.copy(target, root .. "/backup/" .. path)
+      end
+      if changes[path] ~= false then write(root .. "/stage/" .. path, changes[path]) end
+      entries[#entries + 1] = {path = path, existed = existed}
+    end
+    write(root .. "/journal.cfg", textutils.serialize(entries))
+    for _, entry in ipairs(entries) do
+      local target, value = "/" .. entry.path, changes[entry.path]
+      if value == false then
+        if fs.exists(target) then fs.delete(target) end
+      else
+        write(target, read(root .. "/stage/" .. entry.path))
+      end
+    end
+    write(root .. "/committed", "committed")
+  end)
+  if not ok then
+    local recovered, problem = M.recoverTransaction(root, allowed)
+    return false, tostring(err) .. (recovered and "" or ("; " .. tostring(problem)))
+  end
+  local cleaned = pcall(fs.delete, root)
+  return true, cleaned and "Committed" or ("Committed; cleanup pending: " .. root)
+end
+
 function M.write(path, content)
   local stage = path .. ".mintcraft-save"
   local old, nextFile = stage .. "/previous", stage .. "/next"
@@ -6969,6 +8085,10 @@ function M.write(path, content)
     if fs.exists(path) and fs.isDir(path) then error("Target is a directory", 0) end
     fs.makeDir(stage)
     owned = true
+    handle = assert(fs.open(stage .. "/marker", "w"), "Cannot open save marker")
+    handle.write("MintCraft safe save 1")
+    handle.close()
+    handle = nil
     handle = assert(fs.open(nextFile, "w"), "Cannot open staging file")
     handle.write(content)
     handle.close()
@@ -7503,16 +8623,24 @@ local function request(method, url, opts)
   if not M.available() then return nil, "HTTP_DISABLED: HTTP API disabled" end
 
   log.info("http", tostring(method or "GET") .. " " .. url)
-  local ok, handle,problem,failureHandle
-  if method == "POST" and http.post then
-    ok, handle,problem,failureHandle = pcall(http.post, url, opts.body or "", opts.headers)
-  else
-    ok, handle,problem,failureHandle = pcall(http.get, url, opts.headers)
+  local options = { url=url, method=method, headers=opts.headers, binary=opts.binary,
+    redirect=opts.redirect, timeout=opts.timeout }
+  if method == "POST" then options.body=opts.body or "" end
+  local limit=opts.maxBytes or 2097152
+  if type(limit)~="number" or limit~=limit or limit<0 or limit>8388608 or limit%1~=0 then
+    return nil,"INVALID_LIMIT: maxBytes must be an integer from 0 to 8388608"
   end
+  local ok, handle,problem,failureHandle = pcall(method=="POST" and http.post or http.get, options)
   if not ok then
     local err = classifyHttpFailure(handle)
     log.error("http", err)
     return nil, err
+  end
+  if not handle then
+    if failureHandle and opts.allowStatus and failureHandle.getResponseCode then
+      local codeOK,code=pcall(failureHandle.getResponseCode)
+      if codeOK and opts.allowStatus[code] then handle=failureHandle end
+    end
   end
   if not handle then
     if failureHandle and failureHandle.close then pcall(failureHandle.close) end
@@ -7522,8 +8650,18 @@ local function request(method, url, opts)
   end
 
   local readOK,result=pcall(function()
-    local body=handle.readAll() or ""
-    assert(type(body)=="string","Invalid response body")
+    assert(type(handle.read)=="function","Response does not support bounded reads")
+    local chunks,size={},0
+    while true do
+      local chunk=handle.read(math.min(8192,limit-size+1))
+      if chunk==nil or chunk=="" then break end
+      if type(chunk)=="number" then chunk=string.char(chunk) end
+      assert(type(chunk)=="string","Invalid response body")
+      size=size+#chunk
+      assert(size<=limit,"Response exceeds "..limit.." byte limit")
+      chunks[#chunks+1]=chunk
+    end
+    local body=table.concat(chunks)
     return {url=url,code=handle.getResponseCode and handle.getResponseCode() or 200,
       headers=handle.getResponseHeaders and handle.getResponseHeaders() or {},body=body,size=#body}
   end)
@@ -7537,9 +8675,10 @@ function M.get(url, opts)
 end
 
 function M.post(url, body, opts)
-  opts = opts or {}
-  opts.body = body or ""
-  return request("POST", url, opts)
+  local options={}
+  for key,value in pairs(opts or {}) do options[key]=value end
+  options.body = body or ""
+  return request("POST", url, options)
 end
 
 function M.json(url, opts)
@@ -7574,17 +8713,47 @@ return M
   ["system/package/manifest.lua"] = [=[
 local M = {}
 
+local reserved = {
+  browser=true, combat=true, crafttube=true, devices=true, editor=true, files=true,
+  logs=true, messenger=true, navigation=true, services=true, settings=true,
+  store=true, taskmanager=true, terminal=true, update=true,
+}
+
+function M.validId(id)
+  return type(id) == "string" and id:match("^[a-z][a-z0-9_%-]*$") ~= nil and not reserved[id]
+end
+
+function M.ownedPath(path, id)
+  if type(path) ~= "string" or path:find("[%c:\\]") or path:find("//", 1, true)
+    or path:sub(-1) == "/" then return false end
+  for part in path:gmatch("[^/]+") do
+    if part == "." or part == ".." or part:find(".mintcraft-save", 1, true) then return false end
+  end
+  local owner = path:match("^apps/([^/]+)/.+$") or path:match("^system/themes/icons/([^/]+)%.nfp$")
+  return M.validId(owner) and (id == nil or owner == id) or false
+end
+
 function M.validate(pkg)
   if type(pkg) ~= "table" then return false, "manifest must be a table" end
-  if type(pkg.id) ~= "string" or pkg.id == "" then return false, "missing id" end
+  if not M.validId(pkg.id) then return false, "invalid or reserved package id" end
   if type(pkg.name) ~= "string" or pkg.name == "" then return false, "missing name" end
   if type(pkg.version) ~= "string" or pkg.version == "" then return false, "missing version" end
   if type(pkg.files) ~= "table" then return false, "missing files" end
   for path, content in pairs(pkg.files) do
-    if type(path) ~= "string" or path == "" then return false, "invalid file path" end
-    if path:match("^/") then return false, "absolute file path not allowed: " .. path end
-    if path:match("%.%.") then return false, "parent path not allowed: " .. path end
+    if not M.ownedPath(path, pkg.id) then return false, "path outside package namespace: " .. tostring(path) end
     if type(content) ~= "string" then return false, "invalid file content: " .. path end
+    if path:match("%.lua$") then
+      local fn, err = load(content, "@" .. path, "t", {})
+      if not fn then return false, tostring(err) end
+    end
+  end
+  if pkg.app ~= nil then
+    if type(pkg.app) ~= "table" or (pkg.app.id ~= nil and pkg.app.id ~= pkg.id)
+      or type(pkg.app.module) ~= "string" then return false, "invalid application identity" end
+    local modulePath = pkg.app.module:gsub("%.", "/") .. ".lua"
+    if not M.ownedPath(modulePath, pkg.id) or not pkg.files[modulePath] then return false, "application module not owned" end
+    if pkg.app.iconPath and (type(pkg.app.iconPath) ~= "string" or pkg.app.iconPath:sub(1, 1) ~= "/"
+      or not M.ownedPath(pkg.app.iconPath:sub(2), pkg.id)) then return false, "application icon not owned" end
   end
   return true
 end
@@ -7595,6 +8764,13 @@ return M
 local config = require("system.libraries.config")
 local manifest = require("system.package.manifest")
 local log = require("system.libraries.log")
+local safeWrite = require("system.libraries.safe_write")
+local transactionRoot = "/var/tmp/mintcraft-package"
+local busy = false
+
+local function allowed(path)
+  return path == "packages/installed.db" or manifest.ownedPath(path)
+end
 
 local M = {
   installedPath = "/packages/installed.db",
@@ -7608,31 +8784,50 @@ end
 
 local function readInstalled()
   ensure()
-  return config.load(M.installedPath, {})
-end
-
-local function writeInstalled(data)
-  ensure()
-  return config.save(M.installedPath, data)
+  local recovered, problem = safeWrite.recoverTransaction(transactionRoot, allowed)
+  assert(recovered, problem)
+  local data = config.load(M.installedPath, nil)
+  if data == nil and not fs.exists(M.installedPath) then data = {} end
+  M.quarantined = {}
+  if type(data) ~= "table" then
+    M.quarantined[1] = {id="database", reason="Invalid installed package database; retained for inspection"}
+    return {}
+  end
+  local valid = {}
+  local owners, migrated = {}, false
+  for id, pkg in pairs(data) do
+    local ok, problem = pcall(function()
+      assert(manifest.validId(id) and type(pkg) == "table" and pkg.id == id and type(pkg.files) == "table",
+        "Invalid installed package record")
+      for path in pairs(pkg.files) do
+        assert(manifest.ownedPath(path, id) and not owners[path], "Invalid package ownership")
+      end
+      if pkg.app then
+        assert(type(pkg.app) == "table" and (pkg.app.id == nil or pkg.app.id == id)
+          and type(pkg.app.module) == "string" and manifest.ownedPath(pkg.app.module:gsub("%.", "/") .. ".lua", id),
+          "Invalid installed application identity")
+      end
+    end)
+    if ok then
+      valid[id] = pkg
+      for path in pairs(pkg.files) do
+        owners[path] = id
+        if pkg.files[path] ~= true then pkg.files[path], migrated = true, true end
+      end
+    else
+      M.quarantined[#M.quarantined+1] = {id=tostring(id), reason=tostring(problem)}
+    end
+  end
+  if migrated then
+    local saved, err = config.save(M.installedPath, data)
+    assert(saved, err)
+  end
+  return valid
 end
 
 local function readSources()
   ensure()
   return config.load(M.sourcesPath, {})
-end
-
-local function writeFile(path, content)
-  local dir = fs.getDir(path)
-  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-  local handle = fs.open(path, "w")
-  if not handle then return false, "cannot write " .. path end
-  handle.write(content)
-  handle.close()
-  return true
-end
-
-local function removeFile(path)
-  if fs.exists(path) then fs.delete(path) end
 end
 
 function M.setContext(ctx)
@@ -7668,9 +8863,12 @@ end
 
 function M.registerInstalledApps()
   if not M.ctx or not M.ctx.apps then return end
-  for _, pkg in pairs(readInstalled()) do
+  local ok, installed = pcall(readInstalled)
+  if not ok then return false, tostring(installed) end
+  for _, pkg in pairs(installed) do
     if pkg.app then
       M.ctx.apps.register(pkg.app.id or pkg.id, pkg.app.name or pkg.name, pkg.app.module, {
+        builtin = false,
         icon = pkg.app.icon or "PK",
         iconPath = pkg.app.iconPath,
         category = pkg.app.category or "Installed",
@@ -7681,18 +8879,27 @@ function M.registerInstalledApps()
   end
 end
 
-function M.install(id)
+local function install(id)
   local pkg = M.find(id)
   if not pkg then return false, "package not found" end
   local ok, err = manifest.validate(pkg)
   if not ok then return false, err end
 
-  for path, content in pairs(pkg.files) do
-    local written, writeErr = writeFile("/" .. path, content)
-    if not written then return false, writeErr end
-  end
-
   local installed = readInstalled()
+  if #M.quarantined > 0 then return false, "Quarantined package records require inspection; database retained" end
+  local registered = M.ctx and M.ctx.apps and M.ctx.apps.get and M.ctx.apps.get(id)
+  if registered and registered.builtin then return false, "Built-in application identity is protected" end
+  local previous = installed[id]
+  local changes, paths = {}, {}
+  for path, content in pairs(pkg.files) do
+    if fs.exists("/" .. path) and not (previous and previous.files[path]) then
+      return false, "Refusing to overwrite unowned file: " .. path
+    end
+    changes[path], paths[path] = content, true
+  end
+  for path in pairs(previous and previous.files or {}) do
+    if not paths[path] then changes[path] = false end
+  end
   installed[pkg.id] = {
     id = pkg.id,
     name = pkg.name,
@@ -7700,25 +8907,57 @@ function M.install(id)
     description = pkg.description,
     app = pkg.app,
     permissions = pkg.permissions,
-    files = pkg.files,
+    files = paths,
     installedAt = os.clock(),
   }
-  writeInstalled(installed)
+  -- Normalize legacy records too; installed.db contains ownership, never payloads.
+  for _, record in pairs(installed) do
+    for path in pairs(record.files) do record.files[path] = true end
+  end
+  changes["packages/installed.db"] = textutils.serialize(installed)
+  local saved, problem = safeWrite.transaction(transactionRoot, changes, allowed)
+  if not saved then return false, problem end
   M.registerInstalledApps()
   log.info("package", "installed " .. pkg.id .. " " .. pkg.version)
   return true, "installed"
 end
 
-function M.remove(id)
+local function remove(id)
   local installed = readInstalled()
+  if #M.quarantined > 0 then return false, "Quarantined package records require inspection; database retained" end
   local pkg = installed[id]
   if not pkg then return false, "package not installed" end
-  for path in pairs(pkg.files or {}) do removeFile("/" .. path) end
+  local changes = {}
+  for path in pairs(pkg.files or {}) do
+    if not manifest.ownedPath(path, id) then return false, "Invalid package ownership" end
+    changes[path] = false
+  end
   installed[id] = nil
-  writeInstalled(installed)
+  for _, record in pairs(installed) do
+    for path in pairs(record.files) do record.files[path] = true end
+  end
+  changes["packages/installed.db"] = textutils.serialize(installed)
+  local saved, problem = safeWrite.transaction(transactionRoot, changes, allowed)
+  if not saved then return false, problem end
   log.warn("package", "removed " .. id)
   return true, "removed, reboot recommended"
 end
+
+local function exclusive(fn, id)
+  if busy or _G.mintcraftStorageOperation then return false, "Package/storage operation already in progress" end
+  if fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
+    or fs.exists("/var/tmp/mintcraft-restore") then return false, "System recovery pending" end
+  busy = true
+  _G.mintcraftStorageOperation = "Package"
+  local ok, result, detail = pcall(fn, id)
+  busy = false
+  _G.mintcraftStorageOperation = nil
+  if not ok then return false, tostring(result) end
+  return result, detail
+end
+
+function M.install(id) return exclusive(install, id) end
+function M.remove(id) return exclusive(remove, id) end
 
 return M
 ]=],
@@ -7781,6 +9020,7 @@ return M
 ]=],
   ["system/security/users.lua"] = [=[
 local config = require("system.libraries.config")
+local safeWrite = require("system.libraries.safe_write")
 
 local M = {
   path = "/system/security/users.db",
@@ -7792,7 +9032,8 @@ local function computerId()
   return 0
 end
 
-local function hashPassword(password)
+-- Only used to authenticate existing installations during migration.
+local function legacyHash(password)
   password = tostring(password or "")
   local h = 5381 + computerId()
   for i = 1, #password do
@@ -7809,13 +9050,13 @@ local function defaults()
       admin = {
         name = "admin",
         role = "admin",
-        passwordHash = hashPassword(""),
+        passwordHash = legacyHash(""),
         permissions = { "*" },
       },
       guest = {
         name = "guest",
         role = "guest",
-        passwordHash = hashPassword(""),
+        passwordHash = legacyHash(""),
         permissions = {
           "filesystem.read",
           "network.http",
@@ -7850,28 +9091,93 @@ end
 
 local function mergeDefaults(db)
   local def = defaults()
-  db = db or {}
+  if db == nil then return def end
+  assert(type(db) == "table" and type(db.users) == "table", "Invalid user database")
   db.currentUser = db.currentUser or def.currentUser
   db.locked = db.locked == true
-  db.users = db.users or {}
   db.roles = db.roles or def.roles
-  for name, user in pairs(def.users) do
-    db.users[name] = db.users[name] or user
-    db.users[name].permissions = db.users[name].permissions or user.permissions
-    db.users[name].role = db.users[name].role or user.role
-    db.users[name].passwordHash = db.users[name].passwordHash or user.passwordHash
+  assert(type(db.roles) == "table", "Invalid user roles")
+  for name, user in pairs(db.users) do
+    assert(type(user) == "table", "Invalid user record")
+    user.name = user.name or name
+    local fallback = def.users[name]
+    if fallback then
+      user.permissions = user.permissions or fallback.permissions
+      user.role = user.role or fallback.role
+    end
   end
   return db
 end
 
+local function copy(value)
+  if type(value) ~= "table" then return value end
+  local result = {}
+  for key, item in pairs(value) do result[key] = copy(item) end
+  return result
+end
+
+local function same(a, b)
+  if type(a) ~= type(b) then return false end
+  if type(a) ~= "table" then return a == b end
+  for key, value in pairs(a) do if not same(value, b[key]) then return false end end
+  for key in pairs(b) do if a[key] == nil then return false end end
+  return true
+end
+
+local function crypto()
+  -- Provider owns the vetted KDF and salt generation. Never downgrade.
+  local ok, provider = pcall(require, "system.libraries.password_crypto")
+  if ok and type(provider) == "table" and type(provider.create) == "function"
+      and type(provider.verify) == "function" then return provider end
+  return nil, "Password changes unavailable: vetted password KDF provider is not installed"
+end
+
+local failures, retryAt = 0, 0
+local function now()
+  return os.epoch and os.epoch("utc") / 1000 or os.clock()
+end
+
+local function failedAttempt()
+  failures = math.min(failures + 1, 12)
+  if failures >= 5 then retryAt = now() + math.min(300, 2 ^ (failures - 5)) end
+  return false, "invalid credentials"
+end
+
+local function authenticate(db, name, password, options)
+  if now() < retryAt then return false, "Too many attempts; retry later" end
+  if type(password) ~= "string" or #password > 1024 then return failedAttempt() end
+  local user = db.users[name]
+  if not user then return failedAttempt() end
+  if type(user.passwordHash) == "table" then
+    local provider, err = crypto()
+    if not provider then return false, err end
+    local ok, valid = pcall(provider.verify, password, copy(user.passwordHash), options)
+    if not ok then return false, "Password verification unavailable" end
+    if valid ~= true then return failedAttempt() end
+  elseif type(user.passwordHash) ~= "string" or user.passwordHash ~= legacyHash(password) then
+    return failedAttempt()
+  end
+  return true
+end
+
+local function credential(password, options)
+  local provider, err = crypto()
+  if not provider then return nil, err end
+  local ok, value = pcall(provider.create, password, options)
+  if not ok or type(value) ~= "table" then return nil, "Password KDF failed; password unchanged" end
+  return value
+end
+
 function M.load()
-  local db = mergeDefaults(config.load(M.path, nil))
-  config.save(M.path, db)
+  local stored = config.load(M.path, nil)
+  if stored == nil and fs and fs.exists and fs.exists(M.path) then error("User database unreadable", 0) end
+  local db = mergeDefaults(copy(stored))
   return db
 end
 
-function M.save(db)
-  return config.save(M.path, mergeDefaults(db))
+function M.save(db, expected)
+  if expected and not same(M.load(), expected) then return false, "Session changed; retry operation" end
+  return safeWrite.write(M.path, textutils.serialize(mergeDefaults(copy(db))))
 end
 
 function M.current()
@@ -7904,50 +9210,72 @@ function M.hasPermission(permission)
   return set["*"] == true or set[permission] == true
 end
 
-function M.verify(name, password)
+local function verify(name, password, options)
   local db = M.load()
-  local user = db.users[name]
-  if not user then return false, "unknown user" end
-  if user.passwordHash ~= hashPassword(password or "") then return false, "bad password" end
-  return true
+  return authenticate(db, name, password, options)
 end
 
-function M.login(name, password)
-  local ok, err = M.verify(name, password)
-  if not ok then return false, err end
+local function login(name, password, options)
   local db = M.load()
+  local expected = copy(db)
+  local ok, err = authenticate(db, name, password, options)
+  if not ok then return false, err end
+  if type(db.users[name].passwordHash) == "string" then
+    local provider = crypto()
+    if provider then
+      local migrated, migrationErr = credential(password, options)
+      if not migrated then return false, migrationErr end
+      db.users[name].passwordHash = migrated
+    end
+  end
   db.currentUser = name
   db.locked = false
-  M.save(db)
+  if options and options.cancelled and options.cancelled() then return false, "Authentication cancelled" end
+  local saved, saveErr = M.save(db, expected)
+  if not saved then return false, saveErr end
+  failures, retryAt = 0, 0
   return true, "logged in as " .. tostring(name)
 end
 
 function M.lock()
   local db = M.load()
   db.locked = true
-  M.save(db)
-  return true
+  return M.save(db)
 end
 
-function M.unlock(password)
+function M.unlock(password, options)
   local db = M.load()
-  return M.login(db.currentUser or "admin", password)
+  return M.login(db.currentUser or "admin", password, options)
 end
 
 function M.logout()
   local db = M.load()
   db.currentUser = "guest"
   db.locked = false
-  M.save(db)
-  return true
+  return M.save(db)
 end
 
-function M.setPassword(name, password)
+local function setPassword(name, password, oldPassword, options)
   local db = M.load()
+  local expected = copy(db)
+  local actor = db.users[db.currentUser]
+  if db.locked then return false, "session locked" end
+  if not actor or actor.role ~= "admin" then return false, "administrator required" end
+  local permissions = M.permissionSet(actor, db)
+  if not permissions["*"] and not permissions["system.security.admin"] then return false, "administrator permission required" end
   if not db.users[name] then return false, "unknown user" end
-  db.users[name].passwordHash = hashPassword(password or "")
-  M.save(db)
-  return true
+  if type(password) ~= "string" or #password < 8 or #password > 1024 then
+    return false, "New password must contain 8 to 1024 characters"
+  end
+  local ok, err = authenticate(db, db.currentUser, oldPassword, options)
+  if not ok then return false, err end
+  local value, hashErr = credential(password, options)
+  if not value then return false, hashErr end
+  db.users[name].passwordHash = value
+  if options and options.cancelled and options.cancelled() then return false, "Authentication cancelled" end
+  local saved, saveErr = M.save(db, expected)
+  if saved then failures, retryAt = 0, 0 end
+  return saved, saveErr
 end
 
 function M.list()
@@ -7968,6 +9296,23 @@ end
 function M.isLocked()
   return M.load().locked == true
 end
+
+local authBusy = false
+local authOwner
+local function exclusive(fn, ...)
+  if authBusy and authOwner and coroutine.status(authOwner) == "dead" then authBusy = false end
+  if authBusy then return false, "Authentication already in progress" end
+  authBusy = true
+  authOwner = coroutine.running()
+  local result = table.pack(pcall(fn, ...))
+  authBusy, authOwner = false, nil
+  if not result[1] then return false, "Authentication unavailable" end
+  return table.unpack(result, 2, result.n)
+end
+function M.verify(...) return exclusive(verify, ...) end
+function M.login(...) return exclusive(login, ...) end
+function M.setPassword(...) return exclusive(setPassword, ...) end
+function M.authBusy() return authBusy end
 
 return M
 ]=],
@@ -8121,17 +9466,23 @@ function M.acquire(rescan)
           entry.errors=errors
           entry.ok=next(errors)==nil and next(entry.data)~=nil
           if def.slow then slow[row.name]=addon.copy(entry) end
-          for method,err in pairs(errors) do snap.errors[#snap.errors+1]=row.name..":"..method..": "..err end
         end
+        for method,err in pairs(entry.errors or {}) do snap.errors[#snap.errors+1]=row.name..":"..method..": "..err end
       end
     end
   end
   if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
   if readSlow then slowAt=now end
-  if snap.available then snap.status="Create Avionics peripherals ready" end
-  local a=snap.altitude[1] and snap.altitude[1].data or {}
-  local g=snap.gimbal[1] and snap.gimbal[1].data or {}
-  local n=snap.nav[1] and snap.nav[1].data or {}
+  snap.ok=#snap.errors==0
+  if snap.available then snap.status=snap.ok and "Create Avionics peripherals ready" or "Avionics telemetry degraded" end
+  snap.lastFault=snap.errors[1]
+  local function healthy(rows)
+    for _,entry in ipairs(rows) do if entry.ok then return entry.data,entry.timestamp end end
+    return {},now
+  end
+  local a=healthy(snap.altitude)
+  local g=healthy(snap.gimbal)
+  local n=healthy(snap.nav)
   local angle,rate=g.angles or {},g.angularRates or {}
   local fields={altitude={a.height,"m","world"},verticalSpeed={a.verticalSpeed,"m/s","world"},pressure={a.airPressure,"fraction","world"},
     pitch={angle[1],"deg","body"},roll={angle[2],"deg","body"},pitchRate={rate[1],"deg/s","body"},yawRate={rate[2],"deg/s","body"},rollRate={rate[3],"deg/s","body"},heading={n.heading,"deg","world"},gravity={addon.vec(g.gravity),"m/s2","body"}}
@@ -8140,7 +9491,12 @@ function M.acquire(rescan)
   revision=revision+1 snap.revision=revision cached=snap
 end
 function M.snapshot() return addon.copy(cached) end
-function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts),errors=addon.copy(cached.errors),timestamp=cached.timestamp,revision=cached.revision} end
+function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=cached.lastFault,counts=addon.copy(cached.counts),errors=addon.copy(cached.errors),timestamp=cached.timestamp,revision=cached.revision} end
+function M.health()
+  local health=M.status()
+  health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
+  return health
+end
 function M.list() return addon.copy(cached.devices) end
 function M.rescan() if runner then runner:rescan() end end
 function M.probe(name)
@@ -8158,7 +9514,11 @@ end
 function M.start(ctx)
   M.stop()
   runner=addon.periodic(ctx,"avionicsd",0.1,M.acquire)
-  runner.onError=function(err) cached.ok=false cached.errors={err} end
+  runner.onError=function(err)
+    revision=revision+1
+    cached.ok=false cached.errors={err} cached.lastFault=err
+    cached.status="Avionics acquisition failed" cached.revision=revision
+  end
   if runner.error then runner.onError(runner.error) end
 end
 function M.stop() if runner then runner:stop() runner=nil end end
@@ -8418,14 +9778,27 @@ function M.acquire(rescan)
   snap.revision = revision
   snap.counts = {radars=#snap.radars, targets=#snap.targets, cannons=#snap.cannons, unknown=#snap.unknownCombatDevices}
   snap.available = #snap.radars+#snap.cannons+#snap.controllers>0
-  snap.status = snap.available and "combat peripherals ready" or "no supported combat peripheral"
   snap.ok=#snap.errors==0
+  snap.status = not snap.ok and "combat telemetry degraded" or snap.available and "combat peripherals ready" or "no supported combat peripheral"
+  lastFault=snap.errors[1]
+  snap.lastFault=lastFault
   cached = snap
   radarNet.checkPerimeter(snap)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
-function M.status() return {available=cached.available,status=cached.status,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=lastFault,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.health()
+  local health=M.status()
+  health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
+  health.commandPid=M.commandPid
+  local commandWorker=ctx and ctx.scheduler.processes[M.commandPid]
+  if commandWorker and commandWorker.state~="ready" then
+    health.ok,health.lastFault,health.status=false,commandWorker.error or "combat command worker stopped","combat command worker stopped"
+  end
+  if next(uncertain) then health.ok=false health.lastFault=health.lastFault or "combat output uncertain; manual verification required" end
+  return health
+end
 function M.rescan() if runner then runner:rescan() end end
 function M.configuration() return addon.copy(settings) end
 function M.autoConfigureRadars(actor)
@@ -8625,6 +9998,7 @@ local function processCommand(command)
   local info, readErr = addon.call(row.device,"getInfo")
   if readErr or type(info) ~= "table" or info.assembled ~= true then return false,"cannon not assembled/readable" end
   if command.kind == "aim" then
+    command.outputAttempted=true
     local control, controlErr = addon.call(row.device,"setComputerControl",true)
     if controlErr or control==false then return false,controlErr or "control refused" end
     local result, aimErr = addon.call(row.device,"setTargetAngles",solution.yaw,solution.pitch)
@@ -8632,6 +10006,7 @@ local function processCommand(command)
   end
   if not addon.finite(info.yaw) or not addon.finite(info.pitch) or math.abs(geometry.wrap(info.yaw-solution.yaw))>2 or math.abs(info.pitch-solution.pitch)>2 then return false,"cannon not aligned with selected target" end
   firing=row
+  command.outputAttempted=true
   local value, fireErr = addon.call(row.device,"fire",true)
   if fireErr or value == false then return false,fireErr or "fire refused" end
   local timer = os.startTimer(0.1)
@@ -8647,10 +10022,13 @@ function M.start(context)
   local stopped,why=M.stop()
   if stopped==false then error(why) end
   ctx = context
+  lastFault=nil
   loadSettings()
   runner = addon.periodic(ctx,"combatd",0.2,M.acquire)
   runner.onError = function(err)
-    cached.errors = {err} cached.ok=false
+    revision=revision+1
+    cached.errors = {err} cached.ok=false cached.revision=revision
+    cached.status="combat acquisition failed" cached.lastFault=err
     if lastFault~=err then
       lastFault=err pcall(log.error,"combat",err)
       if ctx.notifications then pcall(ctx.notifications.push,ctx.notifications,"warn","Combat read failed",err,5) end
@@ -8665,8 +10043,8 @@ function M.start(context)
         local ok, success, message = addon.bounded(function() return processCommand(command) end,0.5)
         if not ok then
           message = success
-          if command.cannonId then uncertain[command.cannonId]=tostring(message) end
         end
+        if (not ok or success~=true) and command.cannonId and command.outputAttempted then uncertain[command.cannonId]=tostring(message) end
         if firing then
           local row=firing
           local cleared,clearErr=addon.bounded(function()
@@ -8927,6 +10305,7 @@ local ctx, runner, cfg, inventory, last, controllers, manual = nil,nil,{}, {},{}
 local state, reason, owner, targets, timestamp = "disarmed","not calibrated",nil,{},0
 local rescuePending, lastTick, inventoryDirty = false, nil, true
 local tested, rescueTested, session = {}, false, false
+local outputResults, rescueResults = {}, {}
 
 local function authorize(actor, permission)
   local process = ctx and actor and ctx.scheduler.processes[actor.pid]
@@ -9150,26 +10529,46 @@ function M.manual(actor,axis,value)
   return true
 end
 
-local function writeOutputs(values)
-  local branches={}
+local function writeOutputs(values, force, results)
+  local branches, failures={}, {}
+  results=results or {}
   for _,channel in ipairs(cfg.control.channels) do
     local key,value=endpoint(channel),values[channel.id]
-    if value~=nil and (last[key]~=value or rescuePending) then
+    if force then value=channel.rescue end
+    if force or (value~=nil and last[key]~=value) then
       local valid,why=channelValid(channel)
-      if not valid or not addon.finite(value) or value<channel.min or value>channel.max then error(why or "unsafe output value") end
-      branches[#branches+1]=function()
-        if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value)
-        else
-          local row=deviceFor(channel)
-          if not row then error("actuator detached: "..tostring(channel.name)) end
-          local returned,err=addon.call(row.device,"setSignal",value)
-          if err or returned==false then error(err or "actuator refused") end
+      local result={endpoint=key,value=value,state="unavailable",error=why}
+      results[channel.id]=result outputResults[channel.id]=result
+      if not valid or not addon.finite(value) or value<channel.min or value>channel.max then
+        result.error=why or "unsafe output value"
+      else
+        -- A suspended write may already have reached hardware. Never infer failure
+        -- from a timeout, or retry it implicitly in a later rescue tick.
+        result.state,result.error="uncertain","output not confirmed"
+        branches[#branches+1]=function()
+          local ok,accepted,err=addon.bounded(function()
+            if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value) return true end
+            local row=deviceFor(channel)
+            if not row then return false,"actuator detached: "..tostring(channel.name) end
+            local returned,problem=addon.call(row.device,"setSignal",value)
+            if problem then error(problem) end
+            return returned~=false,returned==false and "actuator refused" or nil
+          end,0.15)
+          if ok and accepted then
+            result.state,result.error="confirmed",nil last[key]=value
+          else
+            result.state=ok and "refused" or "uncertain"
+            result.error=tostring(ok and err or accepted)
+          end
         end
-        last[key]=value
       end
     end
   end
   if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
+  for id,result in pairs(results) do
+    if result.state~="confirmed" then failures[#failures+1]=id..": "..result.state..": "..tostring(result.error) end
+  end
+  return #failures==0,table.concat(failures,"; "),results
 end
 
 function M.calibrate(actor,kind,id, confirmed)
@@ -9230,22 +10629,19 @@ function M.step(rescan)
     end
   end
   if rescuePending then
-    local values={}
-    for _,channel in ipairs(cfg.control.channels) do
-      local valid,why=channelValid(channel)
-      if not valid then rescuePending=false reason="rescue invalid: "..tostring(why) return end
-      values[channel.id]=channel.rescue
-    end
-    rescuePending=false
-    writeOutputs(values)
-    if state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
-    if M.test and M.test.applied and M.test.completed then tested[M.test.id]=true end
+    -- Claim the batch once, before yielding to any output.
+    rescuePending=false rescueResults={}
+    local ok,err=writeOutputs({},true,rescueResults)
+    if not ok then state,reason="failsafe","rescue incomplete: "..err
+    elseif state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
+    if ok and M.test and M.test.applied and M.test.completed then tested[M.test.id]=true end
     M.test=nil
     return
   end
   if state=="calibration" and M.test then
     if now>=M.test.expires then M.test.completed=true M.fail("output test completed") return end
-    writeOutputs({[M.test.id]=M.test.value})
+    local ok,err=writeOutputs({[M.test.id]=M.test.value})
+    if not ok then M.fail("actuator error: "..err) return end
     M.test.applied=true
     return
   end
@@ -9276,13 +10672,19 @@ function M.step(rescan)
     for _,axis in ipairs(axes) do value=value+(channel.mix[axis] or 0)*output[axis] end
     values[channel.id]=math.floor(math.max(channel.min,math.min(channel.max,value))+0.5)
   end
-  writeOutputs(values)
+  local ok,err=writeOutputs(values)
+  if not ok then M.fail("actuator error: "..err) end
 end
 
 function M.status()
   local valid,errors=M.validate()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
-    outputs=addon.copy(last),rescuePending=rescuePending,timestamp=timestamp}
+    outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
+end
+
+function M.health()
+  return {ok=state~="failsafe",status=reason,lastFault=state=="failsafe" and reason or nil,timestamp=timestamp,rescuePending=rescuePending,
+    pid=runner and runner.pid,lastSuccess=runner and runner.lastSuccess,outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults)}
 end
 
 function M.start(context)
@@ -9292,6 +10694,7 @@ function M.start(context)
   state,owner,rescuePending="disarmed",nil,false
   reason="not armed; calibration required"
   controllers,manual,last,tested={}, {}, {}, {}
+  outputResults,rescueResults={},{}
   rescueTested=false
   if cfg.control.sessionActive then state,reason,rescuePending="failsafe","previous session interrupted; rescue required",true end
   runner=addon.periodic(ctx,"flightd",0.1,M.step)
@@ -9350,6 +10753,7 @@ local M = {
   ctx = nil,
   listener = nil,
   deviceListeners = {},
+  securityWarning = "INSECURE Rednet: unauthenticated and unencrypted; senders can be spoofed",
 }
 
 local function computerId()
@@ -9367,7 +10771,12 @@ local function label()
 end
 
 local function parse(data, sender)
-  local packet = type(data) == "string" and textutils.unserialize(data) or data
+  if type(data)=="string" and #data>8192 then return nil end
+  local packet=data
+  if type(data)=="string" then
+    local ok,value=pcall(textutils.unserialize,data)
+    packet=ok and value or nil
+  end
   if type(packet) == "table" and packet.type == "message" and type(packet.text) == "string" then
     return {
       type = "message", id = sender,
@@ -9417,6 +10826,7 @@ function M.open()
 end
 
 function M.statusText()
+  if M.side then return M.status.." | "..M.securityWarning end
   return M.status
 end
 
@@ -9448,6 +10858,7 @@ function M.start(ctx)
   M.open()
   if ctx and ctx.eventBus and not M.listener then
     M.listener = ctx.eventBus:on("rednet_message", function(sender, data, proto)
+      if type(sender)~="number" or sender~=sender or sender<0 or sender==math.huge or sender%1~=0 then return end
       if proto ~= nil and proto ~= M.protocol and proto ~= "mintcraft.public" then return end
       local packet = parse(data, sender)
       if not packet then return end
@@ -9597,15 +11008,51 @@ local addon=require("system.libraries.addon")
 local config=require("system.libraries.config")
 local safeWrite=require("system.libraries.safe_write")
 local permissions=require("system.security.permissions")
-local M={protocol="mintcraft.radar.v1"}
+local M={protocol="mintcraft.radar.v1",securityWarning="INSECURE Rednet: unauthenticated and unencrypted; station IDs can be spoofed"}
 local ctx,runner,listener,modem,problem
 local nodes,settings,sequence={}, {},0
 local session=tostring(os.epoch and os.epoch("utc") or os.clock())
 local announced,lastAlert={},-math.huge
+local ENVELOPE="mintcraft.radar.hmac-sha256.v1"
+local MAX_PAYLOAD=65536
+local function authentication()
+  if (settings.sharedKey or "")=="" then
+    if settings.allowInsecure then return "insecure" end
+    return nil,"Radar blocked: configure sharedKey or explicitly allowInsecure (unauthenticated, unencrypted)"
+  end
+  local ok,crypto=pcall(require,"system.libraries.password_crypto")
+  if not ok or type(crypto)~="table" or type(crypto.mac)~="function" then
+    return nil,"Radar blocked: vetted HMAC-SHA256 provider unavailable"
+  end
+  if not os.epoch then return nil,"Radar blocked: UTC clock required for authenticated freshness" end
+  return "keyed",crypto
+end
+local function macInput(sender,payload)
+  return ENVELOPE.."\n"..M.protocol.."\n"..tostring(sender).."\n"..payload
+end
+local function mac(crypto,sender,payload)
+  local ok,value=pcall(crypto.mac,settings.sharedKey,macInput(sender,payload))
+  if not ok or type(value)~="string" or #value~=64 or not value:match("^%x+$") then return nil end
+  return value
+end
+local function signaturesEqual(left,right)
+  -- Both signatures are exactly 64 bytes; inspect every byte without early exit.
+  local difference=0
+  for i=1,64 do local delta=left:byte(i)-right:byte(i) difference=difference+delta*delta end
+  return difference==0
+end
 local function short(value,limit)
   return type(value)=="string" and #value<=limit and not value:find("[%c]") and value or nil
 end
 local function validId(id) return addon.finite(id) and id>=0 and id%1==0 end
+local function pruneDiscovery()
+  local discovered={}
+  for id,node in pairs(nodes) do
+    if not settings.trusted[tostring(id)] then discovered[#discovered+1]=node end
+  end
+  table.sort(discovered,function(a,b) return a.received>b.received or (a.received==b.received and a.id<b.id) end)
+  for i=17,#discovered do nodes[discovered[i].id]=nil end
+end
 local function save(value)
   local ok,err=safeWrite.write("/system/config/radarnet.cfg",textutils.serialize(value))
   if ok then settings=addon.copy(value) end return ok,err
@@ -9619,20 +11066,32 @@ function M.configure(actor,value)
   if type(value)~="table" or not short(value.group,40) or value.group=="" then return false,"Network group required (same world/dimension)" end
   if type(value.trusted)~="table" then return false,"invalid station list" end
   local count=0 for id,enabled in pairs(value.trusted) do
-    if not validId(tonumber(id)) or type(enabled)~="boolean" then return false,"invalid station ID" end count=count+1
+    if type(id)~="string" or not validId(tonumber(id)) or tostring(tonumber(id))~=id or type(enabled)~="boolean" then return false,"invalid station ID" end count=count+1
   end
   if count>16 then return false,"maximum 16 stations" end
+  if value.sharedKey~=nil and (type(value.sharedKey)~="string" or (#value.sharedKey>0 and #value.sharedKey<16) or #value.sharedKey>256) then
+    return false,"Shared key must be empty or 16..256 bytes"
+  end
+  if value.allowInsecure~=nil and type(value.allowInsecure)~="boolean" then return false,"invalid allowInsecure" end
+  if value.enabled and (value.sharedKey or "")=="" and value.allowInsecure~=true then
+    return false,"Configure a shared key, or explicitly allow insecure Rednet"
+  end
   if not addon.finite(value.radius) or value.radius<=0 or value.radius>100000 then return false,"Zone radius must be 1..100000m" end
   if not addon.vec({x=value.x,y=value.y,z=value.z}) then return false,"Zone requires world X/Y/Z" end
   for _,key in ipairs({"enabled","publish","alerts"}) do if type(value[key])~="boolean" then return false,"invalid "..key end end
-  local changed=value.group~=settings.group or value.enabled~=settings.enabled
-  local saved,why=save(value)
-  if saved then if changed then nodes={} end if runner then runner:rescan() end end
+  local changed=value.group~=settings.group or value.enabled~=settings.enabled or
+    (value.sharedKey or "")~=(settings.sharedKey or "") or value.allowInsecure~=settings.allowInsecure
+  local nextSettings=addon.copy(value)
+  nextSettings.sharedKey=value.sharedKey or "" nextSettings.allowInsecure=value.allowInsecure==true
+  local saved,why=save(nextSettings)
+  if saved then if changed then nodes={} else pruneDiscovery() end if runner then runner:rescan() end end
   return saved,why
 end
 local function open()
   modem=nil
   if not settings.enabled then problem="Disabled" return end
+  local mode,why=authentication()
+  if not mode then problem=why return end
   for _,row in ipairs(addon.inventory()) do if addon.hasType(row,"modem") then
     local ok=pcall(function() if not rednet.isOpen(row.name) then rednet.open(row.name) end end)
     if ok then modem=row.name problem=nil return end
@@ -9642,15 +11101,51 @@ end
 -- Accept only bounded primitive measurement fields. Packets cannot request commands.
 function M.receive(sender,packet,protocol)
   if protocol~=M.protocol or not settings.enabled or not validId(sender) or sender==os.getComputerID() then return false end
+  local mode,crypto=authentication()
+  if not mode then return false end
+  local transportAge=0
+  if mode=="keyed" then
+    if type(packet)~="table" or packet.format~=ENVELOPE or packet.sender~=sender or
+      type(packet.payload)~="string" or #packet.payload>MAX_PAYLOAD or
+      type(packet.mac)~="string" or #packet.mac~=64 then return false end
+    local expected=mac(crypto,sender,packet.payload)
+    if not expected then return false end
+    if not signaturesEqual(expected,packet.mac) then return false end
+    local decoded,value=pcall(textutils.unserialize,packet.payload)
+    if not decoded or type(value)~="table" then return false end
+    packet=value
+    local utc=os.epoch("utc")/1000
+    if not addon.finite(packet.sentAt) or packet.sentAt>utc+2 or packet.sentAt<utc-10 then return false end
+    transportAge=math.max(0,utc-packet.sentAt)
+  elseif type(packet)=="table" and packet.format then
+    -- A keyed envelope is never silently downgraded to plaintext.
+    return false
+  end
   if type(packet)~="table" or packet.version~=1 or packet.group~=settings.group or packet.frame~="world" or
     not short(packet.session,80) or not addon.finite(packet.sequence) or packet.sequence<0 or packet.sequence%1~=0 or
     not short(packet.label,80) or type(packet.radars)~="table" or #packet.radars>64 or
     type(packet.targets)~="table" or #packet.targets>128 then return false end
   local old=nodes[sender]
+  local signedSessions={}
+  if mode=="keyed" then
+    local count=0 local utc=os.epoch("utc")/1000
+    for id,record in pairs(old and old.signedSessions or {}) do
+      if utc-record.sentAt<=10 then signedSessions[id]=record count=count+1 end
+    end
+    local record=signedSessions[packet.session]
+    if record and packet.sequence<=record.sequence then return false end
+    if not record and count>=32 then return false end
+    signedSessions[packet.session]={sequence=packet.sequence,sentAt=packet.sentAt}
+  end
   if old and old.session==packet.session and packet.sequence<=old.sequence then return false end
   if old and os.clock()-old.received<0.15 then return false end
-  if not old then local count=0 for _ in pairs(nodes) do count=count+1 end if count>=16 then return false end end
-  local node={id=sender,label=packet.label,session=packet.session,sequence=packet.sequence,received=os.clock(),radars={},targets={}}
+  if not old and not settings.trusted[tostring(sender)] then
+    -- Discovery has its own quota: strangers cannot consume paired station slots.
+    local count=0
+    for id in pairs(nodes) do if not settings.trusted[tostring(id)] then count=count+1 end end
+    if count>=16 then return false end
+  end
+  local node={id=sender,label=packet.label,session=packet.session,sequence=packet.sequence,received=os.clock(),radars={},targets={},signedSessions=signedSessions}
   for _,radar in ipairs(packet.radars) do
     if type(radar)~="table" then return false end
     local pos=addon.vec(radar.position)
@@ -9658,7 +11153,7 @@ function M.receive(sender,packet,protocol)
       not addon.finite(radar.age) or radar.age<0 or radar.age>5 then return false end
     local id="net:"..sender..":"..radar.id
     node.radars[#node.radars+1]={id=id,name=packet.label.." / "..radar.id,position=pos,range=radar.range,frame="world",remote=true,
-      stationId=sender,timestamp=os.clock()-radar.age,heading=addon.finite(radar.heading) and radar.heading or nil,
+      stationId=sender,timestamp=os.clock()-radar.age-transportAge,heading=addon.finite(radar.heading) and radar.heading or nil,
       fov=addon.finite(radar.fov) and radar.fov>0 and radar.fov<=360 and radar.fov or nil,
       halfHeight=addon.finite(radar.halfHeight) and radar.halfHeight>=0 and radar.halfHeight<=100000 and radar.halfHeight or nil,
       verticalFov=addon.finite(radar.verticalFov) and radar.verticalFov>0 and radar.verticalFov<=180 and radar.verticalFov or nil,
@@ -9675,7 +11170,7 @@ function M.receive(sender,packet,protocol)
     if not present then return false end
     local history={}
     if old then for _,previous in ipairs(old.targets) do if previous.id==target.id then history=addon.copy(previous.history) break end end end
-    local timestamp=os.clock()-target.age
+    local timestamp=os.clock()-target.age-transportAge
     if #history==0 or timestamp>history[#history].timestamp+0.05 then
       history[#history+1]={position=addon.vec(target.position),timestamp=timestamp}
       if #history>20 then table.remove(history,1) end
@@ -9688,12 +11183,15 @@ function M.receive(sender,packet,protocol)
   nodes[sender]=node return true
 end
 function M.snapshot()
-  local result={nodes={},radars={},targets={},enabled=settings.enabled,modem=modem,error=problem}
+  local mode,why=authentication()
+  local warning=mode=="keyed" and "Shared-key authenticated Rednet; NOT encrypted; key holders can impersonate stations" or M.securityWarning
+  local result={nodes={},radars={},targets={},enabled=settings.enabled,modem=modem,
+    warning=warning,authenticated=mode=="keyed",encrypted=false,error=problem or (settings.enabled and (mode and warning or why) or nil)}
   local now=os.clock()
   for id,node in pairs(nodes) do
     local online=now-node.received<=5
     result.nodes[#result.nodes+1]={id=id,label=node.label,online=online,age=now-node.received,included=settings.trusted[tostring(id)]==true,radars=#node.radars,targets=#node.targets}
-    if online and settings.trusted[tostring(id)] then
+    if mode and online and settings.trusted[tostring(id)] then
       for _,key in ipairs({"radars","targets"}) do for _,row in ipairs(node[key]) do
         if now-row.timestamp<=5 and #result[key]<(key=="radars" and 256 or 128) then result[key][#result[key]+1]=addon.copy(row) end
       end end
@@ -9702,9 +11200,11 @@ function M.snapshot()
   table.sort(result.nodes,function(a,b) return a.id<b.id end)
   return result
 end
-function M.status() local snap=M.snapshot() return {enabled=snap.enabled,modem=snap.modem,error=snap.error,stations=#snap.nodes} end
+function M.status() local snap=M.snapshot() return {enabled=snap.enabled,modem=snap.modem,error=snap.error,warning=snap.warning,authenticated=snap.authenticated,encrypted=false,stations=#snap.nodes} end
 function M.rescan() if runner then runner:rescan() end end
 function M.publish(snapshot)
+  local mode,crypto=authentication()
+  if not mode then return nil,crypto end
   local now=os.clock()
   sequence=sequence+1
   local packet={version=1,group=settings.group,frame="world",session=session,sequence=sequence,label=(os.getComputerLabel() or "Station "..os.getComputerID()):sub(1,80),radars={},targets={}}
@@ -9723,6 +11223,15 @@ function M.publish(snapshot)
           category=target.category,entityType=target.entityType,renderName=target.renderName,friendly=target.friendly,synthetic=target.synthetic,age=math.max(0,now-target.timestamp)}
       end
     end
+  end
+  if mode=="keyed" then
+    packet.sentAt=os.epoch("utc")/1000
+    local ok,payload=pcall(textutils.serialize,packet,{compact=true})
+    if not ok or type(payload)~="string" or #payload>MAX_PAYLOAD then return nil,"Radar payload exceeds authenticated wire limit" end
+    local sender=os.getComputerID()
+    local signature=mac(crypto,sender,payload)
+    if not signature then return nil,"Radar HMAC failed" end
+    return {format=ENVELOPE,sender=sender,payload=payload,mac=signature}
   end
   return packet
 end
@@ -9746,7 +11255,9 @@ function M.tick(rescan)
   if rescan then open() end
   local now=os.clock() for id,node in pairs(nodes) do if now-node.received>60 then nodes[id]=nil end end
   if settings.enabled and modem then
-    local ok,err=pcall(rednet.broadcast,M.publish(require("system.services.combatd").snapshot()),M.protocol)
+    local packet,why=M.publish(require("system.services.combatd").snapshot())
+    if not packet then problem=why return end
+    local ok,err=pcall(rednet.broadcast,packet,M.protocol)
     if not ok then problem=tostring(err) end
   end
 end
@@ -9756,16 +11267,31 @@ function M.start(context)
   if type(settings)~="table" then settings={} end
   settings.enabled=settings.enabled==true settings.publish=settings.publish==true settings.alerts=settings.alerts==true
   settings.group=short(settings.group,40) or "overworld-local"
-  settings.trusted=type(settings.trusted)=="table" and settings.trusted or {}
+  settings.allowInsecure=settings.allowInsecure==true
+  settings.sharedKey=type(settings.sharedKey)=="string" and settings.sharedKey or ""
+  if #settings.sharedKey>256 or (#settings.sharedKey>0 and #settings.sharedKey<16) then
+    settings.sharedKey="" settings.allowInsecure=false
+  end
+  local trusted={}
+  if type(settings.trusted)=="table" then
+    local ids={}
+    for id,enabled in pairs(settings.trusted) do
+      if type(id)=="string" and validId(tonumber(id)) and tostring(tonumber(id))==id and enabled==true then ids[#ids+1]=id end
+    end
+    table.sort(ids)
+    for i=1,math.min(16,#ids) do trusted[ids[i]]=true end
+  end
+  settings.trusted=trusted
   for _,key in ipairs({"x","y","z"}) do if not addon.finite(settings[key]) then settings[key]=0 end end
   if not addon.finite(settings.radius) or settings.radius<=0 then settings.radius=100 end
   listener=ctx.eventBus:on("rednet_message",M.receive)
+  if settings.enabled then require("system.libraries.log").warn("radarnet",M.snapshot().error or M.securityWarning) end
   runner=addon.periodic(ctx,"radarnetd",0.2,M.tick)
 end
 function M.stop()
   if runner then runner:stop() runner=nil end
   if ctx and listener then ctx.eventBus:off(listener) end
-  ctx=nil listener=nil modem=nil nodes={}
+  ctx=nil listener=nil modem=nil problem=nil nodes={}
   -- Shared Rednet modems belong to Messenger too: never close them here.
 end
 return M
@@ -9774,7 +11300,7 @@ return M
 local log = require("system.libraries.log")
 local addon = require("system.libraries.addon")
 local runner, revision, detected, slowAt, slowData = nil, 0, nil, -math.huge, nil
-local diagnostics, diagnosticsAt = {}, -math.huge
+local diagnostics, diagnosticsAt, diagnosticsErrors = {}, -math.huge, {}
 
 local M = {
   ctx = nil,
@@ -9825,7 +11351,8 @@ end
 
 local function readSublevel(sub)
   local out = { errors = {} }
-  local grid, gridErr = call(sub, "isInPlotGrid")
+  local okGrid,grid,gridErr=addon.bounded(function() return call(sub,"isInPlotGrid") end,0.05)
+  if not okGrid then gridErr,grid=tostring(grid),nil end
   out.plotGrid = grid
   if gridErr then out.errors.isInPlotGrid = gridErr end
   if grid ~= true then out.inSublevel = false return out end
@@ -9834,18 +11361,20 @@ local function readSublevel(sub)
   local slow={uuid="getUniqueId",name="getName",centerOfMass="getCenterOfMass",mass="getMass",inverseMass="getInverseMass",inertiaTensor="getInertiaTensor",inverseInertiaTensor="getInverseInertiaTensor"}
   local methods={}
   for _,method in pairs(fast) do methods[#methods+1]=method end
-  local values,errors=addon.read(sub,methods)
+  local values,errors=addon.read(sub,methods,0.1)
   for field,method in pairs(fast) do out[field]=addon.copy(values[method]) end
   for method,err in pairs(errors) do out.errors[method]=err end
   if os.clock()-diagnosticsAt>=1 then
     methods={}
     for _,method in pairs(slow) do methods[#methods+1]=method end
-    local data,problems=addon.read(sub,methods)
+    local data,problems=addon.read(sub,methods,0.1)
     diagnostics={}
+    diagnosticsErrors=problems
     for field,method in pairs(slow) do diagnostics[field]=addon.copy(data[method]) end
     for method,err in pairs(problems) do out.errors[method]=err end
     diagnosticsAt=os.clock()
   end
+  for method,err in pairs(diagnosticsErrors) do out.errors[method]=err end
   for field,value in pairs(diagnostics) do out[field]=addon.copy(value) end
 
   out.inSublevel = grid == true
@@ -9854,15 +11383,19 @@ end
 
 local function readAero(aero, subData)
   if not aero then return nil end
-  local values=addon.read(aero,{"getGravity","getMagneticNorth","getUniversalDrag","getRaw","getDefault"})
-  local out = {}
+  local values,errors=addon.read(aero,{"getGravity","getMagneticNorth","getUniversalDrag","getRaw","getDefault"},0.1)
+  local out = {errors=errors}
   out.gravity = addon.vec(values.getGravity)
   out.magneticNorth = addon.vec(values.getMagneticNorth)
   out.universalDrag = values.getUniversalDrag
   out.raw = addon.copy(values.getRaw)
   out.default = addon.copy(values.getDefault)
   local position = subData and subData.logicalPose and (subData.logicalPose.position or subData.logicalPose.pos)
-  if position then out.airPressure = call(aero, "getAirPressure", position) end
+  if position then
+    local ok,value,err=addon.bounded(function() return call(aero,"getAirPressure",position) end,0.05)
+    if ok then out.airPressure=value if err then out.errors.getAirPressure=err end
+    else out.errors.getAirPressure=tostring(value) end
+  end
   return out
 end
 
@@ -9870,13 +11403,29 @@ function M.status()
   return addon.copy(M.lastStatus)
 end
 
+function M.health()
+  local health=M.status()
+  health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
+  return health
+end
+
+local function publish(result)
+  revision=revision+1
+  result.revision,result.timestamp,result.frame=revision,os.clock(),"world"
+  M.lastSnapshot=result
+  M.lastStatus.ok,M.lastStatus.status=result.ok,result.status
+  M.lastStatus.revision,M.lastStatus.timestamp=revision,result.timestamp
+  M.lastStatus.lastFault=result.error
+  M.lastStatus.errors=addon.copy(result.errors or {})
+  return result
+end
+
 function M.acquire(rescan)
   if rescan or not detected then detected = table.pack(pcall(detect)) diagnosticsAt=-math.huge end
   local okDetect, sub, aero, names = table.unpack(detected, 1, detected.n)
   if not okDetect then
     M.lastStatus = { available = false, inSublevel = false, error = tostring(sub), apiNames = {} }
-    M.lastSnapshot = { ok = false, status = "CC:Sable detection failed", error = tostring(sub) }
-    return M.lastSnapshot
+    return publish({ ok = false, status = "CC:Sable detection failed", error = tostring(sub) })
   end
   local available = sub ~= nil or aero ~= nil
   local result = {
@@ -9890,8 +11439,7 @@ function M.acquire(rescan)
   if not available then
     M.lastStatus = { available = false, inSublevel = false, error = "CC:Sable APIs not found", apiNames = names }
     result.error = M.lastStatus.error
-    M.lastSnapshot = result
-    return result
+    return publish(result)
   end
 
   local subData = nil
@@ -9917,12 +11465,18 @@ function M.acquire(rescan)
   end
 
   local inSublevel = subData and subData.inSublevel == true
-  result.ok = true
+  result.errors={}
+  for source,data in pairs({sublevel=subData or {},aero=result.aero or {}}) do
+    for method,err in pairs(data.errors or {}) do result.errors[#result.errors+1]=source..":"..method..": "..err end
+  end
+  if not okAero then result.errors[#result.errors+1]=tostring(aeroData) end
+  if result.error then result.errors[#result.errors+1]=result.error end
+  result.error=result.errors[1]
+  result.ok = #result.errors==0
   result.status = inSublevel and "sublevel telemetry ready" or (sub and "sublevel API ready, no pose" or "not on sublevel")
+  if not result.ok then result.status="Sable telemetry degraded" end
   M.lastStatus = { available = true, inSublevel = inSublevel, error = result.error, apiNames = names or {} }
-  M.lastSnapshot = result
-  revision = revision + 1
-  result.revision, result.timestamp, result.frame = revision, os.clock(), "world"
+  publish(result)
   result.measurements = {}
   for key, unit in pairs({ mass = "kg", linearVelocity = "m/s", angularVelocity = "rad/s", centerOfMass = "m" }) do
     result.measurements[key] = addon.measure(subData and subData[key], unit, key == "centerOfMass" and "body" or "world", "CC:Sable", result.timestamp)
@@ -9942,10 +11496,15 @@ end
 function M.start(ctx)
   if runner then runner:stop() end
   M.ctx = ctx
+  detected,slowData,slowAt,diagnostics,diagnosticsAt,diagnosticsErrors=nil,nil,-math.huge,{},-math.huge,{}
   runner = addon.periodic(ctx, "sabled", 0.1, M.acquire)
   runner.onError = function(err)
     if M.lastStatus.error~=err then pcall(log.warn,"sabled",err) end
     M.lastStatus.error = err
+    M.lastStatus.inSublevel=false
+    local result=M.snapshot()
+    result.ok,result.error,result.status,result.errors=false,err,"Sable acquisition failed",{err}
+    publish(result)
   end
   if runner.error then runner.onError(runner.error) end
 end
@@ -9979,16 +11538,17 @@ local M = {
 }
 
 function M.load()
-  M.cfg = config.load(M.cfgPath, {
+  local loaded = config.load(M.cfgPath, {
     enabled = true,
     mode = "users",
     currentUser = "admin",
     logDenied = true,
     logSensitive = true,
   })
+  M.cfg = {}
+  for key, value in pairs(loaded) do M.cfg[key] = value end
   if M.cfg.mode == "single-user" then
     M.cfg.mode = "users"
-    config.save(M.cfgPath, M.cfg)
   end
   users.load()
   return M.cfg
@@ -10009,32 +11569,41 @@ function M.isLocked()
   return users.isLocked()
 end
 
-function M.login(name, password)
-  local ok, msg = users.login(name, password)
+function M.login(name, password, options)
+  local ok, msg = users.login(name, password, options)
   log.info("securityd", ok and msg or ("login failed " .. tostring(name)))
   return ok, msg
 end
 
-function M.unlock(password)
-  local ok, msg = users.unlock(password)
+function M.unlock(password, options)
+  local ok, msg = users.unlock(password, options)
   log.info("securityd", ok and "session unlocked" or "unlock failed")
   return ok, msg
 end
 
 function M.lock()
-  users.lock()
+  local ok, err = users.lock()
+  if not ok then return false, err end
   log.info("securityd", "session locked")
   return true
 end
 
 function M.logout()
-  users.logout()
+  local ok, err = users.logout()
+  if not ok then return false, err end
   log.info("securityd", "logged out to guest")
   return true
 end
 
-function M.setPassword(name, password)
-  local ok, msg = users.setPassword(name, password)
+function M.setPassword(name, password, oldPassword, actor, options)
+  local allowed, reason
+  if actor then
+    allowed, reason = require("system.security.permissions").require(actor, "system.security.admin", "password change")
+  else
+    allowed, reason = M.authorize(nil, "system.security.admin")
+  end
+  if not allowed then return false, reason end
+  local ok, msg = users.setPassword(name, password, oldPassword, options)
   log.info("securityd", ok and ("password changed for " .. tostring(name)) or tostring(msg))
   return ok, msg
 end
@@ -10089,7 +11658,7 @@ end
 function ServiceManager:start(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
-  if service.state == "running" then return true end
+  if service.started then return true end
   if not profile.serviceEnabled(name) then return false,"Disabled by app profile" end
 
   local ok, mod = pcall(require, service.moduleName)
@@ -10100,12 +11669,16 @@ function ServiceManager:start(name)
     return false, tostring(mod)
   end
 
+  if type(mod) ~= "table" then
+    service.state, service.error = "crashed", "Invalid service module"
+    return false, service.error
+  end
   service.module = mod
-  if mod.start then
+  if type(mod.start) == "function" then
     local started, result, detail = pcall(mod.start, self.ctx)
     if not started or result == false then
       local err = started and (detail or "start refused") or result
-      if mod.stop then pcall(mod.stop, self.ctx) end
+      if type(mod.stop) == "function" then pcall(mod.stop, self.ctx) end
       service.state = "crashed"
       service.error = tostring(err)
       log.error("service", name .. ": " .. tostring(err))
@@ -10114,6 +11687,13 @@ function ServiceManager:start(name)
   end
 
   service.state = "running"
+  service.started = true
+  service.workerPid = nil
+  for pid, worker in pairs(self.ctx.scheduler and self.ctx.scheduler.processes or {}) do
+    if worker.name == name and worker.meta and worker.meta.appId == name then
+      if not service.workerPid or pid > service.workerPid then service.workerPid = pid end
+    end
+  end
   service.error = nil
   log.info("service", name .. " running")
   return true
@@ -10122,7 +11702,7 @@ end
 function ServiceManager:stop(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
-  if service.module and service.module.stop then
+  if service.module and type(service.module.stop) == "function" then
     local ok, result, detail = pcall(service.module.stop, self.ctx)
     if not ok or result == false then
       -- A refused stop leaves its worker running (for example, pending rescue).
@@ -10133,6 +11713,7 @@ function ServiceManager:stop(name)
     end
   end
   service.state = "stopped"
+  service.started, service.error = false, nil
   log.info("service", name .. " stopped")
   return true
 end
@@ -10144,14 +11725,53 @@ function ServiceManager:startAutostart()
   end
 end
 
+-- health/status must return cached data only: never call acquisition from a draw.
+function ServiceManager:health(service)
+  local result = {state=service.state,error=service.error,lastSuccess=service.lastSuccess}
+  if not service.started then return result end
+  if service.state == "crashed" then return result end
+  result.state = "running"
+  local mod = service.module
+  local query = type(mod.health) == "function" and mod.health or type(mod.status) == "function" and mod.status
+  local ok, snap = true, {}
+  if query then ok, snap = pcall(query, self.ctx) end
+  if not ok then result.state, result.error = "degraded", tostring(snap) return result end
+  if type(snap) ~= "table" then snap = {} end
+  result.lastSuccess, result.pid = snap.lastSuccess or service.lastSuccess, snap.pid or snap.workerPid or service.workerPid
+  service.lastSuccess = result.lastSuccess
+  local state = snap.state or snap.status
+  local problem = snap.error
+  if not problem and snap.ok == false then problem = snap.lastFault or snap.reason end
+  if not problem and type(snap.errors) == "table" then
+    for _, err in pairs(snap.errors) do if err then problem = tostring(err) break end end
+  end
+  if problem or snap.ok == false or snap.available == false or state == "degraded" or state == "failsafe" then
+    result.state, result.error = "degraded", problem or snap.reason or state or "Unavailable"
+  else result.error = service.error end
+  if state == "crashed" or state == "stopped" or state == "killed" then
+    result.state, result.error = "crashed", problem or "Worker " .. state
+  end
+  local processes = self.ctx.scheduler and self.ctx.scheduler.processes
+  if result.pid and processes then
+    local worker = processes[result.pid]
+    if not worker or worker.state ~= "ready" then
+      result.state, result.error = "crashed", worker and worker.error or "Worker stopped"
+    end
+  end
+  return result
+end
+
 function ServiceManager:list()
   local rows = {}
   for _, service in pairs(self.services) do
+    local health = self:health(service)
     table.insert(rows, {
       name = service.name,
-      state = service.state,
+      state = health.state,
       autostart = service.autostart,
-      error = service.error,
+      error = health.error,
+      lastSuccess = health.lastSuccess,
+      pid = health.pid,
     })
   end
   table.sort(rows, function(a, b) return a.name < b.name end)
@@ -10164,6 +11784,8 @@ return ServiceManager
 local config = require("system.libraries.config")
 local version = require("system.libraries.version")
 local source = require("system.libraries.update_source")
+local safeWrite = require("system.libraries.safe_write")
+local operation
 
 local M = {
   cfgPath = "/system/config/update.cfg",
@@ -10178,6 +11800,16 @@ local M = {
 
 local function trim(value)
   return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function validFileRollback(path)
+  if type(path) ~= "string" or path:sub(-1) == "/" or path:find("//", 1, true)
+    or path:find("[%c:\\]") or path == "/system/config" or path:match("^/system/config/") then return false end
+  for part in path:gmatch("[^/]+") do
+    if part == "." or part == ".." or part:find(".mintcraft-save", 1, true) then return false end
+  end
+  return path == "/VERSION" or path == "/boot.lua" or path == "/startup.lua"
+    or path:match("^/system/") or path:match("^/apps/")
 end
 
 local function readFile(path)
@@ -10203,11 +11835,26 @@ local function restoreTree(from, to)
   local stage = "/var/tmp/mintcraft-restore"
   if fs.exists(stage) then return false, "Interrupted restore at " .. stage .. "; inspection required" end
   fs.makeDir(stage)
+  assert(config.save(stage .. "/target.cfg", to))
   local nextPath, oldPath = stage .. "/next", stage .. "/previous"
   local copied, err = pcall(fs.copy, from, nextPath)
   if not copied then
     pcall(fs.delete, stage)
     return false, "Restore staging failed: " .. tostring(err) .. "; backup retained"
+  end
+  if to == "/system" and fs.exists("/system/config") then
+    if fs.exists(nextPath .. "/config") then fs.delete(nextPath .. "/config") end
+    fs.copy("/system/config", nextPath .. "/config")
+  end
+  if to == "/apps" and fs.exists("/apps") then
+    local core = {browser=true,combat=true,crafttube=true,devices=true,editor=true,files=true,logs=true,
+      messenger=true,navigation=true,services=true,settings=true,store=true,taskmanager=true,terminal=true,update=true}
+    for _, name in ipairs(fs.list("/apps")) do
+      if not core[name] then
+        if fs.exists(nextPath .. "/" .. name) then fs.delete(nextPath .. "/" .. name) end
+        fs.copy("/apps/" .. name, nextPath .. "/" .. name)
+      end
+    end
   end
   local hadPrevious = fs.exists(to)
   local moved, moveErr = pcall(function()
@@ -10219,6 +11866,7 @@ local function restoreTree(from, to)
       local recovered = pcall(fs.move, oldPath, to)
       if not recovered then return false, "Restore interrupted; previous data at " .. oldPath end
     end
+    if fs.exists(oldPath) then return false, "Restore interrupted; previous data retained at " .. oldPath end
     pcall(fs.delete, stage)
     return false, "Restore replacement failed: " .. tostring(moveErr)
   end
@@ -10335,6 +11983,14 @@ function M.rollbackInfo()
 end
 
 local function createRollback(reason,changes)
+  local storage = M.storageInfo()
+  local estimate = 0
+  for _, entry in ipairs(changes or ROLLBACK_PATHS) do
+    estimate = estimate + M.storageBytes(changes and ("/" .. entry) or entry)
+  end
+  if storage.policy.quotaBytes > 0 and storage.bytes + estimate + 32768 > storage.policy.quotaBytes then
+    error("Backup quota exceeded; explicitly manage retained checkpoints before retrying")
+  end
   fs.makeDir(M.rollbackRoot)
 
   local base = tostring(math.floor(os.epoch and os.epoch("utc") or (os.clock() * 1000)))
@@ -10392,11 +12048,17 @@ function M.createRollback(reason,changes)
 end
 
 local function rollback()
+  if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") then
+    return false, "Recover pending installation before rollback"
+  end
+  local recovered, recoveryErr = safeWrite.recoverRestore()
+  if not recovered then return false, recoveryErr end
   local info = M.rollbackInfo()
   if not info then return false, "no rollback backup" end
   local backupDir = M.rollbackRoot .. "/" .. info.id
   local manifest = config.load(backupDir .. "/manifest.cfg", nil)
-  if type(manifest) ~= "table" or type(manifest.paths) ~= "table" or manifest.id ~= info.id then
+  if type(manifest) ~= "table" or type(manifest.paths) ~= "table" or manifest.id ~= info.id
+    or (manifest.kind ~= nil and manifest.kind ~= "files") then
     return false, "invalid rollback manifest"
   end
   local allowed, seen, count = {}, {}, 0
@@ -10409,32 +12071,48 @@ local function rollback()
     local fileMode=manifest.kind=="files"
     if fileMode then
       if not (path=="/VERSION" or path=="/boot.lua" or path=="/startup.lua" or path:match("^/system/") or path:match("^/apps/") or path:match("^/packages/") or path:match("^/home/")) or
-        path:find("..",1,true) or path:find("\\",1,true) or type(manifest.existed)~="table" or type(manifest.existed[path])~="boolean" then return false,"invalid file rollback entry" end
+        path:find("..",1,true) or path:find("//",1,true) or path:find("[%c:\\]") or type(manifest.existed)~="table" or type(manifest.existed[path])~="boolean" then return false,"invalid file rollback entry" end
       if path:match("^/system/config/") or path:match("^/home/") or path:match("^/packages/") or path:sub(-1)=="/" then return false,"User data is not part of a file rollback" end
       if manifest.existed[path] and fs.isDir(backupDir..path) then return false,"Expected rollback file" end
+      if fs.exists(path) and fs.isDir(path) then return false,"Expected live file" end
+      if not validFileRollback(path) then return false, "Non-canonical rollback path" end
     elseif not allowed[path] then return false,"invalid rollback path list" end
     seen[path], count = true, count + 1
     if (not fileMode or manifest.existed[path]) and not fs.exists(backupDir .. path) then return false, "missing backup " .. path end
   end
   if count == 0 or count ~= #manifest.paths then return false, "empty or incomplete rollback manifest" end
 
+  assert(config.save("/var/tmp/mintcraft-rollback.cfg", {id=info.id}))
+
   for _, path in ipairs(manifest.paths) do
     local ok,err
-    if manifest.kind=="files" and not manifest.existed[path] then
+    if path == "/packages" then
+      ok = true -- Package databases and user-installed packages are not system rollback data.
+    elseif manifest.kind=="files" and not manifest.existed[path] then
       ok,err=pcall(function() if fs.exists(path) then assert(not fs.isDir(path),"Unexpected directory at "..path) fs.delete(path) end end)
     else ok,err=restoreTree(backupDir..path,path) end
     if not ok then return false, err end
   end
+  fs.delete("/var/tmp/mintcraft-rollback.cfg")
   return true, "rollback restored " .. tostring(manifest.fromVersion or "previous") .. ", reboot required"
 end
 
-function M.rollback()
-  local ok, result, detail = pcall(rollback)
-  if not ok then return false, "Rollback failed: " .. tostring(result) .. "; backup retained" end
+local function exclusive(name, fn)
+  if operation or _G.mintcraftStorageOperation then return false, "Update operation in progress: " .. tostring(operation or _G.mintcraftStorageOperation) end
+  operation = name
+  _G.mintcraftStorageOperation = name
+  local ok, result, detail = pcall(fn)
+  operation = nil
+  _G.mintcraftStorageOperation = nil
+  if not ok then return false, name .. " failed: " .. tostring(result) .. "; backup retained" end
   return result, detail
 end
 
-function M.apply()
+function M.rollback() return exclusive("Rollback", rollback) end
+
+local function apply()
+  if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
+    or fs.exists("/var/tmp/mintcraft-restore") then return false, "Recover pending update before applying" end
   local pinned, err = source.resolve(M.loadConfig(), httpGet)
   if not pinned then return false, err end
   local remote, problem = httpGet(source.url(pinned, "VERSION"))
@@ -10448,11 +12126,13 @@ function M.apply()
   local backedUp=false
   environment.mintcraftInstallOptions={beforeInstall=function(plan)
     assert(version.compare(trim(plan.version),trim(remote))==0,"Pinned installer/version mismatch")
+    assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed; check again")
     local free=fs.getFreeSpace and fs.getFreeSpace("/")
     local required=plan.stageBytes+plan.backupBytes*2+math.max(32768,#plan.changed*256)
     if type(free)=="number" and free<required then error("UPD-DISK: need "..required.." free bytes; available "..free..". Backups retained.") end
     local ok,backup=M.createRollback("before update",plan.changed)
     assert(ok,tostring(backup)) backedUp=true
+    assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed during checkpoint")
   end}
   local fn,loadErr=load(data,"@github-update-"..pinned.sha,"t",environment)
   if not fn then return false,loadErr end
@@ -10461,6 +12141,117 @@ function M.apply()
   if not backedUp then return false,"Installer did not create a rollback checkpoint" end
   M.status.localVersion=M.localVersion() M.status.updateAvailable=false M.status.message="Installed; reboot required"
   return true, "installer finished, reboot required"
+end
+
+function M.apply() return exclusive("Apply", apply) end
+
+function M.storageBytes(path)
+  if not fs.exists(path) then return 0 end
+  if fs.isDir(path) then
+    local total = 0
+    for _, name in ipairs(fs.list(path)) do total = total + M.storageBytes(path .. "/" .. name) end
+    return total
+  end
+  return fs.getSize and fs.getSize(path) or #(readFile(path) or "")
+end
+
+function M.storageInfo()
+  local policy = config.load("/system/config/update-storage.cfg", {})
+  if type(policy) ~= "table" then policy = {} end
+  policy = {
+    quotaBytes = type(policy.quotaBytes) == "number" and math.max(0, policy.quotaBytes) or 0,
+    retainCount = type(policy.retainCount) == "number" and math.max(1, math.floor(policy.retainCount)) or 3,
+  }
+  local protected, rows, total, validCount = {}, {}, 0, 0
+  for _, pointer in ipairs({"latest.cfg", "previous.cfg"}) do
+    local data = config.load(M.rollbackRoot .. "/" .. pointer, nil)
+    if type(data) == "table" and type(data.id) == "string" then protected[data.id] = true end
+  end
+  local pending = config.load("/var/tmp/mintcraft-rollback.cfg", nil)
+  if type(pending) == "table" and type(pending.id) == "string" then protected[pending.id] = true end
+  if fs.exists(M.rollbackRoot) and fs.list then
+    for _, id in ipairs(fs.list(M.rollbackRoot)) do
+      local path = M.rollbackRoot .. "/" .. id
+      if id:match("^%d+%-?%d*$") and fs.isDir(path) then
+        local bytes = M.storageBytes(path)
+        local manifest = config.load(path .. "/manifest.cfg", nil)
+        local valid, count, seen = type(manifest) == "table" and manifest.id == id
+          and type(manifest.paths) == "table" and (manifest.kind == nil or manifest.kind == "files"), 0, {}
+        if valid then
+          local full = {} for _, key in ipairs(ROLLBACK_PATHS) do full[key] = true end
+          for index, key in pairs(manifest.paths) do
+            if type(index) ~= "number" or index % 1 ~= 0 or index < 1 or index > #manifest.paths
+              or type(key) ~= "string" or seen[key] then valid = false break end
+            seen[key], count = true, count + 1
+            if manifest.kind == "files" then
+              if not validFileRollback(key) or type(manifest.existed) ~= "table" or type(manifest.existed[key]) ~= "boolean" then valid = false break end
+            elseif not full[key] then valid = false break end
+            if manifest.kind ~= "files" or manifest.existed[key] then
+              if not fs.exists(path .. key) then valid = false break end
+              local directory = manifest.kind ~= "files" and (key == "/system" or key == "/apps" or key == "/packages")
+              if fs.isDir(path .. key) ~= (directory or false) then valid = false break end
+            end
+          end
+          valid = valid and count > 0 and count == #manifest.paths
+        end
+        if valid then validCount = validCount + 1 end
+        rows[#rows+1] = {id=id, bytes=bytes, valid=valid, protected=protected[id] == true or not valid}
+        total = total + bytes
+      end
+    end
+  end
+  table.sort(rows, function(a,b)
+    local an, bn = tonumber(a.id:match("^%d+")), tonumber(b.id:match("^%d+"))
+    return an == bn and a.id > b.id or an > bn
+  end)
+  for _, row in ipairs(rows) do if #rows == 1 or (validCount == 1 and row.valid) then row.protected = true end end
+  return {bytes=total, backups=rows, policy=policy, busy=operation}
+end
+
+function M.setStoragePolicy(policy)
+  if type(policy) ~= "table" or type(policy.quotaBytes) ~= "number" or policy.quotaBytes < 0
+    or policy.quotaBytes ~= policy.quotaBytes or policy.quotaBytes == math.huge
+    or type(policy.retainCount) ~= "number" or policy.retainCount < 1 or policy.retainCount % 1 ~= 0 then
+    return false, "Invalid storage policy"
+  end
+  return config.save("/system/config/update-storage.cfg", {quotaBytes=policy.quotaBytes, retainCount=policy.retainCount})
+end
+
+function M.purgeBackup(id, confirmed)
+  if confirmed ~= true then return false, "Explicit confirmation required" end
+  if operation or _G.mintcraftStorageOperation then return false, "Update operation in progress" end
+  if fs.exists("/var/tmp/mintcraft-rollback.cfg") or fs.exists("/var/tmp/mintcraft-restore")
+    or fs.exists("/var/tmp/mintcraft-install") then return false, "Recovery pending; backups retained" end
+  for _, row in ipairs(M.storageInfo().backups) do
+    if row.id == id then
+      if row.protected then return false, "Checkpoint is protected" end
+      local ok, err = pcall(fs.delete, M.rollbackRoot .. "/" .. id)
+      return ok, ok and "Backup purged" or tostring(err)
+    end
+  end
+  return false, "Unknown backup"
+end
+
+function M.pruneBackups(confirmed)
+  if confirmed ~= true then return false, "Explicit confirmation required" end
+  local info, removed = M.storageInfo(), 0
+  for i = #info.backups, info.policy.retainCount + 1, -1 do
+    local row = info.backups[i]
+    if not row.protected then
+      local ok, err = M.purgeBackup(row.id, true)
+      if not ok then return false, err end
+      removed = removed + 1
+    end
+  end
+  return true, "Purged " .. removed .. " backups"
+end
+
+M.report = M.storageInfo
+function M.cleanup(kind, options)
+  options = options or {}
+  if kind ~= "updates" then return false, "Unknown storage kind" end
+  if options.id then return M.purgeBackup(options.id, options.confirm == true) end
+  return M.pruneBackups(options.confirm == true)
 end
 
 function M.start(ctx)
@@ -10804,6 +12595,7 @@ function Window.new(opts)
     app = opts.app,
     ownerPid = opts.ownerPid,
     onError = opts.onError,
+    dirty = true,
   }, Window)
 end
 
@@ -10812,6 +12604,17 @@ function Window:crash(err)
   if self.onError then
     pcall(self.onError, err)
   end
+end
+
+function Window:requestClose()
+  if self.app and self.app.canClose then
+    local ok,allowed=pcall(self.app.canClose,self.app,self)
+    self.dirty=true
+    if not ok then self:crash("close: "..tostring(allowed)) return false end
+    if allowed==false then return false end
+  end
+  self.closed=true
+  return true
 end
 
 function Window:clamp()
@@ -10891,13 +12694,18 @@ function Window:draw()
     if not bounds or bounds.x ~= self.x or bounds.y ~= self.y or bounds.w ~= self.w or bounds.h ~= self.h then
       target.reposition(self.x + 1, self.y + 1, self.w - 2, self.h - 2)
       self.surfaceBounds = {x = self.x, y = self.y, w = self.w, h = self.h}
+      self.dirty=true
     end
-    local previous = term.redirect(target)
-    term.setBackgroundColor(theme.get("windowBg"))
-    term.setTextColor(theme.get("windowFg"))
-    term.clear()
-    local ok, err = pcall(self.app.draw, self.app, self.w - 2, self.h - 2)
-    term.redirect(previous)
+    local ok,err=true,nil
+    if self.dirty or self.surfaceTheme~=theme.currentId then
+      local previous = term.redirect(target)
+      term.setBackgroundColor(theme.get("windowBg"))
+      term.setTextColor(theme.get("windowFg"))
+      term.clear()
+      ok,err=pcall(self.app.draw,self.app,self.w-2,self.h-2)
+      term.redirect(previous)
+      self.dirty=false self.surfaceTheme=theme.currentId
+    end
     if ok then
       target.setVisible(true)
     else
@@ -10921,7 +12729,7 @@ function Window:handle(event)
     end
     self:updateControls()
     if button == 1 and self:boxHit(self.closeBox, x, y) then
-      self.closed = true
+      self:requestClose()
       return true
     elseif button == 1 and self:boxHit(self.minimizeBox, x, y) then
       self.minimized = true
@@ -10966,6 +12774,7 @@ function Window:handle(event)
       self:crash("handle: " .. tostring(handled))
       return true
     end
+    if handled then self.dirty=true end
     return handled
   end
   return false
@@ -11012,13 +12821,25 @@ function WindowManager:active()
   end
 end
 
+function WindowManager:invalidate(appId)
+  for _,win in ipairs(self.windows) do
+    if not appId or win.appId==appId then win.dirty=true end
+  end
+end
+
 function WindowManager:draw()
   for i = #self.windows, 1, -1 do
     if self.windows[i].closed then table.remove(self.windows, i) end
   end
 
-  for _, win in ipairs(self.windows) do
-    win:draw()
+  for index, win in ipairs(self.windows) do
+    local covered=false
+    for upper=index+1,#self.windows do
+      local other=self.windows[upper]
+      if not other.closed and not other.minimized and other.x<=win.x and other.y<=win.y and
+        other.x+other.w>=win.x+win.w and other.y+other.h>=win.y+win.h then covered=true break end
+    end
+    if not covered then win:draw() end
   end
 
   local w, h = term.getSize()
@@ -11118,7 +12939,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.6
+0.18.7
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

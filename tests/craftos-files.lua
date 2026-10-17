@@ -26,6 +26,7 @@ local ok, err = pcall(function()
   local notices = {}
   local ctx = {
     args = {path = "home/user/files-test"},
+    security = {require=function() return true end},
     notifications = {push = function(_, kind, title, message) notices[#notices + 1] = message end},
     apps = {launch = function() return true end},
     pullEvent = function() coroutine.yield() end,
@@ -101,12 +102,12 @@ local ok, err = pcall(function()
   assert(read("/home/user/files-test/renamed.txt") == "keep this content")
   action("delete")
   assert(app.confirm == "trash", "user file classified as permanent deletion")
-  action("delete")
+  action("confirm")
   assert(not fs.exists("/home/user/files-test/renamed.txt"))
   assert(read("/home/user/.trash/renamed.txt") == "keep this content")
   app.path, app.selected = "/home/user/.trash", "renamed.txt"
   action("restore")
-  assert(read("/home/user/renamed.txt") == "keep this content")
+  assert(read("/home/user/files-test/renamed.txt") == "keep this content")
   app.path, app.selected = "/", "system"
   resetToolbar()
   action("delete")

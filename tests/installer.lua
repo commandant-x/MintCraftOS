@@ -1,5 +1,5 @@
 package.path = "./?.lua;" .. package.path
-local files, dirs, failAt = {}, {}, nil
+local files, dirs, failAt, quota = {}, {}, nil, nil
 local function parent(p) return p:match("^(.*)/[^/]+$") or "" end
 fs = {
   getDir = parent,
@@ -19,6 +19,10 @@ fs = {
     files[p] = ""
     return { write = function(s)
       if p == failAt then failAt = nil error("disk full") end
+      if quota then
+        local used=0 for _,content in pairs(files) do used=used+#content end
+        assert(used-#files[p]+#s<=quota,"quota exceeded")
+      end
       files[p] = s
     end, close = function() end }
   end,
@@ -56,4 +60,10 @@ assert(not fs.exists("/var/tmp/mintcraft-install"))
 assert(not pcall(installer.install, {["system/../../outside"]="bad"}))
 dirs["/var/tmp/mintcraft-install"] = true
 assert(not pcall(installer.install,bundle), "overwrote interrupted transaction")
+fs.delete("/var/tmp/mintcraft-install")
+quota=550000
+local large={}
+for i=1,4 do large["system/themes/large"..i..".dat"]=string.rep("x",100000) end
+assert(installer.install(large),"fresh installation retained every consumed staging copy")
+assert(not fs.exists("/var/tmp/mintcraft-install"))
 print("installer tests passed")

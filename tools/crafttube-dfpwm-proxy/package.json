@@ -4,7 +4,8 @@
   "private": true,
   "description": "Local YouTube to DFPWM proxy for MintCraft OS CraftTube.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test server.test.js"
   },
   "engines": {
     "node": ">=18"

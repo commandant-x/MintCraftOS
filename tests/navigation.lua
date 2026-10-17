@@ -2,6 +2,7 @@ package.path="./?.lua;"..package.path
 local now=10
 os.clock=function() return now end
 local addon=require("system.libraries.addon")
+addon.bounded=function(fn) return pcall(fn) end
 addon.inventory=function() return {} end
 addon.periodic=function() return {stop=function() end} end
 package.loaded["system.libraries.log"]={info=function() end,warn=function() end,error=function() end}

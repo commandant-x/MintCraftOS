@@ -50,7 +50,7 @@ function M.run(ctx)
     if app.configKind=="network" then
       local object=app.networkConfig
       local rows={}
-      for _,entry in ipairs({{"group","World/dimension group","string"},{"x","Zone centre X","number"},{"y","Zone centre Y","number"},{"z","Zone centre Z","number"},{"radius","Zone radius m","number"},{"alerts","Perimeter alerts","boolean"}}) do
+      for _,entry in ipairs({{"group","World/dimension group","string"},{"sharedKey","Shared key (16+ chars)","secret"},{"allowInsecure","Allow unauthenticated Rednet","boolean"},{"x","Zone centre X","number"},{"y","Zone centre Y","number"},{"z","Zone centre Z","number"},{"radius","Zone radius m","number"},{"alerts","Perimeter alerts","boolean"}}) do
         rows[#rows+1]=forms.field(object,entry[1],entry[2],entry[3])
       end return rows
     end
@@ -351,19 +351,20 @@ function M.run(ctx)
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Combat",w=math.min(120,w-2),h=math.min(38,h-2),x=2,y=2,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end if trackTimer then os.cancelTimer(trackTimer) end combat.release(ctx.pid) end)
-  timer=os.startTimer(0.05) trackTimer=os.startTimer(0.5)
+  timer=ctx.startTimer(0.05) trackTimer=ctx.startTimer(0.5)
   while not win.closed do
     local event=ctx.pullEvent()
     if event.name=="timer" and event.args[1]==timer then
       if not win.minimized then refresh() end
-      timer=os.startTimer(win.minimized and 1 or (app.page=="radar" or app.page=="three") and 0.05 or 0.2)
+      timer=ctx.startTimer(win.minimized and 1 or (app.page=="radar" or app.page=="three") and 0.05 or 0.2)
     elseif event.name=="timer" and event.args[1]==trackTimer then
       if app.tracking and not win.minimized and not app.confirm then
         local ok,err=combat.requestAim(actor,app.cannonId,app.targetId)
         if not ok then app.tracking=false app.message=tostring(err) end
-      end trackTimer=os.startTimer(0.5)
+      end trackTimer=ctx.startTimer(0.5)
     elseif event.name=="mintcraft_combat_result" and event.args[1]==ctx.pid then
       report(event.args[3],event.args[4])
+      if ctx.invalidate then ctx.invalidate() end
       if not event.args[3] then app.tracking=false end
     end
   end

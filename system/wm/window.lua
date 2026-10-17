@@ -29,6 +29,7 @@ function Window.new(opts)
     app = opts.app,
     ownerPid = opts.ownerPid,
     onError = opts.onError,
+    dirty = true,
   }, Window)
 end
 
@@ -37,6 +38,17 @@ function Window:crash(err)
   if self.onError then
     pcall(self.onError, err)
   end
+end
+
+function Window:requestClose()
+  if self.app and self.app.canClose then
+    local ok,allowed=pcall(self.app.canClose,self.app,self)
+    self.dirty=true
+    if not ok then self:crash("close: "..tostring(allowed)) return false end
+    if allowed==false then return false end
+  end
+  self.closed=true
+  return true
 end
 
 function Window:clamp()
@@ -116,13 +128,18 @@ function Window:draw()
     if not bounds or bounds.x ~= self.x or bounds.y ~= self.y or bounds.w ~= self.w or bounds.h ~= self.h then
       target.reposition(self.x + 1, self.y + 1, self.w - 2, self.h - 2)
       self.surfaceBounds = {x = self.x, y = self.y, w = self.w, h = self.h}
+      self.dirty=true
     end
-    local previous = term.redirect(target)
-    term.setBackgroundColor(theme.get("windowBg"))
-    term.setTextColor(theme.get("windowFg"))
-    term.clear()
-    local ok, err = pcall(self.app.draw, self.app, self.w - 2, self.h - 2)
-    term.redirect(previous)
+    local ok,err=true,nil
+    if self.dirty or self.surfaceTheme~=theme.currentId then
+      local previous = term.redirect(target)
+      term.setBackgroundColor(theme.get("windowBg"))
+      term.setTextColor(theme.get("windowFg"))
+      term.clear()
+      ok,err=pcall(self.app.draw,self.app,self.w-2,self.h-2)
+      term.redirect(previous)
+      self.dirty=false self.surfaceTheme=theme.currentId
+    end
     if ok then
       target.setVisible(true)
     else
@@ -146,7 +163,7 @@ function Window:handle(event)
     end
     self:updateControls()
     if button == 1 and self:boxHit(self.closeBox, x, y) then
-      self.closed = true
+      self:requestClose()
       return true
     elseif button == 1 and self:boxHit(self.minimizeBox, x, y) then
       self.minimized = true
@@ -191,6 +208,7 @@ function Window:handle(event)
       self:crash("handle: " .. tostring(handled))
       return true
     end
+    if handled then self.dirty=true end
     return handled
   end
   return false

@@ -1,5 +1,6 @@
 local renderer = require("system.gui.renderer")
 local ui = require("system.gui.components")
+local theme = require("system.gui.theme")
 
 local M = {}
 
@@ -13,21 +14,23 @@ function M.run(ctx)
   local protected = { deviced = true, notifd = true, logd = true }
 
   function app:draw(w, h)
+    renderer.fill(1, 1, w, h, theme.get("windowBg"))
     self.toolbar = ui.toolbar(1, 1, w, actions)
-    renderer.writeAt(1, 2, renderer.crop("SERVICE       STATE      AUTO", w), colors.black, colors.gray)
+    renderer.writeAt(1, 2, renderer.crop("SERVICE       STATE      AUTO", w), theme.get("titleFg"), theme.get("titleBg"))
     local rows = ctx.system.services:list()
     for i = 1, math.min(#rows, h - 4) do
       local s = rows[self.scroll + i - 1]
       if s then
-        local bg = s.name == self.selected and colors.cyan or colors.lightGray
+        local bg = s.name == self.selected and theme.get("accent") or theme.get("windowBg")
         local mark = protected[s.name] and " protected" or ""
-        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart) .. mark, w), colors.black, bg)
+        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart) .. mark, w), theme.get("windowFg"), bg)
       end
     end
     local selected
     for _, s in ipairs(rows) do if s.name == self.selected then selected = s end end
     if selected then
-      renderer.writeAt(1, h, renderer.crop("Last error: " .. tostring(selected.error or "-"), w), colors.gray, colors.lightGray)
+      renderer.writeAt(1, h - 1, renderer.crop("Last success: " .. tostring(selected.lastSuccess or "unknown"), w), theme.get("windowFg"), theme.get("windowBg"))
+      renderer.writeAt(1, h, renderer.crop("Last error: " .. tostring(selected.error or "-"), w), theme.get("windowFg"), theme.get("windowBg"))
     end
   end
 
@@ -49,8 +52,8 @@ function M.run(ctx)
       elseif action == "stop" then
         ctx.system.services:stop(self.selected)
       elseif action == "restart" then
-        ctx.system.services:stop(self.selected)
-        ctx.system.services:start(self.selected)
+        local stopped = ctx.system.services:stop(self.selected)
+        if stopped then ctx.system.services:start(self.selected) end
       end
       return true
     end

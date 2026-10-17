@@ -14,6 +14,7 @@ local ctx, runner, cfg, inventory, last, controllers, manual = nil,nil,{}, {},{}
 local state, reason, owner, targets, timestamp = "disarmed","not calibrated",nil,{},0
 local rescuePending, lastTick, inventoryDirty = false, nil, true
 local tested, rescueTested, session = {}, false, false
+local outputResults, rescueResults = {}, {}
 
 local function authorize(actor, permission)
   local process = ctx and actor and ctx.scheduler.processes[actor.pid]
@@ -237,26 +238,46 @@ function M.manual(actor,axis,value)
   return true
 end
 
-local function writeOutputs(values)
-  local branches={}
+local function writeOutputs(values, force, results)
+  local branches, failures={}, {}
+  results=results or {}
   for _,channel in ipairs(cfg.control.channels) do
     local key,value=endpoint(channel),values[channel.id]
-    if value~=nil and (last[key]~=value or rescuePending) then
+    if force then value=channel.rescue end
+    if force or (value~=nil and last[key]~=value) then
       local valid,why=channelValid(channel)
-      if not valid or not addon.finite(value) or value<channel.min or value>channel.max then error(why or "unsafe output value") end
-      branches[#branches+1]=function()
-        if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value)
-        else
-          local row=deviceFor(channel)
-          if not row then error("actuator detached: "..tostring(channel.name)) end
-          local returned,err=addon.call(row.device,"setSignal",value)
-          if err or returned==false then error(err or "actuator refused") end
+      local result={endpoint=key,value=value,state="unavailable",error=why}
+      results[channel.id]=result outputResults[channel.id]=result
+      if not valid or not addon.finite(value) or value<channel.min or value>channel.max then
+        result.error=why or "unsafe output value"
+      else
+        -- A suspended write may already have reached hardware. Never infer failure
+        -- from a timeout, or retry it implicitly in a later rescue tick.
+        result.state,result.error="uncertain","output not confirmed"
+        branches[#branches+1]=function()
+          local ok,accepted,err=addon.bounded(function()
+            if channel.backend=="redstone" then redstone.setAnalogOutput(channel.side,value) return true end
+            local row=deviceFor(channel)
+            if not row then return false,"actuator detached: "..tostring(channel.name) end
+            local returned,problem=addon.call(row.device,"setSignal",value)
+            if problem then error(problem) end
+            return returned~=false,returned==false and "actuator refused" or nil
+          end,0.15)
+          if ok and accepted then
+            result.state,result.error="confirmed",nil last[key]=value
+          else
+            result.state=ok and "refused" or "uncertain"
+            result.error=tostring(ok and err or accepted)
+          end
         end
-        last[key]=value
       end
     end
   end
   if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
+  for id,result in pairs(results) do
+    if result.state~="confirmed" then failures[#failures+1]=id..": "..result.state..": "..tostring(result.error) end
+  end
+  return #failures==0,table.concat(failures,"; "),results
 end
 
 function M.calibrate(actor,kind,id, confirmed)
@@ -317,22 +338,19 @@ function M.step(rescan)
     end
   end
   if rescuePending then
-    local values={}
-    for _,channel in ipairs(cfg.control.channels) do
-      local valid,why=channelValid(channel)
-      if not valid then rescuePending=false reason="rescue invalid: "..tostring(why) return end
-      values[channel.id]=channel.rescue
-    end
-    rescuePending=false
-    writeOutputs(values)
-    if state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
-    if M.test and M.test.applied and M.test.completed then tested[M.test.id]=true end
+    -- Claim the batch once, before yielding to any output.
+    rescuePending=false rescueResults={}
+    local ok,err=writeOutputs({},true,rescueResults)
+    if not ok then state,reason="failsafe","rescue incomplete: "..err
+    elseif state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
+    if ok and M.test and M.test.applied and M.test.completed then tested[M.test.id]=true end
     M.test=nil
     return
   end
   if state=="calibration" and M.test then
     if now>=M.test.expires then M.test.completed=true M.fail("output test completed") return end
-    writeOutputs({[M.test.id]=M.test.value})
+    local ok,err=writeOutputs({[M.test.id]=M.test.value})
+    if not ok then M.fail("actuator error: "..err) return end
     M.test.applied=true
     return
   end
@@ -363,13 +381,19 @@ function M.step(rescan)
     for _,axis in ipairs(axes) do value=value+(channel.mix[axis] or 0)*output[axis] end
     values[channel.id]=math.floor(math.max(channel.min,math.min(channel.max,value))+0.5)
   end
-  writeOutputs(values)
+  local ok,err=writeOutputs(values)
+  if not ok then M.fail("actuator error: "..err) end
 end
 
 function M.status()
   local valid,errors=M.validate()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
-    outputs=addon.copy(last),rescuePending=rescuePending,timestamp=timestamp}
+    outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
+end
+
+function M.health()
+  return {ok=state~="failsafe",status=reason,lastFault=state=="failsafe" and reason or nil,timestamp=timestamp,rescuePending=rescuePending,
+    pid=runner and runner.pid,lastSuccess=runner and runner.lastSuccess,outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults)}
 end
 
 function M.start(context)
@@ -379,6 +403,7 @@ function M.start(context)
   state,owner,rescuePending="disarmed",nil,false
   reason="not armed; calibration required"
   controllers,manual,last,tested={}, {}, {}, {}
+  outputResults,rescueResults={},{}
   rescueTested=false
   if cfg.control.sessionActive then state,reason,rescuePending="failsafe","previous session interrupted; rescue required",true end
   runner=addon.periodic(ctx,"flightd",0.1,M.step)

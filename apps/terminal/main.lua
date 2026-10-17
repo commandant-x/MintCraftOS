@@ -5,6 +5,7 @@ local ui = require("system.gui.components")
 local autocomplete = require("system.dev.autocomplete")
 local securityd = require("system.services.securityd")
 local fileNames = require("system.libraries.file_names")
+local authentication = require("system.libraries.auth_worker")
 
 local M = {}
 
@@ -53,7 +54,7 @@ local help = {
   unlock = "unlock <password> - unlock current user",
   login = "login <user> [password] - switch user",
   logout = "logout - switch to guest",
-  passwd = "passwd <password> - change admin password",
+  passwd = "passwd <old-password> <new-password> - change admin password",
 }
 
 local function trashPath(name)
@@ -214,22 +215,23 @@ local function runCommand(app, ctx, input)
     local allowed, denied = ctx.security.require("system.auth", "lock")
     if allowed then securityd.lock() ctx.security.audit("lock", "terminal") append(app, "locked") else append(app, denied) end
   elseif cmd == "unlock" then
-    local ok, msg = securityd.unlock(rest)
+    local ok, msg = securityd.unlock(rest,app.authOptions)
     append(app, tostring(msg or ok))
   elseif cmd == "login" then
     local name, password = rest:match("^(%S+)%s*(.*)$")
     if not name then append(app, "Usage: login <user> [password]") else
-      local ok, msg = securityd.login(name, password or "")
+      local ok, msg = securityd.login(name, password or "",app.authOptions)
       append(app, tostring(msg or ok))
     end
   elseif cmd == "logout" then
     securityd.logout()
     append(app, "guest session")
   elseif cmd == "passwd" then
-    if rest == "" then append(app, "Usage: passwd <new-admin-password>") else
-      local allowed, denied = ctx.security.require("system.auth", "passwd")
+    local oldPassword,newPassword=rest:match("^(%S+)%s+(.+)$")
+    if not newPassword then append(app,"Usage: passwd <old-password> <new-password>; use Settings for an empty old password") else
+      local allowed, denied = ctx.security.require("system.security.admin", "passwd")
       if allowed then
-        local ok, msg = securityd.setPassword("admin", rest)
+        local ok, msg = securityd.setPassword("admin",newPassword,oldPassword,{pid=ctx.pid,appId=ctx.appId,permissions=ctx.permissions},app.authOptions)
         append(app, ok and "password changed" or tostring(msg))
       else
         append(app, denied)
@@ -257,6 +259,7 @@ local function runCommand(app, ctx, input)
 end
 
 function M.run(ctx)
+  local authWorker
   local app = {
     lines = { "MintCraft Terminal", "Type help for commands." },
     input = "",
@@ -312,6 +315,13 @@ function M.run(ctx)
       table.insert(app.history, input)
       if #app.history > 100 then table.remove(app.history, 1) end
       app.historyIndex = nil
+    end
+    if sensitive(input) then
+      if app.authBusy then append(app,"Authentication already running") return end
+      app.authBusy=true
+      local queued,problem=authWorker:submit(input)
+      if not queued then app.authBusy=false append(app,tostring(problem)) end
+      return
     end
     local ok, err = pcall(runCommand, app, ctx, input)
     suggestionInput = nil
@@ -416,6 +426,13 @@ function M.run(ctx)
 
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Terminal", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
+  authWorker=authentication.new(ctx,function(input,options)
+    app.authOptions=options
+    return runCommand(app,ctx,input)
+  end,function(ok)
+    app.authBusy=false app.authOptions=nil suggestionInput=nil
+    if not ok then append(app,"Authentication command failed") pcall(log.error,"terminal","Authentication command failed") end
+  end)
   while not win.closed do ctx.pullEvent() end
 end
 

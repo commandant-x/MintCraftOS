@@ -3,10 +3,14 @@ local ok,err=pcall(function()
   local sha=string.rep('a',40) local closed=0 local failedRead=false local received=0
   local installer='-- MintCraft installer protocol: 2\nlocal f={ ["VERSION"]="9.9.9\\n",["system/update-test.lua"]="return true",["system/config/keep-test.cfg"]="new default" }; require("system.libraries.installer").install(f,mintcraftInstallOptions)'
   local function response(body,broken)
-    return {readAll=function() if broken then error('injected closed response') end return body end,getResponseCode=function() return 200 end,getResponseHeaders=function() return {} end,close=function() closed=closed+1 end}
+    local offset=1
+    return {read=function(n) if broken then error('injected closed response') end
+      if offset>#body then return nil end local part=body:sub(offset,offset+n-1) offset=offset+#part return part
+    end,readAll=function() if broken then error('injected closed response') end return body end,getResponseCode=function() return 200 end,getResponseHeaders=function() return {} end,close=function() closed=closed+1 end}
   end
   http={request=function(url) os.queueEvent('http_success',url,response('9.9.9')) return true end,
     get=function(url)
+      if type(url)=='table' then url=url.url end
       received=received+1
       local body=url:find('api.github.com',1,true) and textutils.serializeJSON({sha=sha}) or url:find('install.lua',1,true) and installer or url:find('/VERSION',1,true) and '9.9.9' or '<html><title>Example</title><p>Hello world</p></html>'
       local handle=response(body,failedRead and not url:find('githubusercontent',1,true))

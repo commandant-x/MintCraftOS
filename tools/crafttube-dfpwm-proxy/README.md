@@ -64,6 +64,18 @@ GET /crafttube/audio?id=<id>&seconds=180
 
 `seconds` is clamped to 1-600 to avoid huge downloads.
 
+Only 11-character YouTube video IDs and recognized YouTube video URLs are accepted.
+URLs are converted to a canonical YouTube watch URL; arbitrary hosts, credentials,
+ports, playlists and redirect URLs are rejected. The service permits two concurrent
+conversions, with a 120-second wall-clock deadline, a 64 MiB compressed-input limit
+and a duration-derived PCM output limit (at most 28.8 MB per conversion).
+Disconnecting the client stops both child processes. Child diagnostics are drained,
+not accumulated. Keep this unauthenticated service bound to loopback; exposing it
+on a LAN requires your own access controls. Keep yt-dlp and ffmpeg updated.
+
+Run offline regression tests with `npm test`. They use fake child streams and
+loopback HTTP only, without downloading videos or requiring either binary.
+
 ## Custom binaries
 
 If `yt-dlp` or `ffmpeg` are not in PATH, set:

@@ -2,6 +2,9 @@ local renderer = require("system.gui.renderer")
 local keyboard = require("system.gui.keyboard")
 local autocomplete = require("system.dev.autocomplete")
 local safeWrite = require("system.libraries.safe_write")
+local fileNames = require("system.libraries.file_names")
+local theme = require("system.gui.theme")
+local ui = require("system.gui.components")
 
 local M = {}
 
@@ -15,7 +18,7 @@ end
 
 local function readFile(path)
   if path and fs.exists(path) then
-    local h = fs.open(path, "r")
+    local h = assert(fs.open(path, "r"), "Cannot read " .. path)
     local text = h.readAll() or ""
     h.close()
     return splitLines(text)
@@ -53,10 +56,15 @@ local function insertText(app, text)
     app.cx = #insertLines[#insertLines] + 1
     app.lines[app.cy] = app.lines[app.cy] .. after
   end
+  if app.persistDraft then app.persistDraft() end
 end
 
-local function compile(app)
-  local tmp = "/var/tmp/editor_compile_" .. tostring(app.pid) .. ".lua"
+local function compile(app, allowed)
+  local prefix = "/var/tmp/editor_compile_" .. tostring(app.pid)
+  local tmp, suffix = prefix .. ".lua", 0
+  while fs.exists(tmp) do suffix = suffix + 1 tmp = prefix .. "_" .. tostring(suffix) .. ".lua" end
+  allowed("filesystem.read", tmp)
+  allowed("filesystem.write", tmp)
   local ok, result = pcall(function()
     if not writeFile(tmp, app.lines) then return "Compile failed: cannot write temporary file" end
     local fn, err = loadfile(tmp)
@@ -67,27 +75,148 @@ local function compile(app)
 end
 
 function M.run(ctx)
+  local function allowed(permission, path)
+    local ok, reason = ctx.security.require(permission, path)
+    if not ok then error(reason or ("Permission denied: " .. permission), 0) end
+  end
+  local path = fileNames.absolute(ctx.args.path or "/home/user/documents/untitled.lua")
+  local readOK, initial = pcall(function()
+    allowed("filesystem.read", path)
+    return readFile(ctx.args.path and path)
+  end)
   local app = {
     pid = ctx.pid or 0,
-    path = ctx.args.path or "/home/user/documents/untitled.lua",
-    lines = readFile(ctx.args.path),
+    path = path,
+    lines = readOK and initial or {""},
     cx = 1,
     cy = 1,
     scroll = 1,
-    status = "Editor ready",
+    status = readOK and "Editor ready" or tostring(initial),
     caps = false,
     shift = false,
     keyboard = {},
     revision = 0,
+    keyboardVisible = true,
   }
+  local savedText = readOK and table.concat(app.lines, "\n") or nil
+  local base
+  if readOK then
+    local ok, value = pcall(function()
+      allowed("filesystem.read", path)
+      return fs.exists(path) and table.concat(readFile(path), "\n") or false
+    end)
+    if ok then base = value end
+  end
+  local draftPath = "/home/user/.editor-drafts/" .. path:gsub(".", function(c) return string.format("%02x", c:byte()) end) .. ".draft"
+  local draftBlocked = not readOK
+  local draftSnapshot = false
+  local function text() return table.concat(app.lines, "\n") end
+  local function dirty() return savedText == nil or text() ~= savedText end
+  local function draftAllowed()
+    allowed("filesystem.read", draftPath)
+    allowed("filesystem.write", draftPath)
+  end
+  local recovered, recoveryError = pcall(function()
+    allowed("filesystem.read", draftPath)
+    if not fs.exists(draftPath) then return end
+    local h = assert(fs.open(draftPath, "r"), "Cannot read draft")
+    local data = h.readAll()
+    h.close()
+    draftSnapshot = data
+    local record = textutils.unserialize(data)
+    if type(record) ~= "table" or record.path ~= path or type(record.text) ~= "string"
+      or (type(record.base) ~= "string" and record.base ~= false) then error("Invalid recovery draft: " .. draftPath, 0) end
+    if record.text ~= savedText then
+      app.lines, base = splitLines(record.text), record.base
+      app.status = "Recovered unsaved draft"
+    end
+  end)
+  if not recovered then draftBlocked, app.status = true, tostring(recoveryError) end
+
+  local function checkDraft()
+    local current = false
+    if fs.exists(draftPath) then
+      local h = assert(fs.open(draftPath, "r"), "Cannot read draft")
+      current = h.readAll()
+      h.close()
+    end
+    if current ~= draftSnapshot then error("Recovery draft changed in another editor; retained", 0) end
+  end
+
+  app.persistDraft = function()
+    if draftBlocked then return end
+    local ok, problem = pcall(function()
+      draftAllowed()
+      checkDraft()
+      if not dirty() then
+        if fs.exists(draftPath) then fs.delete(draftPath) end
+        draftSnapshot = false
+        return
+      end
+      if base == nil then error("Original file unreadable; draft not replaced", 0) end
+      local dir = fs.getDir(draftPath)
+      if not fs.exists(dir) then fs.makeDir(dir) end
+      local content = textutils.serialize({path=path, text=text(), base=base})
+      local written, reason = safeWrite.write(draftPath, content)
+      if not written then error(reason, 0) end
+      draftSnapshot = content
+    end)
+    if not ok then app.status = "Draft recovery unavailable: " .. tostring(problem) end
+  end
+
+  local function clearDraft()
+    if draftBlocked then return end
+    draftAllowed()
+    checkDraft()
+    if fs.exists(draftPath) then fs.delete(draftPath) end
+    draftSnapshot = false
+  end
+
+  local function keyboardHeight(h)
+    return app.keyboardVisible and not app.closePrompt and h >= keyboard.height() + 5 and keyboard.height() or 0
+  end
 
   local function visibleHeight(h)
-    return math.max(0, h - keyboard.height() - 3)
+    return math.max(0, h - keyboardHeight(h) - 3)
   end
 
   local function save()
-    local ok, message = safeWrite.write(app.path, table.concat(app.lines, "\n"))
+    local ok, message = pcall(function()
+      allowed("filesystem.read", path)
+      allowed("filesystem.write", path)
+      if fileNames.protected(path) then error("Protected path", 0) end
+      local current = fs.exists(path) and table.concat(readFile(path), "\n") or false
+      if base == nil or current ~= base then error("File changed on disk; original retained", 0) end
+      local written, reason = safeWrite.write(path, text())
+      if not written then error(reason, 0) end
+      base, savedText = text(), text()
+      local cleaned, problem = pcall(clearDraft)
+      return cleaned and reason or (reason .. "; draft cleanup failed: " .. tostring(problem))
+    end)
     app.status = ok and message or ("Save failed: " .. tostring(message))
+    return ok
+  end
+
+  local closeWindow
+  local closeBoxes, closeState = {}, {first=1}
+  local toolbar, toolbarState = {}, {first=1}
+  local actions = {{id="save",label="Save"},{id="compile",label="Compile"},{id="keyboard",label="Keyboard"}}
+  local function closeChoice(choice)
+    if choice == "cancel" then app.closePrompt, closeWindow = false, nil
+    elseif choice == "save" then
+      if save() then closeWindow.closed = true end
+    elseif choice == "discard" then
+      local ok, problem = pcall(clearDraft)
+      if ok then closeWindow.closed = true else app.status = "Discard failed: " .. tostring(problem) end
+    end
+  end
+  function app:canClose(win)
+    if not dirty() then pcall(clearDraft) return true end
+    self.persistDraft()
+    self.closePrompt, closeWindow = true, win
+    self.status = "Unsaved changes"
+    if ctx.invalidate then ctx.invalidate() end
+    return false
   end
 
   local completionCache
@@ -116,6 +245,7 @@ function M.run(ctx)
     app.cx = #beforeCursor[#beforeCursor] + 1
     app.status = "Inserted " .. sug.label
     app.revision = app.revision + 1
+    app.persistDraft()
     return true
   end
 
@@ -132,6 +262,7 @@ function M.run(ctx)
       table.remove(app.lines, app.cy)
       app.cy, app.cx = app.cy - 1, #previous + 1
     end
+    app.persistDraft()
   end
   app.keyboard.onEnter = function() insertText(app, "\n") end
   app.keyboard.onTab = applySuggestion
@@ -142,26 +273,46 @@ function M.run(ctx)
   end
 
   function app:draw(w, h)
+    self.lastH = h
+    if w < 1 or h < 1 then return end
     local sug = suggestion()
-    renderer.writeAt(1, 1, renderer.crop("[Save] [Compile] " .. self.path, w), colors.white, colors.gray)
-    local maxLines = math.max(0, h - keyboard.height() - 3)
+    if self.closePrompt then
+      closeBoxes = ui.toolbar(1, 1, w, {{id="save",label="Save"},{id="discard",label="Discard"},{id="cancel",label="Cancel"}}, closeState)
+    else
+      toolbar = ui.toolbar(1, 1, w, actions, toolbarState)
+    end
+    local kbH = keyboardHeight(h)
+    local maxLines = visibleHeight(h)
     if self.cy < self.scroll then self.scroll = self.cy end
-    if self.cy >= self.scroll + maxLines then self.scroll = self.cy - maxLines + 1 end
+    if maxLines > 0 and self.cy >= self.scroll + maxLines then self.scroll = self.cy - maxLines + 1 end
     for row = 1, maxLines do
       local lineNo = self.scroll + row - 1
       local text = self.lines[lineNo] or ""
       local marker = lineNo == self.cy and ">" or " "
-      renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), colors.black, colors.lightGray)
+      renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), theme.get("windowFg"), theme.get("windowBg"))
     end
-    renderer.writeAt(1, h - keyboard.height() - 1, renderer.crop(self.status, w), colors.white, colors.gray)
-    renderer.writeAt(1, h - keyboard.height(), renderer.crop(sug and ("Tab: " .. sug.label .. " [" .. sug.kind .. "]") or "", w), colors.black, colors.orange)
+    if h - kbH - 1 >= 2 then renderer.writeAt(1, h - kbH - 1, renderer.crop(self.status .. (dirty() and " * " or " ") .. self.path, w), theme.get("buttonFg"), theme.get("buttonBg")) end
+    if h - kbH >= 2 then renderer.writeAt(1, h - kbH, renderer.crop(sug and ("Tab: " .. sug.label .. " [" .. sug.kind .. "]") or "", w), theme.get("windowFg"), theme.get("warning")) end
     self.keyboard.x = 1
-    self.keyboard.y = h - keyboard.height() + 1
+    self.keyboard.y = h - kbH + 1
     self.keyboard.hint = sug and ("Tab: " .. sug.label) or ""
-    keyboard.draw(1, self.keyboard.y, w, self.keyboard)
+    if kbH > 0 then keyboard.draw(1, self.keyboard.y, w, self.keyboard) else self.keyboard.boxes = {} end
   end
 
   function app:handle(event)
+    if self.closePrompt then
+      if event.name == "key" and event.args[1] == keys.escape then closeChoice("cancel") return true end
+      if event.name == "mouse_click" and event.args[1] == 1 then
+        for _, box in ipairs(closeBoxes) do
+          if ui.hit(box, event.args[2], event.args[3]) then
+            if box.delta then closeState.first = math.max(1, math.min(3, closeState.first + box.delta))
+            else closeChoice(box.id) end
+            break
+          end
+        end
+      end
+      return true
+    end
     if event.name == "char" or event.name == "paste" then
       insertText(self, event.args[1])
       return true
@@ -185,13 +336,32 @@ function M.run(ctx)
       end
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
-      if y == 1 and x <= 6 then
+      local action
+      if y == 1 then
+        for _, box in ipairs(toolbar) do
+          if ui.hit(box, x, y) then
+            if box.delta then toolbarState.first = math.max(1, math.min(#actions, toolbarState.first + box.delta)) return true end
+            action = box.id
+            break
+          end
+        end
+      end
+      if action == "save" then
         save()
         return true
-      elseif y == 1 and x >= 8 and x <= 16 then
-        compile(self)
+      elseif action == "compile" then
+        local ok, problem = pcall(function()
+          allowed("dev.compile", path)
+          allowed("filesystem.read", "/var/tmp")
+          compile(self, allowed)
+        end)
+        if not ok then self.status = "Compile failed: " .. tostring(problem) end
         return true
-      elseif event.monitorTouch and keyboard.handle(event, self.keyboard) then
+      elseif action == "keyboard" then
+        self.keyboardVisible = not self.keyboardVisible
+        self.keyboard.boxes = {}
+        return true
+      elseif self.keyboardVisible and keyboardHeight(self.lastH or 18) > 0 and event.monitorTouch and keyboard.handle(event, self.keyboard) then
         return true
       else
         local vh = visibleHeight(self.lastH or 18)

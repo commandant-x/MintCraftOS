@@ -37,13 +37,14 @@ function M.call(device, method, ...)
   return value
 end
 
-function M.read(device, methods)
+function M.read(device, methods, timeout)
   local values, errors, branches = {}, {}, {}
   for _, name in ipairs(methods) do
     if type(device[name]) == "function" then
       branches[#branches + 1] = function()
-        local value, err = M.call(device, name)
-        values[name], errors[name] = value, err
+        local ok, value, err = M.bounded(function() return M.call(device, name) end, timeout or 0.15)
+        if ok then values[name], errors[name] = value, err
+        else errors[name] = tostring(value) end
       end
     end
   end
@@ -99,7 +100,7 @@ function M.periodic(ctx, name, interval, refresh, timeout)
     while not runner.stopped do
       local started = os.clock()
       local ok, err = M.bounded(function() refresh(runner.dirty) end, timeout or 0.5)
-      if ok then runner.dirty = false else
+      if ok then runner.dirty = false runner.error = nil runner.lastSuccess = os.clock() else
         runner.error = tostring(err)
         if runner.onError then runner.onError(runner.error) end
       end

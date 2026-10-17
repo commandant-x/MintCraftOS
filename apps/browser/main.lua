@@ -15,7 +15,7 @@ local BOOKMARKS = ROOT .. "/bookmarks.json"
 local SETTINGS = ROOT .. "/settings.db"
 local DOWNLOADS = ROOT .. "/downloads.json"
 
-local REDIRECTS = { [301] = true, [302] = true, [307] = true, [308] = true }
+local REDIRECTS = { [301] = true, [302] = true, [303] = true, [307] = true, [308] = true }
 
 local ERROR_DEFS = {
   ["BRW-000"] = { title = "Unknown browser error", hint = "The browser received an unexpected failure." },
@@ -220,6 +220,25 @@ local function cacheKey(url)
   return tostring(url or ""):gsub("[^%w%-_%.]", "_"):sub(1, 80)
 end
 
+local function header(headers,name)
+  for key,value in pairs(headers or {}) do
+    if tostring(key):lower()==name then return tostring(value) end
+  end
+  return nil
+end
+
+local function cacheTime()
+  return os.epoch and os.epoch("utc")/1000 or 0
+end
+
+local function cachePolicy(headers)
+  local control=(header(headers,"cache-control") or ""):lower()
+  if control:find("no-store",1,true) or control:find("private",1,true) then return nil end
+  if control:find("no-cache",1,true) then return 0 end
+  local age=math.max(0,tonumber(header(headers,"age")) or 0)
+  return math.max(0,math.min(3600,tonumber(control:match('max%-age%s*=%s*"?(%d+)')) or 60)-age)
+end
+
 local function filenameFromUrl(url)
   local name = tostring(url or ""):match("/([^/%?#]+)[%?#]?$") or "download.txt"
   name = name:gsub("[^%w%._%-]", "_")
@@ -405,7 +424,7 @@ function M.run(ctx)
     end
   end
 
-  local function loadUrl(url, addToHistory,target)
+  local function loadUrl(url, addToHistory,target,bypass)
     local t = target or tab()
     url = normalizeAddress(url, settings.search)
     if url:match("^mint://crafttube") then
@@ -479,10 +498,48 @@ function M.run(ctx)
     for redirects = 0, settings.maxRedirects do
       app.status = "Loading " .. current
       local cachePath = CACHE .. "/" .. cacheKey(current) .. ".html"
-      if settings.cache and fs.exists(cachePath) then
-        response = { url = current, code = 200, body = readFile(cachePath) or "", headers = {}, size = fs.getSize(cachePath) }
+      local metaPath=cachePath..".json"
+      local cached
+      if settings.cache and not t.private and not bypass and fs.exists(cachePath) and fs.getSize(cachePath)<=524288 then
+        local meta=loadData(metaPath,{})
+        if type(meta)=="table" and meta.url==current and type(meta.headers)=="table" and
+          type(meta.expires)=="number" and not header(meta.headers,"vary") then
+          local body=readFile(cachePath)
+          if body then cached={url=current,code=200,body=body,headers=meta.headers,size=#body,expires=meta.expires} end
+        end
+      end
+      local requestHeaders=headersFor(current,previous)
+      if bypass then requestHeaders["Cache-Control"]="no-cache" end
+      local allowedHop,deniedHop=ctx.security.require("network.http",current)
+      if not allowedHop then response=nil err=deniedHop
+      elseif cached and cacheTime()>0 and cached.expires>cacheTime() then
+        response=cached
       else
-        response, err = httpClient.get(current, { headers = headersFor(current, previous) })
+        if cached then
+          requestHeaders["If-None-Match"]=header(cached.headers,"etag")
+          requestHeaders["If-Modified-Since"]=header(cached.headers,"last-modified")
+        end
+        response, err = httpClient.get(current, { headers=requestHeaders,redirect=false,timeout=10,maxBytes=524288,allowStatus={[304]=true} })
+        if response and response.code==304 then
+          if cached then
+            for key,value in pairs(response.headers or {}) do
+              for old in pairs(cached.headers) do if old:lower()==key:lower() then cached.headers[old]=nil end end
+              cached.headers[key]=value
+            end
+            response=cached
+          else response=nil err="REQUEST_FAILED: unexpected 304 without cached body" end
+        end
+        if settings.cache and not t.private and response and response.code==200 then
+          local ttl=cachePolicy(response.headers)
+          if ttl and not header(response.headers,"vary") then
+            -- Publish metadata last; URL matching also prevents truncated-key collisions.
+            if fs.exists(metaPath) then fs.delete(metaPath) end
+            if writeFile(cachePath,response.body) then saveData(metaPath,{url=current,headers=response.headers,expires=cacheTime()+ttl}) end
+          else
+            if fs.exists(metaPath) then fs.delete(metaPath) end
+            if fs.exists(cachePath) then fs.delete(cachePath) end
+          end
+        end
       end
       if not response then
         local code = classifyError(err)
@@ -509,9 +566,6 @@ function M.run(ctx)
     if #response.body>524288 then
       t.page=errorPage("BRW-000","Page exceeds the 512 KiB reader limit",current) t.title=t.page.title
       app.status="Page too large" return
-    end
-    if settings.cache and response and response.code == 200 then
-      writeFile(CACHE .. "/" .. cacheKey(current) .. ".html", response.body)
     end
     local page = parseHtml(response.body, response.url or current, app.lastW or 60)
     page.status = response.code
@@ -553,7 +607,7 @@ function M.run(ctx)
     url = url or (target or tab()).url
     local allowed, denied = ctx.security.require("network.http", url)
     if not allowed then app.status = "BRW-003 " .. tostring(denied) return end
-    local response, err = httpClient.get(url, { headers = headersFor(url, tab().url) })
+    local response, err = httpClient.get(url, { headers = headersFor(url, tab().url),binary=true,timeout=60,maxBytes=8388608 })
     if not response then app.status = classifyError(err) .. " " .. tostring(err) return end
     local filename = filenameFromUrl(url)
     local path = fs.combine(settings.downloadDir, filename)
@@ -570,7 +624,7 @@ function M.run(ctx)
     elseif tostring(link.url):match("^mint://settings") then
       ctx.apps.launch("settings")
     else
-      enqueue("load",{url=link.url,history=true})
+      enqueue("load",{url=link.url,history=true,bypass=link.text=="Reload"})
     end
   end
 
@@ -670,7 +724,7 @@ function M.run(ctx)
       elseif y == 2 then
         if x == 1 then enqueue("history",-1) return true end
         if x == 3 then enqueue("history",1) return true end
-        if x == 5 then enqueue("load",{url=t.url,history=false}) return true end
+        if x == 5 then enqueue("load",{url=t.url,history=false,bypass=true}) return true end
         if x == 7 then enqueue("load",{url=settings.home,history=true}) return true end
         if x == 9 then addBookmark() return true end
         if x == 11 then enqueue("download",t.url) return true end
@@ -692,7 +746,7 @@ function M.run(ctx)
   local win = ctx.windowManager:create({ title = "Browser", w = math.min(82, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
   worker=appWorker.new(ctx,"Browser requests",function(request)
     local target=app.tabs[request.index]
-    if request.action=="load" then loadUrl(request.value.url,request.value.history,target)
+    if request.action=="load" then loadUrl(request.value.url,request.value.history,target,request.value.bypass)
     elseif request.action=="history" then goHistory(request.value,target)
     elseif request.action=="download" then download(request.value,target) end
   end,function(request,ok,err)
@@ -701,7 +755,7 @@ function M.run(ctx)
       target.page=errorPage(classifyError(err),tostring(err),target.url) target.title=target.page.title
       target.loading=false app.status=tostring(err) pcall(log.warn,"browser",app.status)
     elseif app.status=="Loading..." then app.status="Ready" end
-  end,20)
+  end,70)
   enqueue("load",{url=tab().url,history=false})
   while not win.closed do ctx.pullEvent() end
 end

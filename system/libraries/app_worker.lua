@@ -14,6 +14,7 @@ function M.new(ctx,name,perform,finished,timeout)
         running=false
         if not stopped then
           finished(request,table.unpack(result,1,result.n))
+          if ctx.invalidate then ctx.invalidate() end
           os.queueEvent("mintcraft_app_result",ctx.pid)
         end
       end

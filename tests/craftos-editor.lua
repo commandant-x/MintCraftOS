@@ -16,13 +16,17 @@ local ok, err = pcall(function()
   local path = "/home/user/editor-test.lua"
   write(path, "original")
   local app
-  local ctx = {pid = 91, args = {path = path},
+  local ctx = {pid = 91, args = {path = path}, security={require=function() return true end},
     windowManager = {create = function(_, opts) app = opts.app return {closed = false} end},
     pullEvent = function() coroutine.yield() end,
   }
   local co = coroutine.create(function() require("apps.editor.main").run(ctx) end)
   local started, problem = coroutine.resume(co)
   assert(started, tostring(problem))
+  local surface=window.create(term.current(),1,1,47,16,false)
+  local previous=term.redirect(surface)
+  app:draw(47,16)
+  term.redirect(previous)
   app.lines = {"error('compile must not execute')"}
   app:handle({name = "mouse_click", args = {1, 9, 1}})
   assert(app.status == "Compile OK", app.status)

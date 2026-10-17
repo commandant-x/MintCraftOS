@@ -36,13 +36,25 @@ function WindowManager:active()
   end
 end
 
+function WindowManager:invalidate(appId)
+  for _,win in ipairs(self.windows) do
+    if not appId or win.appId==appId then win.dirty=true end
+  end
+end
+
 function WindowManager:draw()
   for i = #self.windows, 1, -1 do
     if self.windows[i].closed then table.remove(self.windows, i) end
   end
 
-  for _, win in ipairs(self.windows) do
-    win:draw()
+  for index, win in ipairs(self.windows) do
+    local covered=false
+    for upper=index+1,#self.windows do
+      local other=self.windows[upper]
+      if not other.closed and not other.minimized and other.x<=win.x and other.y<=win.y and
+        other.x+other.w>=win.x+win.w and other.y+other.h>=win.y+win.h then covered=true break end
+    end
+    if not covered then win:draw() end
   end
 
   local w, h = term.getSize()

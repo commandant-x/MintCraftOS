@@ -1,6 +1,7 @@
 package.path = "./?.lua;" .. package.path
 package.loaded["system.gui.renderer"] = {writeAt = function() end, crop = function(t) return t end}
 package.loaded["system.gui.components"] = {toolbar = function() return {} end, toolbarHit = function() return "refresh" end}
+package.loaded["system.gui.theme"] = {get=function() return 1 end}
 colors = {black=32768,white=1,gray=128,lightGray=256,cyan=512}
 local now, queries, disk = 0, 0, 0
 os.clock = function() return now end

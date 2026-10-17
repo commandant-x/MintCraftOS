@@ -49,7 +49,7 @@ package.preload["test.bad.import"] = function() error("import failure") end
 package.preload["test.bad.module"] = function() return true end
 package.preload["test.bad.run"] = function() return {run = function() error("run failure") end} end
 for i, module in ipairs({"test.bad.import", "test.bad.module", "test.bad.run"}) do
-  apps.register("bad" .. i, "Bad " .. i, module)
+  apps.register("bad" .. i, "Bad " .. i, module,{builtin=true})
   local count = #notices
   local launched, reason = apps.launch("bad" .. i)
   assert(not launched and type(reason) == "string")

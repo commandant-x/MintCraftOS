@@ -1,6 +1,9 @@
 package.path = "./?.lua;" .. package.path
 for _, name in ipairs({"system.gui.renderer","system.libraries.log","system.gui.keyboard","system.gui.components","system.dev.autocomplete","system.services.securityd"}) do package.loaded[name] = {} end
 package.loaded["system.libraries.log"].error = function() end
+package.loaded["system.libraries.auth_worker"]={new=function(_,perform,finished)
+  return {submit=function(_,request) local ok,result=pcall(perform,request,{}) finished(ok,result) return true end}
+end}
 term = {getSize = function() return 51,19 end}
 local moved, deleted, allowed = 0, 0, true
 fs = {

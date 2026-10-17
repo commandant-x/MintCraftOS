@@ -1,6 +1,8 @@
 local config = require("system.libraries.config")
 local version = require("system.libraries.version")
 local source = require("system.libraries.update_source")
+local safeWrite = require("system.libraries.safe_write")
+local operation
 
 local M = {
   cfgPath = "/system/config/update.cfg",
@@ -15,6 +17,16 @@ local M = {
 
 local function trim(value)
   return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function validFileRollback(path)
+  if type(path) ~= "string" or path:sub(-1) == "/" or path:find("//", 1, true)
+    or path:find("[%c:\\]") or path == "/system/config" or path:match("^/system/config/") then return false end
+  for part in path:gmatch("[^/]+") do
+    if part == "." or part == ".." or part:find(".mintcraft-save", 1, true) then return false end
+  end
+  return path == "/VERSION" or path == "/boot.lua" or path == "/startup.lua"
+    or path:match("^/system/") or path:match("^/apps/")
 end
 
 local function readFile(path)
@@ -40,11 +52,26 @@ local function restoreTree(from, to)
   local stage = "/var/tmp/mintcraft-restore"
   if fs.exists(stage) then return false, "Interrupted restore at " .. stage .. "; inspection required" end
   fs.makeDir(stage)
+  assert(config.save(stage .. "/target.cfg", to))
   local nextPath, oldPath = stage .. "/next", stage .. "/previous"
   local copied, err = pcall(fs.copy, from, nextPath)
   if not copied then
     pcall(fs.delete, stage)
     return false, "Restore staging failed: " .. tostring(err) .. "; backup retained"
+  end
+  if to == "/system" and fs.exists("/system/config") then
+    if fs.exists(nextPath .. "/config") then fs.delete(nextPath .. "/config") end
+    fs.copy("/system/config", nextPath .. "/config")
+  end
+  if to == "/apps" and fs.exists("/apps") then
+    local core = {browser=true,combat=true,crafttube=true,devices=true,editor=true,files=true,logs=true,
+      messenger=true,navigation=true,services=true,settings=true,store=true,taskmanager=true,terminal=true,update=true}
+    for _, name in ipairs(fs.list("/apps")) do
+      if not core[name] then
+        if fs.exists(nextPath .. "/" .. name) then fs.delete(nextPath .. "/" .. name) end
+        fs.copy("/apps/" .. name, nextPath .. "/" .. name)
+      end
+    end
   end
   local hadPrevious = fs.exists(to)
   local moved, moveErr = pcall(function()
@@ -56,6 +83,7 @@ local function restoreTree(from, to)
       local recovered = pcall(fs.move, oldPath, to)
       if not recovered then return false, "Restore interrupted; previous data at " .. oldPath end
     end
+    if fs.exists(oldPath) then return false, "Restore interrupted; previous data retained at " .. oldPath end
     pcall(fs.delete, stage)
     return false, "Restore replacement failed: " .. tostring(moveErr)
   end
@@ -172,6 +200,14 @@ function M.rollbackInfo()
 end
 
 local function createRollback(reason,changes)
+  local storage = M.storageInfo()
+  local estimate = 0
+  for _, entry in ipairs(changes or ROLLBACK_PATHS) do
+    estimate = estimate + M.storageBytes(changes and ("/" .. entry) or entry)
+  end
+  if storage.policy.quotaBytes > 0 and storage.bytes + estimate + 32768 > storage.policy.quotaBytes then
+    error("Backup quota exceeded; explicitly manage retained checkpoints before retrying")
+  end
   fs.makeDir(M.rollbackRoot)
 
   local base = tostring(math.floor(os.epoch and os.epoch("utc") or (os.clock() * 1000)))
@@ -229,11 +265,17 @@ function M.createRollback(reason,changes)
 end
 
 local function rollback()
+  if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") then
+    return false, "Recover pending installation before rollback"
+  end
+  local recovered, recoveryErr = safeWrite.recoverRestore()
+  if not recovered then return false, recoveryErr end
   local info = M.rollbackInfo()
   if not info then return false, "no rollback backup" end
   local backupDir = M.rollbackRoot .. "/" .. info.id
   local manifest = config.load(backupDir .. "/manifest.cfg", nil)
-  if type(manifest) ~= "table" or type(manifest.paths) ~= "table" or manifest.id ~= info.id then
+  if type(manifest) ~= "table" or type(manifest.paths) ~= "table" or manifest.id ~= info.id
+    or (manifest.kind ~= nil and manifest.kind ~= "files") then
     return false, "invalid rollback manifest"
   end
   local allowed, seen, count = {}, {}, 0
@@ -246,32 +288,48 @@ local function rollback()
     local fileMode=manifest.kind=="files"
     if fileMode then
       if not (path=="/VERSION" or path=="/boot.lua" or path=="/startup.lua" or path:match("^/system/") or path:match("^/apps/") or path:match("^/packages/") or path:match("^/home/")) or
-        path:find("..",1,true) or path:find("\\",1,true) or type(manifest.existed)~="table" or type(manifest.existed[path])~="boolean" then return false,"invalid file rollback entry" end
+        path:find("..",1,true) or path:find("//",1,true) or path:find("[%c:\\]") or type(manifest.existed)~="table" or type(manifest.existed[path])~="boolean" then return false,"invalid file rollback entry" end
       if path:match("^/system/config/") or path:match("^/home/") or path:match("^/packages/") or path:sub(-1)=="/" then return false,"User data is not part of a file rollback" end
       if manifest.existed[path] and fs.isDir(backupDir..path) then return false,"Expected rollback file" end
+      if fs.exists(path) and fs.isDir(path) then return false,"Expected live file" end
+      if not validFileRollback(path) then return false, "Non-canonical rollback path" end
     elseif not allowed[path] then return false,"invalid rollback path list" end
     seen[path], count = true, count + 1
     if (not fileMode or manifest.existed[path]) and not fs.exists(backupDir .. path) then return false, "missing backup " .. path end
   end
   if count == 0 or count ~= #manifest.paths then return false, "empty or incomplete rollback manifest" end
 
+  assert(config.save("/var/tmp/mintcraft-rollback.cfg", {id=info.id}))
+
   for _, path in ipairs(manifest.paths) do
     local ok,err
-    if manifest.kind=="files" and not manifest.existed[path] then
+    if path == "/packages" then
+      ok = true -- Package databases and user-installed packages are not system rollback data.
+    elseif manifest.kind=="files" and not manifest.existed[path] then
       ok,err=pcall(function() if fs.exists(path) then assert(not fs.isDir(path),"Unexpected directory at "..path) fs.delete(path) end end)
     else ok,err=restoreTree(backupDir..path,path) end
     if not ok then return false, err end
   end
+  fs.delete("/var/tmp/mintcraft-rollback.cfg")
   return true, "rollback restored " .. tostring(manifest.fromVersion or "previous") .. ", reboot required"
 end
 
-function M.rollback()
-  local ok, result, detail = pcall(rollback)
-  if not ok then return false, "Rollback failed: " .. tostring(result) .. "; backup retained" end
+local function exclusive(name, fn)
+  if operation or _G.mintcraftStorageOperation then return false, "Update operation in progress: " .. tostring(operation or _G.mintcraftStorageOperation) end
+  operation = name
+  _G.mintcraftStorageOperation = name
+  local ok, result, detail = pcall(fn)
+  operation = nil
+  _G.mintcraftStorageOperation = nil
+  if not ok then return false, name .. " failed: " .. tostring(result) .. "; backup retained" end
   return result, detail
 end
 
-function M.apply()
+function M.rollback() return exclusive("Rollback", rollback) end
+
+local function apply()
+  if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
+    or fs.exists("/var/tmp/mintcraft-restore") then return false, "Recover pending update before applying" end
   local pinned, err = source.resolve(M.loadConfig(), httpGet)
   if not pinned then return false, err end
   local remote, problem = httpGet(source.url(pinned, "VERSION"))
@@ -285,11 +343,13 @@ function M.apply()
   local backedUp=false
   environment.mintcraftInstallOptions={beforeInstall=function(plan)
     assert(version.compare(trim(plan.version),trim(remote))==0,"Pinned installer/version mismatch")
+    assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed; check again")
     local free=fs.getFreeSpace and fs.getFreeSpace("/")
     local required=plan.stageBytes+plan.backupBytes*2+math.max(32768,#plan.changed*256)
     if type(free)=="number" and free<required then error("UPD-DISK: need "..required.." free bytes; available "..free..". Backups retained.") end
     local ok,backup=M.createRollback("before update",plan.changed)
     assert(ok,tostring(backup)) backedUp=true
+    assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed during checkpoint")
   end}
   local fn,loadErr=load(data,"@github-update-"..pinned.sha,"t",environment)
   if not fn then return false,loadErr end
@@ -298,6 +358,117 @@ function M.apply()
   if not backedUp then return false,"Installer did not create a rollback checkpoint" end
   M.status.localVersion=M.localVersion() M.status.updateAvailable=false M.status.message="Installed; reboot required"
   return true, "installer finished, reboot required"
+end
+
+function M.apply() return exclusive("Apply", apply) end
+
+function M.storageBytes(path)
+  if not fs.exists(path) then return 0 end
+  if fs.isDir(path) then
+    local total = 0
+    for _, name in ipairs(fs.list(path)) do total = total + M.storageBytes(path .. "/" .. name) end
+    return total
+  end
+  return fs.getSize and fs.getSize(path) or #(readFile(path) or "")
+end
+
+function M.storageInfo()
+  local policy = config.load("/system/config/update-storage.cfg", {})
+  if type(policy) ~= "table" then policy = {} end
+  policy = {
+    quotaBytes = type(policy.quotaBytes) == "number" and math.max(0, policy.quotaBytes) or 0,
+    retainCount = type(policy.retainCount) == "number" and math.max(1, math.floor(policy.retainCount)) or 3,
+  }
+  local protected, rows, total, validCount = {}, {}, 0, 0
+  for _, pointer in ipairs({"latest.cfg", "previous.cfg"}) do
+    local data = config.load(M.rollbackRoot .. "/" .. pointer, nil)
+    if type(data) == "table" and type(data.id) == "string" then protected[data.id] = true end
+  end
+  local pending = config.load("/var/tmp/mintcraft-rollback.cfg", nil)
+  if type(pending) == "table" and type(pending.id) == "string" then protected[pending.id] = true end
+  if fs.exists(M.rollbackRoot) and fs.list then
+    for _, id in ipairs(fs.list(M.rollbackRoot)) do
+      local path = M.rollbackRoot .. "/" .. id
+      if id:match("^%d+%-?%d*$") and fs.isDir(path) then
+        local bytes = M.storageBytes(path)
+        local manifest = config.load(path .. "/manifest.cfg", nil)
+        local valid, count, seen = type(manifest) == "table" and manifest.id == id
+          and type(manifest.paths) == "table" and (manifest.kind == nil or manifest.kind == "files"), 0, {}
+        if valid then
+          local full = {} for _, key in ipairs(ROLLBACK_PATHS) do full[key] = true end
+          for index, key in pairs(manifest.paths) do
+            if type(index) ~= "number" or index % 1 ~= 0 or index < 1 or index > #manifest.paths
+              or type(key) ~= "string" or seen[key] then valid = false break end
+            seen[key], count = true, count + 1
+            if manifest.kind == "files" then
+              if not validFileRollback(key) or type(manifest.existed) ~= "table" or type(manifest.existed[key]) ~= "boolean" then valid = false break end
+            elseif not full[key] then valid = false break end
+            if manifest.kind ~= "files" or manifest.existed[key] then
+              if not fs.exists(path .. key) then valid = false break end
+              local directory = manifest.kind ~= "files" and (key == "/system" or key == "/apps" or key == "/packages")
+              if fs.isDir(path .. key) ~= (directory or false) then valid = false break end
+            end
+          end
+          valid = valid and count > 0 and count == #manifest.paths
+        end
+        if valid then validCount = validCount + 1 end
+        rows[#rows+1] = {id=id, bytes=bytes, valid=valid, protected=protected[id] == true or not valid}
+        total = total + bytes
+      end
+    end
+  end
+  table.sort(rows, function(a,b)
+    local an, bn = tonumber(a.id:match("^%d+")), tonumber(b.id:match("^%d+"))
+    return an == bn and a.id > b.id or an > bn
+  end)
+  for _, row in ipairs(rows) do if #rows == 1 or (validCount == 1 and row.valid) then row.protected = true end end
+  return {bytes=total, backups=rows, policy=policy, busy=operation}
+end
+
+function M.setStoragePolicy(policy)
+  if type(policy) ~= "table" or type(policy.quotaBytes) ~= "number" or policy.quotaBytes < 0
+    or policy.quotaBytes ~= policy.quotaBytes or policy.quotaBytes == math.huge
+    or type(policy.retainCount) ~= "number" or policy.retainCount < 1 or policy.retainCount % 1 ~= 0 then
+    return false, "Invalid storage policy"
+  end
+  return config.save("/system/config/update-storage.cfg", {quotaBytes=policy.quotaBytes, retainCount=policy.retainCount})
+end
+
+function M.purgeBackup(id, confirmed)
+  if confirmed ~= true then return false, "Explicit confirmation required" end
+  if operation or _G.mintcraftStorageOperation then return false, "Update operation in progress" end
+  if fs.exists("/var/tmp/mintcraft-rollback.cfg") or fs.exists("/var/tmp/mintcraft-restore")
+    or fs.exists("/var/tmp/mintcraft-install") then return false, "Recovery pending; backups retained" end
+  for _, row in ipairs(M.storageInfo().backups) do
+    if row.id == id then
+      if row.protected then return false, "Checkpoint is protected" end
+      local ok, err = pcall(fs.delete, M.rollbackRoot .. "/" .. id)
+      return ok, ok and "Backup purged" or tostring(err)
+    end
+  end
+  return false, "Unknown backup"
+end
+
+function M.pruneBackups(confirmed)
+  if confirmed ~= true then return false, "Explicit confirmation required" end
+  local info, removed = M.storageInfo(), 0
+  for i = #info.backups, info.policy.retainCount + 1, -1 do
+    local row = info.backups[i]
+    if not row.protected then
+      local ok, err = M.purgeBackup(row.id, true)
+      if not ok then return false, err end
+      removed = removed + 1
+    end
+  end
+  return true, "Purged " .. removed .. " backups"
+end
+
+M.report = M.storageInfo
+function M.cleanup(kind, options)
+  options = options or {}
+  if kind ~= "updates" then return false, "Unknown storage kind" end
+  if options.id then return M.purgeBackup(options.id, options.confirm == true) end
+  return M.pruneBackups(options.confirm == true)
 end
 
 function M.start(ctx)

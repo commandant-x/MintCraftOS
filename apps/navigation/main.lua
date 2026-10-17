@@ -211,11 +211,11 @@ function M.run(ctx)
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end flight.release(ctx.pid,"Navigation closed/crashed/killed") end)
-  timer=os.startTimer(0.2)
+  timer=ctx.startTimer(0.2)
   while not win.closed do
     local event=ctx.pullEvent()
     if event.name=="timer" and event.args[1]==timer then
-      if not win.minimized then refresh() end timer=os.startTimer(0.2)
+      if not win.minimized then refresh() end timer=ctx.startTimer(0.2)
     end
   end
 end

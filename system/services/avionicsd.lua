@@ -40,17 +40,23 @@ function M.acquire(rescan)
           entry.errors=errors
           entry.ok=next(errors)==nil and next(entry.data)~=nil
           if def.slow then slow[row.name]=addon.copy(entry) end
-          for method,err in pairs(errors) do snap.errors[#snap.errors+1]=row.name..":"..method..": "..err end
         end
+        for method,err in pairs(entry.errors or {}) do snap.errors[#snap.errors+1]=row.name..":"..method..": "..err end
       end
     end
   end
   if #branches>0 then parallel.waitForAll(table.unpack(branches)) end
   if readSlow then slowAt=now end
-  if snap.available then snap.status="Create Avionics peripherals ready" end
-  local a=snap.altitude[1] and snap.altitude[1].data or {}
-  local g=snap.gimbal[1] and snap.gimbal[1].data or {}
-  local n=snap.nav[1] and snap.nav[1].data or {}
+  snap.ok=#snap.errors==0
+  if snap.available then snap.status=snap.ok and "Create Avionics peripherals ready" or "Avionics telemetry degraded" end
+  snap.lastFault=snap.errors[1]
+  local function healthy(rows)
+    for _,entry in ipairs(rows) do if entry.ok then return entry.data,entry.timestamp end end
+    return {},now
+  end
+  local a=healthy(snap.altitude)
+  local g=healthy(snap.gimbal)
+  local n=healthy(snap.nav)
   local angle,rate=g.angles or {},g.angularRates or {}
   local fields={altitude={a.height,"m","world"},verticalSpeed={a.verticalSpeed,"m/s","world"},pressure={a.airPressure,"fraction","world"},
     pitch={angle[1],"deg","body"},roll={angle[2],"deg","body"},pitchRate={rate[1],"deg/s","body"},yawRate={rate[2],"deg/s","body"},rollRate={rate[3],"deg/s","body"},heading={n.heading,"deg","world"},gravity={addon.vec(g.gravity),"m/s2","body"}}
@@ -59,7 +65,12 @@ function M.acquire(rescan)
   revision=revision+1 snap.revision=revision cached=snap
 end
 function M.snapshot() return addon.copy(cached) end
-function M.status() return {available=cached.available,status=cached.status,counts=addon.copy(cached.counts),errors=addon.copy(cached.errors),timestamp=cached.timestamp,revision=cached.revision} end
+function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=cached.lastFault,counts=addon.copy(cached.counts),errors=addon.copy(cached.errors),timestamp=cached.timestamp,revision=cached.revision} end
+function M.health()
+  local health=M.status()
+  health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
+  return health
+end
 function M.list() return addon.copy(cached.devices) end
 function M.rescan() if runner then runner:rescan() end end
 function M.probe(name)
@@ -77,7 +88,11 @@ end
 function M.start(ctx)
   M.stop()
   runner=addon.periodic(ctx,"avionicsd",0.1,M.acquire)
-  runner.onError=function(err) cached.ok=false cached.errors={err} end
+  runner.onError=function(err)
+    revision=revision+1
+    cached.ok=false cached.errors={err} cached.lastFault=err
+    cached.status="Avionics acquisition failed" cached.revision=revision
+  end
   if runner.error then runner.onError(runner.error) end
 end
 function M.stop() if runner then runner:stop() runner=nil end end

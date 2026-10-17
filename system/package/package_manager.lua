@@ -1,6 +1,13 @@
 local config = require("system.libraries.config")
 local manifest = require("system.package.manifest")
 local log = require("system.libraries.log")
+local safeWrite = require("system.libraries.safe_write")
+local transactionRoot = "/var/tmp/mintcraft-package"
+local busy = false
+
+local function allowed(path)
+  return path == "packages/installed.db" or manifest.ownedPath(path)
+end
 
 local M = {
   installedPath = "/packages/installed.db",
@@ -14,31 +21,50 @@ end
 
 local function readInstalled()
   ensure()
-  return config.load(M.installedPath, {})
-end
-
-local function writeInstalled(data)
-  ensure()
-  return config.save(M.installedPath, data)
+  local recovered, problem = safeWrite.recoverTransaction(transactionRoot, allowed)
+  assert(recovered, problem)
+  local data = config.load(M.installedPath, nil)
+  if data == nil and not fs.exists(M.installedPath) then data = {} end
+  M.quarantined = {}
+  if type(data) ~= "table" then
+    M.quarantined[1] = {id="database", reason="Invalid installed package database; retained for inspection"}
+    return {}
+  end
+  local valid = {}
+  local owners, migrated = {}, false
+  for id, pkg in pairs(data) do
+    local ok, problem = pcall(function()
+      assert(manifest.validId(id) and type(pkg) == "table" and pkg.id == id and type(pkg.files) == "table",
+        "Invalid installed package record")
+      for path in pairs(pkg.files) do
+        assert(manifest.ownedPath(path, id) and not owners[path], "Invalid package ownership")
+      end
+      if pkg.app then
+        assert(type(pkg.app) == "table" and (pkg.app.id == nil or pkg.app.id == id)
+          and type(pkg.app.module) == "string" and manifest.ownedPath(pkg.app.module:gsub("%.", "/") .. ".lua", id),
+          "Invalid installed application identity")
+      end
+    end)
+    if ok then
+      valid[id] = pkg
+      for path in pairs(pkg.files) do
+        owners[path] = id
+        if pkg.files[path] ~= true then pkg.files[path], migrated = true, true end
+      end
+    else
+      M.quarantined[#M.quarantined+1] = {id=tostring(id), reason=tostring(problem)}
+    end
+  end
+  if migrated then
+    local saved, err = config.save(M.installedPath, data)
+    assert(saved, err)
+  end
+  return valid
 end
 
 local function readSources()
   ensure()
   return config.load(M.sourcesPath, {})
-end
-
-local function writeFile(path, content)
-  local dir = fs.getDir(path)
-  if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-  local handle = fs.open(path, "w")
-  if not handle then return false, "cannot write " .. path end
-  handle.write(content)
-  handle.close()
-  return true
-end
-
-local function removeFile(path)
-  if fs.exists(path) then fs.delete(path) end
 end
 
 function M.setContext(ctx)
@@ -74,9 +100,12 @@ end
 
 function M.registerInstalledApps()
   if not M.ctx or not M.ctx.apps then return end
-  for _, pkg in pairs(readInstalled()) do
+  local ok, installed = pcall(readInstalled)
+  if not ok then return false, tostring(installed) end
+  for _, pkg in pairs(installed) do
     if pkg.app then
       M.ctx.apps.register(pkg.app.id or pkg.id, pkg.app.name or pkg.name, pkg.app.module, {
+        builtin = false,
         icon = pkg.app.icon or "PK",
         iconPath = pkg.app.iconPath,
         category = pkg.app.category or "Installed",
@@ -87,18 +116,27 @@ function M.registerInstalledApps()
   end
 end
 
-function M.install(id)
+local function install(id)
   local pkg = M.find(id)
   if not pkg then return false, "package not found" end
   local ok, err = manifest.validate(pkg)
   if not ok then return false, err end
 
-  for path, content in pairs(pkg.files) do
-    local written, writeErr = writeFile("/" .. path, content)
-    if not written then return false, writeErr end
-  end
-
   local installed = readInstalled()
+  if #M.quarantined > 0 then return false, "Quarantined package records require inspection; database retained" end
+  local registered = M.ctx and M.ctx.apps and M.ctx.apps.get and M.ctx.apps.get(id)
+  if registered and registered.builtin then return false, "Built-in application identity is protected" end
+  local previous = installed[id]
+  local changes, paths = {}, {}
+  for path, content in pairs(pkg.files) do
+    if fs.exists("/" .. path) and not (previous and previous.files[path]) then
+      return false, "Refusing to overwrite unowned file: " .. path
+    end
+    changes[path], paths[path] = content, true
+  end
+  for path in pairs(previous and previous.files or {}) do
+    if not paths[path] then changes[path] = false end
+  end
   installed[pkg.id] = {
     id = pkg.id,
     name = pkg.name,
@@ -106,24 +144,56 @@ function M.install(id)
     description = pkg.description,
     app = pkg.app,
     permissions = pkg.permissions,
-    files = pkg.files,
+    files = paths,
     installedAt = os.clock(),
   }
-  writeInstalled(installed)
+  -- Normalize legacy records too; installed.db contains ownership, never payloads.
+  for _, record in pairs(installed) do
+    for path in pairs(record.files) do record.files[path] = true end
+  end
+  changes["packages/installed.db"] = textutils.serialize(installed)
+  local saved, problem = safeWrite.transaction(transactionRoot, changes, allowed)
+  if not saved then return false, problem end
   M.registerInstalledApps()
   log.info("package", "installed " .. pkg.id .. " " .. pkg.version)
   return true, "installed"
 end
 
-function M.remove(id)
+local function remove(id)
   local installed = readInstalled()
+  if #M.quarantined > 0 then return false, "Quarantined package records require inspection; database retained" end
   local pkg = installed[id]
   if not pkg then return false, "package not installed" end
-  for path in pairs(pkg.files or {}) do removeFile("/" .. path) end
+  local changes = {}
+  for path in pairs(pkg.files or {}) do
+    if not manifest.ownedPath(path, id) then return false, "Invalid package ownership" end
+    changes[path] = false
+  end
   installed[id] = nil
-  writeInstalled(installed)
+  for _, record in pairs(installed) do
+    for path in pairs(record.files) do record.files[path] = true end
+  end
+  changes["packages/installed.db"] = textutils.serialize(installed)
+  local saved, problem = safeWrite.transaction(transactionRoot, changes, allowed)
+  if not saved then return false, problem end
   log.warn("package", "removed " .. id)
   return true, "removed, reboot recommended"
 end
+
+local function exclusive(fn, id)
+  if busy or _G.mintcraftStorageOperation then return false, "Package/storage operation already in progress" end
+  if fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
+    or fs.exists("/var/tmp/mintcraft-restore") then return false, "System recovery pending" end
+  busy = true
+  _G.mintcraftStorageOperation = "Package"
+  local ok, result, detail = pcall(fn, id)
+  busy = false
+  _G.mintcraftStorageOperation = nil
+  if not ok then return false, tostring(result) end
+  return result, detail
+end
+
+function M.install(id) return exclusive(install, id) end
+function M.remove(id) return exclusive(remove, id) end
 
 return M

@@ -4,7 +4,7 @@ os.clock=function() return now end os.getComputerID=function() return 1 end os.g
 local addon=require("system.libraries.addon")
 addon.periodic=function() return {stop=function() end,rescan=function() end} end
 addon.inventory=function() return {{name="left",types={"modem"}}} end
-local cfg={enabled=true,publish=true,group="world-A",trusted={},x=0,y=0,z=0,radius=100,alerts=false}
+local cfg={enabled=true,publish=true,allowInsecure=true,group="world-A",trusted={},x=0,y=0,z=0,radius=100,alerts=false}
 package.loaded["system.libraries.config"]={load=function() return addon.copy(cfg) end}
 package.loaded["system.libraries.safe_write"]={write=function() return true end}
 package.loaded["system.security.permissions"]={require=function(actor) return actor.pid==7 end}
@@ -51,5 +51,16 @@ snap=net.snapshot() assert(#snap.radars==40 and snap.radars[1].running==false an
 now=now+0.3 packet.sequence=4
 for i=41,65 do packet.radars[i]=packet.radars[1] end
 assert(not listener(2,packet,net.protocol),"unbounded station geometry accepted")
+packet.radars={} packet.targets={}
+for id=3,18 do assert(listener(id,packet,net.protocol)) end
+assert(not listener(19,packet,net.protocol),'discovery quota not bounded')
+saved=net.configuration() saved.trusted['99']=true assert(net.configure(actor,saved))
+assert(listener(99,packet,net.protocol),'untrusted discovery flood blocked trusted station')
+local found={}
+snap=net.snapshot() for _,node in ipairs(snap.nodes) do found[node.id]=true end
+assert(found[2] and found[99] and #snap.nodes==18,'discovery evicted paired station')
+assert(snap.authenticated==false and snap.encrypted==false and snap.warning:find('spoofed',1,true))
+now=now+0.3 packet.sequence=5
+assert(listener(2,packet,net.protocol),'untrusted traffic blocked paired update')
 net.stop() assert(closed==0,"stopping network broke Messenger modem")
 print("radar network pairing, bounded packets, freshness, no relay and perimeter alerts passed")

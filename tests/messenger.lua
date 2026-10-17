@@ -19,11 +19,18 @@ assert(service.statusText()=="no modem")
 attached=true
 bus:emit("peripheral","left")
 assert(service.side=="left" and opens==1)
+assert(service.statusText():find('unauthenticated and unencrypted',1,true))
 assert(service.send("hello") and sent==1)
 bus:emit("rednet_message",20,{type="message",id=99,from="Name",text="hello"},"mintcraft.chat")
 assert(#service.list()==1 and service.list()[1].id==20)
 bus:emit("rednet_message",20,{type="message",text={}},"mintcraft.chat")
 assert(#service.list()==1)
+bus:emit('rednet_message',20,string.rep('x',8193),'mintcraft.chat')
+bus:emit('rednet_message',0/0,'hello','mintcraft.chat')
+assert(#service.list()==1)
+textutils.unserialize=function() error('malformed serialized data') end
+bus:emit('rednet_message',20,'safe plain text','mintcraft.chat')
+assert(#service.list()==2 and service.list()[2].text=='safe plain text')
 attached=false
 bus:emit("peripheral_detach","left")
 assert(service.side==nil and service.statusText()=="no modem")

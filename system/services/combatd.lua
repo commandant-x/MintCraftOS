@@ -251,14 +251,27 @@ function M.acquire(rescan)
   snap.revision = revision
   snap.counts = {radars=#snap.radars, targets=#snap.targets, cannons=#snap.cannons, unknown=#snap.unknownCombatDevices}
   snap.available = #snap.radars+#snap.cannons+#snap.controllers>0
-  snap.status = snap.available and "combat peripherals ready" or "no supported combat peripheral"
   snap.ok=#snap.errors==0
+  snap.status = not snap.ok and "combat telemetry degraded" or snap.available and "combat peripherals ready" or "no supported combat peripheral"
+  lastFault=snap.errors[1]
+  snap.lastFault=lastFault
   cached = snap
   radarNet.checkPerimeter(snap)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
-function M.status() return {available=cached.available,status=cached.status,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=lastFault,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain)} end
+function M.health()
+  local health=M.status()
+  health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
+  health.commandPid=M.commandPid
+  local commandWorker=ctx and ctx.scheduler.processes[M.commandPid]
+  if commandWorker and commandWorker.state~="ready" then
+    health.ok,health.lastFault,health.status=false,commandWorker.error or "combat command worker stopped","combat command worker stopped"
+  end
+  if next(uncertain) then health.ok=false health.lastFault=health.lastFault or "combat output uncertain; manual verification required" end
+  return health
+end
 function M.rescan() if runner then runner:rescan() end end
 function M.configuration() return addon.copy(settings) end
 function M.autoConfigureRadars(actor)
@@ -458,6 +471,7 @@ local function processCommand(command)
   local info, readErr = addon.call(row.device,"getInfo")
   if readErr or type(info) ~= "table" or info.assembled ~= true then return false,"cannon not assembled/readable" end
   if command.kind == "aim" then
+    command.outputAttempted=true
     local control, controlErr = addon.call(row.device,"setComputerControl",true)
     if controlErr or control==false then return false,controlErr or "control refused" end
     local result, aimErr = addon.call(row.device,"setTargetAngles",solution.yaw,solution.pitch)
@@ -465,6 +479,7 @@ local function processCommand(command)
   end
   if not addon.finite(info.yaw) or not addon.finite(info.pitch) or math.abs(geometry.wrap(info.yaw-solution.yaw))>2 or math.abs(info.pitch-solution.pitch)>2 then return false,"cannon not aligned with selected target" end
   firing=row
+  command.outputAttempted=true
   local value, fireErr = addon.call(row.device,"fire",true)
   if fireErr or value == false then return false,fireErr or "fire refused" end
   local timer = os.startTimer(0.1)
@@ -480,10 +495,13 @@ function M.start(context)
   local stopped,why=M.stop()
   if stopped==false then error(why) end
   ctx = context
+  lastFault=nil
   loadSettings()
   runner = addon.periodic(ctx,"combatd",0.2,M.acquire)
   runner.onError = function(err)
-    cached.errors = {err} cached.ok=false
+    revision=revision+1
+    cached.errors = {err} cached.ok=false cached.revision=revision
+    cached.status="combat acquisition failed" cached.lastFault=err
     if lastFault~=err then
       lastFault=err pcall(log.error,"combat",err)
       if ctx.notifications then pcall(ctx.notifications.push,ctx.notifications,"warn","Combat read failed",err,5) end
@@ -498,8 +516,8 @@ function M.start(context)
         local ok, success, message = addon.bounded(function() return processCommand(command) end,0.5)
         if not ok then
           message = success
-          if command.cannonId then uncertain[command.cannonId]=tostring(message) end
         end
+        if (not ok or success~=true) and command.cannonId and command.outputAttempted then uncertain[command.cannonId]=tostring(message) end
         if firing then
           local row=firing
           local cleared,clearErr=addon.bounded(function()

@@ -57,6 +57,21 @@ assert(writes[#writes][2]==false,"fire output not released")
 assert(not combat.requestFire(actor,"mount","player-uuid",token),"confirmation reused")
 assert(combat.requestProbe(actor,"mount")) flush()
 assert(writes[#writes][1]=="fire" and writes[#writes][2]==false,"Probe called actuator")
+local originalFire=devices.mount.fire
+local uncertainShots=0
+devices.mount.fire=function(value)
+  if value then uncertainShots=uncertainShots+1 error("reply lost after firing") end
+  return originalFire(value)
+end
+local uncertainToken=assert(combat.prepareFire(actor,"mount","player-uuid"))
+assert(combat.requestFire(actor,"mount","player-uuid",uncertainToken)) flush()
+assert(combat.status().uncertain.mount,"lost fire reply did not lock mount")
+local retryToken=assert(combat.prepareFire(actor,"mount","player-uuid"))
+assert(not combat.requestFire(actor,"mount","player-uuid",retryToken)) flush()
+assert(uncertainShots==1,"uncertain non-idempotent fire repeated")
+assert(not combat.acknowledge(actor,"mount",false))
+assert(combat.acknowledge(actor,"mount",true))
+devices.mount.fire=originalFire
 now=7 combat.acquire(false)
 assert(combat.snapshot().targets[1].stale,"rereading same scannedTime kept lost target fresh")
 assert(not combat.solution("mount","player-uuid"))

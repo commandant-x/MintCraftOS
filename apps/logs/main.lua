@@ -1,11 +1,12 @@
 local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
-local ui = require("system.gui.components")
+local menu = require("system.gui.action_menu")
+local theme = require("system.gui.theme")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { filter = "all" }
+  local app = { filter = "all", menu = menu.new() }
   local actions = {
     { id = "all", label = "All" },
     { id = "error", label = "Error" },
@@ -16,13 +17,12 @@ function M.run(ctx)
   }
 
   local function parse(line)
-    local ok, row = pcall(textutils.unserialize, line)
-    if ok and type(row) == "table" then return row end
-    return { level = "info", source = "raw", message = line, time = "" }
+    return log.parse(line)
   end
 
   local function format(row)
-    return tostring(row.time or "") .. " " .. tostring(row.level or "?") .. " " .. tostring(row.source or "?") .. ": " .. tostring(row.message or "")
+    local text = tostring(row.time or "") .. " " .. tostring(row.level or "?") .. " " .. tostring(row.source or "?") .. ": " .. tostring(row.message or "")
+    return (text:gsub("[%c]", " "))
   end
 
   local function matches(row, filter)
@@ -31,33 +31,34 @@ function M.run(ctx)
   end
 
   function app:draw(w, h)
-    self.toolbar = ui.toolbar(1, 1, w, actions)
-    renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), colors.black, colors.lightGray)
-    local raw = log.tail(120)
-    local lines = {}
-    for _, line in ipairs(raw) do
-      local row = parse(line)
-      if matches(row, self.filter) then table.insert(lines, format(row)) end
+    renderer.fill(1, 1, w, h, theme.get("windowBg"))
+    menu.bar(self.menu, 1, 1, w, actions, {selector=true,label="Filter: " .. self.filter,title="Log filters",selected=self.filter})
+    if h >= 2 then renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), theme.get("windowFg"), theme.get("windowBg")) end
+    if self.revision ~= log.revision() or self.cachedFilter ~= self.filter then
+      self.lines = {}
+      for _, line in ipairs(log.tail(120)) do
+        local row = parse(line)
+        if matches(row, self.filter) then table.insert(self.lines, format(row)) end
+      end
+      self.revision, self.cachedFilter = log.revision(), self.filter
     end
+    local lines = self.lines
     local start = math.max(1, #lines - h + 3)
     local y = 3
     for i = start, #lines do
-      renderer.writeAt(1, y, renderer.crop(lines[i], w), colors.black, colors.lightGray)
+      if y > h then break end
+      renderer.writeAt(1, y, renderer.crop(lines[i], w), theme.get("windowFg"), theme.get("windowBg"))
       y = y + 1
       if y > h then break end
     end
+    if h >= 5 then menu.overlay(self.menu, w, h) end
   end
 
   function app:handle(event)
-    if event.name == "mouse_click" then
-      local _, x, y = table.unpack(event.args)
-      local action = ui.toolbarHit(self.toolbar, x, y)
-      if action then
-        if action ~= "refresh" then self.filter = action end
-        return true
-      end
-    end
-    return false
+    local action, handled = menu.handle(self.menu, event)
+    if action == "refresh" then log.invalidate()
+    elseif action then self.filter = action end
+    return handled
   end
 
   local sw, sh = term.getSize()

@@ -4,11 +4,13 @@ local ui = require("system.gui.components")
 local config = require("system.libraries.config")
 local httpClient = require("system.network.http_client")
 local audiod = require("system.services.audiod")
+local appWorker = require("system.libraries.app_worker")
 
 local M = {}
 
 local cfgPath = "/system/config/crafttube.cfg"
 local dataPath = "/home/user/config/crafttube.db"
+local normalizeVideo
 
 local defaultCfg = {
   provider = "invidious",
@@ -34,8 +36,9 @@ end
 
 local function loadCfg()
   local cfg = config.load(cfgPath, {})
+  if type(cfg)~="table" then cfg={} end
   for key, value in pairs(defaultCfg) do
-    if cfg[key] == nil or cfg[key] == "" then cfg[key] = value end
+    if type(cfg[key])~=type(value) or cfg[key] == "" then cfg[key] = value end
   end
   return cfg
 end
@@ -45,31 +48,46 @@ local function saveCfg(cfg)
 end
 
 local function loadData()
-  return config.load(dataPath, { favorites = {}, history = {} })
+  local data=config.load(dataPath, { favorites = {}, history = {} })
+  if type(data)~="table" then data={} end
+  for _,key in ipairs({"favorites","history"}) do
+    local rows={}
+    if type(data[key])=="table" then
+      for i=1,math.min(30,#data[key]) do
+        local row=data[key][i]
+        if type(row)=="table" and type(row.id)=="string" and type(row.title)=="string" then rows[#rows+1]=normalizeVideo(row) end
+      end
+    end
+    data[key]=rows
+  end
+  return data
 end
 
 local function saveData(data)
   return config.save(dataPath, data)
 end
 
-local function normalizeVideo(raw)
+normalizeVideo = function(raw)
   if type(raw) ~= "table" then return nil end
   local id = raw.id
+  local snippet=type(raw.snippet)=="table" and raw.snippet or {}
   if type(id) == "table" then id = id.videoId or id.id end
   id = raw.videoId or raw.video_id or id
-  local title = raw.title or raw.name or (raw.snippet and raw.snippet.title)
+  local title = raw.title or raw.name or snippet.title
   if not id and raw.url then id = tostring(raw.url):match("[?&]v=([%w%-_]+)") or tostring(raw.url):match("youtu%.be/([%w%-_]+)") end
   if not title or title == "" then title = id or "Untitled" end
   local duration = raw.duration or raw.length or raw.lengthText
   if not duration and raw.lengthSeconds then
     local seconds = tonumber(raw.lengthSeconds) or 0
+    if seconds~=seconds or seconds==math.huge or seconds==-math.huge then seconds=0 end
+    seconds=math.max(0,math.min(86400,math.floor(seconds)))
     duration = string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
   end
   return {
     id = tostring(id or title),
     title = tostring(title),
-    channel = tostring(raw.channel or raw.channelTitle or raw.author or (raw.snippet and raw.snippet.channelTitle) or "-"),
-    description = tostring(raw.description or (raw.snippet and raw.snippet.description) or ""),
+    channel = tostring(raw.channel or raw.channelTitle or raw.author or snippet.channelTitle or "-"),
+    description = tostring(raw.description or snippet.description or ""),
     duration = tostring(duration or "-"),
     views = tostring(raw.viewCountText or raw.views or raw.viewCount or "-"),
     published = tostring(raw.publishedText or raw.published or ""),
@@ -78,10 +96,11 @@ local function normalizeVideo(raw)
 end
 
 local function listFromJson(json)
-  local source = json and (json.items or json.results or json.videos or json)
+  local source = type(json)=="table" and (json.items or json.results or json.videos or json)
   local out = {}
   if type(source) == "table" then
-    for _, item in ipairs(source) do
+    for i=1,math.min(#source,100) do
+      local item=source[i]
       local video = normalizeVideo(item)
       if video then table.insert(out, video) end
     end
@@ -131,6 +150,13 @@ function M.run(ctx)
     scroll = 1,
     keyboard = {},
   }
+  local worker
+  local function enqueue(action)
+    local cfg={}
+    for key,value in pairs(app.cfg) do cfg[key]=value end
+    local ok,err=worker:submit({action=action,input=app.input,cfg=cfg,video=findById(app.rows,app.selected)})
+    app.status=ok and "Loading..." or tostring(err)
+  end
 
   local actions = {
     { id = "search", label = "Search" },
@@ -162,31 +188,26 @@ function M.run(ctx)
     app.status = status or tostring(#app.rows) .. " results"
   end
 
-  local function searchWithProxy(proxy)
-    local url = proxy .. app.cfg.searchPath .. urlEncode(app.input)
+  local function searchWithProxy(proxy,request)
+    if type(proxy)~="string" then return nil,"Invalid proxy" end
+    local url = proxy .. request.cfg.searchPath .. urlEncode(request.input)
     local allowed, denied = ctx.security.require("network.http", url)
     if not allowed then return nil, denied end
-    local response, err = httpClient.json(url)
+    local response, err = httpClient.json(url,{timeout=5,maxBytes=1048576})
     if not response then return nil, err end
     return listFromJson(response.json)
   end
 
-  local function search()
-    app.mode = "search"
-    if app.input == "" then app.status = "Enter search text" return end
-    if not app.cfg.proxy or app.cfg.proxy == "" then
-      app.cfg.proxy = defaultCfg.proxy
-      saveCfg(app.cfg)
-    end
-    local proxies = { app.cfg.proxy }
-    for _, proxy in ipairs(app.cfg.fallbackProxies or {}) do table.insert(proxies, proxy) end
+  local function search(request)
+    if request.input == "" then app.status = "Enter search text" return end
+    local proxies = { request.cfg.proxy }
+    for i=1,math.min(4,#request.cfg.fallbackProxies) do table.insert(proxies,request.cfg.fallbackProxies[i]) end
     app.status = "Searching..."
     local lastErr
     for _, proxy in ipairs(proxies) do
-      local rows, err = searchWithProxy(proxy)
+      local rows, err = searchWithProxy(proxy,request)
       if rows and #rows > 0 then
-        app.cfg.proxy = proxy
-        saveCfg(app.cfg)
+        if app.cfg.proxy==request.cfg.proxy then app.cfg.proxy = proxy saveCfg(app.cfg) end
         showRows(rows, "Search complete via " .. proxy)
         return
       end
@@ -203,15 +224,16 @@ function M.run(ctx)
     app.status = "Favorite saved"
   end
 
-  local function openVideo()
-    local video = selectedVideo()
+  local function openVideo(request)
+    local video = request.video
     if not video then app.status = "No video selected" return end
-    if app.cfg.proxy and app.cfg.proxy ~= "" and app.cfg.detailsPath and app.cfg.detailsPath ~= "" then
-      local detailsUrl = app.cfg.proxy .. app.cfg.detailsPath .. urlEncode(video.id)
-      local allowed = ctx.security.require("network.http", detailsUrl)
-      if not allowed then return end
-      local response = httpClient.json(detailsUrl)
-      if response and response.json then
+    if request.cfg.proxy ~= "" and request.cfg.detailsPath ~= "" then
+      local detailsUrl = request.cfg.proxy .. request.cfg.detailsPath .. urlEncode(video.id)
+      local allowed,denied = ctx.security.require("network.http", detailsUrl)
+      if not allowed then app.status=tostring(denied) return end
+      local response,err = httpClient.json(detailsUrl,{timeout=8,maxBytes=1048576})
+      if not response then app.status=tostring(err) return end
+      if response and type(response.json)=="table" then
         local detail = normalizeVideo(response.json.video or response.json.item or response.json)
         if detail then
           video = detail
@@ -224,27 +246,28 @@ function M.run(ctx)
     app.status = "Opened details"
   end
 
-  local function playSelected()
-    local video = selectedVideo()
+  local function playSelected(request)
+    local video = request.video
     if not video then app.status = "No video selected" return end
-    if not app.cfg.audioProxy or app.cfg.audioProxy == "" then
+    if request.cfg.audioProxy == "" then
       app.status = "Start DFPWM proxy on http://127.0.0.1:8787"
       return
     end
-    local base = app.cfg.audioProxy:gsub("/+$", "")
-    local audioPath = app.cfg.audioPath or defaultCfg.audioPath
+    local base = request.cfg.audioProxy:gsub("/+$", "")
+    local audioPath = request.cfg.audioPath
     local url = base .. audioPath .. urlEncode(video.id)
     local allowed, denied = ctx.security.require("network.http", url)
     if not allowed then app.status = denied return end
     app.status = "Downloading DFPWM audio..."
-    local response, err = httpClient.get(url, { binary = true })
+    local response, err = httpClient.get(url, { binary = true,maxBytes=4194304,timeout=125 })
     if not response then app.status = tostring(err) return end
     if not fs.exists("/var/tmp") then fs.makeDir("/var/tmp") end
-    local path = "/var/tmp/crafttube_audio.dfpwm"
+    local path = "/var/tmp/crafttube_audio_"..tostring(ctx.pid)..".dfpwm"
     local handle = fs.open(path, "wb")
     if not handle then app.status = "Cannot write audio temp file" return end
-    handle.write(response.body)
-    handle.close()
+    local wrote,writeErr=pcall(handle.write,response.body)
+    pcall(handle.close)
+    if not wrote then app.status=tostring(writeErr) return end
     local ok, playErr = audiod.playDfPWM(path)
     app.status = ok and ("Playing " .. video.title) or tostring(playErr)
   end
@@ -267,7 +290,7 @@ function M.run(ctx)
   app.keyboard.onText = function(ch) app.input = app.input .. ch end
   app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
   app.keyboard.onEnter = function()
-    if app.mode == "proxy" or app.mode == "audio" then saveProxy() else search() end
+    if app.mode == "proxy" or app.mode == "audio" then saveProxy() else enqueue("search") end
   end
 
   function app:draw(w, h)
@@ -325,20 +348,20 @@ function M.run(ctx)
       local _, x, y = table.unpack(event.args)
       if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
       local action = ui.toolbarHit(self.toolbar, x, y)
-      if action == "search" then self.mode = "search" search() return true end
-      if action == "play" then playSelected() return true end
+      if action == "search" then self.mode = "search" enqueue("search") return true end
+      if action == "play" then enqueue("play") return true end
       if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
       if action == "audio" then self.mode = "audio" self.input = self.cfg.audioProxy or "" return true end
       if action == "fav" then toggleFavorite() return true end
       if action == "history" then showRows(self.data.history, "History") return true end
       if action == "details" then
         local video = selectedVideo()
-        if video then openVideo() end
+        if video then enqueue("details") end
         return true
       end
       if y >= 4 then
         local item = self.rows[self.scroll + math.floor((y - 4) / 3)]
-        if item then self.selected = item.id openVideo() return true end
+        if item then self.selected = item.id enqueue("details") return true end
       end
     end
     return false
@@ -347,6 +370,18 @@ function M.run(ctx)
   showRows(app.data.favorites, "Favorites")
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "CraftTube", w = math.min(78, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
+  worker=appWorker.new(ctx,"CraftTube requests",function(request)
+    if request.action=="search" then search(request)
+    elseif request.action=="details" then openVideo(request)
+    elseif request.action=="play" then playSelected(request) end
+  end,function(_,ok,err)
+    if not ok then app.status=tostring(err) end
+  end,140)
+  ctx.onCleanup(function()
+    local path="/var/tmp/crafttube_audio_"..tostring(ctx.pid)..".dfpwm"
+    if fs.exists(path) then pcall(fs.delete,path) end
+  end)
+  if app.input~="" then enqueue("search") end
   while not win.closed do ctx.pullEvent() end
 end
 

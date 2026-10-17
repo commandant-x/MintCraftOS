@@ -1,4 +1,5 @@
 package.path="./?.lua;"..package.path
+require("system.libraries.addon").bounded=function(fn) return pcall(fn) end
 local now=1
 os.clock=function() return now end
 parallel={waitForAll=function(...) for _,f in ipairs({...}) do f() end end}

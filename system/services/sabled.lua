@@ -1,7 +1,7 @@
 local log = require("system.libraries.log")
 local addon = require("system.libraries.addon")
 local runner, revision, detected, slowAt, slowData = nil, 0, nil, -math.huge, nil
-local diagnostics, diagnosticsAt = {}, -math.huge
+local diagnostics, diagnosticsAt, diagnosticsErrors = {}, -math.huge, {}
 
 local M = {
   ctx = nil,
@@ -52,7 +52,8 @@ end
 
 local function readSublevel(sub)
   local out = { errors = {} }
-  local grid, gridErr = call(sub, "isInPlotGrid")
+  local okGrid,grid,gridErr=addon.bounded(function() return call(sub,"isInPlotGrid") end,0.05)
+  if not okGrid then gridErr,grid=tostring(grid),nil end
   out.plotGrid = grid
   if gridErr then out.errors.isInPlotGrid = gridErr end
   if grid ~= true then out.inSublevel = false return out end
@@ -61,18 +62,20 @@ local function readSublevel(sub)
   local slow={uuid="getUniqueId",name="getName",centerOfMass="getCenterOfMass",mass="getMass",inverseMass="getInverseMass",inertiaTensor="getInertiaTensor",inverseInertiaTensor="getInverseInertiaTensor"}
   local methods={}
   for _,method in pairs(fast) do methods[#methods+1]=method end
-  local values,errors=addon.read(sub,methods)
+  local values,errors=addon.read(sub,methods,0.1)
   for field,method in pairs(fast) do out[field]=addon.copy(values[method]) end
   for method,err in pairs(errors) do out.errors[method]=err end
   if os.clock()-diagnosticsAt>=1 then
     methods={}
     for _,method in pairs(slow) do methods[#methods+1]=method end
-    local data,problems=addon.read(sub,methods)
+    local data,problems=addon.read(sub,methods,0.1)
     diagnostics={}
+    diagnosticsErrors=problems
     for field,method in pairs(slow) do diagnostics[field]=addon.copy(data[method]) end
     for method,err in pairs(problems) do out.errors[method]=err end
     diagnosticsAt=os.clock()
   end
+  for method,err in pairs(diagnosticsErrors) do out.errors[method]=err end
   for field,value in pairs(diagnostics) do out[field]=addon.copy(value) end
 
   out.inSublevel = grid == true
@@ -81,15 +84,19 @@ end
 
 local function readAero(aero, subData)
   if not aero then return nil end
-  local values=addon.read(aero,{"getGravity","getMagneticNorth","getUniversalDrag","getRaw","getDefault"})
-  local out = {}
+  local values,errors=addon.read(aero,{"getGravity","getMagneticNorth","getUniversalDrag","getRaw","getDefault"},0.1)
+  local out = {errors=errors}
   out.gravity = addon.vec(values.getGravity)
   out.magneticNorth = addon.vec(values.getMagneticNorth)
   out.universalDrag = values.getUniversalDrag
   out.raw = addon.copy(values.getRaw)
   out.default = addon.copy(values.getDefault)
   local position = subData and subData.logicalPose and (subData.logicalPose.position or subData.logicalPose.pos)
-  if position then out.airPressure = call(aero, "getAirPressure", position) end
+  if position then
+    local ok,value,err=addon.bounded(function() return call(aero,"getAirPressure",position) end,0.05)
+    if ok then out.airPressure=value if err then out.errors.getAirPressure=err end
+    else out.errors.getAirPressure=tostring(value) end
+  end
   return out
 end
 
@@ -97,13 +104,29 @@ function M.status()
   return addon.copy(M.lastStatus)
 end
 
+function M.health()
+  local health=M.status()
+  health.pid,health.lastSuccess=runner and runner.pid,runner and runner.lastSuccess
+  return health
+end
+
+local function publish(result)
+  revision=revision+1
+  result.revision,result.timestamp,result.frame=revision,os.clock(),"world"
+  M.lastSnapshot=result
+  M.lastStatus.ok,M.lastStatus.status=result.ok,result.status
+  M.lastStatus.revision,M.lastStatus.timestamp=revision,result.timestamp
+  M.lastStatus.lastFault=result.error
+  M.lastStatus.errors=addon.copy(result.errors or {})
+  return result
+end
+
 function M.acquire(rescan)
   if rescan or not detected then detected = table.pack(pcall(detect)) diagnosticsAt=-math.huge end
   local okDetect, sub, aero, names = table.unpack(detected, 1, detected.n)
   if not okDetect then
     M.lastStatus = { available = false, inSublevel = false, error = tostring(sub), apiNames = {} }
-    M.lastSnapshot = { ok = false, status = "CC:Sable detection failed", error = tostring(sub) }
-    return M.lastSnapshot
+    return publish({ ok = false, status = "CC:Sable detection failed", error = tostring(sub) })
   end
   local available = sub ~= nil or aero ~= nil
   local result = {
@@ -117,8 +140,7 @@ function M.acquire(rescan)
   if not available then
     M.lastStatus = { available = false, inSublevel = false, error = "CC:Sable APIs not found", apiNames = names }
     result.error = M.lastStatus.error
-    M.lastSnapshot = result
-    return result
+    return publish(result)
   end
 
   local subData = nil
@@ -144,12 +166,18 @@ function M.acquire(rescan)
   end
 
   local inSublevel = subData and subData.inSublevel == true
-  result.ok = true
+  result.errors={}
+  for source,data in pairs({sublevel=subData or {},aero=result.aero or {}}) do
+    for method,err in pairs(data.errors or {}) do result.errors[#result.errors+1]=source..":"..method..": "..err end
+  end
+  if not okAero then result.errors[#result.errors+1]=tostring(aeroData) end
+  if result.error then result.errors[#result.errors+1]=result.error end
+  result.error=result.errors[1]
+  result.ok = #result.errors==0
   result.status = inSublevel and "sublevel telemetry ready" or (sub and "sublevel API ready, no pose" or "not on sublevel")
+  if not result.ok then result.status="Sable telemetry degraded" end
   M.lastStatus = { available = true, inSublevel = inSublevel, error = result.error, apiNames = names or {} }
-  M.lastSnapshot = result
-  revision = revision + 1
-  result.revision, result.timestamp, result.frame = revision, os.clock(), "world"
+  publish(result)
   result.measurements = {}
   for key, unit in pairs({ mass = "kg", linearVelocity = "m/s", angularVelocity = "rad/s", centerOfMass = "m" }) do
     result.measurements[key] = addon.measure(subData and subData[key], unit, key == "centerOfMass" and "body" or "world", "CC:Sable", result.timestamp)
@@ -169,10 +197,15 @@ end
 function M.start(ctx)
   if runner then runner:stop() end
   M.ctx = ctx
+  detected,slowData,slowAt,diagnostics,diagnosticsAt,diagnosticsErrors=nil,nil,-math.huge,{},-math.huge,{}
   runner = addon.periodic(ctx, "sabled", 0.1, M.acquire)
   runner.onError = function(err)
     if M.lastStatus.error~=err then pcall(log.warn,"sabled",err) end
     M.lastStatus.error = err
+    M.lastStatus.inSublevel=false
+    local result=M.snapshot()
+    result.ok,result.error,result.status,result.errors=false,err,"Sable acquisition failed",{err}
+    publish(result)
   end
   if runner.error then runner.onError(runner.error) end
 end

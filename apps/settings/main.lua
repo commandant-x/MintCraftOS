@@ -9,407 +9,284 @@ local audiod = require("system.services.audiod")
 local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 local profile = require("system.libraries.profile")
-
+local menu = require("system.gui.action_menu")
 local M = {}
+local pages = {}
+for _, entry in ipairs({{"system","System"},{"display","Display"},{"desktop","Desktop"},{"network","Network"},
+  {"storage","Storage"},{"sound","Sound"},{"security","Security"},{"apps","Apps"},{"packages","Packages"},
+  {"dev","Dev"},{"nav","Navigation"},{"combat","Combat"}}) do pages[#pages+1]={id=entry[1],label=entry[2]} end
 
-function M.run(ctx)
-  local app = { page = ctx.args and ctx.args.page=="apps" and "apps" or "system", scroll = 1, mode = nil, input = "", keyboard = {}, appMessage="" }
-  if app.page=="apps" then app.tabState={first=8} end
-
-  local pages = {
-    { id = "system", label = "System" },
-    { id = "display", label = "Display" },
-    { id = "desktop", label = "Desktop" },
-    { id = "network", label = "Network" },
-    { id = "storage", label = "Storage" },
-    { id = "sound", label = "Sound" },
-    { id = "security", label = "Security" },
-    { id = "apps", label = "Apps" },
-    { id = "packages", label = "Packages" },
-    { id = "dev", label = "Dev" },
-    { id = "nav", label = "Navigation" },
-    { id = "combat", label = "Combat" },
-  }
-
-  local function computerId()
-    if os.getComputerID then return os.getComputerID() end
-    if os.computerID then return os.computerID() end
-    return 0
-  end
-
-  local function pseudoIp()
-    local id = computerId()
-    return "10.0." .. tostring(math.floor(id / 256) % 256) .. "." .. tostring(id % 256)
-  end
-
-  local function monitorGrade(display)
-    local cells = (display.width or 0) * (display.height or 0)
-    if display.target ~= "monitor" then return "computer" end
-    if cells >= 4500 then return "A"
-    elseif cells >= 2500 then return "B"
-    elseif cells >= 1200 then return "C"
-    else return "D"
-    end
-  end
-
-  local function httpStatus()
-    local status = networkd.getStatus()
-    return status.http and "available" or "missing"
-  end
-
-  local function rednetStatus()
-    if deviced.scanError then return "device scan unavailable" end
-    return deviced.hasType("modem") and "modem detected" or "no modem"
-  end
-
-  local function sizeLabel(bytes)
-    bytes = tonumber(bytes) or 0
-    if bytes >= 1024 * 1024 then return string.format("%.1f MB", bytes / 1024 / 1024) end
-    if bytes >= 1024 then return string.format("%.1f KB", bytes / 1024) end
-    return tostring(bytes) .. " B"
-  end
-
-  function app:draw(w, h)
-    self.tabState = self.tabState or {first = 1}
-    self.tabBoxes = ui.tabs(1, 1, w, pages, self.page, self.tabState)
-
-    if self.page == "system" then
-      renderer.writeAt(1, 3, "Computer ID: " .. tostring(computerId()), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Label: " .. tostring(os.getComputerLabel and (os.getComputerLabel() or "-") or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "MintCraft: " .. version.current(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "CraftOS over CC:Tweaked", colors.gray, colors.lightGray)
-      renderer.button(1, 10, 16, "Set label", false)
-    elseif self.page == "display" then
-      local d = deviced.getDisplay()
-      renderer.writeAt(1, 3, "Target: " .. tostring(d.target), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Resolution: " .. tostring(d.width) .. "x" .. tostring(d.height), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Monitor side: " .. tostring(d.monitorSide or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Scale: " .. tostring(d.scale or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Monitor grade: " .. monitorGrade(d), colors.black, colors.lightGray)
-        renderer.writeAt(1, 8, "Graphics: " .. tostring(d.width * 2) .. "x" .. tostring(d.height * 3) .. " subpixels", colors.black, colors.lightGray)
-      renderer.button(1, 9, 18, "Refresh display", false)
-      renderer.writeAt(1, 11, "Set scale:", colors.black, colors.lightGray)
-      renderer.button(1, 12, 8, "0.5", d.scale == 0.5)
-      renderer.button(10, 12, 8, "1.0", d.scale == 1)
-      renderer.button(19, 12, 8, "1.5", d.scale == 1.5)
-      renderer.button(28, 12, 8, "2.0", d.scale == 2)
-    elseif self.page == "nav" then
-      local sabled = require("system.services.sabled")
-      local avionicsd = require("system.services.avionicsd")
-      local st = sabled.status()
-      local av = avionicsd.status()
-      local counts = av.counts or {}
-      local nav = config.load("/system/config/navigation.cfg", {})
-      local aircraft = nav.aircraft or {}
-      renderer.writeAt(1, 3, "CC:Sable: " .. tostring(st.available and "available" or "missing"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Sublevel: " .. tostring(st.inSublevel and "ready" or "not detected"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, renderer.crop("APIs: " .. table.concat(st.apiNames or {}, ","), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, renderer.crop("Avionics: " .. tostring(av.available and "ready" or "missing") .. " alt=" .. tostring(counts.altitude or 0) .. " gimbal=" .. tostring(counts.gimbal or 0) .. " prop=" .. tostring(counts.propeller or 0), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, renderer.crop("Aircraft: " .. tostring(aircraft.name or "-") .. " mass=" .. tostring(aircraft.massKg or "-") .. "kg weight=" .. tostring(aircraft.declaredWeightNewton or "-") .. "N", w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 9, "Frequencies:", colors.black, colors.lightGray)
-      for i, command in ipairs(aircraft.commands or {}) do
-        if i > 5 or i > h - 15 then break end
-        renderer.writeAt(1, 9 + i, renderer.crop(tostring(command.name) .. " -> " .. tostring(command.frequency), w), colors.black, colors.lightGray)
-      end
-      renderer.writeAt(1, 15, "Redstone profiles:", colors.black, colors.lightGray)
-      for i, profile in ipairs(nav.redstoneProfiles or {}) do
-        if i > h - 17 then break end
-        renderer.writeAt(1, 15 + i, renderer.crop(tostring(profile.name) .. " -> " .. tostring(profile.side) .. " " .. tostring(profile.pulseSeconds) .. "s", w), colors.black, colors.lightGray)
-      end
-      renderer.button(1, h - 2, 18, "Open Navigation", false)
-    elseif self.page == "combat" then
-      local combatd = require("system.services.combatd")
-      local st = combatd.status()
-      local counts = st.counts or {}
-      local combat = config.load("/system/config/combat.cfg", {})
-      renderer.writeAt(1, 3, "Combat: " .. tostring(st.available and "ready" or "missing"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, renderer.crop("Radar=" .. tostring(counts.radars or 0) .. " Targets=" .. tostring(counts.targets or 0) .. " Cannons=" .. tostring(counts.cannons or 0) .. " Unknown=" .. tostring(counts.unknown or 0), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, renderer.crop("Mode: semi-auto=" .. tostring(combat.semiAuto ~= false) .. " confirmFire=" .. tostring(combat.requireFireConfirmation ~= false), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, renderer.crop("Ballistics: gravity=" .. tostring(combat.ballistics and combat.ballistics.gravity or "-") .. " muzzle=" .. tostring(combat.ballistics and combat.ballistics.muzzleVelocity or "-"), w), colors.black, colors.lightGray)
-      if st.errors and #st.errors > 0 then renderer.writeAt(1, 9, renderer.crop("Error: " .. tostring(st.errors[1]), w), colors.red, colors.lightGray) end
-      renderer.button(1, h - 2, 14, "Open Combat", false)
-    elseif self.page == "desktop" then
-      renderer.writeAt(1, 3, "Icons: NFP 7x6 with text fallback", colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Start search: touch AZERTY keyboard", colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Context menu: desktop double tap on monitor", colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Windows: drag, minimize, maximize, close", colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "Theme: " .. theme.currentId, colors.black, colors.lightGray)
-      renderer.button(1, 9, 14, "Mint", theme.currentId == "mint")
-      renderer.button(16, 9, 14, "Dark", theme.currentId == "dark")
-    elseif self.page == "network" then
-      local status = networkd.getStatus()
-      local crafttube = config.load("/system/config/crafttube.cfg", {})
-      renderer.writeAt(1, 3, "HTTP: " .. httpStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "WebSocket: " .. tostring(status.websocket and "available" or "missing"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Rednet: " .. rednetStatus(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Pseudo IP: " .. pseudoIp(), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, renderer.crop("CraftTube " .. tostring(crafttube.provider or "proxy") .. ": " .. tostring(crafttube.proxy or ""), w), colors.black, colors.lightGray)
-      renderer.writeAt(1, 8, "Use pseudo IP / rednet ID inside Minecraft.", colors.gray, colors.lightGray)
-      renderer.button(1, 10, 16, "Open Browser", false)
-      renderer.button(18, 10, 18, "Messenger", false)
-      renderer.button(38, 10, 18, "CraftTube", false)
-    elseif self.page == "storage" then
-      local free = fs.getFreeSpace and fs.getFreeSpace("/") or nil
-      local cap = fs.getCapacity and fs.getCapacity("/") or nil
-      renderer.writeAt(1, 3, "Root: /", colors.black, colors.lightGray)
-      if cap and free then
-        renderer.writeAt(1, 4, "Used: " .. sizeLabel(cap - free) .. " / " .. sizeLabel(cap), colors.black, colors.lightGray)
-        renderer.writeAt(1, 5, "Free: " .. sizeLabel(free), colors.black, colors.lightGray)
-      elseif free then
-        renderer.writeAt(1, 4, "Free: " .. sizeLabel(free), colors.black, colors.lightGray)
-      else
-        renderer.writeAt(1, 4, "Storage metrics unavailable", colors.black, colors.lightGray)
-      end
-      renderer.writeAt(1, 7, "Trash: /home/user/.trash", colors.gray, colors.lightGray)
-    elseif self.page == "sound" then
-      local st = audiod.status()
-      renderer.writeAt(1, 3, "Audio service: " .. tostring(st.ready and "ready" or "stopped"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Enabled: " .. tostring(st.enabled and "yes" or "no"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Speakers: " .. tostring(st.count or 0), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Default side: " .. tostring(st.defaultSide or "-"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 7, "Volume: " .. tostring(st.volume) .. "  Notify: " .. tostring(st.notificationVolume), colors.black, colors.lightGray)
-      renderer.button(1, 9, 12, st.enabled and "Disable" or "Enable", false)
-      renderer.button(15, 9, 12, "Test", false)
-      renderer.writeAt(1, 11, "Volume:", colors.black, colors.lightGray)
-      renderer.button(1, 12, 8, "0.5", st.volume == 0.5)
-      renderer.button(10, 12, 8, "1.0", st.volume == 1)
-      renderer.button(19, 12, 8, "1.5", st.volume == 1.5)
-      renderer.button(28, 12, 8, "2.0", st.volume == 2)
-      local speakers = st.speakers or {}
-      renderer.writeAt(1, 14, "Detected speakers:", colors.black, colors.lightGray)
-      for i = 1, math.min(#speakers, h - 15) do
-        renderer.writeAt(1, 14 + i, renderer.crop(tostring(speakers[i].side) .. "  tap to use", w), colors.black, colors.lightGray)
-      end
-    elseif self.page == "security" then
-      local cfg = config.load("/system/config/security.cfg", {})
-      local user = securityd.currentUser()
-      renderer.writeAt(1, 3, "Security: " .. tostring(cfg.enabled ~= false and "enabled" or "disabled"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Mode: " .. tostring(cfg.mode or "users"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "User: " .. tostring(user and user.name or "admin"), colors.black, colors.lightGray)
-      renderer.writeAt(1, 6, "Service: " .. securityd.statusText(), colors.black, colors.lightGray)
-      renderer.button(1, 8, 10, "Lock", false)
-      renderer.button(13, 8, 12, "Unlock", false)
-      renderer.button(27, 8, 12, "Admin", user and user.name == "admin")
-      renderer.button(41, 8, 12, "Guest", user and user.name == "guest")
-      renderer.button(1, 10, 18, "Set password", false)
-      renderer.writeAt(1, 12, "Policy: app permissions + user permissions.", colors.gray, colors.lightGray)
-      renderer.writeAt(1, 13, "Locked sessions deny sensitive actions.", colors.gray, colors.lightGray)
-      local users = securityd.users()
-      for i = 1, math.min(#users, h - 14) do
-        local item = users[i]
-        renderer.writeAt(1, 14 + i, renderer.crop((item.active and "* " or "  ") .. item.name .. "  " .. item.role .. "  " .. table.concat(item.permissions or {}, ","), w), colors.black, colors.lightGray)
-      end
-    elseif self.page == "apps" then
-      local rows = ctx.apps.list(true,true)
-      self.appBarState=self.appBarState or {}
-      self.appBar=ui.toolbar(1,2,w,{{id="full",label="Full"},{id="pocket",label="Pocket"},{id="auto",label="Auto"}},self.appBarState)
-      renderer.writeAt(1,3,renderer.crop("Profile: "..profile.mode(),w),colors.black,colors.gray)
-      self.appRows={}
-      local height=math.max(1,h-5)
-      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-height+1)))
-      for i = 1, math.min(#rows, height) do
-        local item = rows[self.scroll + i - 1]
-        if item then
-          local essential=profile.isCore(item.id)
-          renderer.writeAt(1,i+3,renderer.crop((profile.appEnabled(item.id) and "[x] " or "[ ] ")..item.name..(essential and " *" or ""),w),essential and colors.gray or colors.black,colors.lightGray)
-          self.appRows[#self.appRows+1]={id=item.id,x=1,y=i+3,w=w,h=1}
-        end
-      end
-      self.appPager=ui.toolbar(1,h-1,8,{{id="up",label="^"},{id="down",label="v"}})
-      renderer.writeAt(9,h-1,renderer.crop(self.appMessage,math.max(1,w-8)),colors.gray,colors.lightGray)
-    elseif self.page == "packages" then
-      local rows = ctx.system.packages.installed()
-      renderer.writeAt(1, 3, renderer.crop("PACKAGE          VERSION", w), colors.black, colors.gray)
-      if #rows == 0 then renderer.writeAt(1, 4, "No package installed", colors.gray, colors.lightGray) end
-      for i = 1, math.min(#rows, h - 4) do
-        local item = rows[self.scroll + i - 1]
-        if item then renderer.writeAt(1, i + 3, renderer.crop(item.name .. "          " .. item.version, w), colors.black, colors.lightGray) end
-      end
-    elseif self.page == "dev" then
-      renderer.writeAt(1, 3, "Editor: embedded in Files for text and Lua files", colors.black, colors.lightGray)
-      renderer.writeAt(1, 4, "Autocomplete: Tab accepts suggestion", colors.black, colors.lightGray)
-      renderer.writeAt(1, 5, "Keyboard: AZERTY touch layout", colors.black, colors.lightGray)
-      renderer.button(1, 7, 14, "Open Files", false)
-    end
-    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
-      self.keyboard.x = 1
-      self.keyboard.y = math.max(1, h - keyboard.height() + 1)
-      if self.mode == "label" then
-        self.keyboard.hint = "Label: " .. self.input
-      elseif self.mode == "unlock" then
-        self.keyboard.hint = "Unlock password: " .. string.rep("*", #self.input)
-      elseif self.mode == "adminLogin" then
-        self.keyboard.hint = "Admin password: " .. string.rep("*", #self.input)
-      else
-        self.keyboard.hint = "New admin password: " .. string.rep("*", #self.input)
-      end
-      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
-    end
-    renderer.writeAt(1, h, "Settings", colors.gray, colors.lightGray)
-  end
-
-  app.keyboard.onText = function(ch) app.input = app.input .. ch end
-  app.keyboard.onBackspace = function() app.input = app.input:sub(1, -2) end
-  app.keyboard.onEnter = function()
-    if app.mode == "label" and os.setComputerLabel then os.setComputerLabel(app.input) end
-    if app.mode == "unlock" then
-      local ok, msg = securityd.unlock(app.input)
-      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
-    elseif app.mode == "adminLogin" then
-      local ok, msg = securityd.login("admin", app.input)
-      if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", tostring(msg), 3) end
-    elseif app.mode == "setPassword" then
-      local allowed, denied = app.securityRequire("system.auth", "set admin password")
-      if allowed then
-        local ok, msg = securityd.setPassword("admin", app.input)
-        if app.systemNotifications then app.systemNotifications:push(ok and "success" or "warn", "Security", ok and "Password changed" or tostring(msg), 3) end
-      elseif app.systemNotifications then
-        app.systemNotifications:push("warn", "Security", tostring(denied), 3)
-      end
-    end
-    app.mode = nil
-    app.input = ""
-  end
-  app.systemNotifications = ctx.notifications
-  app.securityRequire = ctx.security.require
-
-  function app:handle(event)
-    if self.mode == "label" or self.mode == "unlock" or self.mode == "adminLogin" or self.mode == "setPassword" then
-      if event.name == "char" then self.input = self.input .. event.args[1] return true end
-      if event.name == "key" and event.args[1] == keys.backspace then self.input = self.input:sub(1, -2) return true end
-      if event.name == "key" and event.args[1] == keys.enter then self.keyboard.onEnter() return true end
-      if event.name == "mouse_click" and event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
-    end
-    if event.name == "mouse_scroll" and (self.page == "apps" or self.page == "packages") then
-      self.scroll = math.max(1, self.scroll + event.args[1])
-      return true
-    end
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    if self.page=="apps" and y~=1 then
-      local action=ui.toolbarHit(self.appBar,x,y) or ui.toolbarHit(self.appPager,x,y)
-      for _,box in ipairs(self.appBar or {}) do if box.delta and ui.hit(box,x,y) then self.appBarState.first=math.max(1,(self.appBarState.first or 1)+box.delta) return true end end
-      if action=="up" or action=="down" then self.scroll=math.max(1,self.scroll+(action=="down" and 1 or -1)) return true end
-      local value=profile.configuration()
-      local changed=false
-      if action=="full" or action=="pocket" or action=="auto" then
-        value.mode=action=="full" and "desktop" or action value.apps={} changed=true
-      else
-        for _,box in ipairs(self.appRows or {}) do if ui.hit(box,x,y) then
-          if profile.isCore(box.id) then self.appMessage="Essential app" return true end
-          value.apps[box.id]=not profile.appEnabled(box.id) changed=true break
-        end end
-      end
-      if changed then
-        local allowed,reason=ctx.security.require("system.config","app selection")
-        if not allowed then self.appMessage=tostring(reason) return true end
-        local ok,message=profile.configure(value)
-        self.appMessage=ok and "Saved" or tostring(message)
-        return true
-      end
-    end
-    if y == 1 then
-      for _, page in ipairs(self.tabBoxes or {}) do
-        if ui.hit(page, x, y) then
-          if page.delta then
-            self.tabState.first = math.max(1, math.min(#pages, self.tabState.first + page.delta))
-            return true
-          end
-          self.page = page.id
-          self.scroll = 1
-          return true
-        end
-      end
-    end
-
-    if self.page == "desktop" and y == 9 and x <= 14 then
-      theme.set("mint")
-      ctx.notifications:push("success", "Settings", "Mint theme applied", 3)
-      return true
-    elseif self.page == "desktop" and y == 9 and x >= 16 and x <= 29 then
-      theme.set("dark")
-      ctx.notifications:push("success", "Settings", "Dark theme applied", 3)
-      return true
-    elseif self.page == "display" and y == 9 and x <= 18 then
-      deviced.refreshDisplay()
-      return true
-    elseif self.page == "display" and y == 12 then
-      if x <= 8 then deviced.setScale(0.5) return true end
-      if x >= 10 and x <= 17 then deviced.setScale(1) return true end
-      if x >= 19 and x <= 26 then deviced.setScale(1.5) return true end
-      if x >= 28 and x <= 35 then deviced.setScale(2) return true end
-    elseif self.page == "nav" and y == select(2, term.getSize()) - 2 and x <= 18 then
-      ctx.apps.launch("navigation")
-      return true
-    elseif self.page == "combat" and y == select(2, term.getSize()) - 2 and x <= 14 then
-      ctx.apps.launch("combat")
-      return true
-    elseif self.page == "sound" and y == 9 and x <= 12 then
-      local st = audiod.status()
-      audiod.setEnabled(not st.enabled)
-      ctx.notifications:push("success", "Audio", "Audio " .. tostring(not st.enabled and "enabled" or "disabled"), 2)
-      return true
-    elseif self.page == "sound" and y == 9 and x >= 15 and x <= 26 then
-      local ok, err = audiod.test()
-      ctx.notifications:push(ok and "success" or "warn", "Audio", ok and "Test note sent" or tostring(err), 3)
-      return true
-    elseif self.page == "sound" and y == 12 then
-      if x <= 8 then audiod.setVolume(0.5) return true end
-      if x >= 10 and x <= 17 then audiod.setVolume(1) return true end
-      if x >= 19 and x <= 26 then audiod.setVolume(1.5) return true end
-      if x >= 28 and x <= 35 then audiod.setVolume(2) return true end
-    elseif self.page == "sound" and y >= 15 then
-      local st = audiod.status()
-      local item = (st.speakers or {})[y - 14]
-      if item then
-        local ok, err = audiod.use(item.side)
-        ctx.notifications:push(ok and "success" or "warn", "Audio", ok and ("Using " .. item.side) or tostring(err), 3)
-        return true
-      end
-    elseif self.page == "security" and y == 8 and x <= 10 then
-      securityd.lock()
-      ctx.notifications:push("warn", "Security", "Session locked", 3)
-      return true
-    elseif self.page == "security" and y == 8 and x >= 13 and x <= 24 then
-      self.mode = "unlock"
-      self.input = ""
-      return true
-    elseif self.page == "security" and y == 8 and x >= 27 and x <= 38 then
-      self.mode = "adminLogin"
-      self.input = ""
-      return true
-    elseif self.page == "security" and y == 8 and x >= 41 and x <= 52 then
-      securityd.logout()
-      ctx.notifications:push("info", "Security", "Guest session", 3)
-      return true
-    elseif self.page == "security" and y == 10 and x <= 18 then
-      self.mode = "setPassword"
-      self.input = ""
-      return true
-    elseif self.page == "system" and y == 10 and x <= 16 then
-      self.mode = "label"
-      self.input = os.getComputerLabel and (os.getComputerLabel() or "") or ""
-      return true
-    elseif self.page == "network" and y == 10 and x <= 16 then
-      ctx.apps.launch("browser")
-      return true
-    elseif self.page == "network" and y == 10 and x >= 18 and x <= 35 then
-      ctx.apps.launch("messenger")
-      return true
-    elseif self.page == "network" and y == 10 and x >= 38 and x <= 55 then
-      ctx.apps.launch("crafttube")
-      return true
-    elseif self.page == "dev" and y == 7 and x <= 14 then
-      ctx.apps.launch("files")
-      return true
-    end
-    return false
-  end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Settings", w = math.min(72, sw - 4), h = math.min(18, sh - 3), x = 8, y = 4, app = app })
-  while not win.closed do ctx.pullEvent() end
+local function computerId()
+  return os.getComputerID and os.getComputerID() or os.computerID and os.computerID() or 0
+end
+local function sizeLabel(value)
+  if type(value)~="number" then return tostring(value or "unavailable") end
+  if value>=1048576 then return string.format("%.1f MB",value/1048576) end
+  if value>=1024 then return string.format("%.1f KB",value/1024) end
+  return value.." B"
 end
 
+function M.run(ctx)
+  local app={page=ctx.args and ctx.args.page=="apps" and "apps" or "system",scroll=1,input="",keyboard={},
+    appMessage="",views=menu.new(),actions=menu.new()}
+  local function notify(ok,title,message)
+    if ctx.notifications then ctx.notifications:push(ok and "success" or "warn",title,tostring(message or (ok and "Saved" or "Failed")),3) end
+  end
+  local function allowed(permission)
+    local ok,err=ctx.security.require(permission,"Settings")
+    if not ok then notify(false,"Settings",err) end
+    return ok
+  end
+  local actor={pid=ctx.pid,appId=ctx.appId,permissions=ctx.permissions or {}}
+  local closed=false
+  local function authenticate(action,password,oldPassword)
+    if app.authBusy then notify(false,"Security","Authentication already in progress") return end
+    local scheduler=ctx.system and ctx.system.scheduler
+    if not scheduler then notify(false,"Security","Authentication worker unavailable") return end
+    app.authBusy=true app.authCancel=false app.appMessage="Hashing password; 0%"
+    local options={cancelled=function() return closed or app.authCancel end,
+      progress=function(done,total)
+        app.appMessage="Hashing password; "..math.floor(done/total*100).."%"
+        if ctx.invalidate and not closed then ctx.invalidate() end
+      end}
+    local pid=scheduler:spawn("Settings authentication",function()
+      local called,ok,message=pcall(function()
+        if action=="unlock" then return securityd.unlock(password,options) end
+        if action=="adminLogin" then return securityd.login("admin",password,options) end
+        return securityd.setPassword("admin",password,oldPassword,actor,options)
+      end)
+      password,oldPassword=nil,nil
+      app.authBusy=false
+      if not closed then
+        if app.authCancel then ok,message=false,"Authentication cancelled"
+        elseif not called then ok,message=false,"Authentication failed" end
+        app.appMessage=tostring(message or (ok and "Password changed" or "Authentication failed"))
+        notify(ok,"Security",app.appMessage)
+        if ctx.invalidate then ctx.invalidate() end
+        os.queueEvent("mintcraft_app_result",ctx.pid)
+      end
+    end,{eventMode="raw",appId=ctx.appId,permissions=ctx.permissions,protected=true})
+    local ok,err=scheduler:start(pid)
+    if ok==false then app.authBusy=false notify(false,"Security",err) end
+  end
+  if ctx.onCleanup then ctx.onCleanup(function()
+    -- Let the raw worker cancel before commit and release the shared auth mutex.
+    closed=true app.authCancel=true app:cancelInput()
+  end) end
+  function app:beginInput(mode)
+    menu.dismiss(self.views,self.actions) self.mode,self.input=mode,""
+    if mode=="label" then self.input=os.getComputerLabel and (os.getComputerLabel() or "") or "" end
+  end
+  function app:cancelInput() self.mode,self.input,self.oldPassword,self.newPassword=nil,"",nil,nil end
+  function app:items()
+    local result={}
+    local function add(id,label,active) result[#result+1]={id=id,label=label,active=active} end
+    if self.authBusy then add("cancelAuth","Cancel authentication") return result end
+    if self.page=="system" then add("label","Set label")
+    elseif self.page=="display" then
+      add("refresh","Refresh")
+      for _,v in ipairs({0.5,1,1.5,2}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+    elseif self.page=="desktop" then add("theme:mint","Mint",theme.currentId=="mint") add("theme:dark","Dark",theme.currentId=="dark")
+    elseif self.page=="network" then add("launch:browser","Browser") add("launch:messenger","Messenger") add("launch:crafttube","CraftTube")
+    elseif self.page=="nav" then add("launch:navigation","Open Navigation")
+    elseif self.page=="combat" then add("launch:combat","Open Combat")
+    elseif self.page=="dev" then add("launch:files","Open Files")
+    elseif self.page=="sound" then
+      local st=audiod.status() add("audio",st.enabled and "Disable" or "Enable") add("test","Test")
+      for _,v in ipairs({0.5,1,1.5,2}) do add("volume:"..v,"Volume "..v,st.volume==v) end
+      for _,speaker in ipairs(st.speakers or {}) do add("speaker:"..speaker.side,"Use "..speaker.side) end
+    elseif self.page=="security" then
+      add("lock","Lock") add("unlock","Unlock") add("adminLogin","Admin") add("guest","Guest") add("passwordOld","Change password")
+    elseif self.page=="apps" then add("profile:desktop","Full") add("profile:pocket","Pocket") add("profile:auto","Auto")
+    elseif self.page=="storage" then
+      if self.cleanupPending then add("cleanupConfirm","Confirm prune") add("cleanupCancel","Cancel")
+      else add("cleanup","Prune old backups") end
+    end
+    return result
+  end
+  function app:lines()
+    local rows={}
+    local function line(value) rows[#rows+1]=tostring(value) end
+    local id=computerId()
+    local ip="10.0."..(math.floor(id/256)%256).."."..(id%256)
+    if self.page=="system" then
+      line("Computer ID: "..id) line("Label: "..tostring(os.getComputerLabel and (os.getComputerLabel() or "-") or "-"))
+      line("MintCraft: "..version.current()) line("Pseudo IP: "..ip) line("CraftOS over CC:Tweaked")
+    elseif self.page=="display" then
+      local d=deviced.getDisplay() local cells=(d.width or 0)*(d.height or 0)
+      line("Target: "..tostring(d.target)) line("Resolution: "..tostring(d.width).."x"..tostring(d.height))
+      line("Monitor side: "..tostring(d.monitorSide or "-")) line("Scale: "..tostring(d.scale or "-"))
+      line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
+      line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
+    elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Icons: NFP 7x6 with text fallback") line("Keyboard: AZERTY")
+    elseif self.page=="network" then
+      local st=networkd.getStatus() local tube=config.load("/system/config/crafttube.cfg",{})
+      line("HTTP: "..(st.http and "available" or "missing")) line("WebSocket: "..(st.websocket and "available" or "missing"))
+      line("Rednet: "..(deviced.scanError and "scan unavailable" or deviced.hasType("modem") and "modem detected" or "no modem"))
+      line("Pseudo IP: "..ip) line("CraftTube "..tostring(tube.provider or "proxy")..": "..tostring(tube.proxy or ""))
+    elseif self.page=="storage" then
+      local free=fs.getFreeSpace and fs.getFreeSpace("/") local cap=fs.getCapacity and fs.getCapacity("/")
+      line("Root: /") if type(cap)=="number" and type(free)=="number" then line("Used: "..sizeLabel(cap-free).." / "..sizeLabel(cap)) end
+      line("Free: "..sizeLabel(free)) line("Trash: /home/user/.trash")
+      local ok, updated=pcall(require,"system.services.updated")
+      if ok and updated.storageInfo then
+        local ready,info=pcall(updated.storageInfo)
+        if ready then
+          line("Update backups: "..sizeLabel(info.bytes))
+          for _,backup in ipairs(info.backups or {}) do line(backup.id.." "..sizeLabel(backup.bytes)..(backup.protected and " protected" or "")) end
+        else line("Update storage unavailable") end
+      end
+      if self.cleanupPending then line("Prune old backups? Protected checkpoints remain.") end
+    elseif self.page=="sound" then
+      local st=audiod.status() line("Audio service: "..(st.ready and "ready" or "stopped")) line("Enabled: "..tostring(st.enabled==true))
+      line("Speakers: "..tostring(st.count or 0)) line("Default side: "..tostring(st.defaultSide or "-"))
+      line("Volume: "..tostring(st.volume).." Notify: "..tostring(st.notificationVolume))
+      for _,speaker in ipairs(st.speakers or {}) do line("Speaker: "..speaker.side) end
+    elseif self.page=="security" then
+      local cfg=config.load("/system/config/security.cfg",{}) local user=securityd.currentUser()
+      line("Security: "..(cfg.enabled~=false and "enabled" or "disabled")) line("Mode: "..tostring(cfg.mode or "users"))
+      line("User: "..tostring(user and user.name or "?")) line("Service: "..securityd.statusText())
+      for _,item in ipairs(securityd.users()) do line((item.active and "* " or "  ")..item.name.."  "..item.role.."  "..table.concat(item.permissions or {},",")) end
+    elseif self.page=="packages" then
+      local installed=ctx.system.packages.installed() line("PACKAGE          VERSION")
+      if #installed==0 then line("No package installed") end
+      for _,item in ipairs(installed) do line(item.name.."          "..item.version) end
+    elseif self.page=="dev" then line("Editor: Files") line("Autocomplete: enabled") line("Keyboard: AZERTY")
+    elseif self.page=="nav" then
+      local st=require("system.services.sabled").status() local av=require("system.services.avionicsd").status()
+      local counts=av.counts or {} local nav=config.load("/system/config/navigation.cfg",{}) local aircraft=nav.aircraft or {}
+      line("CC:Sable: "..(st.available and "available" or "missing")) line("Sublevel: "..(st.inSublevel and "ready" or "not detected"))
+      line("APIs: "..table.concat(st.apiNames or {},",")) line("Avionics: "..(av.available and "ready" or "missing"))
+      line("Alt="..tostring(counts.altitude or 0).." Gimbal="..tostring(counts.gimbal or 0).." Prop="..tostring(counts.propeller or 0))
+      line("Aircraft: "..tostring(aircraft.name or "-").." mass="..tostring(aircraft.massKg or "-").."kg weight="..tostring(aircraft.declaredWeightNewton or "-").."N")
+      line("Frequencies:") for _,cmd in ipairs(aircraft.commands or {}) do line(tostring(cmd.name).." -> "..tostring(cmd.frequency)) end
+      line("Redstone profiles:") for _,item in ipairs(nav.redstoneProfiles or {}) do line(tostring(item.name).." -> "..tostring(item.side).." "..tostring(item.pulseSeconds).."s") end
+    elseif self.page=="combat" then
+      local st=require("system.services.combatd").status() local counts=st.counts or {} local cfg=config.load("/system/config/combat.cfg",{})
+      line("Combat: "..(st.available and "ready" or "missing"))
+      line("Radar="..tostring(counts.radars or 0).." Targets="..tostring(counts.targets or 0).." Cannons="..tostring(counts.cannons or 0).." Unknown="..tostring(counts.unknown or 0))
+      line("Semi-auto: "..tostring(cfg.semiAuto~=false).." confirmFire="..tostring(cfg.requireFireConfirmation~=false))
+      line("Ballistics: gravity="..tostring(cfg.ballistics and cfg.ballistics.gravity or "-").." muzzle="..tostring(cfg.ballistics and cfg.ballistics.muzzleVelocity or "-"))
+      for _,err in ipairs(st.errors or {}) do line("Error: "..tostring(err)) end
+    end
+    return rows
+  end
+  function app:draw(w,h)
+    self.width,self.height=w,h
+    local label="Settings" for _,page in ipairs(pages) do if page.id==self.page then label=page.label break end end
+    menu.bar(self.views,1,1,w,pages,{selector=true,label=label,selected=self.page,title="Settings"})
+    menu.bar(self.actions,1,2,w,self:items(),{title=label.." actions"})
+    local fg,bg=theme.get("windowFg"),theme.get("windowBg")
+    local function text(y,value) if y>=3 and y<=h-2 then renderer.writeAt(1,y,renderer.crop(tostring(value),w),fg,bg) end end
+    self.appRows={}
+    if self.page=="apps" then
+      text(3,"Profile: "..profile.mode()) text(4,"Activation only; files kept") text(5,"Services: restart required")
+      local rows=ctx.apps.list(true,true) local count=math.max(0,h-7)
+      self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-count+1)))
+      for i=1,count do local item=rows[self.scroll+i-1] if not item then break end
+        text(i+5,(profile.appEnabled(item.id) and "[x] " or "[ ] ")..item.name..(profile.isCore(item.id) and " *" or ""))
+        self.appRows[#self.appRows+1]={id=item.id,x=1,y=i+5,w=w,h=1}
+      end
+    else
+      local wrapped={}
+      for _,line in ipairs(self:lines()) do
+        if #line==0 then wrapped[#wrapped+1]="" end
+        for first=1,#line,math.max(1,w) do wrapped[#wrapped+1]=line:sub(first,first+w-1) end
+      end
+      local count=math.max(0,h-4) self.scroll=math.max(1,math.min(self.scroll,math.max(1,#wrapped-count+1)))
+      for i=1,count do text(i+2,wrapped[self.scroll+i-1] or "") end
+    end
+    self.pager=ui.toolbar(1,h-1,math.min(8,w),{{id="up",label="^"},{id="down",label="v"}})
+    if w>8 then renderer.writeAt(9,h-1,renderer.crop(self.appMessage,w-8),fg,bg) end
+    renderer.writeAt(1,h,renderer.crop("Settings",w),fg,bg)
+    if self.mode then
+      local hints={label="Label",unlock="Unlock password",adminLogin="Admin password",passwordOld="Current admin password",passwordNew="New password",passwordConfirm="Confirm password"}
+      self.keyboard.x=1 self.keyboard.y=math.max(1,h-keyboard.height()+1)
+      self.keyboard.hint=(hints[self.mode] or "Password")..": "..(self.mode=="label" and self.input or string.rep("*",#self.input))
+      keyboard.draw(1,self.keyboard.y,w,self.keyboard)
+    else menu.overlay(self.views,w,h) menu.overlay(self.actions,w,h) end
+  end
+  function app:configure(value)
+    if not allowed("system.config") then return end
+    local ok,err=profile.configure(value) self.appMessage=ok and "Saved; restart services" or tostring(err)
+  end
+  function app:action(id)
+    if id=="cancelAuth" then self.authCancel=true self.appMessage="Cancelling authentication" return end
+    if self.authBusy then notify(false,"Security","Authentication already in progress") return end
+    if id=="cleanup" then
+      if allowed("system.storage.manage") then self.cleanupPending=true end return
+    elseif id=="cleanupCancel" then self.cleanupPending=false return
+    elseif id=="cleanupConfirm" then
+      if not self.cleanupPending then return end
+      self.cleanupPending=false
+      if not allowed("system.storage.manage") then return end
+      local updated=require("system.services.updated")
+      local ok,err=updated.cleanup("updates",{confirm=true})
+      self.appMessage=tostring(err or (ok and "Backups pruned" or "Cleanup failed")) notify(ok,"Storage",err) return
+    end
+    if id:sub(1,7)=="launch:" then ctx.apps.launch(id:sub(8)) return end
+    if id=="unlock" or id=="adminLogin" then self:beginInput(id) return end
+    if id=="passwordOld" then if allowed("system.security.admin") then self:beginInput(id) end return end
+    if id=="lock" or id=="guest" then
+      if not allowed("system.auth") then return end
+      local ok,err if id=="lock" then ok,err=securityd.lock() else ok,err=securityd.logout() end
+      notify(ok,"Security",err or (id=="lock" and "Session locked" or "Guest session")) return
+    end
+    if id:sub(1,8)=="profile:" then local value=profile.configuration() value.mode=id:sub(9) value.apps={} self:configure(value) return end
+    if id=="audio" or id=="test" or id:sub(1,7)=="volume:" or id:sub(1,8)=="speaker:" then
+      if not allowed("audio.control") then return end
+      local ok,err
+      if id=="audio" then ok,err=audiod.setEnabled(not audiod.status().enabled)
+      elseif id=="test" then ok,err=audiod.test()
+      elseif id:sub(1,7)=="volume:" then ok,err=audiod.setVolume(tonumber(id:sub(8))) else ok,err=audiod.use(id:sub(9)) end
+      notify(ok,"Audio",err) return
+    end
+    if not allowed("system.config") then return end
+    if id=="label" then self:beginInput(id)
+    elseif id=="refresh" then deviced.refreshDisplay()
+    elseif id:sub(1,6)=="scale:" then local ok,err=deviced.setScale(tonumber(id:sub(7))) notify(ok,"Display",err)
+    elseif id:sub(1,6)=="theme:" then local ok,err=theme.set(id:sub(7)) notify(ok~=false,"Theme",err or "Theme applied") end
+  end
+  app.keyboard.onText=function(ch) app.input=(app.input..ch):sub(1,1024) end
+  app.keyboard.onBackspace=function() app.input=app.input:sub(1,-2) end
+  app.keyboard.onEnter=function()
+    local mode,input=app.mode,app.input
+    if mode=="passwordOld" then app.oldPassword=input app:beginInput("passwordNew") return end
+    if mode=="passwordNew" then app.newPassword=input app:beginInput("passwordConfirm") return end
+    if mode=="passwordConfirm" then
+      if input~=app.newPassword then notify(false,"Security","Passwords do not match")
+      elseif allowed("system.security.admin") then authenticate("setPassword",input,app.oldPassword) end
+    elseif mode=="unlock" or mode=="adminLogin" then authenticate(mode,input)
+    elseif mode=="label" and allowed("system.config") and os.setComputerLabel then os.setComputerLabel(input) end
+    app:cancelInput()
+  end
+  function app:handle(event)
+    if self.mode then
+      if event.name=="char" or event.name=="paste" then self.keyboard.onText(event.args[1])
+      elseif event.name=="key" then
+        if event.args[1]==keys.escape then self:cancelInput()
+        elseif event.args[1]==keys.backspace then self.keyboard.onBackspace()
+        elseif event.args[1]==keys.enter then self.keyboard.onEnter() end
+      elseif event.name=="mouse_click" and event.monitorTouch then keyboard.handle(event,self.keyboard) end
+      return true
+    end
+    local source,id,handled=menu.route({{name="views",state=self.views},{name="actions",state=self.actions}},event)
+    if handled then
+      if id and source=="views" then self.page=id self.scroll=1 self.appMessage="" self.cleanupPending=false menu.dismiss(self.actions)
+      elseif id then self:action(id) end return true
+    end
+    if event.name=="mouse_scroll" then self.scroll=math.max(1,self.scroll+event.args[1]) return true end
+    if event.name~="mouse_click" then return false end
+    local _,x,y=table.unpack(event.args) local direction=ui.toolbarHit(self.pager,x,y)
+    if direction then self.scroll=math.max(1,self.scroll+(direction=="down" and 1 or -1)) return true end
+    if self.page=="apps" then for _,box in ipairs(self.appRows) do if ui.hit(box,x,y) then
+      if profile.isCore(box.id) then self.appMessage="Essential app" return true end
+      local value=profile.configuration() value.apps[box.id]=not profile.appEnabled(box.id) self:configure(value) return true
+    end end end
+    return false
+  end
+  local sw,sh=term.getSize()
+  local win=ctx.windowManager:create({title="Settings",w=math.min(72,sw),h=math.min(22,sh-1),x=1,y=1,app=app})
+  while not win.closed do ctx.pullEvent() end
+end
 return M

@@ -1,6 +1,7 @@
 package.path = "./?.lua;" .. package.path
 local writes, keyboardTop = {}, nil
-package.loaded["system.gui.renderer"] = {writeAt = function(x,y,text) writes[y] = text end, crop = function(t) return t end}
+package.loaded["system.gui.renderer"] = {writeAt = function(x,y,text) writes[y] = text end, crop = function(t) return t end, button=function() end}
+package.loaded["system.gui.theme"] = {get=function() return 1 end}
 package.loaded["system.gui.keyboard"] = {height = function() return 7 end, draw = function(x,y) keyboardTop = y end}
 package.loaded["system.dev.autocomplete"] = {prefix = function() return "" end, suggest = function() return nil end}
 colors = {white=1,gray=2,black=3,lightGray=4,orange=5}
@@ -13,9 +14,10 @@ fs = {
 }
 loadfile = function(path) compiled = compiled + 1 return function() error("must not execute compiled code") end end
 local app
-local ctx = {pid=42,args={},windowManager={create=function(_,opts) app=opts.app return {closed=false} end},pullEvent=function() coroutine.yield() end}
+local ctx = {pid=42,args={},security={require=function() return true end},windowManager={create=function(_,opts) app=opts.app return {closed=false} end},pullEvent=function() coroutine.yield() end}
 local co = coroutine.create(function() require("apps.editor.main").run(ctx) end)
 assert(coroutine.resume(co))
+app:draw(47,14)
 app:handle({name="mouse_click",args={1,9,1}})
 assert(compiled == 0 and app.status:find("cannot write",1,true))
 allowWrite = true
@@ -23,7 +25,7 @@ app:handle({name="mouse_click",args={1,9,1}})
 assert(compiled == 1 and app.status == "Compile OK")
 assert(removed == "/var/tmp/editor_compile_42.lua")
 app:draw(47,14)
-assert(writes[6] == "Compile OK" and keyboardTop == 8, "status hidden behind keyboard")
+assert(writes[6]:find("Compile OK",1,true) and keyboardTop == 8, "status hidden behind keyboard")
 keys = {up=1,down=2,left=3,right=4,backspace=5,enter=6,tab=7}
 app.lines, app.cy, app.cx = {"long line", "x"}, 1, 10
 app:handle({name="key",args={keys.down}})

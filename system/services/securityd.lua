@@ -9,16 +9,17 @@ local M = {
 }
 
 function M.load()
-  M.cfg = config.load(M.cfgPath, {
+  local loaded = config.load(M.cfgPath, {
     enabled = true,
     mode = "users",
     currentUser = "admin",
     logDenied = true,
     logSensitive = true,
   })
+  M.cfg = {}
+  for key, value in pairs(loaded) do M.cfg[key] = value end
   if M.cfg.mode == "single-user" then
     M.cfg.mode = "users"
-    config.save(M.cfgPath, M.cfg)
   end
   users.load()
   return M.cfg
@@ -39,32 +40,41 @@ function M.isLocked()
   return users.isLocked()
 end
 
-function M.login(name, password)
-  local ok, msg = users.login(name, password)
+function M.login(name, password, options)
+  local ok, msg = users.login(name, password, options)
   log.info("securityd", ok and msg or ("login failed " .. tostring(name)))
   return ok, msg
 end
 
-function M.unlock(password)
-  local ok, msg = users.unlock(password)
+function M.unlock(password, options)
+  local ok, msg = users.unlock(password, options)
   log.info("securityd", ok and "session unlocked" or "unlock failed")
   return ok, msg
 end
 
 function M.lock()
-  users.lock()
+  local ok, err = users.lock()
+  if not ok then return false, err end
   log.info("securityd", "session locked")
   return true
 end
 
 function M.logout()
-  users.logout()
+  local ok, err = users.logout()
+  if not ok then return false, err end
   log.info("securityd", "logged out to guest")
   return true
 end
 
-function M.setPassword(name, password)
-  local ok, msg = users.setPassword(name, password)
+function M.setPassword(name, password, oldPassword, actor, options)
+  local allowed, reason
+  if actor then
+    allowed, reason = require("system.security.permissions").require(actor, "system.security.admin", "password change")
+  else
+    allowed, reason = M.authorize(nil, "system.security.admin")
+  end
+  if not allowed then return false, reason end
+  local ok, msg = users.setPassword(name, password, oldPassword, options)
   log.info("securityd", ok and ("password changed for " .. tostring(name)) or tostring(msg))
   return ok, msg
 end

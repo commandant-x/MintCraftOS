@@ -7,6 +7,18 @@ local function remove(path)
   end
 end
 fs = {
+  isDir = function(path) return nodes[path] == true end,
+  list = function(path)
+    local seen, result = {}, {}
+    for key in pairs(nodes) do
+      if key:sub(1, #path + 1) == path .. "/" then
+        local name = key:sub(#path + 2):match("^[^/]+")
+        if not seen[name] then result[#result+1], seen[name] = name, true end
+      end
+    end
+    return result
+  end,
+  getSize = function(path) return type(nodes[path]) == "string" and #nodes[path] or 0 end,
   exists = function(path) return nodes[path] ~= nil end,
   makeDir = function(path) nodes[path] = true end,
   getDir = function(path) return path:match("^(.*)/[^/]*$") or "" end,

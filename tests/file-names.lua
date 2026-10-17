@@ -6,7 +6,7 @@ fs = {
 local names = require("system.libraries.file_names")
 assert(names.target("/home/user", "new notes.txt") == "home/user/new notes.txt")
 assert(names.absolute("home/user/.trash") == "/home/user/.trash")
-for _, path in ipairs({"system", "/system", "system/kernel/a.lua", "/apps/files", "boot.lua", "VERSION"}) do
+for _, path in ipairs({"system", "/system", "system/kernel/a.lua", "/apps/files", "boot.lua", "VERSION", "/install.lua", "/rom/startup", "/packages", "/home", "/home/user", "/home/user/../../system/x", "\\system\\kernel"}) do
   assert(names.protected(path), "unprotected spelling: " .. path)
 end
 assert(not names.protected("home/user/file.txt"))

@@ -3,16 +3,22 @@ local keyboard = require("system.gui.keyboard")
 local config = require("system.libraries.config")
 local ui = require("system.gui.components")
 local fileNames = require("system.libraries.file_names")
+local safeWrite = require("system.libraries.safe_write")
+local theme = require("system.gui.theme")
 
 local M = {}
+local trash = "/home/user/.trash"
+local metadata = trash .. "/.mintcraft-metadata"
 
 local function sortedList(path)
   local rows = {}
   local directories = {}
   if fs.exists(path) and fs.isDir(path) then
     for _, name in ipairs(fs.list(path)) do
-      table.insert(rows, name)
-      directories[name] = fs.isDir(fs.combine(path, name))
+      if path ~= trash or name ~= ".mintcraft-metadata" then
+        table.insert(rows, name)
+        directories[name] = fs.isDir(fs.combine(path, name))
+      end
     end
   end
   table.sort(rows, function(a, b)
@@ -45,12 +51,10 @@ local function uniquePath(dir, prefix, ext)
 end
 
 local function trashPath(path)
-  local trash = "/home/user/.trash"
-  if not fs.exists(trash) then fs.makeDir(trash) end
   local name = fs.getName(path)
   local candidate = fs.combine(trash, name)
   local i = 1
-  while fs.exists(candidate) do
+  while fs.exists(candidate) or fs.exists(fs.combine(metadata, fs.getName(candidate))) do
     candidate = fs.combine(trash, name .. "." .. tostring(i))
     i = i + 1
   end
@@ -91,13 +95,97 @@ function M.run(ctx)
     { label = "Rename", id = "rename" },
     { label = "Delete", id = "delete" },
     { label = "Restore", id = "restore" },
+    { label = "Delete forever", id = "delete_forever" },
+    { label = "Empty trash", id = "empty_trash" },
     { label = "Refresh", id = "refresh" },
   }
   local toolbar = {}
   local toolbarState = {first = 1}
 
+  local function allowed(permission, path)
+    local ok, reason = ctx.security.require("filesystem." .. permission, path)
+    if not ok then error(reason or ("Permission denied: " .. permission), 0) end
+  end
+
+  local function writable(path)
+    path = fileNames.absolute(path)
+    allowed("read", path)
+    allowed("write", path)
+    if isProtected(path) or path == trash or path == metadata or path:sub(1, #metadata + 1) == metadata .. "/" then
+      error("Protected path", 0)
+    end
+    return path
+  end
+
+  local function attempt(fn, ...)
+    local ok, problem = pcall(fn, ...)
+    if not ok then ctx.notifications:push("error", "Files", tostring(problem), 4) end
+    return ok
+  end
+
+  -- Persist the original path before the move; interrupted moves retain recovery metadata.
+  local function moveToTrash(from)
+    writable(from)
+    if from:sub(1, #trash + 1) == trash .. "/" then error("Use Delete forever inside trash", 0) end
+    allowed("write", trash)
+    allowed("read", trash)
+    allowed("read", metadata)
+    allowed("write", metadata)
+    if not fs.exists(metadata) then fs.makeDir(metadata) end
+    local to = trashPath(from)
+    local info = fs.combine(metadata, fs.getName(to))
+    allowed("write", to)
+    allowed("write", info)
+    local ok, reason = safeWrite.write(info, textutils.serialize({original = from, name = fs.getName(from)}))
+    if not ok then error("Cannot record trash location: " .. tostring(reason), 0) end
+    fs.move(from, to)
+  end
+
+  local function restore(from)
+    writable(from)
+    local info = fs.combine(metadata, fs.getName(from))
+    allowed("read", info)
+    local to
+    if fs.exists(info) then
+      local h = assert(fs.open(info, "r"), "Cannot read trash metadata")
+      local content = h.readAll()
+      h.close()
+      local data = textutils.unserialize(content)
+      if type(data) ~= "table" or type(data.original) ~= "string" or type(data.name) ~= "string"
+        or fs.getName(data.original) ~= data.name or fileNames.absolute(data.original) ~= data.original then
+        error("Invalid trash metadata; item retained", 0)
+      end
+      to = data.original
+    else
+      -- Legacy trash entries have no original location. Preserve their exact names.
+      to = fs.combine("/home/user", fs.getName(from))
+    end
+    to = writable(to)
+    if to:sub(1, #trash + 1) == trash .. "/" then error("Invalid restore location", 0) end
+    if fs.exists(to) then error("Restore target already exists; item retained", 0) end
+    local dir = fs.getDir(to)
+    allowed("write", dir)
+    if not fs.exists(dir) then fs.makeDir(dir) end
+    allowed("write", info)
+    fs.move(from, to)
+    if fs.exists(info) then fs.delete(info) end
+    ctx.notifications:push("success", "Files", "Restored to " .. to, 3)
+  end
+
+  local function deleteForever(path)
+    writable(path)
+    local info = fs.combine(metadata, fs.getName(path))
+    local trashed = parent(path) == trash
+    if trashed then allowed("read", info) allowed("write", info) end
+    fs.delete(path)
+    if trashed and fs.exists(info) then fs.delete(info) end
+  end
+
   local function refresh()
-    local ok, rows, directories = pcall(sortedList, app.path)
+    local ok, rows, directories = pcall(function()
+      allowed("read", app.path)
+      return sortedList(app.path)
+    end)
     if not ok then
       ctx.notifications:push("error", "Files", "Cannot read folder: " .. tostring(rows), 4)
       app.files, app.directories = {}, {}
@@ -122,6 +210,7 @@ function M.run(ctx)
 
   local function navigate(path, backwards)
     path = fileNames.absolute(path)
+    allowed("read", path)
     if not fs.exists(path) or not fs.isDir(path) then
       ctx.notifications:push("warn", "Files", "Folder is no longer available", 3)
       return false
@@ -138,10 +227,12 @@ function M.run(ctx)
 
   local function openFile(path)
     path = fileNames.absolute(path)
+    allowed("read", path)
     if fs.isDir(path) then
       navigate(path)
       return
     end
+    allowed("read", "/system/config/mime.db")
     local target = mimeApp(path)
     if target then
       ctx.apps.launch(target, { path = path })
@@ -151,7 +242,9 @@ function M.run(ctx)
   end
 
   local function submitInput()
+    if not app.mode then return end
     local function target(name)
+      allowed("read", app.path)
       local path, problem = fileNames.target(app.path, name)
       if not path then ctx.notifications:push("warn", "Files", problem, 3) end
       return path
@@ -160,6 +253,7 @@ function M.run(ctx)
       local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_file_", ".txt"))
       local path = target(name)
       if not path then return end
+      writable(path)
       local h = fs.open(path, "w")
       if not h then ctx.notifications:push("error", "Files", "Cannot create file", 3) return end
       h.close()
@@ -168,13 +262,16 @@ function M.run(ctx)
       local name = app.input ~= "" and app.input or basename(uniquePath(app.path, "new_folder_", ""))
       local path = target(name)
       if not path then return end
+      writable(path)
       fs.makeDir(path)
       app.selected = name
     elseif app.mode == "rename" and app.selected then
       local old = fs.combine(app.path, app.selected)
-      if isProtected(old) then ctx.notifications:push("error", "Files", "Protected path", 3) return end
+      writable(old)
+      if app.path == trash then error("Restore trash items before renaming", 0) end
       local new = target(app.input)
       if not new then return end
+      writable(new)
       if app.input ~= "" and not fs.exists(new) then
         fs.move(old, new)
         app.selected = app.input
@@ -195,34 +292,38 @@ function M.run(ctx)
     elseif action == "home" then
       navigate("/home/user")
     elseif action == "new_file" then
+      allowed("read", app.path)
       setMode("new_file", basename(uniquePath(app.path, "new_file_", ".txt")))
     elseif action == "new_dir" then
+      allowed("read", app.path)
       setMode("new_dir", basename(uniquePath(app.path, "new_folder_", "")))
     elseif action == "rename" then
       if app.selected then setMode("rename", app.selected) end
     elseif action == "delete" then
       if app.selected then
         local full = selectedPath()
-        if isProtected(full) then
+        if isProtected(full) or full == trash then
           ctx.notifications:push("error", "Files", "Protected path", 3)
         else
-          app.confirm = full and full:match("^/home/user/") and "trash" or "delete"
+          writable(full)
+          app.confirm = (app.path == trash or app.path:sub(1,#trash+1) == trash .. "/") and "delete_forever" or "trash"
+          app.confirmPath = full
         end
       end
     elseif action == "restore" then
       if app.selected and app.path == "/home/user/.trash" then
         local from = selectedPath()
-        local restoredName = app.selected:gsub("%.%d+$", "")
-        local to = fs.combine("/home/user", restoredName)
-        if fs.exists(from) and not fs.exists(to) then
-          fs.move(from, to)
-          ctx.notifications:push("success", "Files", "Restored to /home/user", 3)
-          app.selected = nil
-          refresh()
-        else
-          ctx.notifications:push("warn", "Files", "Cannot restore", 3)
-        end
+        restore(from)
+        app.selected = nil
+        refresh()
       end
+    elseif action == "delete_forever" and app.selected then
+      app.confirmPath = writable(selectedPath())
+      app.confirm = "delete_forever"
+    elseif action == "empty_trash" then
+      allowed("read", trash)
+      allowed("write", trash)
+      app.confirm, app.confirmPath = "empty_trash", trash
     elseif action == "refresh" then
       app.scroll = 1
       refresh()
@@ -237,37 +338,42 @@ function M.run(ctx)
     app.input = app.input:sub(1, -2)
     app.keyboard.hint = tostring(app.mode or "input") .. ": " .. app.input
   end
-  app.keyboard.onEnter = submitInput
-  app.keyboard.onTab = submitInput
+  app.keyboard.onEnter = function() attempt(submitInput) end
+  app.keyboard.onTab = app.keyboard.onEnter
 
   function app:draw(w, h)
-    if self.mode then
+    if w < 1 or h < 1 then return end
+    if self.confirm then
+      toolbar = ui.toolbar(1, 1, w, {{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
+    elseif self.mode then
       toolbar = ui.toolbar(1, 1, w, {{id = "cancel", label = "Cancel"}})
     else
       toolbar = ui.toolbar(1, 1, w, actions, toolbarState)
     end
-    renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), colors.black, colors.lightGray)
+    if h >= 2 then renderer.writeAt(1, 2, renderer.crop("Path: " .. self.path, w), theme.get("windowFg"), theme.get("windowBg")) end
     local files = self.files
-    local kbH = self.mode and keyboard.height() or 0
+    local kbH = self.mode and h >= keyboard.height() + 5 and keyboard.height() or 0
     local listTop = 3
-    local listH = math.max(1, h - listTop - kbH)
+    local listH = math.max(0, h - listTop - kbH)
     self.listBottom = listTop + listH - 1
     ui.list(1, listTop, w, listH, files, self.selected, self.scroll, function(name)
       local prefix = self.directories[name] and "[D] " or "[F] "
       return prefix .. name
     end)
     if self.confirm then
-      local verb = self.confirm == "trash" and "Move to trash" or "Delete system file"
-      renderer.writeAt(1, h, renderer.crop(verb .. " " .. tostring(self.selected) .. "? Tap Delete again.", w), colors.white, colors.red)
+      local verb = self.confirm == "trash" and "Move to trash" or self.confirm == "empty_trash" and "Empty trash forever" or "Delete forever"
+      if h >= 2 then renderer.writeAt(1, h, renderer.crop(verb .. " " .. tostring(self.confirmPath) .. "?", w), theme.get("buttonFg"), theme.get("error")) end
     elseif self.mode then
       self.keyboard.x = 1
-      self.keyboard.y = h - keyboard.height() + 1
-      keyboard.draw(1, self.keyboard.y, w, self.keyboard)
-      renderer.writeAt(1, self.keyboard.y - 1, renderer.crop(tostring(self.mode) .. ": " .. self.input, w), colors.white, colors.gray)
+      self.keyboard.y = h - kbH + 1
+      if kbH > 0 then keyboard.draw(1, self.keyboard.y, w, self.keyboard) else self.keyboard.boxes = {} end
+      if h >= 3 then renderer.writeAt(1, h - kbH, renderer.crop(tostring(self.mode) .. ": " .. self.input, w), theme.get("buttonFg"), theme.get("buttonBg")) end
     end
   end
 
   function app:handle(event)
+    if self.confirm and event.name == "key" and event.args[1] == keys.escape then self.confirm = nil return true end
+    if self.confirm and event.name ~= "mouse_click" then return true end
     if event.name == "key" then
       local key = event.args[1]
       if self.mode then
@@ -279,12 +385,12 @@ function M.run(ctx)
           self.keyboard.hint = tostring(self.mode) .. ": " .. self.input
           return true
         elseif key == keys.enter or key == keys.tab then
-          submitInput()
+          attempt(submitInput)
           return true
         end
       end
-      if key == keys.backspace then perform("back") return true end
-      if key == keys.enter and self.selected then openFile(selectedPath()) return true end
+      if key == keys.backspace then attempt(perform, "back") return true end
+      if key == keys.enter and self.selected then attempt(openFile, selectedPath()) return true end
     elseif event.name == "char" and self.mode then
       self.input = self.input .. event.args[1]
       return true
@@ -305,28 +411,39 @@ function M.run(ctx)
         end
       end
       if self.confirm then
-        if action == "delete" and self.selected then
-          local full = fs.combine(self.path, self.selected)
-          if self.confirm == "trash" then
-            fs.move(full, trashPath(full))
-            ctx.notifications:push("success", "Files", "Moved to trash", 3)
-          else
-            fs.delete(full)
-            ctx.notifications:push("warn", "Files", "Deleted", 3)
-          end
-          self.selected = nil
+        if action == "confirm" then
+          local succeeded = attempt(function()
+            if self.confirm == "trash" then moveToTrash(self.confirmPath)
+            elseif self.confirm == "empty_trash" then
+              allowed("read", trash)
+              allowed("write", trash)
+              local names = sortedList(trash)
+              -- Preflight the entire batch before deleting any item.
+              for _, name in ipairs(names) do
+                writable(fs.combine(trash, name))
+                allowed("read", fs.combine(metadata, name))
+                allowed("write", fs.combine(metadata, name))
+              end
+              for _, name in ipairs(names) do
+                local path = fs.combine(trash, name)
+                fs.delete(path)
+                local info = fs.combine(metadata, name)
+                if fs.exists(info) then fs.delete(info) end
+              end
+            else deleteForever(self.confirmPath) end
+          end)
+          if succeeded then self.selected, self.confirm = nil, nil end
           refresh()
-        end
-        self.confirm = nil
+        elseif action == "cancel" then self.confirm = nil end
         return true
       end
       if action == "cancel" then setMode(nil) return true end
-      if action then perform(action) return true end
+      if action then attempt(perform, action) return true end
       if not self.mode and y >= 3 and y <= (self.listBottom or 2) then
         local files = self.files
         local name = files[self.scroll + y - 3]
         if name then
-          if self.selected == name then openFile(fs.combine(self.path, name)) else self.selected = name end
+          if self.selected == name then attempt(openFile, fs.combine(self.path, name)) else self.selected = name end
           return true
         end
       end
