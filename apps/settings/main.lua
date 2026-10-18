@@ -85,6 +85,10 @@ function M.run(ctx)
     if self.page=="system" then add("label","Set label")
     elseif self.page=="display" then
       add("refresh","Refresh")
+      local mode=config.load("/system/config/system.cfg",{}).graphicsMode or "text"
+      add("graphics:text","Text renderer",mode=="text")
+      add("graphics:auto","Pixel compatibility",mode=="auto")
+      add("graphics:pixel16","Pixel 16 colors",mode=="pixel16")
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
@@ -124,6 +128,12 @@ function M.run(ctx)
       line("Preference: "..tostring(deviced.getPreference and deviced.getPreference() or "auto"))
       line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
       line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
+      local g=ctx.system and ctx.system.renderStats and ctx.system.renderStats()
+      if g then
+        line("Backend: "..tostring(g.backend or "TEXT"))
+        if g.pixelWidth then line("Pixels: "..g.pixelWidth.."x"..g.pixelHeight) end
+        if g.lastError then line("Graphics error: "..g.lastError) end
+      end
     elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Icons: NFP 7x6 with text fallback") line("Keyboard: AZERTY")
     elseif self.page=="network" then
       local st=networkd.getStatus() local tube=config.load("/system/config/crafttube.cfg",{})
@@ -250,6 +260,11 @@ function M.run(ctx)
     if not allowed("system.config") then return end
     if id=="label" then self:beginInput(id)
     elseif id=="refresh" then deviced.refreshDisplay()
+    elseif id:sub(1,9)=="graphics:" then
+      local value=config.load("/system/config/system.cfg",{}) value.graphicsMode=id:sub(10)
+      local ok,err=config.save("/system/config/system.cfg",value)
+      if ok and ctx.system and ctx.system.setGraphicsMode then ctx.system.setGraphicsMode(value.graphicsMode) end
+      notify(ok,"Graphics",err or "Renderer preference saved")
     elseif id:sub(1,8)=="display:" then local ok,err=deviced.setTarget(id:sub(9)) notify(ok,"Display",err)
     elseif id:sub(1,6)=="scale:" then local ok,err=deviced.setScale(tonumber(id:sub(7))) notify(ok,"Display",err)
     elseif id:sub(1,6)=="theme:" then local ok,err=theme.set(id:sub(7)) notify(ok~=false,"Theme",err or "Theme applied") end

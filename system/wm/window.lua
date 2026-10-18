@@ -119,6 +119,7 @@ function Window:draw()
     local parent = term.current()
     if not self.surface or self.surfaceParent ~= parent then
       self.surface = window.create(parent, self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
+      if parent.mintcraftPixelBuffer then require("system.graphics.legacy").buffer(self.surface) end
       self.surfaceParent = parent
       self.surfaceBounds = nil
     end

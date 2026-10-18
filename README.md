@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.26:
+This repository currently contains V0.18.27:
+
+V0.18.27 adds the optional Graphics 2.0 pixel backend and legacy-window bitmap
+rasterizer. Select Settings -> Display -> Pixel compatibility to try it; Text
+renderer restores the existing display. Boot and recovery always start in text.
+This is a compatibility foundation, not the finished native pixel interface.
+See [ASCENDANCY scope, migration, validation and remaining work](docs/ASCENDANCY.md).
 
 V0.18.26 / NEXUS 0.4 adds observation lease failover, strict sample freshness,
 central alerts with acknowledgements/history and configurable monitoring thresholds.

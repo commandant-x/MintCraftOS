@@ -1,4 +1,6 @@
 local reason = ...
+if term and term.setFrozen then pcall(term.setFrozen,false) end
+if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
 
 -- Kept dependency-free so a damaged module tree can still restore a checkpoint.
 local function restoreRaw(resumeOnly)

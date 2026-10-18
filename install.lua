@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2524,7 +2524,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2604,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2723,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3417,7 +3417,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3501,7 +3501,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3594,6 +3594,10 @@ function M.run(ctx)
     if self.page=="system" then add("label","Set label")
     elseif self.page=="display" then
       add("refresh","Refresh")
+      local mode=config.load("/system/config/system.cfg",{}).graphicsMode or "text"
+      add("graphics:text","Text renderer",mode=="text")
+      add("graphics:auto","Pixel compatibility",mode=="auto")
+      add("graphics:pixel16","Pixel 16 colors",mode=="pixel16")
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
@@ -3633,6 +3637,12 @@ function M.run(ctx)
       line("Preference: "..tostring(deviced.getPreference and deviced.getPreference() or "auto"))
       line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
       line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
+      local g=ctx.system and ctx.system.renderStats and ctx.system.renderStats()
+      if g then
+        line("Backend: "..tostring(g.backend or "TEXT"))
+        if g.pixelWidth then line("Pixels: "..g.pixelWidth.."x"..g.pixelHeight) end
+        if g.lastError then line("Graphics error: "..g.lastError) end
+      end
     elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Icons: NFP 7x6 with text fallback") line("Keyboard: AZERTY")
     elseif self.page=="network" then
       local st=networkd.getStatus() local tube=config.load("/system/config/crafttube.cfg",{})
@@ -3759,6 +3769,11 @@ function M.run(ctx)
     if not allowed("system.config") then return end
     if id=="label" then self:beginInput(id)
     elseif id=="refresh" then deviced.refreshDisplay()
+    elseif id:sub(1,9)=="graphics:" then
+      local value=config.load("/system/config/system.cfg",{}) value.graphicsMode=id:sub(10)
+      local ok,err=config.save("/system/config/system.cfg",value)
+      if ok and ctx.system and ctx.system.setGraphicsMode then ctx.system.setGraphicsMode(value.graphicsMode) end
+      notify(ok,"Graphics",err or "Renderer preference saved")
     elseif id:sub(1,8)=="display:" then local ok,err=deviced.setTarget(id:sub(9)) notify(ok,"Display",err)
     elseif id:sub(1,6)=="scale:" then local ok,err=deviced.setScale(tonumber(id:sub(7))) notify(ok,"Display",err)
     elseif id:sub(1,6)=="theme:" then local ok,err=theme.set(id:sub(7)) notify(ok~=false,"Theme",err or "Theme applied") end
@@ -3811,7 +3826,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3926,7 +3941,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4068,7 +4083,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.26",
+  version = "0.18.27",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4524,7 +4539,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.26",
+  version = "0.18.27",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -4619,6 +4634,9 @@ return M
 ]=],
   ["boot.lua"] = [=[
 if not table.unpack and unpack then table.unpack = unpack end
+-- A previous graphical session must never hide boot/recovery diagnostics.
+if term and term.setFrozen then pcall(term.setFrozen,false) end
+if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
 
 if not require then
   local loaded = {}
@@ -4712,6 +4730,8 @@ local ok, err = pcall(function()
 end)
 
 if not ok then
+  if term and term.setFrozen then pcall(term.setFrozen,false) end
+  if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
   if not fs.exists("/var") then fs.makeDir("/var") end
   if not fs.exists("/var/logs") then fs.makeDir("/var/logs") end
   local crash = fs.open("/var/logs/last_crash.log", "w")
@@ -5066,7 +5086,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.26",
+    version = "0.18.27",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5108,6 +5128,8 @@ return M
 ]=],
   ["system/boot/recovery.lua"] = [=[
 local reason = ...
+if term and term.setFrozen then pcall(term.setFrozen,false) end
+if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
 
 -- Kept dependency-free so a damaged module tree can still restore a checkpoint.
 local function restoreRaw(resumeOnly)
@@ -5444,8 +5466,9 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.26",
+  version = "0.18.27",
   theme = "mint",
+  graphicsMode = "text",
   displayScale = 0.5,
   debug = true,
   safeMode = false,
@@ -5866,6 +5889,297 @@ M.scan()
 
 return M
 ]=],
+  ["system/graphics/backend.lua"] = [=[
+local Surface=require("system.graphics.surface")
+local M={}
+local function dimensions(t,mode)
+  local ok,w,h=pcall(t.getSize,mode)
+  if ok and type(w)=="number" and type(h)=="number" and w%1==0 and h%1==0
+    and w>0 and h>0 and w*h<=1048576 then return w,h end
+end
+function M.detect(t)
+  local w,h=dimensions(t,0)
+  local caps={backend="TEXT",textWidth=w,textHeight=h,
+    graphics=type(t.setGraphicsMode)=="function" and type(t.getGraphicsMode)=="function"
+      and type(t.drawPixels)=="function",palette=type(t.setPaletteColor)=="function",
+    freeze=type(t.setFrozen)=="function" and type(t.getFrozen)=="function"}
+  if caps.graphics then caps.pixelWidth,caps.pixelHeight=dimensions(t,2) end
+  return caps
+end
+function M.new(t,preference)
+  local caps=M.detect(t)
+  local b={target=t,caps=caps,mode=0,frames=0,bytes=0,regions=0,lastError=nil}
+  function b:close()
+    if type(t.setFrozen)=="function" then pcall(t.setFrozen,false) end
+    if type(t.setGraphicsMode)=="function" then pcall(t.setGraphicsMode,0) end
+    self.mode=0 self.caps.backend="TEXT"
+  end
+  function b:present()
+    if self.mode==0 then return false,self.lastError end
+    local started=os.clock()
+    local frozen=false
+    local ok,err=pcall(function()
+      if caps.freeze then frozen=t.getFrozen() t.setFrozen(true) end
+      for y=1,self.surface.height do
+        local d=self.surface.dirty[y]
+        if d then
+          t.drawPixels(d[1],y-1,{self.surface.rows[y]:sub(d[1]+1,d[2])})
+          self.bytes=self.bytes+d[2]-d[1] self.regions=self.regions+1
+        end
+      end
+    end)
+    if caps.freeze then
+      local restored,problem=pcall(t.setFrozen,frozen)
+      if not restored then ok,err=false,problem end
+    end
+    if not ok then self.lastError=tostring(err) self:close() return false,self.lastError end
+    self.surface.dirty={} self.frames=self.frames+1 self.lastDrawSeconds=os.clock()-started
+    return true
+  end
+  if preference=="text" or not caps.graphics then return b end
+  local modes=preference=="pixel16" and {1} or {2,1}
+  for _,mode in ipairs(modes) do
+    local ok,err=pcall(function()
+      t.setGraphicsMode(mode)
+      assert(t.getGraphicsMode()==mode,"Graphics mode not activated")
+      local w,h=dimensions(t,mode)
+      assert(w and h,"Invalid pixel dimensions")
+      local surface=Surface.new(w,h,15)
+      -- Probe the actual byte-row overload, not just the presence of the method.
+      t.drawPixels(0,0,{string.char(15)})
+      b.surface=surface b.mode=mode caps.pixelWidth,caps.pixelHeight=w,h
+      caps.backend=mode==2 and "PIXEL256" or "PIXEL16"
+    end)
+    if ok then return b end
+    b.lastError=tostring(err) b:close()
+  end
+  return b
+end
+return M
+]=],
+  ["system/graphics/font_data.lua"] = [=[
+-- Adafruit classic 5x7 CP437 bitmap font, column-major, low bit at top.
+-- Copyright (c) 2012 Adafruit Industries. See FONT_LICENSE.txt (BSD).
+return "00000000003E5B4F5B3E3E6B4F6B3E1C3E7C3E1C183C7E3C181C577D571C1C5E7F5E1C00183C1800FFE7C3E7FF0018241800FFE7DBE7FF30483A060E2629792926407F050507407F05253F5A3CE73C5A7F3E1C1C08081C1C3E7F14227F22145F5F005F5F06097F017F006689956A606060606094A2FFA29408047E040810207E201008082A1C08081C2A08081E101010100C1E0C1E0C30383E3830060E3E0E06000000000000005F00000007000700147F147F14242A7F2A12231308646236495620500008070300001C2241000041221C002A1C7F1C2A08083E080800807030000808080808000060600020100804023E5149453E00427F400072494949462141494D331814127F1027454545393C4A49493141211109073649494936464949291E0000140000004034000000081422411414141414004122140802015909063E415D594E7C1211127C7F494949363E414141227F4141413E7F494949417F090909013E414151737F0808087F00417F41002040413F017F081422417F404040407F021C027F7F0408107F3E4141413E7F090909063E4151215E7F09192946264949493203017F01033F4040403F1F2040201F3F4038403F631408146303047804036159494D43007F4141410204081020004141417F04020102044040404040000307080020545478407F284444383844444428384444287F385454541800087E090218A4A49C787F0804047800447D40002040403D007F1028440000417F40007C047804787C080404783844444438FC1824241818242418FC7C08040408485454542404043F44243C4040207C1C2040201C3C4030403C44281028444C9090907C4464544C4400083641000000770000004136080002010204023C2623263C1EA1A161123A4040207A385454555921555579412254547842215554784020545579400C1E5272123955555559395454545939555454580000457C410002457D420001457C407D1211127DF0282528F07C545545002054547C547C0A097F4932494949323A4444443A324A4848303A4141217A3A42402078009DA0A07D3D4242423D3D4040403D3C24FF2424487E4943662B2FFC2F2BFF0929F620C0887E090320545479410000447D413048484A32384040227A007A0A0A727D0D19317D2629292F28262929292630484D4020380808080808080808382F10C8ACBA2F102834FA00007B000008142A142222142A14085500550055AA55AA55AAFF55FF55FF000000FF00101010FF00141414FF001010FF00FF1010F010F0141414FC001414F700FF0000FF00FF1414F404FC141417101F10101F101F1414141F00101010F0000000001F101010101F10101010F010000000FF101010101010101010FF10000000FF140000FF00FF00001F10170000FC04F414141710171414F404F40000FF00F714141414141414F700F7141414171410101F101F141414F4141010F010F000001F101F0000001F14000000FC140000F010F01010FF10FF141414FF141010101F00000000F010FFFFFFFFFFF0F0F0F0F0FFFFFF0000000000FFFF0F0F0F0F0F3844443844FC4A4A4A347E02020606027E027E0263554941633844443C04407E201E2006027E020299A5E7A5991C2A492A1C4C7201724C304A4D4D303048784830BC625A463D3E494949007E0101017E2A2A2A2A2A44445F444440514A444040444A51400000FF0103E080FF000008086B6B083612362436060F090F06000018180000001010003040FF0101001F01011E00191D1712003C3C3C3C0000000000"
+]=],
+  ["system/graphics/FONT_LICENSE.txt"] = [=[
+Software License Agreement (BSD License)
+
+Copyright (c) 2012 Adafruit Industries.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+- Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+]=],
+  ["system/graphics/fonts.lua"] = [=[
+local data=require("system.graphics.font_data")
+local M={width=6,height=9}
+local glyphs={}
+for code=0,255 do
+  local columns={}
+  for x=1,5 do columns[x]=tonumber(data:sub(code*10+x*2-1,code*10+x*2),16) end
+  glyphs[code]=columns
+end
+function M.row(code,y,fg,bg)
+  if y>=8 then return string.rep(string.char(bg),6) end
+  local glyph=glyphs[code] or glyphs[63]
+  local row={}
+  for x=1,5 do row[x]=string.char(math.floor(glyph[x]/2^y)%2==1 and fg or bg) end
+  row[6]=string.char(bg)
+  return table.concat(row)
+end
+function M.measure(text,scale)
+  scale=scale or 1
+  assert(scale>=1 and scale<=4 and scale%1==0,"Invalid font scale")
+  local width,lines=0,0
+  for line in (text.."\n"):gmatch("([^\n]*)\n") do width=math.max(width,#line*6*scale) lines=lines+1 end
+  return width,lines*9*scale
+end
+function M.draw(surface,x,y,text,fg,bg,scale)
+  scale=scale or 1 M.measure("",scale)
+  local origin=x
+  for i=1,#text do
+    local code=text:byte(i)
+    if code==10 then x,y=origin,y+9*scale
+    else
+      for py=0,8 do
+        local row=M.row(code,py,fg,bg)
+        if scale>1 then row=row:gsub(".",function(c) return c:rep(scale) end) end
+        for sy=0,scale-1 do surface:span(x,y+py*scale+sy,row) end
+      end
+      x=x+6*scale
+    end
+  end
+end
+return M
+]=],
+  ["system/graphics/legacy.lua"] = [=[
+local fonts=require("system.graphics.fonts")
+local M={}
+function M.buffer(target)
+  -- CraftOS-PC's redirect fills missing graphics methods with native methods.
+  -- Explicitly keep offscreen text windows in text mode (not the physical GPU).
+  target.getGraphicsMode=function() return false end
+  target.setGraphicsMode=function(mode) assert(not mode or mode==0,"Legacy text surface cannot change graphics mode") end
+  target.mintcraftPixelBuffer=true
+  return target
+end
+function M.parent(target,mode)
+  local redirect={}
+  for _,name in ipairs({"write","blit","clear","clearLine","getSize","getCursorPos","setCursorPos",
+    "getCursorBlink","setCursorBlink","isColor","isColour","getTextColor","getTextColour",
+    "setTextColor","setTextColour","getBackgroundColor","getBackgroundColour",
+    "setBackgroundColor","setBackgroundColour","scroll"}) do redirect[name]=target[name] end
+  local function index(color)
+    if mode~=2 then return color end
+    for i=0,15 do if color==2^i then return i end end
+    error("Invalid legacy palette color",2)
+  end
+  redirect.getPaletteColor=function(c) return (target.getPaletteColor or target.getPaletteColour)(index(c)) end
+  redirect.getPaletteColour=redirect.getPaletteColor
+  redirect.setPaletteColor=function(c,...) return (target.setPaletteColor or target.setPaletteColour)(index(c),...) end
+  redirect.setPaletteColour=redirect.setPaletteColor
+  return redirect
+end
+-- Compatibility only: migration of native pixel controls is a separate layer.
+function M.row(surface,y,text,fg,bg,columns,rows)
+  local cellW,cellH=surface.width/columns,surface.height/rows
+  for py=math.floor((y-1)*cellH),math.floor(y*cellH)-1 do
+    local glyphY=math.min(8,math.floor((py-(y-1)*cellH)*9/cellH))
+    local output={}
+    for x=1,#text do
+      local front,back=tonumber(fg:sub(x,x),16),tonumber(bg:sub(x,x),16)
+      local code=text:byte(x)
+      local left,right=math.floor((x-1)*cellW),math.floor(x*cellW)
+      if code>=128 and code<=159 then
+        -- Preserve CC's 2x3 mosaic assets, including the implicit sixth pixel.
+        local sy=math.min(2,math.floor(glyphY/3))
+        local pixels={}
+        for px=left,right-1 do
+          local sx=math.min(1,math.floor((px-left)*2/math.max(1,right-left)))
+          local bit=sy*2+sx
+          pixels[#pixels+1]=string.char(bit<5 and math.floor((code-128)/2^bit)%2==1 and front or back)
+        end
+        output[x]=table.concat(pixels)
+      else
+        local glyph=fonts.row(code,glyphY,front,back)
+        if right-left==6 then output[x]=glyph
+        else
+          local pixels={}
+          for px=left,right-1 do pixels[#pixels+1]=glyph:sub(math.floor((px-left)*6/math.max(1,right-left))+1,math.floor((px-left)*6/math.max(1,right-left))+1) end
+          output[x]=table.concat(pixels)
+        end
+      end
+    end
+    surface:span(0,py,table.concat(output))
+  end
+end
+return M
+]=],
+  ["system/graphics/primitives.lua"] = [=[
+local M={}
+function M.line(s,x1,y1,x2,y2,c)
+  local dx,dy,lo,hi=x2-x1,y2-y1,0,1
+  local function clip(p,q)
+    if p==0 then return q>=0 end
+    local t=q/p
+    if p<0 then if t>hi then return false end lo=math.max(lo,t)
+    else if t<lo then return false end hi=math.min(hi,t) end
+    return true
+  end
+  if not (clip(-dx,x1) and clip(dx,s.width-1-x1) and clip(-dy,y1) and clip(dy,s.height-1-y1)) then return end
+  x2,y2=math.floor(x1+hi*dx+0.5),math.floor(y1+hi*dy+0.5)
+  x1,y1=math.floor(x1+lo*dx+0.5),math.floor(y1+lo*dy+0.5)
+  dx,dy=math.abs(x2-x1),-math.abs(y2-y1)
+  local sx,sy=x1<x2 and 1 or -1,y1<y2 and 1 or -1
+  local err=dx+dy
+  while true do
+    s:pixel(x1,y1,c)
+    if x1==x2 and y1==y2 then return end
+    local twice=err*2
+    if twice>=dy then err=err+dy x1=x1+sx end
+    if twice<=dx then err=err+dx y1=y1+sy end
+  end
+end
+function M.rect(s,x,y,w,h,c)
+  if w<=0 or h<=0 then return end
+  s:rect(x,y,w,1,c) s:rect(x,y+h-1,w,1,c)
+  s:rect(x,y,1,h,c) s:rect(x+w-1,y,1,h,c)
+end
+function M.circle(s,x,y,r,c,filled)
+  assert(type(r)=="number" and r>=0 and r<=4096,"Invalid circle radius")
+  -- Scan only visible rows even for large off-screen circles.
+  for py=math.max(0,math.ceil(y-r)),math.min(s.height-1,math.floor(y+r)) do
+    local half=math.sqrt(math.max(0,r*r-(py-y)^2))
+    local left,right=math.ceil(x-half),math.floor(x+half)
+    if filled then s:rect(left,py,right-left+1,1,c)
+    else
+      s:pixel(left,py,c) s:pixel(right,py,c)
+      if py==math.ceil(y-r) or py==math.floor(y+r) then s:rect(left,py,right-left+1,1,c) end
+    end
+  end
+end
+function M.bitmap(s,x,y,rows)
+  for i=math.max(1,1-y),math.min(#rows,s.height-y) do s:span(x,y+i-1,rows[i]) end
+end
+return M
+]=],
+  ["system/graphics/surface.lua"] = [=[
+-- Zero-based indexed pixels. Rows are byte strings, never boxed pixel tables.
+local M = {}
+function M.new(w,h,color)
+  assert(type(w)=="number" and type(h)=="number" and w%1==0 and h%1==0
+    and w>0 and h>0 and w*h<=1048576,"Invalid framebuffer size")
+  local s={width=w,height=h,rows={},dirty={}}
+  local function byte(c)
+    assert(type(c)=="number" and c%1==0 and c>=0 and c<=255,"Invalid palette index")
+    return string.char(c)
+  end
+  function s:span(x,y,text)
+    x,y=math.floor(x),math.floor(y)
+    if y<0 or y>=h or x>=w or x+#text<=0 then return end
+    if x<0 then text,x=text:sub(1-x),0 end
+    text=text:sub(1,w-x)
+    if #text==0 then return end
+    local old=self.rows[y+1]
+    if old:sub(x+1,x+#text)==text then return end
+    self.rows[y+1]=old:sub(1,x)..text..old:sub(x+#text+1)
+    local d=self.dirty[y+1]
+    self.dirty[y+1]={math.min(d and d[1] or x,x),math.max(d and d[2] or x+#text,x+#text)}
+  end
+  function s:rect(x,y,rw,rh,c)
+    x,y,rw,rh=math.floor(x),math.floor(y),math.floor(rw),math.floor(rh)
+    local left,right=math.max(0,x),math.min(w,x+rw)
+    if right<=left or rh<=0 then return end
+    local row=string.rep(byte(c),right-left)
+    for py=math.max(0,y),math.min(h,y+rh)-1 do self:span(left,py,row) end
+  end
+  function s:pixel(x,y,c) self:span(x,y,byte(c)) end
+  function s:invalidate() for y=1,h do self.dirty[y]={0,w} end end
+  local blank=string.rep(byte(color or 15),w)
+  for y=1,h do s.rows[y]=blank end
+  s:invalidate()
+  return s
+end
+return M
+]=],
   ["system/gui/action_menu.lua"] = [=[
 local renderer=require("system.gui.renderer")
 local theme=require("system.gui.theme")
@@ -6085,12 +6399,15 @@ return M
   ["system/gui/compositor.lua"] = [=[
 local M = {}
 
-function M.new(resolveTarget, onOutputFailure)
+function M.new(resolveTarget, onOutputFailure, options)
   local surface, parent, width, height
+  local pixel, preference = nil, options and options.mode or "text"
+  local pixelWidth, pixelHeight
   local previous = {}
   local frame = {}
   local failedTarget, fallbackTarget
   local function outputFailure(target, problem)
+    if pixel then pixel:close() pixel=nil end
     previous = {}
     local native = term.native and term.native() or target
     term.redirect(native)
@@ -6102,8 +6419,19 @@ function M.new(resolveTarget, onOutputFailure)
   end
   local stats = { frames = 0, rows = 0, cells = 0 }
   return {
+    configure = function(_, mode)
+      assert(mode=="text" or mode=="auto" or mode=="pixel16", "Invalid rendering mode")
+      if pixel then pixel:close() end
+      pixel, parent, preference, previous=nil,nil,mode,{}
+    end,
+    close = function() if pixel then pixel:close() end end,
     invalidate = function() previous = {} failedTarget = nil end,
-    stats = function() return { frames = stats.frames, rows = stats.rows, cells = stats.cells } end,
+    stats = function()
+      return { frames=stats.frames, rows=stats.rows, cells=stats.cells,
+        backend=pixel and pixel.caps.backend or "TEXT",pixelWidth=pixelWidth,pixelHeight=pixelHeight,
+        bytes=pixel and pixel.bytes or 0,regions=pixel and pixel.regions or 0,
+        lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError }
+    end,
     draw = function(_, render)
       local target = resolveTarget and resolveTarget() or term.current()
       if target == failedTarget then target = fallbackTarget end
@@ -6113,13 +6441,41 @@ function M.new(resolveTarget, onOutputFailure)
         w, h = target.getSize()
       end
       if parent ~= target then
+        if pixel then pixel:close() end
+        pixel=nil pixelWidth,pixelHeight=nil,nil
+        if preference~="text" then
+          pixel=require("system.graphics.backend").new(target,preference)
+          pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
+          if pixel.mode==0 and pixel.lastError and options and options.onGraphicsFailure then
+            pcall(options.onGraphicsFailure,pixel.lastError)
+          end
+        end
         parent, width, height = target, w, h
-        surface = window.create(parent, 1, 1, w, h, false)
+        local bufferParent=parent
+        if pixel and pixel.mode~=0 then bufferParent=require("system.graphics.legacy").parent(parent,pixel.mode) end
+        surface = window.create(bufferParent, 1, 1, w, h, false)
+        if pixel and pixel.mode~=0 then require("system.graphics.legacy").buffer(surface) end
         previous = {}
       elseif width ~= w or height ~= h then
+        if pixel then
+          pixel:close()
+          pixel=require("system.graphics.backend").new(target,preference)
+          pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
+        end
         surface.reposition(1, 1, w, h)
         width, height = w, h
         previous = {}
+      end
+      if pixel and pixel.mode~=0 then
+        local valid,pw,ph=pcall(target.getSize,pixel.mode)
+        if not valid then
+          pixel.lastError=tostring(pw) pixel:close() previous={}
+          if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,pw) end
+        elseif pw~=pixelWidth or ph~=pixelHeight then
+          pixel:close() pixel=require("system.graphics.backend").new(target,preference)
+          pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
+          previous={}
+        end
       end
       surface.setVisible(false)
       term.redirect(surface)
@@ -6141,8 +6497,12 @@ function M.new(resolveTarget, onOutputFailure)
           local text, fg, bg = frame[y][1], frame[y][2], frame[y][3]
           local old = previous[y]
           if not old or old[1] ~= text or old[2] ~= fg or old[3] ~= bg then
-            target.setCursorPos(1, y)
-            target.blit(text, fg, bg)
+            if pixel and pixel.mode~=0 then
+              require("system.graphics.legacy").row(pixel.surface,y,text,fg,bg,w,h)
+            else
+              target.setCursorPos(1, y)
+              target.blit(text, fg, bg)
+            end
             stats.rows, stats.cells = stats.rows + 1, stats.cells + #text
           end
           if not old then old = {} previous[y] = old end
@@ -6150,6 +6510,15 @@ function M.new(resolveTarget, onOutputFailure)
         end
         target.setCursorPos(cx, cy)
         target.setCursorBlink(blink)
+        if pixel and pixel.mode~=0 then
+          local ok,err=pixel:present()
+          if not ok then
+            -- Publish the complete text frame immediately on the same display.
+            previous={}
+            for y=1,h do target.setCursorPos(1,y) target.blit(table.unpack(frame[y])) end
+            if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
+          end
+        end
       end)
       if not flushed then
         if cx and cy then pcall(target.setCursorPos, cx, cy) end
@@ -7051,16 +7420,34 @@ return EventBus
 ]=],
   ["system/kernel/input.lua"] = [=[
 local M = {}
+local function pointer(event,display)
+  if display and display.pixelWidth and event.name:match("^mouse_") then
+    local x,y=event.args[2],event.args[3]
+    if type(x)~="number" or type(y)~="number" then return nil end
+    event.pixelX,event.pixelY=x,y
+    event.args[2]=math.floor(x*display.width/display.pixelWidth)+1
+    event.args[3]=math.floor(y*display.height/display.pixelHeight)+1
+  end
+  return event
+end
 
 function M.normalize(raw, display)
+  local name=raw[1]
+  if type(name)=="string" and name:sub(1,9)=="terminal_" then
+    if not display or display.target~="terminal" or raw[2]~=display.terminalSide then return nil end
+    local event={name=name:sub(10),args=table.pack(table.unpack(raw,3,raw.n or #raw)),raw=raw,terminalSide=raw[2]}
+    return pointer(event,display)
+  end
   if raw[1] == "monitor_touch" then
     if not display or display.target ~= "monitor" or raw[2] ~= display.monitorSide then return nil end
-    return {
+    return pointer({
       name = "mouse_click", args = {1, raw[3], raw[4]}, raw = raw,
       monitorTouch = true, monitorSide = raw[2],
-    }
+    },display)
   end
-  return {name = raw[1], args = table.pack(table.unpack(raw,2,raw.n or #raw)), raw = raw}
+  local event={name = raw[1], args = table.pack(table.unpack(raw,2,raw.n or #raw)), raw = raw}
+  if display and display.target=="computer" then return pointer(event,display) end
+  return event
 end
 
 return M
@@ -7085,22 +7472,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.26", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.26", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.26", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.26", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.27", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.27", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.27", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.27", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.26", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.26", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.26", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.26", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.26", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.26", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.26", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.26", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.26", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.26", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.26", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.27", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.27", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.27", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.27", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.27", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.27", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.27", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.27", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.27", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.27", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.27", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7144,7 +7531,12 @@ function M.start()
   ctx.services:startAutostart()
   bootApps(ctx)
 
-  local screen = compositor.new(devices.getTarget, devices.outputFailed)
+  local graphicsConfig=require("system.libraries.config").load("/system/config/system.cfg",{})
+  local screen = compositor.new(devices.getTarget, devices.outputFailed,{
+    mode=graphicsConfig.graphicsMode or "text",
+    onGraphicsFailure=function(err) log.error("graphics",tostring(err)) end,
+  })
+  ctx.setGraphicsMode=function(mode) screen:configure(mode) ctx.wm:invalidate() end
   ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() end
   ctx.renderStats = function() return screen:stats() end
   local lastClock
@@ -7174,7 +7566,12 @@ function M.start()
     else
       local internal=(raw[1]=="timer" and ctx.workerTimers and ctx.workerTimers[raw[2]]) or raw[1]=="task_complete" or raw[1]=="mintcraft_radar_verify"
       local notificationVersion=ctx.notifications.nextId
-      local event = input.normalize(raw, devices.getDisplay())
+      local display=devices.getDisplay()
+      local graphics=screen:stats()
+      if graphics.backend~="TEXT" then
+        display.pixelWidth,display.pixelHeight=graphics.pixelWidth,graphics.pixelHeight
+      end
+      local event = input.normalize(raw, display)
 
       if event then
         if event.name=="timer" and event.args[1]==diagnosticTimer then
@@ -7861,7 +8258,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.26",
+    version = meta.version or "0.18.27",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -15930,6 +16327,7 @@ function Window:draw()
     local parent = term.current()
     if not self.surface or self.surfaceParent ~= parent then
       self.surface = window.create(parent, self.x + 1, self.y + 1, self.w - 2, self.h - 2, false)
+      if parent.mintcraftPixelBuffer then require("system.graphics.legacy").buffer(self.surface) end
       self.surfaceParent = parent
       self.surfaceBounds = nil
     end
@@ -16184,7 +16582,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.26
+0.18.27
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

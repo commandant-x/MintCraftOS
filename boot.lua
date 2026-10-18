@@ -1,4 +1,7 @@
 if not table.unpack and unpack then table.unpack = unpack end
+-- A previous graphical session must never hide boot/recovery diagnostics.
+if term and term.setFrozen then pcall(term.setFrozen,false) end
+if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
 
 if not require then
   local loaded = {}
@@ -92,6 +95,8 @@ local ok, err = pcall(function()
 end)
 
 if not ok then
+  if term and term.setFrozen then pcall(term.setFrozen,false) end
+  if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
   if not fs.exists("/var") then fs.makeDir("/var") end
   if not fs.exists("/var/logs") then fs.makeDir("/var/logs") end
   local crash = fs.open("/var/logs/last_crash.log", "w")

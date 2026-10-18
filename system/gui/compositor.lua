@@ -1,11 +1,14 @@
 local M = {}
 
-function M.new(resolveTarget, onOutputFailure)
+function M.new(resolveTarget, onOutputFailure, options)
   local surface, parent, width, height
+  local pixel, preference = nil, options and options.mode or "text"
+  local pixelWidth, pixelHeight
   local previous = {}
   local frame = {}
   local failedTarget, fallbackTarget
   local function outputFailure(target, problem)
+    if pixel then pixel:close() pixel=nil end
     previous = {}
     local native = term.native and term.native() or target
     term.redirect(native)
@@ -17,8 +20,19 @@ function M.new(resolveTarget, onOutputFailure)
   end
   local stats = { frames = 0, rows = 0, cells = 0 }
   return {
+    configure = function(_, mode)
+      assert(mode=="text" or mode=="auto" or mode=="pixel16", "Invalid rendering mode")
+      if pixel then pixel:close() end
+      pixel, parent, preference, previous=nil,nil,mode,{}
+    end,
+    close = function() if pixel then pixel:close() end end,
     invalidate = function() previous = {} failedTarget = nil end,
-    stats = function() return { frames = stats.frames, rows = stats.rows, cells = stats.cells } end,
+    stats = function()
+      return { frames=stats.frames, rows=stats.rows, cells=stats.cells,
+        backend=pixel and pixel.caps.backend or "TEXT",pixelWidth=pixelWidth,pixelHeight=pixelHeight,
+        bytes=pixel and pixel.bytes or 0,regions=pixel and pixel.regions or 0,
+        lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError }
+    end,
     draw = function(_, render)
       local target = resolveTarget and resolveTarget() or term.current()
       if target == failedTarget then target = fallbackTarget end
@@ -28,13 +42,41 @@ function M.new(resolveTarget, onOutputFailure)
         w, h = target.getSize()
       end
       if parent ~= target then
+        if pixel then pixel:close() end
+        pixel=nil pixelWidth,pixelHeight=nil,nil
+        if preference~="text" then
+          pixel=require("system.graphics.backend").new(target,preference)
+          pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
+          if pixel.mode==0 and pixel.lastError and options and options.onGraphicsFailure then
+            pcall(options.onGraphicsFailure,pixel.lastError)
+          end
+        end
         parent, width, height = target, w, h
-        surface = window.create(parent, 1, 1, w, h, false)
+        local bufferParent=parent
+        if pixel and pixel.mode~=0 then bufferParent=require("system.graphics.legacy").parent(parent,pixel.mode) end
+        surface = window.create(bufferParent, 1, 1, w, h, false)
+        if pixel and pixel.mode~=0 then require("system.graphics.legacy").buffer(surface) end
         previous = {}
       elseif width ~= w or height ~= h then
+        if pixel then
+          pixel:close()
+          pixel=require("system.graphics.backend").new(target,preference)
+          pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
+        end
         surface.reposition(1, 1, w, h)
         width, height = w, h
         previous = {}
+      end
+      if pixel and pixel.mode~=0 then
+        local valid,pw,ph=pcall(target.getSize,pixel.mode)
+        if not valid then
+          pixel.lastError=tostring(pw) pixel:close() previous={}
+          if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,pw) end
+        elseif pw~=pixelWidth or ph~=pixelHeight then
+          pixel:close() pixel=require("system.graphics.backend").new(target,preference)
+          pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
+          previous={}
+        end
       end
       surface.setVisible(false)
       term.redirect(surface)
@@ -56,8 +98,12 @@ function M.new(resolveTarget, onOutputFailure)
           local text, fg, bg = frame[y][1], frame[y][2], frame[y][3]
           local old = previous[y]
           if not old or old[1] ~= text or old[2] ~= fg or old[3] ~= bg then
-            target.setCursorPos(1, y)
-            target.blit(text, fg, bg)
+            if pixel and pixel.mode~=0 then
+              require("system.graphics.legacy").row(pixel.surface,y,text,fg,bg,w,h)
+            else
+              target.setCursorPos(1, y)
+              target.blit(text, fg, bg)
+            end
             stats.rows, stats.cells = stats.rows + 1, stats.cells + #text
           end
           if not old then old = {} previous[y] = old end
@@ -65,6 +111,15 @@ function M.new(resolveTarget, onOutputFailure)
         end
         target.setCursorPos(cx, cy)
         target.setCursorBlink(blink)
+        if pixel and pixel.mode~=0 then
+          local ok,err=pixel:present()
+          if not ok then
+            -- Publish the complete text frame immediately on the same display.
+            previous={}
+            for y=1,h do target.setCursorPos(1,y) target.blit(table.unpack(frame[y])) end
+            if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
+          end
+        end
       end)
       if not flushed then
         if cx and cy then pcall(target.setCursorPos, cx, cy) end
