@@ -25,7 +25,7 @@ function M.run(ctx)
       local d = rows[i]
       local lowerType = tostring(d.type):lower()
       local role = tostring(d.type) == "modem" and "rednet"
-        or tostring(d.type) == "monitor" and "display"
+        or (tostring(d.type) == "monitor" or tostring(d.type)=="terminal") and "display"
         or lowerType:find("altitude", 1, true) and "avionics"
         or lowerType:find("gimbal", 1, true) and "avionics"
         or lowerType:find("propeller", 1, true) and "avionics"

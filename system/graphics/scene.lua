@@ -39,8 +39,12 @@ function M.new()
       damage={{x=0,y=0,w=surface.width,h=surface.height}}
     end
     local previousClip=surface.clip
+    local before,beforeDirty={},{}
     local ok,err=pcall(function()
       for _,rect in ipairs(damage) do
+        for y=math.max(1,rect.y+1),math.min(surface.height,rect.y+rect.h) do
+          if not before[y] then before[y],beforeDirty[y]=surface.rows[y],surface.dirty[y] end
+        end
         surface:setClip(rect.x,rect.y,rect.w,rect.h)
         local first=1
         for i=#layers,1,-1 do
@@ -56,6 +60,19 @@ function M.new()
     end)
     surface.clip=previousClip
     if not ok then self:invalidate() error(err,0) end
+    -- Layer overdraw may restore pixels to their original value. Compare final
+    -- byte rows so unchanged controls are not transmitted again on every key.
+    for y,old in pairs(before) do
+      local row=surface.rows[y]
+      if row==old then surface.dirty[y]=beforeDirty[y]
+      else
+        local left,right=0,surface.width
+        while left<right and old:byte(left+1)==row:byte(left+1) do left=left+1 end
+        while right>left and old:byte(right)==row:byte(right) do right=right-1 end
+        local pending=beforeDirty[y]
+        surface.dirty[y]={math.min(left,pending and pending[1] or left),math.max(right,pending and pending[2] or right)}
+      end
+    end
     self.previous,self.lastOrder=now,signature
     self.width,self.height=surface.width,surface.height
     self.stats.rectangles=self.stats.rectangles+#damage

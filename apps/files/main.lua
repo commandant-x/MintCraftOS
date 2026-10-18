@@ -182,6 +182,7 @@ function M.run(ctx)
   end
 
   local function refresh()
+    app.fileRevision=(app.fileRevision or 0)+1
     local ok, rows, directories = pcall(function()
       allowed("read", app.path)
       return sortedList(app.path)
@@ -199,6 +200,7 @@ function M.run(ctx)
 
   local function setMode(mode, default)
     app.mode = mode
+    if mode then app.nativeQuery="" end
     app.input = default or ""
     app.keyboard.hint = mode and (mode .. ": " .. app.input) or ""
   end
@@ -220,6 +222,7 @@ function M.run(ctx)
       if #app.history > 100 then table.remove(app.history, 1) end
     end
     app.path, app.selected, app.scroll = path, nil, 1
+    app.nativeQuery,app.nativeSearchFocused="",false
     app.mode, app.confirm = nil, nil
     refresh()
     return true
@@ -331,7 +334,7 @@ function M.run(ctx)
   end
 
   app.keyboard.onText = function(ch)
-    app.input = app.input .. ch
+    app.input = (app.input .. ch):sub(1,4096)
     app.keyboard.hint = tostring(app.mode or "input") .. ": " .. app.input
   end
   app.keyboard.onBackspace = function()
@@ -340,6 +343,34 @@ function M.run(ctx)
   end
   app.keyboard.onEnter = function() attempt(submitInput) end
   app.keyboard.onTab = app.keyboard.onEnter
+
+  local function confirmAction()
+    local succeeded = attempt(function()
+      if app.confirm == "trash" then moveToTrash(app.confirmPath)
+      elseif app.confirm == "empty_trash" then
+        allowed("read", trash) allowed("write", trash)
+        local names = sortedList(trash)
+        for _, name in ipairs(names) do
+          writable(fs.combine(trash, name))
+          allowed("read", fs.combine(metadata, name)) allowed("write", fs.combine(metadata, name))
+        end
+        for _, name in ipairs(names) do
+          fs.delete(fs.combine(trash,name))
+          local info=fs.combine(metadata,name) if fs.exists(info) then fs.delete(info) end
+        end
+      else deleteForever(app.confirmPath) end
+    end)
+    if succeeded then app.selected,app.confirm=nil,nil end
+    refresh()
+  end
+
+  require("apps.files.pixel").attach(app,{
+    action=function(id) attempt(perform,id) end,
+    open=function(name) attempt(openFile,fs.combine(app.path,name)) end,
+    submit=function() attempt(submitInput) end,
+    cancel=function() setMode(nil) app.confirm=nil end,
+    confirm=confirmAction,
+  },actions)
 
   function app:draw(w, h)
     if w < 1 or h < 1 then return end
@@ -372,6 +403,7 @@ function M.run(ctx)
   end
 
   function app:handle(event)
+    if self:handlePixelKey(event) then return true end
     if self.confirm and event.name == "key" and event.args[1] == keys.escape then self.confirm = nil return true end
     if self.confirm and event.name ~= "mouse_click" then return true end
     if event.name == "key" then
@@ -392,7 +424,11 @@ function M.run(ctx)
       if key == keys.backspace then attempt(perform, "back") return true end
       if key == keys.enter and self.selected then attempt(openFile, selectedPath()) return true end
     elseif event.name == "char" and self.mode then
-      self.input = self.input .. event.args[1]
+      self.input = (self.input .. event.args[1]):sub(1,4096)
+      return true
+    elseif event.name=="paste" and self.mode then
+      local text=tostring(event.args[1] or ""):match("^[^\r\n]*") or ""
+      self.input=(self.input..text):sub(1,4096)
       return true
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
@@ -412,28 +448,7 @@ function M.run(ctx)
       end
       if self.confirm then
         if action == "confirm" then
-          local succeeded = attempt(function()
-            if self.confirm == "trash" then moveToTrash(self.confirmPath)
-            elseif self.confirm == "empty_trash" then
-              allowed("read", trash)
-              allowed("write", trash)
-              local names = sortedList(trash)
-              -- Preflight the entire batch before deleting any item.
-              for _, name in ipairs(names) do
-                writable(fs.combine(trash, name))
-                allowed("read", fs.combine(metadata, name))
-                allowed("write", fs.combine(metadata, name))
-              end
-              for _, name in ipairs(names) do
-                local path = fs.combine(trash, name)
-                fs.delete(path)
-                local info = fs.combine(metadata, name)
-                if fs.exists(info) then fs.delete(info) end
-              end
-            else deleteForever(self.confirmPath) end
-          end)
-          if succeeded then self.selected, self.confirm = nil, nil end
-          refresh()
+          confirmAction()
         elseif action == "cancel" then self.confirm = nil end
         return true
       end
@@ -462,7 +477,8 @@ function M.run(ctx)
     setMode("new_file",basename(uniquePath(app.path,"new_script_",".lua")))
   end) end
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Files", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 6, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Files", w = math.min(72, sw - 4), h = math.min(24, sh - 3),
+    minPixelWidth=156,minPixelHeight=144,x = 6, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 

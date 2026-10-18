@@ -12,7 +12,9 @@ layer.draw=function(canvas) canvas:rect(layer.x,layer.y,layer.w,layer.h,4) end
 assert(scene:draw(s,{background,layer})==1 and s.rows[6]:byte(4)==4)
 s.dirty={}
 assert(scene:draw(s,{background,layer})==0 and next(s.dirty)==nil and calls==1)
-layer.x,layer.revision=5,2
+layer.revision=2 scene:draw(s,{background,layer})
+assert(next(s.dirty)==nil,"identical pixels were retransmitted after layer invalidation")
+layer.x,layer.revision=5,3
 scene:draw(s,{background,layer})
 assert(s.rows[6]:byte(4)==15 and s.rows[6]:byte(6)==4,"old window position not repaired")
 local before=calls

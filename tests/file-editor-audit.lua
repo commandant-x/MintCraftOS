@@ -250,4 +250,56 @@ second:handle({name="char",args={"B"}})
 for p,v in pairs(nodes) do if p:match("%.draft$") then assert(records[v].text=="Abase","another editor's draft overwritten") end end
 assert(second.status:find("another editor",1,true))
 
-print("file/editor audit regressions passed")
+reset()
+nodes["/home/user/docs/original.txt"]="original"
+local explorer=start("apps.files.main","/home/user/docs")
+explorer.graphicsActive=true
+local Surface=require("system.graphics.surface")
+local palette={desktop=15,panel=7,button=8,border=8,text=0,muted=8,accent=9,ink=15}
+local function pixelDraw(width,height)
+  local saved={list=fs.list,open=fs.open,exists=fs.exists,isDir=fs.isDir}
+  for key in pairs(saved) do fs[key]=function() error("filesystem acquisition in native draw") end end
+  local ok,err=pcall(explorer.drawPixels,explorer,Surface.new(width or 420,height or 210,15),width or 420,height or 210,palette)
+  for key,value in pairs(saved) do fs[key]=value end
+  assert(ok,err)
+end
+local function pixelClick(rect) assert(explorer:handlePixels({name="mouse_click",args={1,rect.x+1,rect.y+1}})) end
+local function pixelAction(id)
+  for _=1,20 do
+    pixelDraw()
+    for _,hit in ipairs(explorer.pixelButtons) do if hit.id==id then pixelClick(hit.rect) return end end
+    if not explorer.nativeMenu then
+      for _,hit in ipairs(explorer.pixelButtons) do if hit.id=="menu" then pixelClick(hit.rect) break end end
+    else
+      local found
+      for _,hit in ipairs(explorer.pixelMenuItems) do if hit.id==id then found=hit break end end
+      if found then pixelClick(found.rect) return end
+      for _,hit in ipairs(explorer.pixelButtons) do if hit.id=="menu_next" then pixelClick(hit.rect) break end end
+    end
+  end
+  error("native action unreachable: "..id)
+end
+pixelDraw(154,122)
+explorer:handlePixels({name="mouse_click",args={1,explorer.pixelSearch.x+2,explorer.pixelSearch.y+2}})
+explorer:handle({name="paste",args={"original"}})
+pixelDraw(154,122) assert(#explorer.pixelFileRows==1 and explorer.pixelFileRows[1].name=="original.txt")
+explorer.nativeQuery="" explorer.nativeSearchFocused=false
+pixelAction("new_file")
+explorer.input="" explorer:handle({name="paste",args={"native.txt"}})
+pixelAction("submit") assert(nodes["/home/user/docs/native.txt"]=="")
+explorer.selected="native.txt" pixelAction("rename")
+explorer.input="renamed.txt" pixelAction("submit")
+assert(nodes["/home/user/docs/native.txt"]==nil and nodes["/home/user/docs/renamed.txt"]=="")
+pixelAction("delete") assert(explorer.confirm=="trash" and nodes["/home/user/docs/renamed.txt"]=="")
+pixelAction("cancel") assert(nodes["/home/user/docs/renamed.txt"]=="")
+pixelAction("delete") pixelAction("confirm")
+assert(not nodes["/home/user/docs/renamed.txt"] and nodes[trash.."/renamed.txt"]=="")
+pixelAction("up") pixelDraw()
+for _,hit in ipairs(explorer.pixelFileRows) do if hit.name==".trash" then pixelClick(hit.rect) pixelClick(hit.rect) break end end
+assert(explorer.path==trash)
+explorer.selected="renamed.txt" pixelAction("restore")
+assert(nodes["/home/user/docs/renamed.txt"]=="")
+fs.makeDir("/system") nodes["/system/kernel.lua"]="protected"
+explorer.path="/system" explorer.selected="kernel.lua" explorer.files={"kernel.lua"} explorer.directories={} explorer.fileRevision=100
+pixelAction("delete") assert(not explorer.confirm and nodes["/system/kernel.lua"]=="protected")
+print("file/editor audit and native Files: no draw acquisition, search, create, rename, confirmed trash, restore and protected paths passed")

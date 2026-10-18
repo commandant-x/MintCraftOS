@@ -2,7 +2,7 @@
 local M = {}
 function M.new(w,h,color)
   assert(type(w)=="number" and type(h)=="number" and w%1==0 and h%1==0
-    and w>0 and h>0 and w*h<=1048576,"Invalid framebuffer size")
+    and w>0 and h>0 and w<=4096 and h<=4096 and w*h<=1048576,"Invalid framebuffer size")
   local s={width=w,height=h,rows={},dirty={},clip={x=0,y=0,w=w,h=h}}
   function s:setClip(x,y,cw,ch)
     local old=self.clip

@@ -17,6 +17,8 @@ for _,phase in ipairs({"prepare","draw"}) do
     onGraphicsFailure=function() errors=errors+1 end})
   assert(screen:draw(function() end),"pixel shell failure crashed OS")
   assert(screen:stats().backend=="TEXT" and mode==0 and not frozen and errors==1)
+  local caps=screen:capabilities() caps.backend="corrupted"
+  assert(screen:capabilities().backend=="TEXT","caller mutated capability cache")
   assert(blits==before+10,"text fallback did not repaint all rows")
 end
 local palettes={[16]={0.1,0.2,0.3}}

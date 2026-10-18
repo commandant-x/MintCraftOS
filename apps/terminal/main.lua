@@ -49,6 +49,7 @@ local help = {
   combat = "combat - open radar/CBC combat control center",
   store = "store - open package store",
   install = "install <pkg> - install package",
+  display = "display [auto|computer|peripheral] - list or select the workstation",
   whoami = "whoami - show current security user",
   lock = "lock - lock current session",
   unlock = "unlock <password> - unlock current user",
@@ -243,6 +244,17 @@ local function runCommand(app, ctx, input)
     ctx.apps.launch("settings")
   elseif cmd == "devices" then
     ctx.apps.launch("devices")
+  elseif cmd == "display" then
+    local permitted,denied=ctx.security.require(rest=="" and "devices.list" or "system.config","display")
+    if not permitted then append(app,tostring(denied)) return end
+    local displays=require("system.services.deviced")
+    if rest=="" then
+      for _,row in ipairs(displays.listDisplays()) do append(app,(row.selected and "* " or "  ")..row.name..(row.available and "" or " (offline)")) end
+    else
+      local ok,problem=displays.setTarget(rest)
+      if ok then ctx.security.audit("display",rest) end
+      append(app,ok and "Display selected: "..rest or tostring(problem))
+    end
   elseif cmd == "nexus" then
     local group=rest:match("^deploy%s+%-%-group%s+([%w_-]+)%s*$")
     if rest=="" or rest=="deploy" or group then
@@ -388,8 +400,10 @@ function M.run(ctx)
   end
 
   function app:handle(event)
-    if event.name == "char" then
-      self.input = self.input .. event.args[1]
+    if event.name == "char" or event.name=="paste" then
+      local text=tostring(event.args[1] or ""):match("^[^\r\n]*") or ""
+      self.input = (self.input .. text):sub(1,4096)
+      if type(autocomplete.suggest)=="function" then updateSuggestion() end
       return true
     elseif event.name == "key" then
       local key = event.args[1]

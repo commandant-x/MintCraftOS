@@ -59,4 +59,15 @@ app.input = "unlock "
 app.suggestion = {label = "stale"}
 app.keyboard.onText("third-secret")
 assert(app.suggestion == nil and app.input == "unlock third-secret")
+app.input="unlock " assert(app:handle({name="paste",args={"pasted-secret"}}) and app.suggestion==nil)
 print("terminal destructive command tests passed")
+local displayCalls=0
+package.loaded["system.services.deviced"]={listDisplays=function() return {{name="computer",available=true,selected=true}} end,
+  setTarget=function(value) displayCalls=displayCalls+1 assert(value=="computer") return true end}
+allowed=true command("display") assert(app.lines[#app.lines]=="* computer")
+allowed=false command("display computer") assert(displayCalls==0)
+allowed=true command("display computer") assert(displayCalls==1)
+package.loaded["system.dev.autocomplete"].suggest=function() return nil end
+package.loaded["system.dev.autocomplete"].prefix=function() return "computer" end
+app.input="" assert(app:handle({name="paste",args={"display computer\nreboot"}}) and app.input=="display computer")
+app.keyboard.onEnter() assert(displayCalls==2)

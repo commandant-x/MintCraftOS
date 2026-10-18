@@ -5,6 +5,10 @@ local Window = {}
 Window.__index = Window
 
 function Window.new(opts)
+  for _,key in ipairs({"minPixelWidth","minPixelHeight"}) do
+    local value=opts[key]
+    assert(value==nil or type(value)=="number" and value>0 and value<=4096 and value%1==0,"Invalid "..key)
+  end
   local w, h = term.getSize()
   local width = opts.w or math.min(38, w - 8)
   local height = opts.h or math.min(12, h - 5)
@@ -12,7 +16,7 @@ function Window.new(opts)
   height = math.max(5, math.min(height, h - 1))
   return setmetatable({
     id = opts.id,
-    title = opts.title or "Window",
+    title = tostring(opts.title or "Window"),
     x = opts.x or 6,
     y = opts.y or 3,
     w = width,
@@ -28,6 +32,8 @@ function Window.new(opts)
     previousBounds = nil,
     app = opts.app,
     ownerPid = opts.ownerPid,
+    minPixelWidth = opts.minPixelWidth,
+    minPixelHeight = opts.minPixelHeight,
     onError = opts.onError,
     dirty = true,
   }, Window)
@@ -52,6 +58,9 @@ function Window:requestClose()
 end
 
 function Window:clamp()
+  -- Pixel bounds are clamped by the graphical workspace. Its virtual text
+  -- clients may have more cells than the physical terminal's text-mode grid.
+  if self.pixelManaged then return end
   local sw, sh = term.getSize()
   self.w = math.min(self.w, sw)
   self.h = math.min(self.h, math.max(1, sh - 1))
@@ -204,6 +213,7 @@ function Window:handle(event)
         raw = event.raw,
         monitorTouch = event.monitorTouch,
         monitorSide = event.monitorSide,
+        terminalSide = event.terminalSide,
       }
     end
     local ok, handled = pcall(self.app.handle, self.app, localEvent, self)
@@ -215,6 +225,20 @@ function Window:handle(event)
     return handled
   end
   return false
+end
+
+function Window:drawPixels(canvas,w,h,palette)
+  local ok,err=pcall(self.app.drawPixels,self.app,canvas,w,h,palette)
+  if not ok then self:crash("pixel draw: "..tostring(err)) end
+  return ok
+end
+
+function Window:handlePixels(event)
+  if self.closed or self.minimized then return false end
+  local ok,handled=pcall(self.app.handlePixels,self.app,event,self)
+  if not ok then self:crash("pixel handle: "..tostring(handled)) return true end
+  if handled then self.dirty=true end
+  return handled
 end
 
 return Window

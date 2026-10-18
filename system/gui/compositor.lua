@@ -26,6 +26,14 @@ function M.new(resolveTarget, onOutputFailure, options)
       pixel, parent, preference, previous=nil,nil,mode,{}
     end,
     close = function() if pixel then pixel:close() end end,
+    capabilities=function()
+      local result={backend="TEXT",textWidth=width,textHeight=height,probed=false}
+      if pixel then
+        for key,value in pairs(pixel.caps) do result[key]=value end
+        result.probed=true result.error=pixel.lastError
+      end
+      return result
+    end,
     invalidate = function() previous = {} failedTarget = nil end,
     stats = function()
       return { frames=stats.frames, rows=stats.rows, cells=stats.cells,

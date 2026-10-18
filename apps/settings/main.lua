@@ -92,9 +92,11 @@ function M.run(ctx)
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
-        if device.type=="monitor" then add("display:"..device.name,device.name,selected==device.name) end
+        if device.type=="monitor" or device.type=="terminal" then add("display:"..device.name,device.name,selected==device.name) end
       end
-      for _,v in ipairs({0.5,1,1.5,2,2.5,3,3.5,4,4.5,5}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+      if deviced.getDisplay().target~="terminal" then
+        for _,v in ipairs({0.5,1,1.5,2,2.5,3,3.5,4,4.5,5}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+      end
     elseif self.page=="desktop" then add("theme:mint","Mint",theme.currentId=="mint") add("theme:dark","Dark",theme.currentId=="dark")
     elseif self.page=="network" then add("launch:browser","Browser") add("launch:messenger","Messenger") add("launch:crafttube","CraftTube")
     elseif self.page=="nav" then add("launch:navigation","Open Navigation")
@@ -125,6 +127,9 @@ function M.run(ctx)
       local d=deviced.getDisplay() local cells=(d.width or 0)*(d.height or 0)
       line("Target: "..tostring(d.target)) line("Resolution: "..tostring(d.width).."x"..tostring(d.height))
       line("Monitor side: "..tostring(d.monitorSide or "-")) line("Scale: "..tostring(d.scale or "-"))
+      if d.target=="terminal" then
+        line("Terminal: "..tostring(d.terminalSide)) line("Input: "..(d.mouse and "keyboard + mouse" or "keyboard"))
+      end
       line("Preference: "..tostring(deviced.getPreference and deviced.getPreference() or "auto"))
       line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
       line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")

@@ -9,9 +9,10 @@ function M.detect(t)
   local w,h=dimensions(t,0)
   local caps={backend="TEXT",textWidth=w,textHeight=h,
     graphics=type(t.setGraphicsMode)=="function" and type(t.getGraphicsMode)=="function"
-      and type(t.drawPixels)=="function",palette=type(t.setPaletteColor)=="function",
+      and type(t.drawPixels)=="function",palette=type(t.setPaletteColor)=="function" and type(t.getPaletteColor)=="function",
     freeze=type(t.setFrozen)=="function" and type(t.getFrozen)=="function"}
   if caps.graphics then caps.pixelWidth,caps.pixelHeight=dimensions(t,2) end
+  if type(t.isColor)=="function" then local ok,value=pcall(t.isColor) if ok then caps.color=value==true end end
   return caps
 end
 function M.new(t,preference)

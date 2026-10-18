@@ -5,6 +5,8 @@ local fonts=require("system.graphics.fonts")
 local widgets=require("system.graphics.widgets")
 local sprites=require("system.graphics.sprites")
 local primitives=require("system.graphics.primitives")
+local View=require("system.graphics.view")
+local PixelKeyboard=require("system.graphics.keyboard")
 local M={}
 local TITLE,BAR=20,28
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -44,21 +46,27 @@ function M.new(ctx)
       {label="Settings",id="settings"},{label="More...",items={{label="Applications",id="settings",args={page="apps"}},
         {label="Devices",id="devices"},{label="Refresh",refresh=true}}}},x,y)
   end
+  self.keyboardState={}
+  self.keyboardState.onText=function(text) self.query=(self.query..text):sub(1,128) self.menuSelected,self.menuScroll=1,1 changed() end
+  self.keyboardState.onBackspace=function() self.query=self.query:sub(1,-2) self.menuSelected,self.menuScroll=1,1 changed() end
+  self.keyboardState.onEnter=function() local app=self:filtered()[self.menuSelected] if app then launch(app.id) end end
+  self.keyboardState.onTab=self.keyboardState.onEnter
   function self:deactivate()
     for _,win in ipairs(ctx.wm.windows) do
       win.pixelManaged,win.pixelController=false,nil
+      if win.app then win.app.graphicsActive=false end
       if win.maximized then win.maximized=false end
     end
-    self.backend=nil self.drag=nil self.context=nil self.menu=false self.typing=false
+    self.backend=nil self.drag=nil self.clientCapture=nil self.context=nil self.menu=false self.typing=false
     self.content={} self.cacheBytes=0
     self.scene:invalidate()
   end
   local function fit(win,b)
-    b.w=clamp(math.floor(b.w),math.min(102,self.width),self.width)
-    b.h=clamp(math.floor(b.h),math.min(TITLE+29,self.height-BAR),self.height-BAR)
+    b.w=clamp(math.floor(b.w),math.min(win.minPixelWidth or 102,self.width),self.width)
+    b.h=clamp(math.floor(b.h),math.min(win.minPixelHeight or TITLE+29,self.height-BAR),self.height-BAR)
     b.x=clamp(math.floor(b.x),0,self.width-b.w) b.y=clamp(math.floor(b.y),0,self.height-BAR-b.h)
-    local cols=math.max(1,math.min(self.columns-2,math.floor((b.w-2)/6)))
-    local rows=math.max(1,math.min(self.rows-3,math.floor((b.h-TITLE-2)/9)))
+    local cols=math.max(1,math.floor((b.w-2)/6))
+    local rows=math.max(1,math.floor((b.h-TITLE-2)/9))
     if win.w~=cols+2 or win.h~=rows+2 then win.w,win.h,win.dirty=cols+2,rows+2,true end
     win.pixelBounds=b
   end
@@ -75,9 +83,10 @@ function M.new(ctx)
     local theme=package.loaded["system.gui.theme"]
     local themeId=theme and theme.currentId or "mint"
     if self.backend~=backend or self.themeId~=themeId then
+      if self.backend~=backend then self.drag,self.clientCapture=nil,nil end
       self.themeId=themeId
       self.backend=backend self.scene:invalidate()
-      self.palette={desktop=15,panel=7,button=8,border=8,text=0,muted=8,accent=9,ink=15}
+      self.palette={desktop=15,panel=7,button=15,border=8,text=0,muted=8,accent=9,ink=15}
       if backend.mode==2 and backend.caps.palette then
         local rgb={0x101419,0x1b232d,0x2b3745,0x405166,0xf2f6fa,0xa8b7c8,themeId=="dark" and 0x64c7e6 or 0x65d8a0,0x101419}
         local names={"desktop","panel","button","border","text","muted","accent","ink"}
@@ -104,6 +113,8 @@ function M.new(ctx)
           b=box(0,0,self.width,self.height-BAR)
         end
         win.pixelManaged=true
+        win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function" or false
+        if win.app then win.app.graphicsActive=win.pixelNative end
         win.pixelController=function() self:toggle(win) end
         fit(win,b)
       end
@@ -111,7 +122,8 @@ function M.new(ctx)
     for id,cached in pairs(self.content) do if not live[id] then
       self.cacheBytes=self.cacheBytes-(cached.bytes or 0) self.content[id]=nil
     end end
-    if self.drag and not live[self.drag.win.id] then self.drag=nil end
+    if self.drag and (not live[self.drag.win.id] or self.drag.win.minimized) then self.drag=nil end
+    if self.clientCapture and (not live[self.clientCapture.win.id] or self.clientCapture.win.minimized) then self.clientCapture=nil end
   end
   function self:filtered()
     local rows={} local q=self.query:lower()
@@ -163,7 +175,7 @@ function M.new(ctx)
         local client=box(b.x+1,b.y+TITLE,b.w-2,b.h-TITLE-1)
         local cw,ch=win.w-2,win.h-2
         local cache=self.content[win.id]
-        if win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
+        if not win.pixelNative and win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
           cache={width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
           local bytes=cw*ch*54
@@ -182,7 +194,9 @@ function M.new(ctx)
           primitives.rect(canvas,b.x,b.y,b.w,b.h,win==active and p.accent or p.border)
           widgets.label(canvas,b.x+7,b.y+6,self.drag and self.drag.win==win and "Move" or win.title,math.max(0,b.w-68),p.text,p.panel)
           for kind,r in pairs(controls) do widgets.symbol(canvas,r,kind,p,false) end
-          if cache then
+          if win.pixelNative then
+            win:drawPixels(View.new(canvas,client.x,client.y,client.w,client.h),client.w,client.h,p)
+          elseif cache then
             if cache.surface then
               for py=math.max(0,canvas.clip.y-client.y),math.min(client.h,cache.surface.height,canvas.clip.y+canvas.clip.h-client.y)-1 do
                 canvas:span(client.x,client.y+py,cache.surface.rows[py+1]:sub(1,client.w))
@@ -258,7 +272,8 @@ function M.new(ctx)
       end)
     end
     local notifications=ctx.notifications and ctx.notifications.queue or {}
-    for i=#notifications,math.max(1,#notifications-(w<300 and 0 or 2)),-1 do
+    local toastCount=math.min(w<360 and 1 or 3,math.max(1,math.floor((h-BAR-80)/38)))
+    for i=#notifications,math.max(1,#notifications-toastCount+1),-1 do
       local item=notifications[i] local y=h-BAR-42-(#notifications-i)*38
       if y>=8 then
         local r=box(math.max(4,w-248),y,math.min(240,w-8),34)
@@ -281,7 +296,7 @@ function M.new(ctx)
     self.menuPanel=panel self.menuInput=box(panel.x+8,panel.y+8,panel.w-16,24)
     self.menuRows={} self.keyboardHits={}
     self.touchKeyboard=self.touchKeyboard and panel.h>=130 or false
-    local keyboardHeight=self.touchKeyboard and 74 or 0
+    local keyboardHeight=self.touchKeyboard and math.min(112,math.max(70,math.floor((panel.h-56)/7)*7)) or 0
     local itemHeight=self.touchKeyboard and 18 or 24
     local capacity=math.max(1,math.floor((panel.h-38-keyboardHeight)/itemHeight))
     local filtered=self:filtered()
@@ -293,25 +308,11 @@ function M.new(ctx)
     self.menuPrevious=box(panel.x+panel.w-22,panel.y+38,16,18)
     self.menuNext=box(panel.x+panel.w-22,panel.y+panel.h-keyboardHeight-22,16,18)
     if self.touchKeyboard then
-      local rows={"1234567890","azertyuiop","qsdfghjklm","wxcvbn.,!?"}
-      local y=panel.y+panel.h-74
-      for row,text in ipairs(rows) do
-        for i=1,#text do
-          local left=math.floor((i-1)*(panel.w-12)/#text)
-          local right=math.floor(i*(panel.w-12)/#text)
-          local char=text:sub(i,i)
-          self.keyboardHits[#self.keyboardHits+1]={rect=box(panel.x+6+left,y+(row-1)*14,right-left-1,13),text=char}
-        end
-      end
-      for i,item in ipairs({{"Back","back"},{"Space","space"},{"Enter","enter"}}) do
-        local kw=math.floor((panel.w-12)/3)
-        self.keyboardHits[#self.keyboardHits+1]={rect=box(panel.x+6+(i-1)*kw,y+56,kw-1,16),label=item[1],action=item[2]}
-      end
+      self.keyboardHits=PixelKeyboard.boxes(panel.x+6,panel.y+panel.h-keyboardHeight,panel.w-12,keyboardHeight,self.keyboardState)
     end
     self:layer(layers,"launcher",panel,self.revision..":"..self.menuScroll..":"..self.menuSelected,function(canvas)
       canvas:rect(panel.x,panel.y,panel.w,panel.h,p.panel) primitives.rect(canvas,panel.x,panel.y,panel.w,panel.h,p.border)
-      canvas:rect(self.menuInput.x,self.menuInput.y,self.menuInput.w,self.menuInput.h,p.desktop)
-      widgets.label(canvas,self.menuInput.x+5,self.menuInput.y+8,self.query=="" and "Search apps" or self.query,self.menuInput.w-32,p.text,p.desktop)
+      widgets.input(canvas,self.menuInput,self.query,p,self.typing,"Search apps",24)
       self.keyboardButton=box(self.menuInput.x+self.menuInput.w-25,self.menuInput.y+2,22,20)
       widgets.symbol(canvas,self.keyboardButton,"keyboard",p,self.touchKeyboard)
       for _,hit in ipairs(self.menuRows) do
@@ -322,7 +323,7 @@ function M.new(ctx)
         widgets.label(canvas,hit.rect.x+25,hit.rect.y+math.floor((hit.rect.h-9)/2),hit.app.name,hit.rect.w-30,p.text,bg)
       end
       if #filtered==0 then widgets.label(canvas,panel.x+12,panel.y+44,"No applications",panel.w-24,p.muted,p.panel) end
-      for _,hit in ipairs(self.keyboardHits) do widgets.button(canvas,hit.rect,hit.label or hit.text,p,false) end
+      for _,hit in ipairs(self.keyboardHits) do widgets.button(canvas,hit.rect,hit.label or hit.text,p,hit.active,1) end
       if #filtered>capacity then
         widgets.symbol(canvas,self.menuPrevious,"previous",p,false) widgets.symbol(canvas,self.menuNext,"next",p,false)
       end
@@ -330,10 +331,29 @@ function M.new(ctx)
   end
   function self:handle(event)
     local name=event.name
+    if name=="key" and keys.f1 and event.args[1]==keys.f1 then
+      self.menu=not self.menu self.typing=self.menu self.query="" self.context=nil changed() return true
+    end
     local pointer=name:match("^mouse_")~=nil
     local x,y=event.pixelX,event.pixelY
     if pointer and (not x or not y) then return true end
-    if name=="mouse_up" then self.drag=nil return true end
+    local function deliver(hit)
+      local win=hit.win
+      if win.closed or win.minimized then return end
+      if win.pixelNative then
+        win:handlePixels({name=name,args={event.args[1],x-hit.client.x,y-hit.client.y},raw=event.raw,
+          monitorTouch=event.monitorTouch,monitorSide=event.monitorSide,terminalSide=event.terminalSide})
+      else
+        local col,row=math.floor((x-hit.client.x)/6)+1,math.floor((y-hit.client.y)/9)+1
+        if (name=="mouse_click" or name=="mouse_scroll") and (col<1 or col>win.w-2 or row<1 or row>win.h-2) then return end
+        win:handle({name=name,args={event.args[1],win.x+col,win.y+row},
+          raw=event.raw,monitorTouch=event.monitorTouch,monitorSide=event.monitorSide,terminalSide=event.terminalSide})
+      end
+    end
+    if name=="mouse_up" then
+      if self.clientCapture then deliver(self.clientCapture) end
+      self.drag,self.clientCapture=nil,nil return true
+    end
     if name=="mouse_click" and event.monitorTouch and self.drag and self.drag.touch then
       local d=self.drag local b=copy(d.bounds)
       if d.resize then b.w,b.h=b.w+x-d.x,b.h+y-d.y else b.x,b.y=b.x+x-d.x,b.y+y-d.y end
@@ -344,6 +364,8 @@ function M.new(ctx)
       if d.resize then b.w,b.h=b.w+x-d.x,b.h+y-d.y else b.x,b.y=b.x+x-d.x,b.y+y-d.y end
       fit(d.win,b) changed() return true
     end
+    if name=="mouse_drag" and self.clientCapture then deliver(self.clientCapture) return true end
+    if name=="mouse_click" then self.clientCapture=nil end
     if self.menu and (name=="char" or name=="paste" or name=="key") then
       if name=="char" or name=="paste" then self.query=(self.query..tostring(event.args[1])):sub(1,128) self.menuSelected,self.menuScroll=1,1
       else
@@ -368,13 +390,7 @@ function M.new(ctx)
         if widgets.hit(self.keyboardButton,x,y) then self.touchKeyboard=not self.touchKeyboard changed() return true end
         if widgets.hit(self.menuPrevious,x,y) then self.menuScroll=self.menuScroll-1 changed() return true end
         if widgets.hit(self.menuNext,x,y) then self.menuScroll=self.menuScroll+1 changed() return true end
-        for _,hit in ipairs(self.keyboardHits or {}) do if widgets.hit(hit.rect,x,y) then
-          if hit.action=="back" then self.query=self.query:sub(1,-2)
-          elseif hit.action=="space" then self.query=(self.query.." "):sub(1,128)
-          elseif hit.action=="enter" then local app=self:filtered()[self.menuSelected] if app then launch(app.id) end
-          else self.query=(self.query..hit.text):sub(1,128) end
-          self.menuSelected,self.menuScroll=1,1 changed() return true
-        end end
+        if self.touchKeyboard and PixelKeyboard.handle({name=name,args={event.args[1],x,y}},self.keyboardState) then changed() return true end
         for _,hit in ipairs(self.menuRows or {}) do if widgets.hit(hit.rect,x,y) then launch(hit.app.id) return true end end
         if not widgets.hit(self.menuPanel,x,y) then self.menu=false self.typing=false end
         changed()
@@ -430,12 +446,8 @@ function M.new(ctx)
           end
         end
         if widgets.hit(hit.client,x,y) then
-          local args={table.unpack(event.args)}
-          args[2]=win.x+math.floor((x-hit.client.x)/6)+1
-          args[3]=win.y+math.floor((y-hit.client.y)/9)+1
-          if args[2]<=win.x+win.w-2 and args[3]<=win.y+win.h-2 then
-            win:handle({name=name,args=args,raw=event.raw,monitorTouch=event.monitorTouch,monitorSide=event.monitorSide})
-          end
+          if name=="mouse_click" and not event.monitorTouch then self.clientCapture={win=win,client=copy(hit.client)} end
+          deliver(hit)
         end
         return true
       end

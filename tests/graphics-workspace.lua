@@ -89,4 +89,18 @@ assert(win.pixelBounds.x==origin+3 and not workspace.drag,"monitor tap-to-place 
 hit=workspace.windowHits[1]
 pointer("mouse_click",hit.controls.close.x+2,hit.controls.close.y+2) assert(closed==1)
 workspace:deactivate() assert(not win.pixelManaged and not win.pixelController)
+local stream={}
+local native={id=2,title="Native",x=3,y=3,w=30,h=16,surfaceRevision=1,
+  app={drawPixels=function(_,s,w,h) s:rect(0,0,w,h,4) end,
+    handlePixels=function(_,e) stream[#stream+1]=e return true end}}
+native.drawPixels=function(self,...) return self.app.drawPixels(self.app,...) end
+native.handlePixels=function(self,e) return self.app.handlePixels(self.app,e) end
+ctx.wm.windows={native} ctx.wm:focus(native) frame()
+local client=workspace.windowHits[1].client
+pointer("mouse_click",client.x+4,client.y+6)
+pointer("mouse_drag",700,400) pointer("mouse_up",700,400)
+assert(#stream==3 and stream[1].args[2]==4 and stream[1].args[3]==6 and stream[2].name=="mouse_drag" and stream[3].name=="mouse_up")
+assert(not workspace.clientCapture,"client pointer capture not released")
+pointer("mouse_click",client.x+4,client.y+6) native.minimized=true frame()
+assert(not workspace.clientCapture,"minimized native client retained capture")
 print("pixel workspace: responsive launch/search, touch keyboard isolation, pixel drag, resize clamp, minimize/restore/maximize/close and no click-through passed")

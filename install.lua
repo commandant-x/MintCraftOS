@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1600,7 +1600,7 @@ function M.run(ctx)
       local d = rows[i]
       local lowerType = tostring(d.type):lower()
       local role = tostring(d.type) == "modem" and "rednet"
-        or tostring(d.type) == "monitor" and "display"
+        or (tostring(d.type) == "monitor" or tostring(d.type)=="terminal") and "display"
         or lowerType:find("altitude", 1, true) and "avionics"
         or lowerType:find("gimbal", 1, true) and "avionics"
         or lowerType:find("propeller", 1, true) and "avionics"
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2239,6 +2239,7 @@ function M.run(ctx)
   end
 
   local function refresh()
+    app.fileRevision=(app.fileRevision or 0)+1
     local ok, rows, directories = pcall(function()
       allowed("read", app.path)
       return sortedList(app.path)
@@ -2256,6 +2257,7 @@ function M.run(ctx)
 
   local function setMode(mode, default)
     app.mode = mode
+    if mode then app.nativeQuery="" end
     app.input = default or ""
     app.keyboard.hint = mode and (mode .. ": " .. app.input) or ""
   end
@@ -2277,6 +2279,7 @@ function M.run(ctx)
       if #app.history > 100 then table.remove(app.history, 1) end
     end
     app.path, app.selected, app.scroll = path, nil, 1
+    app.nativeQuery,app.nativeSearchFocused="",false
     app.mode, app.confirm = nil, nil
     refresh()
     return true
@@ -2388,7 +2391,7 @@ function M.run(ctx)
   end
 
   app.keyboard.onText = function(ch)
-    app.input = app.input .. ch
+    app.input = (app.input .. ch):sub(1,4096)
     app.keyboard.hint = tostring(app.mode or "input") .. ": " .. app.input
   end
   app.keyboard.onBackspace = function()
@@ -2397,6 +2400,34 @@ function M.run(ctx)
   end
   app.keyboard.onEnter = function() attempt(submitInput) end
   app.keyboard.onTab = app.keyboard.onEnter
+
+  local function confirmAction()
+    local succeeded = attempt(function()
+      if app.confirm == "trash" then moveToTrash(app.confirmPath)
+      elseif app.confirm == "empty_trash" then
+        allowed("read", trash) allowed("write", trash)
+        local names = sortedList(trash)
+        for _, name in ipairs(names) do
+          writable(fs.combine(trash, name))
+          allowed("read", fs.combine(metadata, name)) allowed("write", fs.combine(metadata, name))
+        end
+        for _, name in ipairs(names) do
+          fs.delete(fs.combine(trash,name))
+          local info=fs.combine(metadata,name) if fs.exists(info) then fs.delete(info) end
+        end
+      else deleteForever(app.confirmPath) end
+    end)
+    if succeeded then app.selected,app.confirm=nil,nil end
+    refresh()
+  end
+
+  require("apps.files.pixel").attach(app,{
+    action=function(id) attempt(perform,id) end,
+    open=function(name) attempt(openFile,fs.combine(app.path,name)) end,
+    submit=function() attempt(submitInput) end,
+    cancel=function() setMode(nil) app.confirm=nil end,
+    confirm=confirmAction,
+  },actions)
 
   function app:draw(w, h)
     if w < 1 or h < 1 then return end
@@ -2429,6 +2460,7 @@ function M.run(ctx)
   end
 
   function app:handle(event)
+    if self:handlePixelKey(event) then return true end
     if self.confirm and event.name == "key" and event.args[1] == keys.escape then self.confirm = nil return true end
     if self.confirm and event.name ~= "mouse_click" then return true end
     if event.name == "key" then
@@ -2449,7 +2481,11 @@ function M.run(ctx)
       if key == keys.backspace then attempt(perform, "back") return true end
       if key == keys.enter and self.selected then attempt(openFile, selectedPath()) return true end
     elseif event.name == "char" and self.mode then
-      self.input = self.input .. event.args[1]
+      self.input = (self.input .. event.args[1]):sub(1,4096)
+      return true
+    elseif event.name=="paste" and self.mode then
+      local text=tostring(event.args[1] or ""):match("^[^\r\n]*") or ""
+      self.input=(self.input..text):sub(1,4096)
       return true
     elseif event.name == "mouse_click" then
       local _, x, y = table.unpack(event.args)
@@ -2469,28 +2505,7 @@ function M.run(ctx)
       end
       if self.confirm then
         if action == "confirm" then
-          local succeeded = attempt(function()
-            if self.confirm == "trash" then moveToTrash(self.confirmPath)
-            elseif self.confirm == "empty_trash" then
-              allowed("read", trash)
-              allowed("write", trash)
-              local names = sortedList(trash)
-              -- Preflight the entire batch before deleting any item.
-              for _, name in ipairs(names) do
-                writable(fs.combine(trash, name))
-                allowed("read", fs.combine(metadata, name))
-                allowed("write", fs.combine(metadata, name))
-              end
-              for _, name in ipairs(names) do
-                local path = fs.combine(trash, name)
-                fs.delete(path)
-                local info = fs.combine(metadata, name)
-                if fs.exists(info) then fs.delete(info) end
-              end
-            else deleteForever(self.confirmPath) end
-          end)
-          if succeeded then self.selected, self.confirm = nil, nil end
-          refresh()
+          confirmAction()
         elseif action == "cancel" then self.confirm = nil end
         return true
       end
@@ -2519,17 +2534,215 @@ function M.run(ctx)
     setMode("new_file",basename(uniquePath(app.path,"new_script_",".lua")))
   end) end
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Files", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 6, y = 3, app = app })
+  local win = ctx.windowManager:create({ title = "Files", w = math.min(72, sw - 4), h = math.min(24, sh - 3),
+    minPixelWidth=156,minPixelHeight=144,x = 6, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
 end
 
+return M
+]=],
+  ["apps/files/pixel.lua"] = [=[
+local ui=require("system.graphics.widgets")
+local primitives=require("system.graphics.primitives")
+local keyboard=require("system.graphics.keyboard")
+local M={}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
+local function icon(s,x,y,folder,p)
+  if folder then s:rect(x,y+3,13,8,4) s:rect(x+1,y,6,3,4)
+  else primitives.rect(s,x+2,y,8,11,p.muted) s:rect(x+4,y+3,4,1,p.muted) s:rect(x+4,y+6,4,1,p.muted) end
+end
+function M.attach(app,api,actions)
+  local function filtered()
+    local q=(app.nativeQuery or ""):lower()
+    if app.filterRevision~=app.fileRevision or app.filterQuery~=q then
+      app.filtered={}
+      for _,name in ipairs(app.files) do if q=="" or name:lower():find(q,1,true) then app.filtered[#app.filtered+1]=name end end
+      app.filterRevision,app.filterQuery=app.fileRevision,q
+    end
+    return app.filtered
+  end
+  local function action(id)
+    app.nativeMenu=false app.nativeSearchFocused=false app.showSearchKeyboard=false
+    if id=="confirm" then api.confirm()
+    elseif id=="cancel" then api.cancel()
+    elseif id=="open" then if app.selected then api.open(app.selected) end
+    else api.action(id) end
+  end
+  local function input(text)
+    if app.mode then app.keyboard.onText(text)
+    else app.nativeQuery=((app.nativeQuery or "")..text):sub(1,128) app.scroll=1 app.selected=nil end
+  end
+  local searchKeyboard={}
+  searchKeyboard.onText=input
+  searchKeyboard.onBackspace=function() app.nativeQuery=(app.nativeQuery or ""):sub(1,-2) app.scroll=1 end
+  searchKeyboard.onEnter=function() app.nativeSearchFocused=false app.showSearchKeyboard=false end
+  searchKeyboard.onTab=searchKeyboard.onEnter
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel)
+    self.pixelButtons={} self.pixelFileRows={} self.pixelMenuItems={}
+    self.pixelSize={w=w,h=h}
+    local function symbol(id,kind,x,y,width,height)
+      local r=rect(x,y,width or 22,height or 22)
+      ui.symbol(s,r,kind,p,false) self.pixelButtons[#self.pixelButtons+1]={id=id,rect=r} return r
+    end
+    local function button(id,label,r,active)
+      ui.button(s,r,label,p,active) self.pixelButtons[#self.pixelButtons+1]={id=id,rect=r}
+    end
+    if self.confirm then
+      self.nativeSearchFocused=false
+      local title=self.confirm=="trash" and "Move to trash" or self.confirm=="empty_trash" and "Empty trash forever" or "Delete forever"
+      ui.label(s,6,8,title,w-12,p.text,p.panel)
+      local target=tostring(self.confirmPath or "")
+      local name=target:match("([^/]+)$") or target
+      ui.label(s,6,27,name,w-12,p.text,p.panel)
+      ui.label(s,6,41,target,w-12,p.muted,p.panel)
+      local bw=math.floor((w-12)/2)
+      button("confirm","Confirm",rect(4,h-27,bw,22),true)
+      button("cancel","Cancel",rect(w-bw-4,h-27,bw,22))
+      return
+    end
+    if self.mode then
+      self.nativeSearchFocused=false
+      ui.label(s,4,6,self.mode=="rename" and "Rename" or self.mode=="new_dir" and "New folder" or "New file",w-50,p.text,p.panel)
+      symbol("submit","check",w-44,1,20,18) symbol("cancel","close",w-22,1,20,18)
+      ui.input(s,rect(4,22,w-8,19),self.input,p,true)
+      if h>=114 then keyboard.draw(s,4,44,w-8,math.min(112,h-44),self.keyboard,p) end
+      return
+    end
+    local compact=w<270
+    local toolbar=compact and {{"back","previous"},{"up","up"},{"new_file","new_file"},{"menu","more"}}
+      or {{"back","previous"},{"up","up"},{"home","home"},{"refresh","refresh"},{"new_file","new_file"},{"new_dir","new_dir"},{"menu","more"}}
+    for i,item in ipairs(toolbar) do symbol(item[1],item[2],4+(i-1)*26,3) end
+    local pathWidth=w>=380 and math.floor(w*0.6) or w-8
+    s:rect(4,31,pathWidth,19,p.desktop)
+    ui.label(s,8,36,self.path,pathWidth-8,p.text,p.desktop)
+    local sy=w>=380 and 31 or 54
+    local sx=w>=380 and pathWidth+8 or 4
+    local sw=w-sx-4
+    self.pixelSearch=rect(sx,sy,sw,19)
+    ui.input(s,self.pixelSearch,self.nativeQuery,p,self.nativeSearchFocused,"Search",24)
+    symbol("search_keyboard","keyboard",sx+sw-24,sy+1,22,17)
+    local top=sy+24
+    local kbHeight=self.showSearchKeyboard and math.min(112,math.max(70,math.floor((h-top-34)/7)*7)) or 0
+    if self.showSearchKeyboard and h-top<104 then
+      -- Small clients temporarily give the search keyboard the list's space.
+      top=31 kbHeight=math.max(0,math.floor((h-top)/7)*7)
+      self.pixelButtons={} s:rect(0,0,w,h,p.panel)
+      self.pixelSearch=rect(4,3,w-8,24) ui.input(s,self.pixelSearch,self.nativeQuery,p,true,"Search",24)
+      symbol("search_keyboard","keyboard",w-28,5,22,20)
+      if kbHeight>=70 then keyboard.draw(s,4,top,w-8,kbHeight,searchKeyboard,p) end
+      self.pixelVisibleRows=0
+      return
+    end
+    local listBottom=h-18-kbHeight
+    local rows=filtered()
+    self.pixelVisibleRows=math.max(1,math.floor((listBottom-top)/20))
+    self.scroll=clamp(self.scroll,1,math.max(1,#rows-self.pixelVisibleRows+1))
+    for i=self.scroll,math.min(#rows,self.scroll+self.pixelVisibleRows-1) do
+      local name=rows[i] local y=top+(i-self.scroll)*20
+      local r=rect(4,y,w-26,19) self.pixelFileRows[#self.pixelFileRows+1]={name=name,rect=r}
+      local selected=name==self.selected local bg=selected and p.button or p.panel
+      s:rect(r.x,r.y,r.w,r.h,bg)
+      if selected then s:rect(r.x,r.y,2,r.h,p.accent) end
+      icon(s,r.x+3,r.y+4,self.directories[name],p)
+      ui.label(s,r.x+23,r.y+5,name,r.w-28,p.text,bg)
+    end
+    if #rows==0 then ui.label(s,8,top+6,"Empty",w-28,p.muted,p.panel) end
+    symbol("scroll_up","up",w-20,top,16,17)
+    symbol("scroll_down","down",w-20,math.max(top+18,listBottom-18),16,17)
+    if listBottom-top>=45 then
+      local trackY,trackH=top+20,listBottom-top-40
+      s:rect(w-14,trackY,4,trackH,p.desktop)
+      local thumb=math.max(4,math.floor(trackH*self.pixelVisibleRows/math.max(self.pixelVisibleRows,#rows)))
+      local offset=math.floor((trackH-thumb)*(self.scroll-1)/math.max(1,#rows-self.pixelVisibleRows))
+      s:rect(w-14,trackY+offset,4,thumb,p.accent)
+    end
+    ui.label(s,6,h-13,tostring(#rows).." items"..(self.selected and " | "..self.selected or ""),w-12,p.muted,p.panel)
+    if self.showSearchKeyboard then keyboard.draw(s,4,h-18-kbHeight,w-8,kbHeight,searchKeyboard,p) end
+    if self.nativeMenu then
+      local items={{id="open",label="Open"}}
+      for _,item in ipairs(actions) do items[#items+1]=item end
+      local capacity=math.max(1,math.floor((h-30)/20))
+      self.nativeMenuFirst=clamp(self.nativeMenuFirst or 1,1,math.max(1,#items-capacity+1))
+      local menu=rect(2,1,math.min(196,w-4),math.min(h-2,capacity*20+24))
+      self.pixelMenu=menu s:rect(menu.x,menu.y,menu.w,menu.h,p.desktop) primitives.rect(s,menu.x,menu.y,menu.w,menu.h,p.border)
+      for i=self.nativeMenuFirst,math.min(#items,self.nativeMenuFirst+capacity-1) do
+        local r=rect(menu.x+3,menu.y+3+(i-self.nativeMenuFirst)*20,menu.w-6,19)
+        self.pixelMenuItems[#self.pixelMenuItems+1]={rect=r,id=items[i].id}
+        ui.label(s,r.x+5,r.y+5,items[i].label,r.w-10,p.text,p.desktop)
+      end
+      symbol("menu_previous","previous",menu.x+4,menu.y+menu.h-20,20,17)
+      symbol("menu_next","next",menu.x+menu.w-24,menu.y+menu.h-20,20,17)
+    end
+  end
+  function app:handlePixels(event)
+    if event.name=="mouse_scroll" then
+      if self.nativeMenu then self.nativeMenuFirst=math.max(1,(self.nativeMenuFirst or 1)+event.args[1])
+      else self.scroll=math.max(1,self.scroll+event.args[1]) end
+      return true
+    end
+    if event.name~="mouse_click" then return false end
+    local button,x,y=table.unpack(event.args)
+    if self.nativeMenu then
+      for _,hit in ipairs(self.pixelButtons) do
+        if hit.id:match("^menu_") and ui.hit(hit.rect,x,y) then
+          self.nativeMenuFirst=math.max(1,(self.nativeMenuFirst or 1)+(hit.id=="menu_next" and 1 or -1)) return true
+        end
+      end
+      for _,hit in ipairs(self.pixelMenuItems) do if ui.hit(hit.rect,x,y) then action(hit.id) return true end end
+      self.nativeMenu=false return true
+    end
+    if self.mode and keyboard.handle(event,self.keyboard) then return true end
+    if self.showSearchKeyboard and keyboard.handle(event,searchKeyboard) then return true end
+    for _,hit in ipairs(self.pixelButtons) do if ui.hit(hit.rect,x,y) then
+      if hit.id=="menu" then self.nativeMenu=true self.nativeMenuFirst=1
+      elseif hit.id=="search_keyboard" then self.showSearchKeyboard=not self.showSearchKeyboard self.nativeSearchFocused=true
+      elseif hit.id=="scroll_up" or hit.id=="scroll_down" then self.scroll=math.max(1,self.scroll+(hit.id=="scroll_up" and -1 or 1))
+      elseif hit.id=="submit" then api.submit()
+      else action(hit.id) end
+      return true
+    end end
+    if self.mode or self.confirm then return true end
+    if ui.hit(self.pixelSearch,x,y) then self.nativeSearchFocused=true return true end
+    self.nativeSearchFocused=false
+    for _,hit in ipairs(self.pixelFileRows) do if ui.hit(hit.rect,x,y) then
+      if button==1 and self.selected==hit.name then api.open(hit.name)
+      else self.selected=hit.name end
+      if button==2 then self.nativeMenu=true self.nativeMenuFirst=1 end
+      return true
+    end end
+    return true
+  end
+  function app:handlePixelKey(event)
+    if not self.graphicsActive then return false end
+    if event.name=="key" and event.args[1]==keys.escape and self.nativeMenu then self.nativeMenu=false return true end
+    if self.nativeSearchFocused and not self.mode and not self.confirm then
+      if event.name=="char" or event.name=="paste" then input(tostring(event.args[1])) return true end
+      if event.name=="key" then
+        if event.args[1]==keys.backspace then searchKeyboard.onBackspace()
+        elseif event.args[1]==keys.escape or event.args[1]==keys.enter then searchKeyboard.onEnter() end
+        return true
+      end
+    end
+    if event.name=="key" and not self.mode and not self.confirm and (event.args[1]==keys.up or event.args[1]==keys.down) then
+      local rows=filtered() local index=event.args[1]==keys.up and #rows+1 or 0
+      for i,name in ipairs(rows) do if name==self.selected then index=i break end end
+      index=clamp(index+(event.args[1]==keys.up and -1 or 1),1,math.max(1,#rows))
+      self.selected=rows[index]
+      if index<self.scroll then self.scroll=index elseif index>=self.scroll+(self.pixelVisibleRows or 1) then self.scroll=index-(self.pixelVisibleRows or 1)+1 end
+      return true
+    end
+    return false
+  end
+end
 return M
 ]=],
   ["apps/logs/app.cfg"] = [=[
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2609,7 +2822,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2728,7 +2941,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3422,7 +3635,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3506,7 +3719,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3606,9 +3819,11 @@ function M.run(ctx)
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
-        if device.type=="monitor" then add("display:"..device.name,device.name,selected==device.name) end
+        if device.type=="monitor" or device.type=="terminal" then add("display:"..device.name,device.name,selected==device.name) end
       end
-      for _,v in ipairs({0.5,1,1.5,2,2.5,3,3.5,4,4.5,5}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+      if deviced.getDisplay().target~="terminal" then
+        for _,v in ipairs({0.5,1,1.5,2,2.5,3,3.5,4,4.5,5}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
+      end
     elseif self.page=="desktop" then add("theme:mint","Mint",theme.currentId=="mint") add("theme:dark","Dark",theme.currentId=="dark")
     elseif self.page=="network" then add("launch:browser","Browser") add("launch:messenger","Messenger") add("launch:crafttube","CraftTube")
     elseif self.page=="nav" then add("launch:navigation","Open Navigation")
@@ -3639,6 +3854,9 @@ function M.run(ctx)
       local d=deviced.getDisplay() local cells=(d.width or 0)*(d.height or 0)
       line("Target: "..tostring(d.target)) line("Resolution: "..tostring(d.width).."x"..tostring(d.height))
       line("Monitor side: "..tostring(d.monitorSide or "-")) line("Scale: "..tostring(d.scale or "-"))
+      if d.target=="terminal" then
+        line("Terminal: "..tostring(d.terminalSide)) line("Input: "..(d.mouse and "keyboard + mouse" or "keyboard"))
+      end
       line("Preference: "..tostring(deviced.getPreference and deviced.getPreference() or "auto"))
       line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
       line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
@@ -3831,7 +4049,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3946,7 +4164,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4088,9 +4306,9 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.28",
+  version = "0.18.29",
   main = "apps.terminal.main",
-  permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
+  permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
 ]=],
   ["apps/terminal/main.lua"] = [=[
@@ -4145,6 +4363,7 @@ local help = {
   combat = "combat - open radar/CBC combat control center",
   store = "store - open package store",
   install = "install <pkg> - install package",
+  display = "display [auto|computer|peripheral] - list or select the workstation",
   whoami = "whoami - show current security user",
   lock = "lock - lock current session",
   unlock = "unlock <password> - unlock current user",
@@ -4339,6 +4558,17 @@ local function runCommand(app, ctx, input)
     ctx.apps.launch("settings")
   elseif cmd == "devices" then
     ctx.apps.launch("devices")
+  elseif cmd == "display" then
+    local permitted,denied=ctx.security.require(rest=="" and "devices.list" or "system.config","display")
+    if not permitted then append(app,tostring(denied)) return end
+    local displays=require("system.services.deviced")
+    if rest=="" then
+      for _,row in ipairs(displays.listDisplays()) do append(app,(row.selected and "* " or "  ")..row.name..(row.available and "" or " (offline)")) end
+    else
+      local ok,problem=displays.setTarget(rest)
+      if ok then ctx.security.audit("display",rest) end
+      append(app,ok and "Display selected: "..rest or tostring(problem))
+    end
   elseif cmd == "nexus" then
     local group=rest:match("^deploy%s+%-%-group%s+([%w_-]+)%s*$")
     if rest=="" or rest=="deploy" or group then
@@ -4484,8 +4714,10 @@ function M.run(ctx)
   end
 
   function app:handle(event)
-    if event.name == "char" then
-      self.input = self.input .. event.args[1]
+    if event.name == "char" or event.name=="paste" then
+      local text=tostring(event.args[1] or ""):match("^[^\r\n]*") or ""
+      self.input = (self.input .. text):sub(1,4096)
+      if type(autocomplete.suggest)=="function" then updateSuggestion() end
       return true
     elseif event.name == "key" then
       local key = event.args[1]
@@ -4544,7 +4776,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.28",
+  version = "0.18.29",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5091,7 +5323,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.28",
+    version = "0.18.29",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5471,7 +5703,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.28",
+  version = "0.18.29",
   theme = "mint",
   graphicsMode = "text",
   displayScale = 0.5,
@@ -5521,7 +5753,7 @@ local terminalCommands = {
   "ls", "cd", "pwd", "mkdir", "cp", "mv", "rm", "trash", "restore", "cat", "type",
   "edit", "open", "clear", "ps", "kill", "logs", "browser", "crafttube", "messenger", "navigation", "combat", "store", "install", "files", "settings", "devices",
   "whoami", "lock", "unlock", "login", "logout", "passwd",
-  "reboot", "help", "nexus",
+  "reboot", "help", "nexus", "display",
 }
 
 local snippets = {
@@ -5906,9 +6138,10 @@ function M.detect(t)
   local w,h=dimensions(t,0)
   local caps={backend="TEXT",textWidth=w,textHeight=h,
     graphics=type(t.setGraphicsMode)=="function" and type(t.getGraphicsMode)=="function"
-      and type(t.drawPixels)=="function",palette=type(t.setPaletteColor)=="function",
+      and type(t.drawPixels)=="function",palette=type(t.setPaletteColor)=="function" and type(t.getPaletteColor)=="function",
     freeze=type(t.setFrozen)=="function" and type(t.getFrozen)=="function"}
   if caps.graphics then caps.pixelWidth,caps.pixelHeight=dimensions(t,2) end
+  if type(t.isColor)=="function" then local ok,value=pcall(t.isColor) if ok then caps.color=value==true end end
   return caps
 end
 function M.new(t,preference)
@@ -6041,6 +6274,37 @@ function M.draw(surface,x,y,text,fg,bg,scale)
       x=x+6*scale
     end
   end
+end
+return M
+]=],
+  ["system/graphics/keyboard.lua"] = [=[
+local layout=require("system.gui.keyboard_layout")
+local widgets=require("system.graphics.widgets")
+local M={}
+function M.boxes(x,y,w,h,state)
+  if w<100 or h<70 then state.pixelBoxes={} return {} end
+  local result={} local rowHeight=math.max(10,math.floor(h/7))
+  for row,entries in ipairs(layout.layout(state)) do
+    local count=row<=5 and math.max(10,#entries) or 4
+    for i,entry in ipairs(entries) do
+      local left,right=math.floor((i-1)*w/count),math.floor(i*w/count)
+      local label=(#entry.label*6+2<=right-left-1) and entry.label or entry.short or entry.label
+      result[#result+1]={id=entry.id,text=entry.text,label=label,active=entry.active,
+        rect={x=x+left,y=y+(row-1)*rowHeight,w=right-left-1,h=rowHeight-1}}
+    end
+  end
+  state.pixelBoxes=result
+  return result
+end
+function M.draw(surface,x,y,w,h,state,palette)
+  for _,key in ipairs(M.boxes(x,y,w,h,state)) do widgets.button(surface,key.rect,key.label,palette,key.active,1) end
+end
+function M.handle(event,state)
+  if event.name~="mouse_click" or event.args[1]~=1 then return false end
+  for _,key in ipairs(state.pixelBoxes or {}) do
+    if widgets.hit(key.rect,event.args[2],event.args[3]) then layout.press(key,state) return true end
+  end
+  return false
 end
 return M
 ]=],
@@ -6197,8 +6461,12 @@ function M.new()
       damage={{x=0,y=0,w=surface.width,h=surface.height}}
     end
     local previousClip=surface.clip
+    local before,beforeDirty={},{}
     local ok,err=pcall(function()
       for _,rect in ipairs(damage) do
+        for y=math.max(1,rect.y+1),math.min(surface.height,rect.y+rect.h) do
+          if not before[y] then before[y],beforeDirty[y]=surface.rows[y],surface.dirty[y] end
+        end
         surface:setClip(rect.x,rect.y,rect.w,rect.h)
         local first=1
         for i=#layers,1,-1 do
@@ -6214,6 +6482,19 @@ function M.new()
     end)
     surface.clip=previousClip
     if not ok then self:invalidate() error(err,0) end
+    -- Layer overdraw may restore pixels to their original value. Compare final
+    -- byte rows so unchanged controls are not transmitted again on every key.
+    for y,old in pairs(before) do
+      local row=surface.rows[y]
+      if row==old then surface.dirty[y]=beforeDirty[y]
+      else
+        local left,right=0,surface.width
+        while left<right and old:byte(left+1)==row:byte(left+1) do left=left+1 end
+        while right>left and old:byte(right)==row:byte(right) do right=right-1 end
+        local pending=beforeDirty[y]
+        surface.dirty[y]={math.min(left,pending and pending[1] or left),math.max(right,pending and pending[2] or right)}
+      end
+    end
     self.previous,self.lastOrder=now,signature
     self.width,self.height=surface.width,surface.height
     self.stats.rectangles=self.stats.rectangles+#damage
@@ -6275,7 +6556,7 @@ return M
 local M = {}
 function M.new(w,h,color)
   assert(type(w)=="number" and type(h)=="number" and w%1==0 and h%1==0
-    and w>0 and h>0 and w*h<=1048576,"Invalid framebuffer size")
+    and w>0 and h>0 and w<=4096 and h<=4096 and w*h<=1048576,"Invalid framebuffer size")
   local s={width=w,height=h,rows={},dirty={},clip={x=0,y=0,w=w,h=h}}
   function s:setClip(x,y,cw,ch)
     local old=self.clip
@@ -6318,23 +6599,62 @@ function M.new(w,h,color)
 end
 return M
 ]=],
+  ["system/graphics/view.lua"] = [=[
+-- Local, zero-based drawing surface clipped to a parent client rectangle.
+local M={}
+function M.new(parent,x,y,w,h)
+  local v={width=w,height=h,clip={x=0,y=0,w=w,h=h}}
+  function v:span(px,py,text)
+    px,py=math.floor(px),math.floor(py)
+    local c=self.clip
+    if py<c.y or py>=c.y+c.h or px>=c.x+c.w or px+#text<=c.x then return end
+    if px<c.x then text,px=text:sub(c.x-px+1),c.x end
+    parent:span(x+px,y+py,text:sub(1,c.x+c.w-px))
+  end
+  function v:rect(px,py,rw,rh,color)
+    px,py,rw,rh=math.floor(px),math.floor(py),math.floor(rw),math.floor(rh)
+    local c=self.clip local left,right=math.max(0,px,c.x),math.min(w,px+rw,c.x+c.w)
+    if right<=left then return end
+    local row=string.rep(string.char(color),right-left)
+    for line=math.max(0,py,c.y),math.min(h,py+rh,c.y+c.h)-1 do self:span(left,line,row) end
+  end
+  function v:pixel(px,py,color) self:span(px,py,string.char(color)) end
+  function v:setClip(px,py,cw,ch)
+    local old=self.clip local left,top=math.max(0,math.floor(px)),math.max(0,math.floor(py))
+    self.clip={x=left,y=top,w=math.max(0,math.min(w,math.floor(px+cw))-left),h=math.max(0,math.min(h,math.floor(py+ch))-top)}
+    return old
+  end
+  return v
+end
+return M
+]=],
   ["system/graphics/widgets.lua"] = [=[
 local fonts=require("system.graphics.fonts")
 local primitives=require("system.graphics.primitives")
 local M={}
 function M.hit(r,x,y) return r and x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
 function M.label(s,x,y,text,width,fg,bg,align)
-  text=tostring(text or "")
+  text=tostring(text or ""):gsub("[%c]"," ")
   local count=math.max(0,math.floor(width/6))
   if #text>count then text=count>=3 and text:sub(1,count-3).."..." or text:sub(1,count) end
   local offset=align=="center" and math.floor((width-#text*6)/2) or align=="right" and width-#text*6 or 0
   fonts.draw(s,x+offset,y,text,fg,bg)
 end
-function M.button(s,r,label,p,active)
+function M.button(s,r,label,p,active,padding)
   local bg=active and p.accent or p.button
   s:rect(r.x,r.y,r.w,r.h,bg)
-  local pad=r.w<18 and 1 or 4
+  local pad=padding or (r.w<18 and 1 or 4)
   M.label(s,r.x+pad,r.y+math.floor((r.h-9)/2),label,r.w-pad*2,active and p.ink or p.text,bg,"center")
+end
+function M.input(s,r,value,p,focused,placeholder,reserve)
+  value=tostring(value or ""):gsub("[%c]"," ") reserve=reserve or 0
+  s:rect(r.x,r.y,r.w,r.h,p.desktop)
+  if focused then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+  local count=math.max(0,math.floor((r.w-10-reserve)/6))
+  local shown=value=="" and (placeholder or ""):sub(1,count) or (count>0 and value:sub(-count) or "")
+  local y=r.y+math.floor((r.h-9)/2)
+  fonts.draw(s,r.x+5,y,shown,value=="" and p.muted or p.text,p.desktop)
+  if focused and count>0 then s:rect(r.x+5+math.min(#value,count)*6,y,1,9,p.accent) end
 end
 function M.symbol(s,r,kind,p,active)
   local bg=active and p.accent or p.button
@@ -6354,6 +6674,24 @@ function M.symbol(s,r,kind,p,active)
   elseif kind=="keyboard" then
     primitives.rect(s,x-6,y-3,12,7,c)
     for dx=-4,4,3 do s:pixel(x+dx,y-1,c) s:pixel(x+dx,y+1,c) end
+  elseif kind=="up" or kind=="down" then
+    local d=kind=="up" and -1 or 1
+    primitives.line(s,x-3,y-d*2,x,y+d*2,c) primitives.line(s,x,y+d*2,x+3,y-d*2,c)
+  elseif kind=="home" then
+    primitives.line(s,x-5,y,x,y-5,c) primitives.line(s,x,y-5,x+5,y,c)
+    primitives.rect(s,x-3,y,7,5,c)
+  elseif kind=="refresh" then
+    primitives.circle(s,x,y,4,c) s:rect(x+2,y-5,4,2,c)
+  elseif kind=="new_dir" then
+    primitives.rect(s,x-6,y-2,10,7,c) s:rect(x-5,y-5,5,3,c)
+    s:rect(x+1,y+1,6,1,c) s:rect(x+3,y-1,1,5,c)
+  elseif kind=="new_file" then
+    primitives.rect(s,x-5,y-5,7,10,c)
+    s:rect(x+1,y+1,6,1,c) s:rect(x+3,y-1,1,5,c)
+  elseif kind=="more" then
+    for dy=-4,4,4 do s:rect(x-1,y+dy,2,2,c) end
+  elseif kind=="check" then
+    primitives.line(s,x-5,y,x-1,y+3,c) primitives.line(s,x-1,y+3,x+5,y-4,c)
   end
 end
 return M
@@ -6366,6 +6704,8 @@ local fonts=require("system.graphics.fonts")
 local widgets=require("system.graphics.widgets")
 local sprites=require("system.graphics.sprites")
 local primitives=require("system.graphics.primitives")
+local View=require("system.graphics.view")
+local PixelKeyboard=require("system.graphics.keyboard")
 local M={}
 local TITLE,BAR=20,28
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -6405,21 +6745,27 @@ function M.new(ctx)
       {label="Settings",id="settings"},{label="More...",items={{label="Applications",id="settings",args={page="apps"}},
         {label="Devices",id="devices"},{label="Refresh",refresh=true}}}},x,y)
   end
+  self.keyboardState={}
+  self.keyboardState.onText=function(text) self.query=(self.query..text):sub(1,128) self.menuSelected,self.menuScroll=1,1 changed() end
+  self.keyboardState.onBackspace=function() self.query=self.query:sub(1,-2) self.menuSelected,self.menuScroll=1,1 changed() end
+  self.keyboardState.onEnter=function() local app=self:filtered()[self.menuSelected] if app then launch(app.id) end end
+  self.keyboardState.onTab=self.keyboardState.onEnter
   function self:deactivate()
     for _,win in ipairs(ctx.wm.windows) do
       win.pixelManaged,win.pixelController=false,nil
+      if win.app then win.app.graphicsActive=false end
       if win.maximized then win.maximized=false end
     end
-    self.backend=nil self.drag=nil self.context=nil self.menu=false self.typing=false
+    self.backend=nil self.drag=nil self.clientCapture=nil self.context=nil self.menu=false self.typing=false
     self.content={} self.cacheBytes=0
     self.scene:invalidate()
   end
   local function fit(win,b)
-    b.w=clamp(math.floor(b.w),math.min(102,self.width),self.width)
-    b.h=clamp(math.floor(b.h),math.min(TITLE+29,self.height-BAR),self.height-BAR)
+    b.w=clamp(math.floor(b.w),math.min(win.minPixelWidth or 102,self.width),self.width)
+    b.h=clamp(math.floor(b.h),math.min(win.minPixelHeight or TITLE+29,self.height-BAR),self.height-BAR)
     b.x=clamp(math.floor(b.x),0,self.width-b.w) b.y=clamp(math.floor(b.y),0,self.height-BAR-b.h)
-    local cols=math.max(1,math.min(self.columns-2,math.floor((b.w-2)/6)))
-    local rows=math.max(1,math.min(self.rows-3,math.floor((b.h-TITLE-2)/9)))
+    local cols=math.max(1,math.floor((b.w-2)/6))
+    local rows=math.max(1,math.floor((b.h-TITLE-2)/9))
     if win.w~=cols+2 or win.h~=rows+2 then win.w,win.h,win.dirty=cols+2,rows+2,true end
     win.pixelBounds=b
   end
@@ -6436,9 +6782,10 @@ function M.new(ctx)
     local theme=package.loaded["system.gui.theme"]
     local themeId=theme and theme.currentId or "mint"
     if self.backend~=backend or self.themeId~=themeId then
+      if self.backend~=backend then self.drag,self.clientCapture=nil,nil end
       self.themeId=themeId
       self.backend=backend self.scene:invalidate()
-      self.palette={desktop=15,panel=7,button=8,border=8,text=0,muted=8,accent=9,ink=15}
+      self.palette={desktop=15,panel=7,button=15,border=8,text=0,muted=8,accent=9,ink=15}
       if backend.mode==2 and backend.caps.palette then
         local rgb={0x101419,0x1b232d,0x2b3745,0x405166,0xf2f6fa,0xa8b7c8,themeId=="dark" and 0x64c7e6 or 0x65d8a0,0x101419}
         local names={"desktop","panel","button","border","text","muted","accent","ink"}
@@ -6465,6 +6812,8 @@ function M.new(ctx)
           b=box(0,0,self.width,self.height-BAR)
         end
         win.pixelManaged=true
+        win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function" or false
+        if win.app then win.app.graphicsActive=win.pixelNative end
         win.pixelController=function() self:toggle(win) end
         fit(win,b)
       end
@@ -6472,7 +6821,8 @@ function M.new(ctx)
     for id,cached in pairs(self.content) do if not live[id] then
       self.cacheBytes=self.cacheBytes-(cached.bytes or 0) self.content[id]=nil
     end end
-    if self.drag and not live[self.drag.win.id] then self.drag=nil end
+    if self.drag and (not live[self.drag.win.id] or self.drag.win.minimized) then self.drag=nil end
+    if self.clientCapture and (not live[self.clientCapture.win.id] or self.clientCapture.win.minimized) then self.clientCapture=nil end
   end
   function self:filtered()
     local rows={} local q=self.query:lower()
@@ -6524,7 +6874,7 @@ function M.new(ctx)
         local client=box(b.x+1,b.y+TITLE,b.w-2,b.h-TITLE-1)
         local cw,ch=win.w-2,win.h-2
         local cache=self.content[win.id]
-        if win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
+        if not win.pixelNative and win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
           cache={width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
           local bytes=cw*ch*54
@@ -6543,7 +6893,9 @@ function M.new(ctx)
           primitives.rect(canvas,b.x,b.y,b.w,b.h,win==active and p.accent or p.border)
           widgets.label(canvas,b.x+7,b.y+6,self.drag and self.drag.win==win and "Move" or win.title,math.max(0,b.w-68),p.text,p.panel)
           for kind,r in pairs(controls) do widgets.symbol(canvas,r,kind,p,false) end
-          if cache then
+          if win.pixelNative then
+            win:drawPixels(View.new(canvas,client.x,client.y,client.w,client.h),client.w,client.h,p)
+          elseif cache then
             if cache.surface then
               for py=math.max(0,canvas.clip.y-client.y),math.min(client.h,cache.surface.height,canvas.clip.y+canvas.clip.h-client.y)-1 do
                 canvas:span(client.x,client.y+py,cache.surface.rows[py+1]:sub(1,client.w))
@@ -6619,7 +6971,8 @@ function M.new(ctx)
       end)
     end
     local notifications=ctx.notifications and ctx.notifications.queue or {}
-    for i=#notifications,math.max(1,#notifications-(w<300 and 0 or 2)),-1 do
+    local toastCount=math.min(w<360 and 1 or 3,math.max(1,math.floor((h-BAR-80)/38)))
+    for i=#notifications,math.max(1,#notifications-toastCount+1),-1 do
       local item=notifications[i] local y=h-BAR-42-(#notifications-i)*38
       if y>=8 then
         local r=box(math.max(4,w-248),y,math.min(240,w-8),34)
@@ -6642,7 +6995,7 @@ function M.new(ctx)
     self.menuPanel=panel self.menuInput=box(panel.x+8,panel.y+8,panel.w-16,24)
     self.menuRows={} self.keyboardHits={}
     self.touchKeyboard=self.touchKeyboard and panel.h>=130 or false
-    local keyboardHeight=self.touchKeyboard and 74 or 0
+    local keyboardHeight=self.touchKeyboard and math.min(112,math.max(70,math.floor((panel.h-56)/7)*7)) or 0
     local itemHeight=self.touchKeyboard and 18 or 24
     local capacity=math.max(1,math.floor((panel.h-38-keyboardHeight)/itemHeight))
     local filtered=self:filtered()
@@ -6654,25 +7007,11 @@ function M.new(ctx)
     self.menuPrevious=box(panel.x+panel.w-22,panel.y+38,16,18)
     self.menuNext=box(panel.x+panel.w-22,panel.y+panel.h-keyboardHeight-22,16,18)
     if self.touchKeyboard then
-      local rows={"1234567890","azertyuiop","qsdfghjklm","wxcvbn.,!?"}
-      local y=panel.y+panel.h-74
-      for row,text in ipairs(rows) do
-        for i=1,#text do
-          local left=math.floor((i-1)*(panel.w-12)/#text)
-          local right=math.floor(i*(panel.w-12)/#text)
-          local char=text:sub(i,i)
-          self.keyboardHits[#self.keyboardHits+1]={rect=box(panel.x+6+left,y+(row-1)*14,right-left-1,13),text=char}
-        end
-      end
-      for i,item in ipairs({{"Back","back"},{"Space","space"},{"Enter","enter"}}) do
-        local kw=math.floor((panel.w-12)/3)
-        self.keyboardHits[#self.keyboardHits+1]={rect=box(panel.x+6+(i-1)*kw,y+56,kw-1,16),label=item[1],action=item[2]}
-      end
+      self.keyboardHits=PixelKeyboard.boxes(panel.x+6,panel.y+panel.h-keyboardHeight,panel.w-12,keyboardHeight,self.keyboardState)
     end
     self:layer(layers,"launcher",panel,self.revision..":"..self.menuScroll..":"..self.menuSelected,function(canvas)
       canvas:rect(panel.x,panel.y,panel.w,panel.h,p.panel) primitives.rect(canvas,panel.x,panel.y,panel.w,panel.h,p.border)
-      canvas:rect(self.menuInput.x,self.menuInput.y,self.menuInput.w,self.menuInput.h,p.desktop)
-      widgets.label(canvas,self.menuInput.x+5,self.menuInput.y+8,self.query=="" and "Search apps" or self.query,self.menuInput.w-32,p.text,p.desktop)
+      widgets.input(canvas,self.menuInput,self.query,p,self.typing,"Search apps",24)
       self.keyboardButton=box(self.menuInput.x+self.menuInput.w-25,self.menuInput.y+2,22,20)
       widgets.symbol(canvas,self.keyboardButton,"keyboard",p,self.touchKeyboard)
       for _,hit in ipairs(self.menuRows) do
@@ -6683,7 +7022,7 @@ function M.new(ctx)
         widgets.label(canvas,hit.rect.x+25,hit.rect.y+math.floor((hit.rect.h-9)/2),hit.app.name,hit.rect.w-30,p.text,bg)
       end
       if #filtered==0 then widgets.label(canvas,panel.x+12,panel.y+44,"No applications",panel.w-24,p.muted,p.panel) end
-      for _,hit in ipairs(self.keyboardHits) do widgets.button(canvas,hit.rect,hit.label or hit.text,p,false) end
+      for _,hit in ipairs(self.keyboardHits) do widgets.button(canvas,hit.rect,hit.label or hit.text,p,hit.active,1) end
       if #filtered>capacity then
         widgets.symbol(canvas,self.menuPrevious,"previous",p,false) widgets.symbol(canvas,self.menuNext,"next",p,false)
       end
@@ -6691,10 +7030,29 @@ function M.new(ctx)
   end
   function self:handle(event)
     local name=event.name
+    if name=="key" and keys.f1 and event.args[1]==keys.f1 then
+      self.menu=not self.menu self.typing=self.menu self.query="" self.context=nil changed() return true
+    end
     local pointer=name:match("^mouse_")~=nil
     local x,y=event.pixelX,event.pixelY
     if pointer and (not x or not y) then return true end
-    if name=="mouse_up" then self.drag=nil return true end
+    local function deliver(hit)
+      local win=hit.win
+      if win.closed or win.minimized then return end
+      if win.pixelNative then
+        win:handlePixels({name=name,args={event.args[1],x-hit.client.x,y-hit.client.y},raw=event.raw,
+          monitorTouch=event.monitorTouch,monitorSide=event.monitorSide,terminalSide=event.terminalSide})
+      else
+        local col,row=math.floor((x-hit.client.x)/6)+1,math.floor((y-hit.client.y)/9)+1
+        if (name=="mouse_click" or name=="mouse_scroll") and (col<1 or col>win.w-2 or row<1 or row>win.h-2) then return end
+        win:handle({name=name,args={event.args[1],win.x+col,win.y+row},
+          raw=event.raw,monitorTouch=event.monitorTouch,monitorSide=event.monitorSide,terminalSide=event.terminalSide})
+      end
+    end
+    if name=="mouse_up" then
+      if self.clientCapture then deliver(self.clientCapture) end
+      self.drag,self.clientCapture=nil,nil return true
+    end
     if name=="mouse_click" and event.monitorTouch and self.drag and self.drag.touch then
       local d=self.drag local b=copy(d.bounds)
       if d.resize then b.w,b.h=b.w+x-d.x,b.h+y-d.y else b.x,b.y=b.x+x-d.x,b.y+y-d.y end
@@ -6705,6 +7063,8 @@ function M.new(ctx)
       if d.resize then b.w,b.h=b.w+x-d.x,b.h+y-d.y else b.x,b.y=b.x+x-d.x,b.y+y-d.y end
       fit(d.win,b) changed() return true
     end
+    if name=="mouse_drag" and self.clientCapture then deliver(self.clientCapture) return true end
+    if name=="mouse_click" then self.clientCapture=nil end
     if self.menu and (name=="char" or name=="paste" or name=="key") then
       if name=="char" or name=="paste" then self.query=(self.query..tostring(event.args[1])):sub(1,128) self.menuSelected,self.menuScroll=1,1
       else
@@ -6729,13 +7089,7 @@ function M.new(ctx)
         if widgets.hit(self.keyboardButton,x,y) then self.touchKeyboard=not self.touchKeyboard changed() return true end
         if widgets.hit(self.menuPrevious,x,y) then self.menuScroll=self.menuScroll-1 changed() return true end
         if widgets.hit(self.menuNext,x,y) then self.menuScroll=self.menuScroll+1 changed() return true end
-        for _,hit in ipairs(self.keyboardHits or {}) do if widgets.hit(hit.rect,x,y) then
-          if hit.action=="back" then self.query=self.query:sub(1,-2)
-          elseif hit.action=="space" then self.query=(self.query.." "):sub(1,128)
-          elseif hit.action=="enter" then local app=self:filtered()[self.menuSelected] if app then launch(app.id) end
-          else self.query=(self.query..hit.text):sub(1,128) end
-          self.menuSelected,self.menuScroll=1,1 changed() return true
-        end end
+        if self.touchKeyboard and PixelKeyboard.handle({name=name,args={event.args[1],x,y}},self.keyboardState) then changed() return true end
         for _,hit in ipairs(self.menuRows or {}) do if widgets.hit(hit.rect,x,y) then launch(hit.app.id) return true end end
         if not widgets.hit(self.menuPanel,x,y) then self.menu=false self.typing=false end
         changed()
@@ -6791,12 +7145,8 @@ function M.new(ctx)
           end
         end
         if widgets.hit(hit.client,x,y) then
-          local args={table.unpack(event.args)}
-          args[2]=win.x+math.floor((x-hit.client.x)/6)+1
-          args[3]=win.y+math.floor((y-hit.client.y)/9)+1
-          if args[2]<=win.x+win.w-2 and args[3]<=win.y+win.h-2 then
-            win:handle({name=name,args=args,raw=event.raw,monitorTouch=event.monitorTouch,monitorSide=event.monitorSide})
-          end
+          if name=="mouse_click" and not event.monitorTouch then self.clientCapture={win=win,client=copy(hit.client)} end
+          deliver(hit)
         end
         return true
       end
@@ -7066,6 +7416,14 @@ function M.new(resolveTarget, onOutputFailure, options)
       pixel, parent, preference, previous=nil,nil,mode,{}
     end,
     close = function() if pixel then pixel:close() end end,
+    capabilities=function()
+      local result={backend="TEXT",textWidth=width,textHeight=height,probed=false}
+      if pixel then
+        for key,value in pairs(pixel.caps) do result[key]=value end
+        result.probed=true result.error=pixel.lastError
+      end
+      return result
+    end,
     invalidate = function() previous = {} failedTarget = nil end,
     stats = function()
       return { frames=stats.frames, rows=stats.rows, cells=stats.cells,
@@ -7435,6 +7793,9 @@ end
 M.keyboard.onTab = M.keyboard.onEnter
 
 function M.handle(event)
+  if event.name=="key" and keys.f1 and event.args[1]==keys.f1 then
+    M.menuOpen=not M.menuOpen M.searchFocused=M.menuOpen M.search="" return true
+  end
   if event.name=="mouse_scroll" then
     if M.menuOpen then M.menuScroll=math.max(1,(M.menuScroll or 1)+event.args[1])
     else M.page=math.max(1,math.min(M.pageCount or 1,(M.page or 1)+event.args[1])) end
@@ -7695,15 +8056,8 @@ return M
 ]=],
   ["system/gui/keyboard.lua"] = [=[
 local renderer = require("system.gui.renderer")
-local M = {}
-local rows = { "1234567890", "azertyuiop", "qsdfghjklm", "wxcvbn" }
-local symbols = { ".,;:!?'-_/", "()[]{}+*=\\", '\"<>@#$%&|~', "`^" }
-local controls = {
-  { "caps", "Maj", "M" }, { "shift", "Shift", "S" },
-  { "ctrl", "Ctrl", "C" }, { "symbols", "Sym", "#" },
-  { "tab", "Tab", "Tab" }, { "space", "Space", "_" },
-  { "back", "Back", "<" }, { "enter", "Enter", "Ent" },
-}
+local layout = require("system.gui.keyboard_layout")
+local M = {layout=layout.layout, press=layout.press}
 function M.height() return 7 end
 function M.draw(x, y, w, state)
   state = state or {}
@@ -7723,18 +8077,11 @@ function M.draw(x, y, w, state)
     table.insert(state.boxes, { x = x + left, y = y + row - 1, w = width, id = id, text = text })
   end
   renderer.fill(x, y, w, M.height(), colors.lightGray)
-  for row = 1, 5 do
-    local chars = rows[row] or symbols[state.symbolPage]
-    for i = 1, #chars do
-      local ch = chars:sub(i, i)
-      if (state.caps == true) ~= (state.shift == true) then ch = ch:upper() end
-      key(row, i, math.max(10, #chars), "text", ch, false, ch)
+  for row,entries in ipairs(M.layout(state)) do
+    for i,entry in ipairs(entries) do
+      key(row,i,row<=5 and math.max(10,#entries) or 4,entry.id,
+        w>=24 and entry.label or entry.short or entry.label,entry.active,entry.text)
     end
-  end
-  for i, control in ipairs(controls) do
-    local active = state[control[1]] == true or (control[1] == "symbols" and state.symbolPage > 1)
-    key(6 + math.floor((i - 1) / 4), (i - 1) % 4 + 1, 4,
-      control[1], w >= 24 and control[2] or control[3], active)
   end
 end
 function M.handle(event, state)
@@ -7742,27 +8089,56 @@ function M.handle(event, state)
   local x, y = event.args[2], event.args[3]
   for _, box in ipairs(state.boxes or {}) do
     if x >= box.x and x < box.x + box.w and y == box.y then
-      local id = box.id
-      if id == "caps" or id == "shift" or id == "ctrl" then state[id] = not state[id]
-      elseif id == "symbols" then state.symbolPage = (state.symbolPage or 1) % #symbols + 1
-      elseif id == "text" then
-        if state.ctrl then
-          if state.onControl then state.onControl(box.text:lower()) end
-        elseif state.onText then state.onText(box.text) end
-        state.shift = false
-      elseif id == "space" then
-        if state.onText then state.onText(" ") end
-      elseif id == "tab" then
-        if state.onTab then state.onTab() end
-      elseif id == "back" then
-        if state.onBackspace then state.onBackspace() end
-      elseif id == "enter" then
-        if state.onEnter then state.onEnter() end
-      end
+      M.press(box,state)
       return true
     end
   end
   return false
+end
+return M
+]=],
+  ["system/gui/keyboard_layout.lua"] = [=[
+local M = {}
+local rows = { "1234567890", "azertyuiop", "qsdfghjklm", "wxcvbn" }
+local symbols = { ".,;:!?'-_/", "()[]{}+*=\\", '\"<>@#$%&|~', "`^" }
+local controls = {
+  { "caps", "Maj", "M" }, { "shift", "Shift", "S" },
+  { "ctrl", "Ctrl", "C" }, { "symbols", "Sym", "#" },
+  { "tab", "Tab", "Tab" }, { "space", "Space", "_" },
+  { "back", "Back", "<" }, { "enter", "Enter", "Ent" },
+}
+function M.layout(state)
+  state=state or {} local result={}
+  for row=1,5 do
+    result[row]={}
+    local chars=rows[row] or symbols[state.symbolPage or 1] or symbols[1]
+    for i=1,#chars do
+      local ch=chars:sub(i,i)
+      if (state.caps==true)~=(state.shift==true) then ch=ch:upper() end
+      result[row][i]={id="text",label=ch,text=ch}
+    end
+  end
+  result[6],result[7]={},{}
+  for i,control in ipairs(controls) do
+    local row=6+math.floor((i-1)/4)
+    result[row][#result[row]+1]={id=control[1],label=control[2],short=control[3],
+      active=state[control[1]]==true or control[1]=="symbols" and (state.symbolPage or 1)>1}
+  end
+  return result
+end
+function M.press(key,state)
+  local id=key.id
+  if id=="caps" or id=="shift" or id=="ctrl" then state[id]=not state[id]
+  elseif id=="symbols" then state.symbolPage=(state.symbolPage or 1)%#symbols+1
+  elseif id=="text" then
+    if state.ctrl then if state.onControl then state.onControl(key.text:lower()) end
+    elseif state.onText then state.onText(key.text) end
+    state.shift=false
+  elseif id=="space" then if state.onText then state.onText(" ") end
+  elseif id=="tab" then if state.onTab then state.onTab() end
+  elseif id=="back" then if state.onBackspace then state.onBackspace() end
+  elseif id=="enter" then if state.onEnter then state.onEnter() end
+  end
 end
 return M
 ]=],
@@ -8073,6 +8449,7 @@ return EventBus
 ]=],
   ["system/kernel/input.lua"] = [=[
 local M = {}
+local terminalEvents={key=true,key_up=true,char=true,paste=true,mouse_click=true,mouse_up=true,mouse_drag=true,mouse_scroll=true}
 local function pointer(event,display)
   if display and display.pixelWidth and event.name:match("^mouse_") then
     local x,y=event.args[2],event.args[3]
@@ -8088,9 +8465,12 @@ function M.normalize(raw, display)
   local name=raw[1]
   if type(name)=="string" and name:sub(1,9)=="terminal_" then
     if not display or display.target~="terminal" or raw[2]~=display.terminalSide then return nil end
+    if not terminalEvents[name:sub(10)] then return nil end
+    if display.mouse==false and name:sub(10):match("^mouse_") then return nil end
     local event={name=name:sub(10),args=table.pack(table.unpack(raw,3,raw.n or #raw)),raw=raw,terminalSide=raw[2]}
     return pointer(event,display)
   end
+  if display and display.target=="terminal" and terminalEvents[name] then return nil end
   if raw[1] == "monitor_touch" then
     if not display or display.target ~= "monitor" or raw[2] ~= display.monitorSide then return nil end
     return pointer({
@@ -8098,6 +8478,7 @@ function M.normalize(raw, display)
       monitorTouch = true, monitorSide = raw[2],
     },display)
   end
+  if display and display.target=="monitor" and type(name)=="string" and name:match("^mouse_") then return nil end
   local event={name = raw[1], args = table.pack(table.unpack(raw,2,raw.n or #raw)), raw = raw}
   if display and display.target=="computer" then return pointer(event,display) end
   return event
@@ -8125,22 +8506,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.28", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.28", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.28", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.28", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.29", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.29", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.29", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.29", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.28", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.28", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.28", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.28", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.28", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.28", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.28", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.28", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.28", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.28", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.28", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.29", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.29", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.29", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.29", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.29", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.29", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.29", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.29", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.29", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.29", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.29", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -8196,6 +8577,7 @@ function M.start()
   ctx.setGraphicsMode=function(mode) workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() end
   ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() end
   ctx.renderStats = function() return screen:stats() end
+  ctx.graphicsCapabilities=function() return screen:capabilities() end
   local lastClock
   local function drawFrame()
     screen:draw(function()
@@ -8234,7 +8616,7 @@ function M.start()
         if event.name=="timer" and event.args[1]==diagnosticTimer then
           diagnosticTimer=os.startTimer(1)
           for _,id in ipairs({"settings","devices","services","taskmanager","logs","messenger","nexus"}) do ctx.wm:invalidate(id) end
-        elseif event.name=="peripheral" or event.name=="peripheral_detach" or event.name=="monitor_resize" or event.name=="term_resize" then
+        elseif event.name=="peripheral" or event.name=="peripheral_detach" or event.name=="monitor_resize" or event.name=="term_resize" or event.name=="mintcraft_display_resize" then
           ctx.wm:invalidate()
         end
         if event.name == "terminate" then
@@ -8250,7 +8632,7 @@ function M.start()
             -- Pixel shell consumed the event; never forward it to the grid behind.
           elseif pixelActive and event.name:match("^mouse_") then
             -- Pointer events are exclusively routed by the pixel workspace.
-          elseif desktop.captures(event) and not pixelActive then
+          elseif not pixelActive and (desktop.captures(event) or event.name=="key" and keys.f1 and event.args[1]==keys.f1) then
             desktop.handle(event)
           else
             local handled = ctx.wm:handle(event)
@@ -8920,7 +9302,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.28",
+    version = meta.version or "0.18.29",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -13212,6 +13594,7 @@ return M
   ["system/services/deviced.lua"] = [=[
 local log = require("system.libraries.log")
 local config = require("system.libraries.config")
+local sizeWorker
 
 local M = {
   devices = {},
@@ -13238,6 +13621,11 @@ end
 local function validTarget(target)
   return type(target) == "string" and target:find("%S") ~= nil and not target:find("%c")
 end
+local function displayKind(device)
+  if not device then return nil end
+  if device.type=="monitor" or device.types and device.types.monitor then return "monitor" end
+  if device.type=="terminal" or device.types and device.types.terminal then return "terminal" end
+end
 
 function M.getPreference()
   local cfg = config.load("/system/config/system.cfg", {})
@@ -13253,7 +13641,7 @@ end
 function M.setTarget(target)
   local ok, err = M.setPreference(target)
   if not ok then return false, err end
-  if target ~= "auto" and target ~= "computer" and M.display.monitorSide ~= target then
+  if target ~= "auto" and target ~= "computer" and (M.display.monitorSide or M.display.terminalSide) ~= target then
     return false, "Display unavailable; preference saved; using computer"
   end
   return true
@@ -13277,13 +13665,13 @@ function M.listDisplays()
   }
   local names, found = {}, false
   for name, device in pairs(M.devices) do
-    if device.type == "monitor" or (device.types and device.types.monitor) then
+    if displayKind(device) then
       names[#names + 1] = name
     end
   end
   table.sort(names)
   for _, name in ipairs(names) do
-    rows[#rows + 1] = {name = name, label = name, available = true, selected = preference == name}
+    rows[#rows + 1] = {name = name, label = name, type=displayKind(M.devices[name]), available = true, selected = preference == name}
     if preference == name then found = true end
   end
   if preference ~= "auto" and preference ~= "computer" and not found then
@@ -13296,6 +13684,9 @@ function M.setScale(scale, target)
   local cfg = config.load("/system/config/system.cfg", {})
   target = target or M.display.monitorSide or M.getPreference()
   if not validTarget(target) then return false, "Invalid display target" end
+  if displayKind(M.devices[target])=="terminal" or target==M.display.terminalSide then
+    return false,"CC Terminals does not expose monitor text scale"
+  end
   scale = normalizeScale(tonumber(scale) or readScale(target))
   if type(cfg.displayScales) ~= "table" then cfg.displayScales = {} end
   cfg.displayScales[target] = scale
@@ -13343,8 +13734,8 @@ function M.useMonitor()
   if not peripheral or not peripheral.wrap then return false end
   local names = {}
   for name, device in pairs(M.devices) do
-    if (preference == "auto" or preference == name) and
-        (device.type == "monitor" or (device.types and device.types.monitor)) then
+    local kind=displayKind(device)
+    if (preference == "auto" and kind=="monitor") or preference==name and kind then
       names[#names + 1] = name
     end
   end
@@ -13360,10 +13751,11 @@ function M.useMonitor()
     scale = readScale(name)
     local ok, candidate, width, height = pcall(function()
       local device = peripheral.wrap(name)
-      if not device then error("Monitor detached") end
-      device.setTextScale(scale)
+      if not device then error("Display detached") end
+      if displayKind(M.devices[name])=="monitor" then device.setTextScale(scale) end
       local width, height = device.getSize()
-      if type(width) ~= "number" or type(height) ~= "number" then error("Invalid monitor size") end
+      if type(width) ~= "number" or type(height) ~= "number" or width%1~=0 or height%1~=0
+        or width<1 or height<1 or width*height>65536 then error("Invalid display size") end
       return device, width, height
     end)
     if ok then monitor, side, w, h = candidate, name, width, height break end
@@ -13374,14 +13766,21 @@ function M.useMonitor()
   M.displayTerm = monitor
   term.redirect(monitor)
   M.redirected = true
+  local kind=displayKind(M.devices[side])
+  local color=false
+  if monitor.isColor then local ok,value=pcall(monitor.isColor) color=ok and value==true end
   M.display = {
-    target = "monitor",
-    scale = scale,
+    target = kind,
+    scale = kind=="monitor" and scale or nil,
     width = w,
     height = h,
-    monitorSide = side or "unknown",
+    monitorSide = kind=="monitor" and side or nil,
+    terminalSide = kind=="terminal" and side or nil,
+    color = color,
+    keyboard = kind=="terminal",
+    mouse = kind=="terminal" and color,
   }
-  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale " .. tostring(scale))
+  log.info("deviced", "using "..kind.." "..tostring(side).." at "..w.."x"..h)
   return true
 end
 
@@ -13428,8 +13827,21 @@ function M.outputFailed(target, problem)
   log.error("deviced", "display output failed: " .. tostring(problem))
   if M.ctx and M.ctx.invalidateDisplay then pcall(M.ctx.invalidateDisplay) end
   if M.ctx and M.ctx.notifications then
-    pcall(function() M.ctx.notifications:push("error", "Display", "Monitor unavailable; using computer", 5) end)
+    pcall(function() M.ctx.notifications:push("error", "Display", "Display unavailable; using computer", 5) end)
   end
+  return true
+end
+
+function M.refreshSize()
+  local target=M.getTarget()
+  local ok,w,h=pcall(target.getSize)
+  if target~=M.getTarget() then return false end
+  if not ok then M.outputFailed(target,w) return false end
+  if type(w)~="number" or type(h)~="number" or w%1~=0 or h%1~=0 or w<1 or h<1 or w*h>65536 then return false end
+  if w==M.display.width and h==M.display.height then return false end
+  M.display.width,M.display.height=w,h
+  if M.ctx and M.ctx.invalidateDisplay then M.ctx.invalidateDisplay() end
+  if os.queueEvent then os.queueEvent("mintcraft_display_resize",M.display.terminalSide or M.display.monitorSide or "computer") end
   return true
 end
 
@@ -13455,6 +13867,9 @@ function M.start(ctx)
   M.ctx = ctx
   if not M.nativeTerm then M.nativeTerm = term.native and term.native() or term.current() end
   M.refreshDisplay()
+  if ctx and ctx.scheduler and ctx.scheduler.spawn then
+    sizeWorker=require("system.libraries.addon").periodic(ctx,"Display geometry",1,M.refreshSize,{budget=0.5})
+  end
   if ctx and ctx.eventBus then
     table.insert(M.listeners, ctx.eventBus:on("peripheral", function()
       M.refreshDisplay()
@@ -13473,6 +13888,7 @@ function M.start(ctx)
 end
 
 function M.stop()
+  if sizeWorker then sizeWorker.stop() sizeWorker=nil end
   if M.ctx and M.ctx.eventBus then
     for _, id in ipairs(M.listeners) do M.ctx.eventBus:off(id) end
   end
@@ -16875,6 +17291,10 @@ local Window = {}
 Window.__index = Window
 
 function Window.new(opts)
+  for _,key in ipairs({"minPixelWidth","minPixelHeight"}) do
+    local value=opts[key]
+    assert(value==nil or type(value)=="number" and value>0 and value<=4096 and value%1==0,"Invalid "..key)
+  end
   local w, h = term.getSize()
   local width = opts.w or math.min(38, w - 8)
   local height = opts.h or math.min(12, h - 5)
@@ -16882,7 +17302,7 @@ function Window.new(opts)
   height = math.max(5, math.min(height, h - 1))
   return setmetatable({
     id = opts.id,
-    title = opts.title or "Window",
+    title = tostring(opts.title or "Window"),
     x = opts.x or 6,
     y = opts.y or 3,
     w = width,
@@ -16898,6 +17318,8 @@ function Window.new(opts)
     previousBounds = nil,
     app = opts.app,
     ownerPid = opts.ownerPid,
+    minPixelWidth = opts.minPixelWidth,
+    minPixelHeight = opts.minPixelHeight,
     onError = opts.onError,
     dirty = true,
   }, Window)
@@ -16922,6 +17344,9 @@ function Window:requestClose()
 end
 
 function Window:clamp()
+  -- Pixel bounds are clamped by the graphical workspace. Its virtual text
+  -- clients may have more cells than the physical terminal's text-mode grid.
+  if self.pixelManaged then return end
   local sw, sh = term.getSize()
   self.w = math.min(self.w, sw)
   self.h = math.min(self.h, math.max(1, sh - 1))
@@ -17074,6 +17499,7 @@ function Window:handle(event)
         raw = event.raw,
         monitorTouch = event.monitorTouch,
         monitorSide = event.monitorSide,
+        terminalSide = event.terminalSide,
       }
     end
     local ok, handled = pcall(self.app.handle, self.app, localEvent, self)
@@ -17085,6 +17511,20 @@ function Window:handle(event)
     return handled
   end
   return false
+end
+
+function Window:drawPixels(canvas,w,h,palette)
+  local ok,err=pcall(self.app.drawPixels,self.app,canvas,w,h,palette)
+  if not ok then self:crash("pixel draw: "..tostring(err)) end
+  return ok
+end
+
+function Window:handlePixels(event)
+  if self.closed or self.minimized then return false end
+  local ok,handled=pcall(self.app.handlePixels,self.app,event,self)
+  if not ok then self:crash("pixel handle: "..tostring(handled)) return true end
+  if handled then self.dirty=true end
+  return handled
 end
 
 return Window
@@ -17251,7 +17691,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.28
+0.18.29
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

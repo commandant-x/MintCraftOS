@@ -245,6 +245,9 @@ end
 M.keyboard.onTab = M.keyboard.onEnter
 
 function M.handle(event)
+  if event.name=="key" and keys.f1 and event.args[1]==keys.f1 then
+    M.menuOpen=not M.menuOpen M.searchFocused=M.menuOpen M.search="" return true
+  end
   if event.name=="mouse_scroll" then
     if M.menuOpen then M.menuScroll=math.max(1,(M.menuScroll or 1)+event.args[1])
     else M.page=math.max(1,math.min(M.pageCount or 1,(M.page or 1)+event.args[1])) end

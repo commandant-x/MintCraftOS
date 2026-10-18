@@ -1,5 +1,6 @@
 local log = require("system.libraries.log")
 local config = require("system.libraries.config")
+local sizeWorker
 
 local M = {
   devices = {},
@@ -26,6 +27,11 @@ end
 local function validTarget(target)
   return type(target) == "string" and target:find("%S") ~= nil and not target:find("%c")
 end
+local function displayKind(device)
+  if not device then return nil end
+  if device.type=="monitor" or device.types and device.types.monitor then return "monitor" end
+  if device.type=="terminal" or device.types and device.types.terminal then return "terminal" end
+end
 
 function M.getPreference()
   local cfg = config.load("/system/config/system.cfg", {})
@@ -41,7 +47,7 @@ end
 function M.setTarget(target)
   local ok, err = M.setPreference(target)
   if not ok then return false, err end
-  if target ~= "auto" and target ~= "computer" and M.display.monitorSide ~= target then
+  if target ~= "auto" and target ~= "computer" and (M.display.monitorSide or M.display.terminalSide) ~= target then
     return false, "Display unavailable; preference saved; using computer"
   end
   return true
@@ -65,13 +71,13 @@ function M.listDisplays()
   }
   local names, found = {}, false
   for name, device in pairs(M.devices) do
-    if device.type == "monitor" or (device.types and device.types.monitor) then
+    if displayKind(device) then
       names[#names + 1] = name
     end
   end
   table.sort(names)
   for _, name in ipairs(names) do
-    rows[#rows + 1] = {name = name, label = name, available = true, selected = preference == name}
+    rows[#rows + 1] = {name = name, label = name, type=displayKind(M.devices[name]), available = true, selected = preference == name}
     if preference == name then found = true end
   end
   if preference ~= "auto" and preference ~= "computer" and not found then
@@ -84,6 +90,9 @@ function M.setScale(scale, target)
   local cfg = config.load("/system/config/system.cfg", {})
   target = target or M.display.monitorSide or M.getPreference()
   if not validTarget(target) then return false, "Invalid display target" end
+  if displayKind(M.devices[target])=="terminal" or target==M.display.terminalSide then
+    return false,"CC Terminals does not expose monitor text scale"
+  end
   scale = normalizeScale(tonumber(scale) or readScale(target))
   if type(cfg.displayScales) ~= "table" then cfg.displayScales = {} end
   cfg.displayScales[target] = scale
@@ -131,8 +140,8 @@ function M.useMonitor()
   if not peripheral or not peripheral.wrap then return false end
   local names = {}
   for name, device in pairs(M.devices) do
-    if (preference == "auto" or preference == name) and
-        (device.type == "monitor" or (device.types and device.types.monitor)) then
+    local kind=displayKind(device)
+    if (preference == "auto" and kind=="monitor") or preference==name and kind then
       names[#names + 1] = name
     end
   end
@@ -148,10 +157,11 @@ function M.useMonitor()
     scale = readScale(name)
     local ok, candidate, width, height = pcall(function()
       local device = peripheral.wrap(name)
-      if not device then error("Monitor detached") end
-      device.setTextScale(scale)
+      if not device then error("Display detached") end
+      if displayKind(M.devices[name])=="monitor" then device.setTextScale(scale) end
       local width, height = device.getSize()
-      if type(width) ~= "number" or type(height) ~= "number" then error("Invalid monitor size") end
+      if type(width) ~= "number" or type(height) ~= "number" or width%1~=0 or height%1~=0
+        or width<1 or height<1 or width*height>65536 then error("Invalid display size") end
       return device, width, height
     end)
     if ok then monitor, side, w, h = candidate, name, width, height break end
@@ -162,14 +172,21 @@ function M.useMonitor()
   M.displayTerm = monitor
   term.redirect(monitor)
   M.redirected = true
+  local kind=displayKind(M.devices[side])
+  local color=false
+  if monitor.isColor then local ok,value=pcall(monitor.isColor) color=ok and value==true end
   M.display = {
-    target = "monitor",
-    scale = scale,
+    target = kind,
+    scale = kind=="monitor" and scale or nil,
     width = w,
     height = h,
-    monitorSide = side or "unknown",
+    monitorSide = kind=="monitor" and side or nil,
+    terminalSide = kind=="terminal" and side or nil,
+    color = color,
+    keyboard = kind=="terminal",
+    mouse = kind=="terminal" and color,
   }
-  log.info("deviced", "using monitor " .. tostring(M.display.monitorSide) .. " at " .. tostring(w) .. "x" .. tostring(h) .. " scale " .. tostring(scale))
+  log.info("deviced", "using "..kind.." "..tostring(side).." at "..w.."x"..h)
   return true
 end
 
@@ -216,8 +233,21 @@ function M.outputFailed(target, problem)
   log.error("deviced", "display output failed: " .. tostring(problem))
   if M.ctx and M.ctx.invalidateDisplay then pcall(M.ctx.invalidateDisplay) end
   if M.ctx and M.ctx.notifications then
-    pcall(function() M.ctx.notifications:push("error", "Display", "Monitor unavailable; using computer", 5) end)
+    pcall(function() M.ctx.notifications:push("error", "Display", "Display unavailable; using computer", 5) end)
   end
+  return true
+end
+
+function M.refreshSize()
+  local target=M.getTarget()
+  local ok,w,h=pcall(target.getSize)
+  if target~=M.getTarget() then return false end
+  if not ok then M.outputFailed(target,w) return false end
+  if type(w)~="number" or type(h)~="number" or w%1~=0 or h%1~=0 or w<1 or h<1 or w*h>65536 then return false end
+  if w==M.display.width and h==M.display.height then return false end
+  M.display.width,M.display.height=w,h
+  if M.ctx and M.ctx.invalidateDisplay then M.ctx.invalidateDisplay() end
+  if os.queueEvent then os.queueEvent("mintcraft_display_resize",M.display.terminalSide or M.display.monitorSide or "computer") end
   return true
 end
 
@@ -243,6 +273,9 @@ function M.start(ctx)
   M.ctx = ctx
   if not M.nativeTerm then M.nativeTerm = term.native and term.native() or term.current() end
   M.refreshDisplay()
+  if ctx and ctx.scheduler and ctx.scheduler.spawn then
+    sizeWorker=require("system.libraries.addon").periodic(ctx,"Display geometry",1,M.refreshSize,{budget=0.5})
+  end
   if ctx and ctx.eventBus then
     table.insert(M.listeners, ctx.eventBus:on("peripheral", function()
       M.refreshDisplay()
@@ -261,6 +294,7 @@ function M.start(ctx)
 end
 
 function M.stop()
+  if sizeWorker then sizeWorker.stop() sizeWorker=nil end
   if M.ctx and M.ctx.eventBus then
     for _, id in ipairs(M.listeners) do M.ctx.eventBus:off(id) end
   end

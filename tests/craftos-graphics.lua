@@ -3,11 +3,33 @@ local function result(message)
   local f=assert(fs.open("/graphics-result.txt","w")) f.write(message) f.close()
 end
 local ok,err=pcall(function()
+  if _G.mintcraftTerminalFixture then
+    local original,native=peripheral,term.native()
+    local function known(name) return name=="terminal_0" or name=="terminal_1" end
+    peripheral={}
+    for name,fn in pairs(original) do peripheral[name]=fn end
+    peripheral.getNames=function() local names=original.getNames() names[#names+1]="terminal_0" names[#names+1]="terminal_1" return names end
+    peripheral.getType=function(name) if known(name) then return "terminal" end return original.getType(name) end
+    peripheral.isPresent=function(name) return known(name) or original.isPresent(name) end
+    peripheral.hasType=function(name,kind) if known(name) then return kind=="terminal" end return original.hasType(name,kind) end
+    peripheral.wrap=function(name) if known(name) then return native end return original.wrap(name) end
+    peripheral.getMethods=function(name)
+      if not known(name) then return original.getMethods(name) end
+      local methods={} for method,fn in pairs(native) do if type(fn)=="function" then methods[#methods+1]=method end end return methods
+    end
+    peripheral.call=function(name,method,...) if known(name) then return assert(native[method])(...) end return original.call(name,method,...) end
+    _G.peripheral=peripheral
+  end
+  local function queueInput(name,...)
+    if _G.mintcraftTerminalFixture then os.queueEvent("terminal_"..name,"terminal_0",...)
+    else os.queueEvent(name,...) end
+  end
   shell.setDir("/")
   assert(shell.run("/source/install.lua"))
   local cfg=require("system.libraries.config")
   local settings=cfg.load("/system/config/system.cfg",{})
   settings.graphicsMode="auto" cfg.save("/system/config/system.cfg",settings)
+  if _G.mintcraftTerminalFixture then settings.displayTarget="terminal_0" cfg.save("/system/config/system.cfg",settings) end
   local apps=require("system.libraries.apps")
   local function capture(name)
     local native=term.native() local w,h=native.getSize(2)
@@ -35,20 +57,37 @@ local ok,err=pcall(function()
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
         local hit=workspace.windowHits[#workspace.windowHits]
         assert(win.pixelManaged and hit.win==win,"native window was not integrated")
-        local r=hit.controls.minimize os.queueEvent("mouse_click",1,r.x+3,r.y+3) sleep(0.25)
+        assert(win.pixelNative and proc.window.app.graphicsActive,"Files is still a legacy bitmap client")
+        local r=hit.controls.minimize queueInput("mouse_click",1,r.x+3,r.y+3) sleep(0.25)
         assert(win.minimized,"pixel minimize failed")
         local task
         for _,box in ipairs(workspace.taskHits) do if box.win==win then task=box.rect end end
         assert(task,"minimized task missing")
-        os.queueEvent("mouse_click",1,task.x+2,task.y+2) sleep(0.25)
+        queueInput("mouse_click",1,task.x+2,task.y+2) sleep(0.25)
         assert(not win.minimized,"pixel restore failed")
         local before=win.pixelBounds.x
         local x,y=win.pixelBounds.x+5,win.pixelBounds.y+5
-        os.queueEvent("mouse_click",1,x,y) sleep(0.1)
-        os.queueEvent("mouse_drag",1,x+1,y+1) sleep(0.1)
-        os.queueEvent("mouse_up",1,x+1,y+1) sleep(0.15)
-        assert(win.pixelBounds.x==before+1,"native drag snapped to cells")
+        queueInput("mouse_click",1,x,y) sleep(0.1)
+        queueInput("mouse_drag",1,x+1,y+1) sleep(0.1)
+        queueInput("mouse_up",1,x+1,y+1) sleep(0.15)
+        assert(win.pixelBounds.x==math.min(before+1,stats.pixelWidth-win.pixelBounds.w),"native drag or clamp failed")
         capture("pixel-files")
+        local client
+        for _,item in ipairs(workspace.windowHits) do if item.win==win then client=item.client end end
+        local action
+        for _,item in ipairs(win.app.pixelButtons) do if item.id=="new_file" then action=item.rect end end
+        assert(client and action,"native file toolbar missing")
+        queueInput("mouse_click",1,client.x+action.x+2,client.y+action.y+2) sleep(0.2)
+        assert(win.app.mode=="new_file","native create dialog did not open")
+        for _=1,#win.app.input do queueInput("key",keys.backspace) end
+        local testName="native-pixel-"..os.epoch("utc")..".txt"
+        sleep(0.3) queueInput("paste",testName) sleep(0.2)
+        local destination=fs.combine(win.app.path,testName)
+        assert(not fs.exists(destination),"native dialog wrote before submit")
+        queueInput("key",keys.enter)
+        for _=1,60 do if fs.exists(destination) then break end sleep(0.05) end
+        assert(fs.exists(destination),"native keyboard/paste create failed")
+        capture("pixel-files-created")
       end
       apps.ctx.scheduler:kill(pid)
     end
@@ -60,24 +99,35 @@ local ok,err=pcall(function()
     -- Save raw indexed bytes for independent visual inspection (no screenshot API).
     capture("graphics-frame")
     local workspace=apps.ctx.pixelWorkspace
-    os.queueEvent("mouse_click",1,workspace.start.x+3,workspace.start.y+3) sleep(0.2)
+    queueInput("key",keys.f1) sleep(0.2)
     assert(workspace.menu,"native launcher failed")
-    os.queueEvent("paste","Files") sleep(0.2)
+    if _G.mintcraftTerminalFixture then
+      os.queueEvent("terminal_paste","terminal_1","not selected") os.queueEvent("paste","native keyboard") sleep(0.2)
+      assert(workspace.query=="","foreign/native input leaked to selected terminal")
+    end
+    queueInput("paste","Files") sleep(0.2)
     assert(#workspace:filtered()==1,"native app filtering failed")
     capture("pixel-launcher")
     local kb=workspace.keyboardButton
-    os.queueEvent("mouse_click",1,kb.x+2,kb.y+2) sleep(0.2)
+    queueInput("mouse_click",1,kb.x+2,kb.y+2) sleep(0.2)
     if workspace.menuPanel.h>=130 then
       assert(workspace.touchKeyboard and #workspace.keyboardHits>0,"native touch keyboard missing")
       capture("pixel-keyboard")
     end
-    os.queueEvent("key",keys.escape) sleep(0.15)
+    queueInput("key",keys.escape) sleep(0.15)
     local launched,pid=apps.launch("files",{path="/home/user/desktop",action="new_lua"}) assert(launched,tostring(pid))
     os.queueEvent("mintcraft_test") sleep(0.3)
     local process=apps.ctx.scheduler.processes[pid]
     assert(process.window.app.mode=="new_file" and process.window.app.input:match("%.lua$"),"desktop create action missing")
     assert(not fs.exists("/home/user/desktop/"..process.window.app.input),"desktop action wrote without confirmation")
     apps.ctx.scheduler:kill(pid)
+    if _G.mintcraftTerminalFixture then
+      local launched,terminalPid=apps.launch("terminal") assert(launched,tostring(terminalPid))
+      os.queueEvent("mintcraft_test") sleep(0.3)
+      queueInput("paste","display computer") queueInput("key",keys.enter) sleep(0.4)
+      assert(require("system.services.deviced").getDisplay().target=="computer","keyboard-only display recovery failed")
+      apps.ctx.scheduler:kill(terminalPid)
+    end
     local metrics=assert(fs.open("/graphics-metrics.json","w"))
     metrics.write(textutils.serializeJSON(apps.ctx.renderStats())) metrics.close()
     apps.ctx.setGraphicsMode("pixel16") os.queueEvent("mintcraft_test") sleep(0.3)
@@ -85,7 +135,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native 256/16 desktop and chrome, raw pixel drag/minimize/restore, launcher/search, confirmed file dialog, six legacy apps, no freeze and text restoration")
+    result("PASS: native desktop and Files create via pixels/paste, drag/minimize/restore, shared keyboard/search, six apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end
