@@ -456,6 +456,11 @@ function M.run(ctx)
     return false
   end
 
+  if ctx.args.action=="new_file" or ctx.args.action=="new_dir" then attempt(perform,ctx.args.action)
+  elseif ctx.args.action=="new_lua" then attempt(function()
+    allowed("read",app.path)
+    setMode("new_file",basename(uniquePath(app.path,"new_script_",".lua")))
+  end) end
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Files", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 6, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end

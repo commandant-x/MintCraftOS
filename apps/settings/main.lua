@@ -87,7 +87,7 @@ function M.run(ctx)
       add("refresh","Refresh")
       local mode=config.load("/system/config/system.cfg",{}).graphicsMode or "text"
       add("graphics:text","Text renderer",mode=="text")
-      add("graphics:auto","Pixel compatibility",mode=="auto")
+      add("graphics:auto","Pixel desktop",mode=="auto")
       add("graphics:pixel16","Pixel 16 colors",mode=="pixel16")
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")

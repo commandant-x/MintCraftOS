@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.27:
+This repository currently contains V0.18.28:
+
+V0.18.28 adds the native pixel desktop, launcher/search, taskbar, notifications
+and window chrome with pixel-precise move/resize and minimize/restore. Select
+Settings -> Display -> Pixel desktop. Legacy apps keep their rasterized client
+areas; their complete graphical redesign remains in progress. Text is still
+the default and safe fallback. See [release notes](docs/GRAPHICS-0.18.28.md).
 
 V0.18.27 adds the optional Graphics 2.0 pixel backend and legacy-window bitmap
 rasterizer. Select Settings -> Display -> Pixel compatibility to try it; Text

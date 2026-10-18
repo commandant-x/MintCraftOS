@@ -78,6 +78,13 @@ function M.new(resolveTarget, onOutputFailure, options)
           previous={}
         end
       end
+      if pixel and pixel.mode~=0 and options and options.beforeRender then
+        local ok,err=pcall(options.beforeRender,pixel)
+        if not ok then
+          pixel.lastError=tostring(err) pixel:close() previous={}
+          if options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
+        end
+      end
       surface.setVisible(false)
       term.redirect(surface)
       local ok, err = pcall(render)
@@ -98,9 +105,9 @@ function M.new(resolveTarget, onOutputFailure, options)
           local text, fg, bg = frame[y][1], frame[y][2], frame[y][3]
           local old = previous[y]
           if not old or old[1] ~= text or old[2] ~= fg or old[3] ~= bg then
-            if pixel and pixel.mode~=0 then
+            if pixel and pixel.mode~=0 and not (options and options.pixelRender) then
               require("system.graphics.legacy").row(pixel.surface,y,text,fg,bg,w,h)
-            else
+            elseif not pixel or pixel.mode==0 then
               target.setCursorPos(1, y)
               target.blit(text, fg, bg)
             end
@@ -112,11 +119,16 @@ function M.new(resolveTarget, onOutputFailure, options)
         target.setCursorPos(cx, cy)
         target.setCursorBlink(blink)
         if pixel and pixel.mode~=0 then
-          local ok,err=pixel:present()
+          local drawn,problem=true,nil
+          if options and options.pixelRender then drawn,problem=pcall(options.pixelRender,pixel) end
+          local ok,err
+          if drawn then ok,err=pixel:present()
+          else pixel.lastError=tostring(problem) pixel:close() ok,err=false,problem end
           if not ok then
             -- Publish the complete text frame immediately on the same display.
             previous={}
             for y=1,h do target.setCursorPos(1,y) target.blit(table.unpack(frame[y])) end
+            target.setCursorPos(cx,cy) target.setCursorBlink(blink)
             if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
           end
         end

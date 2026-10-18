@@ -16,9 +16,18 @@ function M.detect(t)
 end
 function M.new(t,preference)
   local caps=M.detect(t)
-  local b={target=t,caps=caps,mode=0,frames=0,bytes=0,regions=0,lastError=nil}
+  local b={target=t,caps=caps,mode=0,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
+  function b:palette(index,rgb)
+    assert(self.mode==2 and index>=16 and index<=255 and index%1==0,"Extended palette unavailable")
+    if not self.paletteBackup[index] then self.paletteBackup[index]={t.getPaletteColor(index)} end
+    t.setPaletteColor(index,rgb)
+  end
   function b:close()
     if type(t.setFrozen)=="function" then pcall(t.setFrozen,false) end
+    if self.mode==2 then
+      for index,values in pairs(self.paletteBackup) do pcall(t.setPaletteColor,index,table.unpack(values)) end
+    end
+    self.paletteBackup={}
     if type(t.setGraphicsMode)=="function" then pcall(t.setGraphicsMode,0) end
     self.mode=0 self.caps.backend="TEXT"
   end

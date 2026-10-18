@@ -67,9 +67,10 @@ function M.list(x, y, w, h, rows, selected, scroll, render)
   for i = 1, h do
     local index = scroll + i - 1
     local row = rows[index]
-    local bg = row == selected and colors.cyan or theme.get("windowBg")
+    local active = row ~= nil and row == selected
+    local bg = active and colors.cyan or theme.get("windowBg")
     local text = row and render(row, index) or ""
-    renderer.writeAt(x, y + i - 1, renderer.crop(text, w), colors.black, bg)
+    renderer.writeAt(x, y + i - 1, renderer.crop(text, w), active and colors.black or theme.get("windowFg"), bg)
   end
 end
 

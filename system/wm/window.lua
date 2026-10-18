@@ -55,7 +55,7 @@ function Window:clamp()
   local sw, sh = term.getSize()
   self.w = math.min(self.w, sw)
   self.h = math.min(self.h, math.max(1, sh - 1))
-  if self.maximized then
+  if self.maximized and not self.pixelManaged then
     self.w, self.h = sw, math.max(1, sh - 1)
   end
   local maxX = math.max(1, sw - self.w + 1)
@@ -85,6 +85,7 @@ function Window:updateControls()
 end
 
 function Window:toggleMaximize()
+  if self.pixelController then self.pixelController() return end
   if self.maximized and self.previousBounds then
     self.x = self.previousBounds.x
     self.y = self.previousBounds.y
@@ -140,6 +141,7 @@ function Window:draw()
       ok,err=pcall(self.app.draw,self.app,self.w-2,self.h-2)
       term.redirect(previous)
       self.dirty=false self.surfaceTheme=theme.currentId
+      if ok then self.surfaceRevision=(self.surfaceRevision or 0)+1 end
     end
     if ok then
       target.setVisible(true)

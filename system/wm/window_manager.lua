@@ -51,8 +51,13 @@ function WindowManager:draw()
     local covered=false
     for upper=index+1,#self.windows do
       local other=self.windows[upper]
-      if not other.closed and not other.minimized and other.x<=win.x and other.y<=win.y and
-        other.x+other.w>=win.x+win.w and other.y+other.h>=win.y+win.h then covered=true break end
+      local a,b=win.pixelBounds,other.pixelBounds
+      if not other.closed and not other.minimized then
+        if win.pixelManaged and other.pixelManaged and a and b then
+          if b.x<=a.x and b.y<=a.y and b.x+b.w>=a.x+a.w and b.y+b.h>=a.y+a.h then covered=true break end
+        elseif not win.pixelManaged and other.x<=win.x and other.y<=win.y and
+          other.x+other.w>=win.x+win.w and other.y+other.h>=win.y+win.h then covered=true break end
+      end
     end
     if not covered then win:draw() end
   end

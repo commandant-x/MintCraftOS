@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2513,6 +2513,11 @@ function M.run(ctx)
     return false
   end
 
+  if ctx.args.action=="new_file" or ctx.args.action=="new_dir" then attempt(perform,ctx.args.action)
+  elseif ctx.args.action=="new_lua" then attempt(function()
+    allowed("read",app.path)
+    setMode("new_file",basename(uniquePath(app.path,"new_script_",".lua")))
+  end) end
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Files", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 6, y = 3, app = app })
   while not win.closed do ctx.pullEvent() end
@@ -2524,7 +2529,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2604,7 +2609,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2723,7 +2728,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3417,7 +3422,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3501,7 +3506,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3596,7 +3601,7 @@ function M.run(ctx)
       add("refresh","Refresh")
       local mode=config.load("/system/config/system.cfg",{}).graphicsMode or "text"
       add("graphics:text","Text renderer",mode=="text")
-      add("graphics:auto","Pixel compatibility",mode=="auto")
+      add("graphics:auto","Pixel desktop",mode=="auto")
       add("graphics:pixel16","Pixel 16 colors",mode=="pixel16")
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
@@ -3826,7 +3831,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -3941,7 +3946,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4083,7 +4088,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.27",
+  version = "0.18.28",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth" },
 }
@@ -4539,7 +4544,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.27",
+  version = "0.18.28",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5086,7 +5091,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.27",
+    version = "0.18.28",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5466,7 +5471,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.27",
+  version = "0.18.28",
   theme = "mint",
   graphicsMode = "text",
   displayScale = 0.5,
@@ -5908,9 +5913,18 @@ function M.detect(t)
 end
 function M.new(t,preference)
   local caps=M.detect(t)
-  local b={target=t,caps=caps,mode=0,frames=0,bytes=0,regions=0,lastError=nil}
+  local b={target=t,caps=caps,mode=0,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
+  function b:palette(index,rgb)
+    assert(self.mode==2 and index>=16 and index<=255 and index%1==0,"Extended palette unavailable")
+    if not self.paletteBackup[index] then self.paletteBackup[index]={t.getPaletteColor(index)} end
+    t.setPaletteColor(index,rgb)
+  end
   function b:close()
     if type(t.setFrozen)=="function" then pcall(t.setFrozen,false) end
+    if self.mode==2 then
+      for index,values in pairs(self.paletteBackup) do pcall(t.setPaletteColor,index,table.unpack(values)) end
+    end
+    self.paletteBackup={}
     if type(t.setGraphicsMode)=="function" then pcall(t.setGraphicsMode,0) end
     self.mode=0 self.caps.backend="TEXT"
   end
@@ -6141,22 +6155,145 @@ function M.bitmap(s,x,y,rows)
 end
 return M
 ]=],
+  ["system/graphics/scene.lua"] = [=[
+-- Retained layer composition; only damaged rectangles are rasterized.
+local M={}
+local function intersects(a,b)
+  return a.x<b.x+b.w and b.x<a.x+a.w and a.y<b.y+b.h and b.y<a.y+a.h
+end
+M.intersects=intersects
+function M.new()
+  local scene={previous={},lastOrder="",stats={rectangles=0,layers=0}}
+  function scene:invalidate() self.previous={} self.lastOrder="" end
+  function scene:draw(surface,layers)
+    assert(#layers<=256,"Too many graphical layers")
+    local damage,now,order={},{},{}
+    local function add(r)
+      if not r or r.w<=0 or r.h<=0 then return end
+      local n={x=r.x,y=r.y,w=r.w,h=r.h}
+      for _,old in ipairs(damage) do
+        if intersects(old,n) then
+          local right,bottom=math.max(old.x+old.w,n.x+n.w),math.max(old.y+old.h,n.y+n.h)
+          old.x,old.y=math.min(old.x,n.x),math.min(old.y,n.y)
+          old.w,old.h=right-old.x,bottom-old.y
+          return
+        end
+      end
+      damage[#damage+1]=n
+    end
+    for i,layer in ipairs(layers) do
+      assert(not now[layer.id],"Duplicate graphical layer")
+      order[i]=tostring(layer.id)
+      now[layer.id]={x=layer.x,y=layer.y,w=layer.w,h=layer.h,revision=layer.revision,order=i}
+      local old=self.previous[layer.id]
+      if not old or old.x~=layer.x or old.y~=layer.y or old.w~=layer.w or old.h~=layer.h or old.revision~=layer.revision or old.order~=i then
+        add(old) add(layer)
+      end
+    end
+    for id,old in pairs(self.previous) do if not now[id] then add(old) end end
+    local signature=table.concat(order,"|")
+    -- Reordered layers damage their bounds, not the entire desktop.
+    if self.width~=surface.width or self.height~=surface.height or #damage>64 then
+      damage={{x=0,y=0,w=surface.width,h=surface.height}}
+    end
+    local previousClip=surface.clip
+    local ok,err=pcall(function()
+      for _,rect in ipairs(damage) do
+        surface:setClip(rect.x,rect.y,rect.w,rect.h)
+        local first=1
+        for i=#layers,1,-1 do
+          local layer=layers[i]
+          if layer.opaque~=false and layer.x<=rect.x and layer.y<=rect.y and
+            layer.x+layer.w>=rect.x+rect.w and layer.y+layer.h>=rect.y+rect.h then first=i break end
+        end
+        for i=first,#layers do
+          local layer=layers[i]
+          if intersects(rect,layer) then layer.draw(surface) self.stats.layers=self.stats.layers+1 end
+        end
+      end
+    end)
+    surface.clip=previousClip
+    if not ok then self:invalidate() error(err,0) end
+    self.previous,self.lastOrder=now,signature
+    self.width,self.height=surface.width,surface.height
+    self.stats.rectangles=self.stats.rectangles+#damage
+    return #damage
+  end
+  return scene
+end
+return M
+]=],
+  ["system/graphics/sprites.lua"] = [=[
+local M={}
+local cache,order={},{}
+function M.invalidate() cache,order={},{} end
+function M.load(path,size)
+  local key=tostring(path)..":"..size
+  if cache[key]~=nil then return cache[key] end
+  local ok,sprite=pcall(function()
+    assert(type(path)=="string" and fs and fs.open,"No bitmap")
+    local fine=path:gsub("%.nfp$",".spx")
+    if fs.exists(fine) then path=fine end
+    local file=assert(fs.open(path,"r"))
+    local rows,width={},0
+    local read,err=pcall(function()
+      for _=1,64 do
+        local row=file.readLine() if not row then break end
+        row=row:sub(1,64) rows[#rows+1]=row width=math.max(width,#row)
+      end
+    end)
+    file.close() assert(read,err) assert(width>0 and #rows>0,"Empty bitmap")
+    local scale=math.min(size/width,size/#rows)
+    local w,h=math.max(1,math.floor(width*scale)),math.max(1,math.floor(#rows*scale))
+    local result={width=w,height=h,rows={}}
+    for y=1,h do
+      local source=rows[math.min(#rows,math.floor((y-1)/scale)+1)] local row={}
+      for x=1,w do row[x]=string.char(tonumber(source:sub(math.floor((x-1)/scale)+1,math.floor((x-1)/scale)+1),16) or 255) end
+      result.rows[y]=table.concat(row)
+    end
+    return result
+  end)
+  cache[key]=ok and sprite or false order[#order+1]=key
+  if #order>64 then cache[table.remove(order,1)]=nil end
+  return cache[key]
+end
+function M.draw(surface,sprite,x,y)
+  if not sprite then return end
+  for row=1,sprite.height do
+    local data=sprite.rows[row] local first=1
+    while first<=#data do
+      local transparent=data:find(string.char(255),first,true) or #data+1
+      if transparent>first then surface:span(x+first-1,y+row-1,data:sub(first,transparent-1)) end
+      first=transparent+1
+    end
+  end
+end
+return M
+]=],
   ["system/graphics/surface.lua"] = [=[
 -- Zero-based indexed pixels. Rows are byte strings, never boxed pixel tables.
 local M = {}
 function M.new(w,h,color)
   assert(type(w)=="number" and type(h)=="number" and w%1==0 and h%1==0
     and w>0 and h>0 and w*h<=1048576,"Invalid framebuffer size")
-  local s={width=w,height=h,rows={},dirty={}}
+  local s={width=w,height=h,rows={},dirty={},clip={x=0,y=0,w=w,h=h}}
+  function s:setClip(x,y,cw,ch)
+    local old=self.clip
+    local left,top=math.max(0,math.floor(x)),math.max(0,math.floor(y))
+    self.clip={x=left,y=top,w=math.max(0,math.min(w,math.floor(x+cw))-left),
+      h=math.max(0,math.min(h,math.floor(y+ch))-top)}
+    return old
+  end
   local function byte(c)
     assert(type(c)=="number" and c%1==0 and c>=0 and c<=255,"Invalid palette index")
     return string.char(c)
   end
   function s:span(x,y,text)
     x,y=math.floor(x),math.floor(y)
-    if y<0 or y>=h or x>=w or x+#text<=0 then return end
-    if x<0 then text,x=text:sub(1-x),0 end
-    text=text:sub(1,w-x)
+    local c=self.clip
+    if y<c.y or y>=c.y+c.h or x>=c.x+c.w or x+#text<=c.x then return end
+    if x<c.x then text,x=text:sub(c.x-x+1),c.x end
+    text=text:sub(1,c.x+c.w-x)
     if #text==0 then return end
     local old=self.rows[y+1]
     if old:sub(x+1,x+#text)==text then return end
@@ -6166,10 +6303,11 @@ function M.new(w,h,color)
   end
   function s:rect(x,y,rw,rh,c)
     x,y,rw,rh=math.floor(x),math.floor(y),math.floor(rw),math.floor(rh)
-    local left,right=math.max(0,x),math.min(w,x+rw)
+    local clip=self.clip
+    local left,right=math.max(0,x,clip.x),math.min(w,x+rw,clip.x+clip.w)
     if right<=left or rh<=0 then return end
     local row=string.rep(byte(c),right-left)
-    for py=math.max(0,y),math.min(h,y+rh)-1 do self:span(left,py,row) end
+    for py=math.max(0,y,clip.y),math.min(h,y+rh,clip.y+clip.h)-1 do self:span(left,py,row) end
   end
   function s:pixel(x,y,c) self:span(x,y,byte(c)) end
   function s:invalidate() for y=1,h do self.dirty[y]={0,w} end end
@@ -6177,6 +6315,508 @@ function M.new(w,h,color)
   for y=1,h do s.rows[y]=blank end
   s:invalidate()
   return s
+end
+return M
+]=],
+  ["system/graphics/widgets.lua"] = [=[
+local fonts=require("system.graphics.fonts")
+local primitives=require("system.graphics.primitives")
+local M={}
+function M.hit(r,x,y) return r and x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
+function M.label(s,x,y,text,width,fg,bg,align)
+  text=tostring(text or "")
+  local count=math.max(0,math.floor(width/6))
+  if #text>count then text=count>=3 and text:sub(1,count-3).."..." or text:sub(1,count) end
+  local offset=align=="center" and math.floor((width-#text*6)/2) or align=="right" and width-#text*6 or 0
+  fonts.draw(s,x+offset,y,text,fg,bg)
+end
+function M.button(s,r,label,p,active)
+  local bg=active and p.accent or p.button
+  s:rect(r.x,r.y,r.w,r.h,bg)
+  local pad=r.w<18 and 1 or 4
+  M.label(s,r.x+pad,r.y+math.floor((r.h-9)/2),label,r.w-pad*2,active and p.ink or p.text,bg,"center")
+end
+function M.symbol(s,r,kind,p,active)
+  local bg=active and p.accent or p.button
+  s:rect(r.x,r.y,r.w,r.h,bg)
+  local x,y=math.floor(r.x+r.w/2),math.floor(r.y+r.h/2)
+  local c=active and p.ink or p.text
+  if kind=="close" then
+    primitives.line(s,x-3,y-3,x+3,y+3,c) primitives.line(s,x+3,y-3,x-3,y+3,c)
+  elseif kind=="minimize" then s:rect(x-4,y+2,8,1,c)
+  elseif kind=="maximize" then primitives.rect(s,x-4,y-3,8,7,c)
+  elseif kind=="search" then primitives.circle(s,x-2,y-1,3,c) primitives.line(s,x+1,y+2,x+4,y+5,c)
+  elseif kind=="menu" then
+    for dy=-4,2,6 do for dx=-4,2,6 do s:rect(x+dx,y+dy,4,4,c) end end
+  elseif kind=="previous" or kind=="next" then
+    local d=kind=="previous" and -1 or 1
+    primitives.line(s,x-d*2,y-3,x+d*2,y,c) primitives.line(s,x+d*2,y,x-d*2,y+3,c)
+  elseif kind=="keyboard" then
+    primitives.rect(s,x-6,y-3,12,7,c)
+    for dx=-4,4,3 do s:pixel(x+dx,y-1,c) s:pixel(x+dx,y+1,c) end
+  end
+end
+return M
+]=],
+  ["system/graphics/workspace.lua"] = [=[
+local Scene=require("system.graphics.scene")
+local Surface=require("system.graphics.surface")
+local Legacy=require("system.graphics.legacy")
+local fonts=require("system.graphics.fonts")
+local widgets=require("system.graphics.widgets")
+local sprites=require("system.graphics.sprites")
+local primitives=require("system.graphics.primitives")
+local M={}
+local TITLE,BAR=20,28
+local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
+local function box(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function copy(b) return box(b.x,b.y,b.w,b.h) end
+local function signature(b) return table.concat({b.x,b.y,b.w,b.h},",") end
+local function clockText()
+  local m=math.floor(os.time()*60+1e-7)%1440
+  return string.format("%02d:%02d",math.floor(m/60),m%60)
+end
+function M.new(ctx)
+  local self={scene=Scene.new(),ctx=ctx,icons={},content={},page=1,taskPage=1,
+    menu=false,query="",menuScroll=1,menuSelected=1,revision=0,hits={},context=nil,cacheBytes=0,cacheLimit=2097152}
+  local function changed() self.revision=self.revision+1 end
+  local function launch(id,args)
+    self.menu=false self.context=nil self.typing=false self.query="" changed()
+    local ok,err=ctx.apps.launch(id,args)
+    if not ok and ctx.notifications then ctx.notifications:push("error","Launch failed",tostring(err),5) end
+    return ok
+  end
+  local function context(items,x,y)
+    local available=math.max(22,self.height-BAR-8)
+    local capacity=math.max(1,math.floor(available/22))
+    local pager=#items>capacity
+    if pager then capacity=math.max(1,math.floor((available-18)/22)) end
+    local cw=math.min(156,self.width-8) local ch=math.min(#items,capacity)*22+(pager and 18 or 0)
+    local c=box(clamp(x,4,self.width-cw-4),clamp(y,4,self.height-BAR-ch-4),cw,ch)
+    c.items,c.capacity,c.first,c.pager=items,capacity,1,pager
+    self.context=c changed()
+  end
+  local function desktopContext(x,y)
+    context({{label="New...",items={
+      {label="File",id="files",args={path="/home/user/desktop",action="new_file"}},
+      {label="Folder",id="files",args={path="/home/user/desktop",action="new_dir"}},
+      {label="Lua file",id="files",args={path="/home/user/desktop",action="new_lua"}}}},
+      {label="Files",id="files",args={path="/home/user/desktop"}},{label="Terminal",id="terminal"},
+      {label="Settings",id="settings"},{label="More...",items={{label="Applications",id="settings",args={page="apps"}},
+        {label="Devices",id="devices"},{label="Refresh",refresh=true}}}},x,y)
+  end
+  function self:deactivate()
+    for _,win in ipairs(ctx.wm.windows) do
+      win.pixelManaged,win.pixelController=false,nil
+      if win.maximized then win.maximized=false end
+    end
+    self.backend=nil self.drag=nil self.context=nil self.menu=false self.typing=false
+    self.content={} self.cacheBytes=0
+    self.scene:invalidate()
+  end
+  local function fit(win,b)
+    b.w=clamp(math.floor(b.w),math.min(102,self.width),self.width)
+    b.h=clamp(math.floor(b.h),math.min(TITLE+29,self.height-BAR),self.height-BAR)
+    b.x=clamp(math.floor(b.x),0,self.width-b.w) b.y=clamp(math.floor(b.y),0,self.height-BAR-b.h)
+    local cols=math.max(1,math.min(self.columns-2,math.floor((b.w-2)/6)))
+    local rows=math.max(1,math.min(self.rows-3,math.floor((b.h-TITLE-2)/9)))
+    if win.w~=cols+2 or win.h~=rows+2 then win.w,win.h,win.dirty=cols+2,rows+2,true end
+    win.pixelBounds=b
+  end
+  function self:toggle(win)
+    if win.maximized and win.pixelPrevious then
+      win.maximized=false fit(win,win.pixelPrevious) win.pixelPrevious=nil
+    else
+      win.pixelPrevious=copy(win.pixelBounds) win.maximized=true
+      fit(win,box(0,0,self.width,self.height-BAR))
+    end
+    win.dirty=true changed()
+  end
+  function self:prepare(backend)
+    local theme=package.loaded["system.gui.theme"]
+    local themeId=theme and theme.currentId or "mint"
+    if self.backend~=backend or self.themeId~=themeId then
+      self.themeId=themeId
+      self.backend=backend self.scene:invalidate()
+      self.palette={desktop=15,panel=7,button=8,border=8,text=0,muted=8,accent=9,ink=15}
+      if backend.mode==2 and backend.caps.palette then
+        local rgb={0x101419,0x1b232d,0x2b3745,0x405166,0xf2f6fa,0xa8b7c8,themeId=="dark" and 0x64c7e6 or 0x65d8a0,0x101419}
+        local names={"desktop","panel","button","border","text","muted","accent","ink"}
+        for i,name in ipairs(names) do backend:palette(15+i,rgb[i]) self.palette[name]=15+i end
+      end
+    end
+    self.width,self.height=backend.surface.width,backend.surface.height
+    self.columns,self.rows=backend.caps.textWidth,backend.caps.textHeight
+    -- Registry and disk assets are acquired here, never by layer draw callbacks.
+    self.apps=ctx.apps.list()
+    local appSignature={}
+    for _,app in ipairs(self.apps) do
+      appSignature[#appSignature+1]=app.id..":"..app.name
+      self.icons[app.id]=self.icons[app.id] or {small=sprites.load(app.iconPath,14),large=sprites.load(app.iconPath,28)}
+    end
+    self.appSignature=table.concat(appSignature,"|")
+    local live={}
+    for _,win in ipairs(ctx.wm.windows) do
+      if not win.closed then
+        live[win.id]=true
+        local b=win.pixelBounds or box((win.x-1)*6,(win.y-1)*9,(win.w-2)*6+2,(win.h-2)*9+TITLE+2)
+        if win.maximized then
+          if not win.pixelPrevious then win.pixelPrevious=copy(b) end
+          b=box(0,0,self.width,self.height-BAR)
+        end
+        win.pixelManaged=true
+        win.pixelController=function() self:toggle(win) end
+        fit(win,b)
+      end
+    end
+    for id,cached in pairs(self.content) do if not live[id] then
+      self.cacheBytes=self.cacheBytes-(cached.bytes or 0) self.content[id]=nil
+    end end
+    if self.drag and not live[self.drag.win.id] then self.drag=nil end
+  end
+  function self:filtered()
+    local rows={} local q=self.query:lower()
+    for _,app in ipairs(self.apps or {}) do
+      if q=="" or app.name:lower():find(q,1,true) or app.id:lower():find(q,1,true) then rows[#rows+1]=app end
+    end
+    return rows
+  end
+  function self:layer(layers,id,b,revision,draw)
+    layers[#layers+1]={id=id,x=b.x,y=b.y,w=b.w,h=b.h,revision=revision,draw=draw}
+  end
+  function self:draw(backend)
+    local s,p=backend.surface,self.palette
+    local w,h=self.width,self.height
+    local layers={} self.hits={} self.taskHits={} self.windowHits={} self.notificationHits={}
+    local compact=w<240
+    local cellW,cellH=compact and 72 or 90,compact and 52 or 68
+    local columns=math.max(1,math.floor(w/cellW))
+    local rows=math.max(1,math.floor((h-BAR-24)/cellH))
+    local capacity=columns*rows self.pages=math.max(1,math.ceil(#self.apps/capacity))
+    self.page=clamp(self.page,1,self.pages)
+    for i=(self.page-1)*capacity+1,math.min(#self.apps,self.page*capacity) do
+      local offset=i-(self.page-1)*capacity-1
+      self.hits[#self.hits+1]={rect=box(8+math.floor(offset/rows)*cellW,22+(offset%rows)*cellH,cellW-8,cellH-4),app=self.apps[i]}
+    end
+    self.pagePrevious=box(w-40,h-BAR-20,16,16) self.pageNext=box(w-20,h-BAR-20,16,16)
+    self:layer(layers,"desktop",box(0,0,w,h),self.page..":"..self.appSignature,function(canvas)
+      canvas:rect(0,0,w,h,p.desktop)
+      widgets.label(canvas,10,7,"MintCraft OS",w-20,p.muted,p.desktop)
+      for _,hit in ipairs(self.hits) do
+        local r,app=hit.rect,hit.app local image=self.icons[app.id] and self.icons[app.id].large
+        if image then sprites.draw(canvas,image,r.x+math.floor((r.w-image.width)/2),r.y) end
+        local label=app.name local n=math.max(1,math.floor(r.w/6))
+        if #label>n then
+          local split=label:sub(1,n):match("^.*() ")
+          widgets.label(canvas,r.x,r.y+30,label:sub(1,split and split-1 or n),r.w,p.text,p.desktop,"center")
+          widgets.label(canvas,r.x,r.y+40,label:sub(split and split+1 or n+1),r.w,p.text,p.desktop,"center")
+        else widgets.label(canvas,r.x,r.y+30,label,r.w,p.text,p.desktop,"center") end
+      end
+      if self.pages>1 then
+        widgets.symbol(canvas,self.pagePrevious,"previous",p,false) widgets.symbol(canvas,self.pageNext,"next",p,false)
+        widgets.label(canvas,w-100,h-BAR-15,self.page.." / "..self.pages,54,p.muted,p.desktop,"right")
+      end
+    end)
+    local active=ctx.wm:active()
+    for _,win in ipairs(ctx.wm.windows) do
+      if not win.closed and not win.minimized and win.pixelBounds then
+        local b=win.pixelBounds
+        local client=box(b.x+1,b.y+TITLE,b.w-2,b.h-TITLE-1)
+        local cw,ch=win.w-2,win.h-2
+        local cache=self.content[win.id]
+        if win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
+          self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
+          cache={width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
+          local bytes=cw*ch*54
+          if self.cacheBytes+bytes<=self.cacheLimit then
+            cache.surface=Surface.new(cw*6,ch*9,15) cache.bytes=bytes
+            for y=1,ch do local text,fg,bg=win.surface.getLine(y) Legacy.row(cache.surface,y,text,fg,bg,cw,ch) end
+          end
+          self.cacheBytes=self.cacheBytes+cache.bytes
+          self.content[win.id]=cache
+        end
+        local controls={close=box(b.x+b.w-19,b.y+1,18,18),maximize=box(b.x+b.w-38,b.y+1,18,18),minimize=box(b.x+b.w-57,b.y+1,18,18)}
+        self.windowHits[#self.windowHits+1]={win=win,rect=b,client=client,controls=controls}
+        local revision=tostring(win.surfaceRevision)..":"..win.title..":"..tostring(win==active)..":"..tostring(win.maximized)..":"..tostring(self.drag and self.drag.win==win)
+        self:layer(layers,"window:"..win.id,b,revision,function(canvas)
+          canvas:rect(b.x,b.y,b.w,b.h,p.panel)
+          primitives.rect(canvas,b.x,b.y,b.w,b.h,win==active and p.accent or p.border)
+          widgets.label(canvas,b.x+7,b.y+6,self.drag and self.drag.win==win and "Move" or win.title,math.max(0,b.w-68),p.text,p.panel)
+          for kind,r in pairs(controls) do widgets.symbol(canvas,r,kind,p,false) end
+          if cache then
+            if cache.surface then
+              for py=math.max(0,canvas.clip.y-client.y),math.min(client.h,cache.surface.height,canvas.clip.y+canvas.clip.h-client.y)-1 do
+                canvas:span(client.x,client.y+py,cache.surface.rows[py+1]:sub(1,client.w))
+              end
+            else
+              -- Bounded cache exhausted: rasterize only damaged source rows in place.
+              local view={width=cw*6,height=ch*9,span=function(_,x,y,text)
+                if y>=0 and y<client.h then canvas:span(client.x+x,client.y+y,text:sub(1,math.max(0,client.w-x))) end
+              end}
+              local first=math.max(1,math.floor((canvas.clip.y-client.y)/9)+1)
+              local last=math.min(ch,math.ceil((canvas.clip.y+canvas.clip.h-client.y)/9))
+              for row=first,last do local text,fg,bg=win.surface.getLine(row) Legacy.row(view,row,text,fg,bg,cw,ch) end
+            end
+            local cx,cy=win.surface.getCursorPos()
+            if win==active and win.surface.getCursorBlink() and cx>=1 and cx<=cw and cy>=1 and cy<=ch then
+              canvas:rect(client.x+(cx-1)*6,client.y+cy*9-1,5,1,p.text)
+            end
+          end
+          -- Pixel resize grip; no glyph or approximate titlebar hitbox.
+          primitives.line(canvas,b.x+b.w-7,b.y+b.h-2,b.x+b.w-2,b.y+b.h-7,p.muted)
+        end)
+      end
+    end
+    self.start=box(4,h-BAR+3,26,22)
+    self.search=box(34,h-BAR+3,w>=420 and 112 or 26,22)
+    local first=self.search.x+self.search.w+5 local last=w-44
+    local available=last-first
+    local windows={}
+    for _,win in ipairs(ctx.wm.windows) do if not win.closed then windows[#windows+1]=win end end
+    table.sort(windows,function(a,b) return a.id<b.id end)
+    self.taskNext=nil
+    if #windows>math.max(1,math.floor(available/112)) and #windows>1 then
+      self.taskNext=box(last-15,h-BAR+3,15,22) available=available-17
+    end
+    local taskWidth=math.min(112,math.max(24,available))
+    local taskCapacity=math.max(1,math.floor(available/taskWidth))
+    self.taskPages=math.max(1,math.ceil(#windows/taskCapacity))
+    self.taskPage=clamp(self.taskPage,1,self.taskPages)
+    local taskRevision={clockText(),self.taskPage,tostring(self.menu),tostring(self.typing),#windows}
+    for i=(self.taskPage-1)*taskCapacity+1,math.min(#windows,self.taskPage*taskCapacity) do
+      local win=windows[i]
+      if available>=24 then
+        self.taskHits[#self.taskHits+1]={rect=box(first+(i-(self.taskPage-1)*taskCapacity-1)*taskWidth,h-BAR+3,taskWidth-3,22),win=win}
+        taskRevision[#taskRevision+1]=win.id..":"..win.title..":"..tostring(win.minimized)..":"..tostring(win==active)
+      end
+    end
+    self:layer(layers,"taskbar",box(0,h-BAR,w,BAR),table.concat(taskRevision,"|"),function(canvas)
+      canvas:rect(0,h-BAR,w,BAR,p.panel) canvas:rect(0,h-BAR,w,1,p.border)
+      widgets.symbol(canvas,self.start,"menu",p,self.menu)
+      if self.search.w>30 then widgets.button(canvas,self.search,"Search",p,self.typing)
+      else widgets.symbol(canvas,self.search,"search",p,self.typing) end
+      for _,hit in ipairs(self.taskHits) do
+        local selected=hit.win==active and not hit.win.minimized
+        local image=self.icons[hit.win.appId] and self.icons[hit.win.appId].small
+        widgets.button(canvas,hit.rect,hit.rect.w<64 and (image and "" or hit.win.title:sub(1,1)) or hit.win.title,p,selected)
+        if hit.rect.w<64 and image then
+          sprites.draw(canvas,image,hit.rect.x+math.floor((hit.rect.w-image.width)/2),hit.rect.y+math.floor((hit.rect.h-image.height)/2))
+        end
+        if hit.win.minimized then canvas:rect(hit.rect.x+4,hit.rect.y+hit.rect.h-3,hit.rect.w-8,1,p.muted) end
+      end
+      if self.taskNext then widgets.symbol(canvas,self.taskNext,"next",p,false) end
+      widgets.label(canvas,w-38,h-BAR+10,clockText(),36,p.text,p.panel,"right")
+    end)
+    if self.menu then self:drawMenu(layers) end
+    if self.context then
+      local c=self.context
+      self:layer(layers,"context",c,self.revision,function(canvas)
+        canvas:rect(c.x,c.y,c.w,c.h,p.panel) primitives.rect(canvas,c.x,c.y,c.w,c.h,p.border)
+        for i=c.first,math.min(#c.items,c.first+c.capacity-1) do
+          widgets.label(canvas,c.x+8,c.y+6+(i-c.first)*22,c.items[i].label,c.w-16,p.text,p.panel)
+        end
+        if c.pager then widgets.symbol(canvas,box(c.x+c.w-20,c.y+c.h-17,18,16),"next",p,false) end
+      end)
+    end
+    local notifications=ctx.notifications and ctx.notifications.queue or {}
+    for i=#notifications,math.max(1,#notifications-(w<300 and 0 or 2)),-1 do
+      local item=notifications[i] local y=h-BAR-42-(#notifications-i)*38
+      if y>=8 then
+        local r=box(math.max(4,w-248),y,math.min(240,w-8),34)
+        local close=box(r.x+r.w-20,r.y+2,18,16)
+        self.notificationHits[#self.notificationHits+1]={rect=r,close=close,id=item.id}
+        self:layer(layers,"notification:"..item.id,r,item.id,function(canvas)
+          canvas:rect(r.x,r.y,r.w,r.h,p.panel)
+          canvas:rect(r.x,r.y,3,r.h,item.level=="error" and 14 or item.level=="warn" and 1 or p.accent)
+          widgets.label(canvas,r.x+9,r.y+5,item.title,r.w-32,p.text,p.panel)
+          widgets.label(canvas,r.x+9,r.y+18,item.message,r.w-16,p.muted,p.panel)
+          widgets.symbol(canvas,close,"close",p,false)
+        end)
+      end
+    end
+    self.scene:draw(s,layers)
+  end
+  function self:drawMenu(layers)
+    local p=self.palette local w,h=self.width,self.height
+    local panel=box(4,math.max(4,h-BAR-284),math.min(302,w-8),math.min(280,h-BAR-8))
+    self.menuPanel=panel self.menuInput=box(panel.x+8,panel.y+8,panel.w-16,24)
+    self.menuRows={} self.keyboardHits={}
+    self.touchKeyboard=self.touchKeyboard and panel.h>=130 or false
+    local keyboardHeight=self.touchKeyboard and 74 or 0
+    local itemHeight=self.touchKeyboard and 18 or 24
+    local capacity=math.max(1,math.floor((panel.h-38-keyboardHeight)/itemHeight))
+    local filtered=self:filtered()
+    self.menuSelected=clamp(self.menuSelected,1,math.max(1,#filtered))
+    self.menuScroll=clamp(self.menuScroll,1,math.max(1,#filtered-capacity+1))
+    for i=self.menuScroll,math.min(#filtered,self.menuScroll+capacity-1) do
+      self.menuRows[#self.menuRows+1]={rect=box(panel.x+8,panel.y+38+(i-self.menuScroll)*itemHeight,panel.w-35,itemHeight-1),app=filtered[i],index=i}
+    end
+    self.menuPrevious=box(panel.x+panel.w-22,panel.y+38,16,18)
+    self.menuNext=box(panel.x+panel.w-22,panel.y+panel.h-keyboardHeight-22,16,18)
+    if self.touchKeyboard then
+      local rows={"1234567890","azertyuiop","qsdfghjklm","wxcvbn.,!?"}
+      local y=panel.y+panel.h-74
+      for row,text in ipairs(rows) do
+        for i=1,#text do
+          local left=math.floor((i-1)*(panel.w-12)/#text)
+          local right=math.floor(i*(panel.w-12)/#text)
+          local char=text:sub(i,i)
+          self.keyboardHits[#self.keyboardHits+1]={rect=box(panel.x+6+left,y+(row-1)*14,right-left-1,13),text=char}
+        end
+      end
+      for i,item in ipairs({{"Back","back"},{"Space","space"},{"Enter","enter"}}) do
+        local kw=math.floor((panel.w-12)/3)
+        self.keyboardHits[#self.keyboardHits+1]={rect=box(panel.x+6+(i-1)*kw,y+56,kw-1,16),label=item[1],action=item[2]}
+      end
+    end
+    self:layer(layers,"launcher",panel,self.revision..":"..self.menuScroll..":"..self.menuSelected,function(canvas)
+      canvas:rect(panel.x,panel.y,panel.w,panel.h,p.panel) primitives.rect(canvas,panel.x,panel.y,panel.w,panel.h,p.border)
+      canvas:rect(self.menuInput.x,self.menuInput.y,self.menuInput.w,self.menuInput.h,p.desktop)
+      widgets.label(canvas,self.menuInput.x+5,self.menuInput.y+8,self.query=="" and "Search apps" or self.query,self.menuInput.w-32,p.text,p.desktop)
+      self.keyboardButton=box(self.menuInput.x+self.menuInput.w-25,self.menuInput.y+2,22,20)
+      widgets.symbol(canvas,self.keyboardButton,"keyboard",p,self.touchKeyboard)
+      for _,hit in ipairs(self.menuRows) do
+        local bg=hit.index==self.menuSelected and p.button or p.panel
+        canvas:rect(hit.rect.x,hit.rect.y,hit.rect.w,hit.rect.h,bg)
+        local image=self.icons[hit.app.id] and self.icons[hit.app.id].small
+        if image then sprites.draw(canvas,image,hit.rect.x+3,hit.rect.y+math.floor((hit.rect.h-image.height)/2)) end
+        widgets.label(canvas,hit.rect.x+25,hit.rect.y+math.floor((hit.rect.h-9)/2),hit.app.name,hit.rect.w-30,p.text,bg)
+      end
+      if #filtered==0 then widgets.label(canvas,panel.x+12,panel.y+44,"No applications",panel.w-24,p.muted,p.panel) end
+      for _,hit in ipairs(self.keyboardHits) do widgets.button(canvas,hit.rect,hit.label or hit.text,p,false) end
+      if #filtered>capacity then
+        widgets.symbol(canvas,self.menuPrevious,"previous",p,false) widgets.symbol(canvas,self.menuNext,"next",p,false)
+      end
+    end)
+  end
+  function self:handle(event)
+    local name=event.name
+    local pointer=name:match("^mouse_")~=nil
+    local x,y=event.pixelX,event.pixelY
+    if pointer and (not x or not y) then return true end
+    if name=="mouse_up" then self.drag=nil return true end
+    if name=="mouse_click" and event.monitorTouch and self.drag and self.drag.touch then
+      local d=self.drag local b=copy(d.bounds)
+      if d.resize then b.w,b.h=b.w+x-d.x,b.h+y-d.y else b.x,b.y=b.x+x-d.x,b.y+y-d.y end
+      fit(d.win,b) self.drag=nil changed() return true
+    end
+    if name=="mouse_drag" and self.drag then
+      local d=self.drag local b=copy(d.bounds)
+      if d.resize then b.w,b.h=b.w+x-d.x,b.h+y-d.y else b.x,b.y=b.x+x-d.x,b.y+y-d.y end
+      fit(d.win,b) changed() return true
+    end
+    if self.menu and (name=="char" or name=="paste" or name=="key") then
+      if name=="char" or name=="paste" then self.query=(self.query..tostring(event.args[1])):sub(1,128) self.menuSelected,self.menuScroll=1,1
+      else
+        local key=event.args[1]
+        if key==keys.escape then self.menu=false self.typing=false
+        elseif key==keys.backspace then self.query=self.query:sub(1,-2) self.menuSelected,self.menuScroll=1,1
+        elseif key==keys.enter then local app=self:filtered()[self.menuSelected] if app then launch(app.id) end
+        elseif key==keys.up or key==keys.down then
+          self.menuSelected=clamp(self.menuSelected+(key==keys.up and -1 or 1),1,math.max(1,#self:filtered()))
+          self.menuScroll=self.menuSelected
+        end
+      end
+      changed() return true
+    end
+    if name=="mouse_scroll" then
+      if self.menu then self.menuScroll=self.menuScroll+event.args[1] changed() return true end
+      if y>=self.height-BAR then self.taskPage=clamp(self.taskPage+event.args[1],1,self.taskPages) changed() return true end
+    end
+    if name~="mouse_click" and name~="mouse_scroll" then return pointer end
+    if self.menu then
+      if name=="mouse_click" then
+        if widgets.hit(self.keyboardButton,x,y) then self.touchKeyboard=not self.touchKeyboard changed() return true end
+        if widgets.hit(self.menuPrevious,x,y) then self.menuScroll=self.menuScroll-1 changed() return true end
+        if widgets.hit(self.menuNext,x,y) then self.menuScroll=self.menuScroll+1 changed() return true end
+        for _,hit in ipairs(self.keyboardHits or {}) do if widgets.hit(hit.rect,x,y) then
+          if hit.action=="back" then self.query=self.query:sub(1,-2)
+          elseif hit.action=="space" then self.query=(self.query.." "):sub(1,128)
+          elseif hit.action=="enter" then local app=self:filtered()[self.menuSelected] if app then launch(app.id) end
+          else self.query=(self.query..hit.text):sub(1,128) end
+          self.menuSelected,self.menuScroll=1,1 changed() return true
+        end end
+        for _,hit in ipairs(self.menuRows or {}) do if widgets.hit(hit.rect,x,y) then launch(hit.app.id) return true end end
+        if not widgets.hit(self.menuPanel,x,y) then self.menu=false self.typing=false end
+        changed()
+      end
+      return true
+    end
+    if self.context then
+      local c=self.context changed()
+      if name=="mouse_click" and widgets.hit(c,x,y) then
+        if c.pager and y>=c.y+c.h-18 then c.first=c.first+c.capacity if c.first>#c.items then c.first=1 end return true end
+        local item=c.items[c.first+math.floor((y-c.y)/22)]
+        if item then
+          if item.items then context(item.items,c.x,c.y)
+          elseif item.refresh then sprites.invalidate() self.icons={} self.context=nil self.scene:invalidate()
+          else launch(item.id,item.args) end
+        end
+      else self.context=nil end
+      return true
+    end
+    if y>=self.height-BAR then
+      if name=="mouse_click" then
+        if widgets.hit(self.start,x,y) or widgets.hit(self.search,x,y) then
+          self.menu=true self.typing=true self.query="" self.touchKeyboard=event.monitorTouch or false changed()
+        elseif widgets.hit(self.taskNext,x,y) then self.taskPage=self.taskPage%self.taskPages+1 changed()
+        else for _,hit in ipairs(self.taskHits) do if widgets.hit(hit.rect,x,y) then hit.win.minimized=false ctx.wm:focus(hit.win) changed() break end end end
+      end
+      return true
+    end
+    for _,hit in ipairs(self.notificationHits) do if widgets.hit(hit.rect,x,y) then
+      if name=="mouse_click" and widgets.hit(hit.close,x,y) then
+        local queue=ctx.notifications.queue
+        for i=#queue,1,-1 do if queue[i].id==hit.id then table.remove(queue,i) break end end
+        if ctx.notifications.schedule then ctx.notifications:schedule() end
+        changed()
+      end
+      return true
+    end end
+    for i=#self.windowHits,1,-1 do
+      local hit=self.windowHits[i] local win=hit.win
+      if not win.closed and not win.minimized and widgets.hit(hit.rect,x,y) then
+        if name=="mouse_click" then
+          ctx.wm:focus(win)
+          if event.args[1]==1 then
+            if widgets.hit(hit.controls.close,x,y) then win:requestClose() changed() return true end
+            if widgets.hit(hit.controls.minimize,x,y) then win.minimized=true changed() return true end
+            if widgets.hit(hit.controls.maximize,x,y) then self:toggle(win) return true end
+            if y<hit.rect.y+TITLE then
+              self.drag={win=win,x=x,y=y,bounds=copy(hit.rect),touch=event.monitorTouch} changed() return true
+            end
+            if x>=hit.rect.x+hit.rect.w-9 and y>=hit.rect.y+hit.rect.h-9 then
+              self.drag={win=win,x=x,y=y,bounds=copy(hit.rect),resize=true,touch=event.monitorTouch} changed() return true
+            end
+          end
+        end
+        if widgets.hit(hit.client,x,y) then
+          local args={table.unpack(event.args)}
+          args[2]=win.x+math.floor((x-hit.client.x)/6)+1
+          args[3]=win.y+math.floor((y-hit.client.y)/9)+1
+          if args[2]<=win.x+win.w-2 and args[3]<=win.y+win.h-2 then
+            win:handle({name=name,args=args,raw=event.raw,monitorTouch=event.monitorTouch,monitorSide=event.monitorSide})
+          end
+        end
+        return true
+      end
+    end
+    if name=="mouse_scroll" then self.page=clamp(self.page+event.args[1],1,self.pages) changed() return true end
+    if self.pages>1 then
+      if widgets.hit(self.pagePrevious,x,y) then self.page=math.max(1,self.page-1) changed() return true end
+      if widgets.hit(self.pageNext,x,y) then self.page=math.min(self.pages,self.page+1) changed() return true end
+    end
+    if event.args[1]==2 then
+      desktopContext(x,y) return true
+    end
+    if event.args[1]==1 then for _,hit in ipairs(self.hits) do if widgets.hit(hit.rect,x,y) then launch(hit.app.id) return true end end end
+    if event.monitorTouch then
+      local now=os.clock() local last=self.lastTap self.lastTap={x=x,y=y,time=now}
+      if last and now-last.time<0.5 and math.abs(last.x-x)<6 and math.abs(last.y-y)<6 then desktopContext(x,y) end
+    end
+    return true
+  end
+  return self
 end
 return M
 ]=],
@@ -6376,9 +7016,10 @@ function M.list(x, y, w, h, rows, selected, scroll, render)
   for i = 1, h do
     local index = scroll + i - 1
     local row = rows[index]
-    local bg = row == selected and colors.cyan or theme.get("windowBg")
+    local active = row ~= nil and row == selected
+    local bg = active and colors.cyan or theme.get("windowBg")
     local text = row and render(row, index) or ""
-    renderer.writeAt(x, y + i - 1, renderer.crop(text, w), colors.black, bg)
+    renderer.writeAt(x, y + i - 1, renderer.crop(text, w), active and colors.black or theme.get("windowFg"), bg)
   end
 end
 
@@ -6477,6 +7118,13 @@ function M.new(resolveTarget, onOutputFailure, options)
           previous={}
         end
       end
+      if pixel and pixel.mode~=0 and options and options.beforeRender then
+        local ok,err=pcall(options.beforeRender,pixel)
+        if not ok then
+          pixel.lastError=tostring(err) pixel:close() previous={}
+          if options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
+        end
+      end
       surface.setVisible(false)
       term.redirect(surface)
       local ok, err = pcall(render)
@@ -6497,9 +7145,9 @@ function M.new(resolveTarget, onOutputFailure, options)
           local text, fg, bg = frame[y][1], frame[y][2], frame[y][3]
           local old = previous[y]
           if not old or old[1] ~= text or old[2] ~= fg or old[3] ~= bg then
-            if pixel and pixel.mode~=0 then
+            if pixel and pixel.mode~=0 and not (options and options.pixelRender) then
               require("system.graphics.legacy").row(pixel.surface,y,text,fg,bg,w,h)
-            else
+            elseif not pixel or pixel.mode==0 then
               target.setCursorPos(1, y)
               target.blit(text, fg, bg)
             end
@@ -6511,11 +7159,16 @@ function M.new(resolveTarget, onOutputFailure, options)
         target.setCursorPos(cx, cy)
         target.setCursorBlink(blink)
         if pixel and pixel.mode~=0 then
-          local ok,err=pixel:present()
+          local drawn,problem=true,nil
+          if options and options.pixelRender then drawn,problem=pcall(options.pixelRender,pixel) end
+          local ok,err
+          if drawn then ok,err=pixel:present()
+          else pixel.lastError=tostring(problem) pixel:close() ok,err=false,problem end
           if not ok then
             -- Publish the complete text frame immediately on the same display.
             previous={}
             for y=1,h do target.setCursorPos(1,y) target.blit(table.unpack(frame[y])) end
+            target.setCursorPos(cx,cy) target.setCursorBlink(blink)
             if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
           end
         end
@@ -7472,22 +8125,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.27", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.27", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.27", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.27", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.28", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.28", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.28", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.28", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.27", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.27", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.27", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.27", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.27", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.27", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.27", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.27", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.27", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.27", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.27", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.28", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.28", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.28", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.28", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.28", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.28", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.28", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.28", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.28", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.28", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.28", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -7532,11 +8185,15 @@ function M.start()
   bootApps(ctx)
 
   local graphicsConfig=require("system.libraries.config").load("/system/config/system.cfg",{})
+  local workspace=require("system.graphics.workspace").new(ctx)
+  ctx.pixelWorkspace=workspace
   local screen = compositor.new(devices.getTarget, devices.outputFailed,{
     mode=graphicsConfig.graphicsMode or "text",
-    onGraphicsFailure=function(err) log.error("graphics",tostring(err)) end,
+    beforeRender=function(backend) workspace:prepare(backend) end,
+    pixelRender=function(backend) workspace:draw(backend) end,
+    onGraphicsFailure=function(err) workspace:deactivate() log.error("graphics",tostring(err)) end,
   })
-  ctx.setGraphicsMode=function(mode) screen:configure(mode) ctx.wm:invalidate() end
+  ctx.setGraphicsMode=function(mode) workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() end
   ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() end
   ctx.renderStats = function() return screen:stats() end
   local lastClock
@@ -7588,7 +8245,12 @@ function M.start()
             ctx.notifications:push("info", "Devices", "Display refreshed", 2)
           end
           ctx.scheduler:dispatch(event)
-          if desktop.captures(event) then
+          local pixelActive=screen:stats().backend~="TEXT"
+          if pixelActive and workspace:handle(event) then
+            -- Pixel shell consumed the event; never forward it to the grid behind.
+          elseif pixelActive and event.name:match("^mouse_") then
+            -- Pointer events are exclusively routed by the pixel workspace.
+          elseif desktop.captures(event) and not pixelActive then
             desktop.handle(event)
           else
             local handled = ctx.wm:handle(event)
@@ -8258,7 +8920,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.27",
+    version = meta.version or "0.18.28",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -16263,7 +16925,7 @@ function Window:clamp()
   local sw, sh = term.getSize()
   self.w = math.min(self.w, sw)
   self.h = math.min(self.h, math.max(1, sh - 1))
-  if self.maximized then
+  if self.maximized and not self.pixelManaged then
     self.w, self.h = sw, math.max(1, sh - 1)
   end
   local maxX = math.max(1, sw - self.w + 1)
@@ -16293,6 +16955,7 @@ function Window:updateControls()
 end
 
 function Window:toggleMaximize()
+  if self.pixelController then self.pixelController() return end
   if self.maximized and self.previousBounds then
     self.x = self.previousBounds.x
     self.y = self.previousBounds.y
@@ -16348,6 +17011,7 @@ function Window:draw()
       ok,err=pcall(self.app.draw,self.app,self.w-2,self.h-2)
       term.redirect(previous)
       self.dirty=false self.surfaceTheme=theme.currentId
+      if ok then self.surfaceRevision=(self.surfaceRevision or 0)+1 end
     end
     if ok then
       target.setVisible(true)
@@ -16479,8 +17143,13 @@ function WindowManager:draw()
     local covered=false
     for upper=index+1,#self.windows do
       local other=self.windows[upper]
-      if not other.closed and not other.minimized and other.x<=win.x and other.y<=win.y and
-        other.x+other.w>=win.x+win.w and other.y+other.h>=win.y+win.h then covered=true break end
+      local a,b=win.pixelBounds,other.pixelBounds
+      if not other.closed and not other.minimized then
+        if win.pixelManaged and other.pixelManaged and a and b then
+          if b.x<=a.x and b.y<=a.y and b.x+b.w>=a.x+a.w and b.y+b.h>=a.y+a.h then covered=true break end
+        elseif not win.pixelManaged and other.x<=win.x and other.y<=win.y and
+          other.x+other.w>=win.x+win.w and other.y+other.h>=win.y+win.h then covered=true break end
+      end
     end
     if not covered then win:draw() end
   end
@@ -16582,7 +17251,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.27
+0.18.28
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

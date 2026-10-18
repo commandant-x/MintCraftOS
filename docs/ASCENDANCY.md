@@ -40,7 +40,14 @@ installer builder and existing regression/native tests.
   CC Terminals 0.1.1 (Minecraft 1.21.1 NeoForge). Upstream source inspection is
   not proof of installed in-game behavior. No mods or worlds were modified.
 
-## Current Increment: Pixel Backend And Compatibility
+## Current Increment: Native Pixel Workspace (0.18.28)
+
+The 0.18.27 backend now hosts a native dark desktop, retained pixel scene,
+bitmap sprite layout, native taskbar/launcher/search/context menus/notifications
+and pixel-precise window chrome. Move, resize, maximize/restore, minimize/restore,
+focus, source-to-client input and text-mode fallback preserve the original WM
+and process ownership. Native widgets are reusable; all-app migration is next.
+See GRAPHICS-0.18.28.md for exact tests, behavior and limitations.
 
 - backend: active mode probe (256 -> 16 -> text), actual dimensions, freeze
   restoration on all presentation outcomes, bounded indexed surface, metrics.
@@ -52,15 +59,16 @@ installer builder and existing regression/native tests.
   maps bitmask palettes to indexed palettes; prevents redirected clear() from
   erasing the physical graphics display.
 - Existing compositor/kernel select the backend; Settings Display exposes Text,
-  Pixel compatibility and Pixel 16 colors. Text remains default for this release.
+  Pixel desktop and Pixel 16 colors. Text remains default for this release.
 - Boot/recovery always unfreeze and return to text. Display changes close the
   old backend; graphics presentation failure repaints the full text frame.
 - Native computer pixel pointers convert once to existing cell hitboxes;
   original pixel coordinates are retained. Unselected terminal events are ignored.
 
-This is an intermediate compatibility foundation, NOT the completed pixel UI.
-Existing controls, icons, window layout and application interfaces still use
-cell-based geometry. There is no claim of completed phases A-D or ASCENDANCY.
+This is NOT the completed OS-wide graphical migration. Desktop/window geometry
+is now native pixels; existing application clients still use cell-based controls
+inside rasterized containers. There is no claim of completed A-D in-game gates
+or finished ASCENDANCY.
 
 ## Requirements And Proof Gates
 
@@ -68,13 +76,13 @@ cell-based geometry. There is no claim of completed phases A-D or ASCENDANCY.
 | --- | --- | --- |
 | 1-2 | Extend existing OS; inspect current remote and actual integrations; preserve data | Baseline verified; additive backend, existing tests retained |
 | 3 | Actual 256/16 pixels, dimensions, detection, resizing, safe fallback | Engine + native test; target/device capabilities UI and all failure paths need expansion |
-| 4 | Modular raster, clipping, windows, dirty rectangles, memory limits, metrics | Bounded rows, spans and basic primitives; native pixel compositor/occlusion/sprites/cache pending |
+| 4 | Modular raster, clipping, windows, dirty rectangles, memory limits, metrics | Retained native scene, clipped damage/opaque occlusion, bitmap sprites, 2 MiB payload cache; extended primitives and benchmark expansion remain |
 | 5 | Bitmap fonts, wrapping/alignment/accents, readable UI/mono, assets rights | BSD font + scales + measurement; wrapping/alignment/encoding and UI typography pending |
-| 6 | Pixel WM, resize/drag/focus/minimize/restore, controls, shortcuts, terminal source routing | Existing cell WM preserved; true pixel controls/geometry and full CC Terminals integration pending |
-| 7 | Dark polished desktop, wallpaper, taskbar, icons, menus, search, clock, notifications | Existing desktop rasterized only; redesign pending |
+| 6 | Pixel WM, resize/drag/focus/minimize/restore, controls, shortcuts, terminal source routing | Native chrome/geometry/input and ownership integrated; complete widget set, shortcuts and CC Terminals integration pending |
+| 7 | Dark polished desktop, wallpaper, taskbar, icons, menus, search, clock, notifications | Native dark shell, sprite icons, paged launcher/tasks, search, context menu and dismissible notifications; wallpaper/customization/polish remain |
 | 8 | All sixteen apps migrated without functionality loss | Six apps native compatibility-smoke tested; all native graphical redesigns pending |
-| 9 | Virtual text compatibility preserving input/isolation | Offscreen window raster path and native smoke; cursor/selection/third-party coverage pending |
-| 10 | Multiple actual framebuffer benchmarks, load, partial updates | Native 600x306 / 960x540 compatibility smoke and bounded surface test; comprehensive benchmarking pending |
+| 9 | Virtual text compatibility preserving input/isolation | Offscreen windows rasterized in native chrome with cursor underline; selection/blink/third-party coverage pending |
+| 10 | Multiple actual framebuffer benchmarks, load, partial updates | Native 156x180 / 306x171 / 600x306 / 960x540 interaction smoke and bounded surface test; comprehensive benchmarking pending |
 | 11-12 | Shared NEXUS events, schema/source/time/frame/validity/confidence, capability registry | Existing authenticated fleet foundation only; cross-service CORE pending |
 | 13 | ORACLE source-preserving fusion/dedup/stale history/alerts, no fake positions | Pending |
 | 14 | ATLAS persisted dimension tiles, real terrain adapters, viewport loading, pan/zoom/layers/waypoints/uncertainty | Pending; vehicle localization must not masquerade as terrain |
@@ -87,8 +95,8 @@ cell-based geometry. There is no claim of completed phases A-D or ASCENDANCY.
 | 21 | BLACKBOX bounded historical observations/statistics/resource trends/availability/decisions | Existing logs/alerts only; historical module pending |
 | 22 | Graphical WARROOM overview/atlas/oracle/synapse/dominion/swarm/tactical/aegis/blackbox | Existing NEXUS UI preserved; integrated pixel views pending |
 | 23 | First-run nonblank admin setup, existing permissions, explicit fleet authorization, truthful auth/confidentiality | Blank default admin confirmed in users.lua; first-run migration pending, not silently changed in graphics release |
-| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | Existing 83 suites plus graphics coverage; full final gate not met |
-| 25 | A-J incremental working releases, graphical completion before strategic expansion | A in progress; B-J not complete |
+| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 88 fast suites, native raw-pointer tests and framebuffer inspection; full final gate not met |
+| 25 | A-J incremental working releases, graphical completion before strategic expansion | A native workspace usable in emulation, B partial; C-J not complete |
 | 26 | Versioned source/tests/docs/changelog/installer/compatibility/migration/limitations | Required per increment; no blanket completion claim |
 | 27 | All 18 invariants (no fake APIs/data/performance, bounded work, safety, optional addons, fallback) | Preserve as release gates; real in-game validation still required |
 | 28-30 | Complete integrated product; finish graphics before broad new automation | Goal remains active; compatibility backend alone is not success |
@@ -103,15 +111,15 @@ exports indexed bytes for visual inspection, then switches back to text.
 Real CC Graphics / CC Terminals in-game behavior remains unverified.
 
 No user config is overwritten to enable graphics. After updating, choose
-Settings -> Display -> Pixel compatibility. Text renderer disables it live;
+Settings -> Display -> Pixel desktop. Text renderer disables it live;
 editing graphicsMode="text" in system.cfg also disables it. A reboot starts
 boot/recovery in text regardless of the previous physical display state.
 No external GPU, server changes, browser expansion or flight safety changes.
 
 ## Next Gates
 
-Finish A with native pixel desktop layout/composition and cursor compatibility.
-Then B: native pixel WM and reusable controls, robust target/source adapters.
+Continue B: complete reusable controls, robust terminal target/source adapters,
+UI scale, typography, cursor behavior and native WM polish.
 Then C: migrate every app, explicitly tracking each of the sixteen, before
 calling Graphics 2.0 complete. D benchmarks/themes/polish follows. Only after
 the graphical foundation is stable proceed with CORE/ORACLE/ATLAS and E-J.
