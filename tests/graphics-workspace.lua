@@ -1,5 +1,6 @@
 package.path="./?.lua;"..package.path
 local Surface=require("system.graphics.surface")
+package.loaded["system.gui.theme"]={currentId="mint"}
 local Workspace=require("system.graphics.workspace")
 keys={escape=1,backspace=2,enter=3,up=4,down=5}
 local apps={}
@@ -11,7 +12,13 @@ local function setup(w,h)
   local ctx={wm=wm,apps={list=function() return apps end,launch=function(id) launches[#launches+1]=id return true end},notifications={queue={}}}
   local backend={mode=1,surface=Surface.new(w,h,15),caps={textWidth=math.floor(w/6),textHeight=math.floor(h/9)}}
   local workspace=Workspace.new(ctx)
-  local function frame() workspace:prepare(backend) workspace:draw(backend) end
+  local function frame()
+    local saved=package
+    package=nil
+    local ok,err=pcall(function() workspace:prepare(backend) workspace:draw(backend) end)
+    package=saved
+    assert(ok,err)
+  end
   local function pointer(name,x,y,button,touch)
     return workspace:handle({name=name,args={button or 1,1,1},pixelX=x,pixelY=y,monitorTouch=touch})
   end

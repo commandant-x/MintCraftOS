@@ -80,7 +80,7 @@ function M.new(ctx)
     win.dirty=true changed()
   end
   function self:prepare(backend)
-    local theme=package.loaded["system.gui.theme"]
+    local theme=require("system.gui.theme")
     local themeId=theme and theme.currentId or "mint"
     if self.backend~=backend or self.themeId~=themeId then
       if self.backend~=backend then self.drag,self.clientCapture=nil,nil end
