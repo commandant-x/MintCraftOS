@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2872,7 +2872,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2952,7 +2952,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3071,7 +3071,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3765,7 +3765,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3849,7 +3849,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -3942,10 +3942,7 @@ function M.run(ctx)
     if self.page=="system" then add("label","Set label")
     elseif self.page=="display" then
       add("refresh","Refresh")
-      local mode=config.load("/system/config/system.cfg",{}).graphicsMode or "text"
-      add("graphics:text","Text renderer",mode=="text")
-      add("graphics:auto","Pixel desktop",mode=="auto")
-      add("graphics:pixel16","Pixel 16 colors",mode=="pixel16")
+      add("graphics:auto","Retry pixel desktop")
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
@@ -4179,7 +4176,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -4294,7 +4291,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4436,7 +4433,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.31",
+  version = "0.18.32",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -4906,7 +4903,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.31",
+  version = "0.18.32",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5453,8 +5450,10 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.31",
+    version = "0.18.32",
     theme = "mint",
+    graphicsMode = "auto",
+    displayTarget = "computer",
     displayScale = 0.5,
     debug = true,
     safeMode = false,
@@ -5833,9 +5832,10 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.31",
+  version = "0.18.32",
   theme = "mint",
-  graphicsMode = "text",
+  graphicsMode = "auto",
+  displayTarget = "computer",
   displayScale = 0.5,
   debug = true,
   safeMode = false,
@@ -6518,7 +6518,10 @@ function M.parent(target,mode)
     "setTextColor","setTextColour","getBackgroundColor","getBackgroundColour",
     "setBackgroundColor","setBackgroundColour","scroll"}) do redirect[name]=target[name] end
   local function index(color)
-    if mode~=2 then return color end
+    -- The same text buffer can outlive graphics failure/fallback.
+    local active=mode
+    if type(target.getGraphicsMode)=="function" then active=target.getGraphicsMode() end
+    if active~=2 then return color end
     for i=0,15 do if color==2^i then return i end end
     error("Invalid legacy palette color",2)
   end
@@ -7662,6 +7665,8 @@ function M.new(resolveTarget, onOutputFailure, options)
     if pixel then pixel:close() pixel=nil end
     previous = {}
     local native = term.native and term.native() or target
+    if type(native.setFrozen)=="function" then pcall(native.setFrozen,false) end
+    if type(native.setGraphicsMode)=="function" then pcall(native.setGraphicsMode,0) end
     term.redirect(native)
     if target == native then error(problem, 0) end
     failedTarget, fallbackTarget = target, native
@@ -7709,11 +7714,26 @@ function M.new(resolveTarget, onOutputFailure, options)
           if pixel.mode==0 and pixel.lastError and options and options.onGraphicsFailure then
             pcall(options.onGraphicsFailure,pixel.lastError)
           end
+        else
+          -- Peripheral graphics state survives a computer reboot. A fresh text
+          -- buffer must never inherit an indexed physical palette.
+          if type(target.setFrozen)=="function" then pcall(target.setFrozen,false) end
+          if type(target.setGraphicsMode)=="function" then
+            local reset,problem=pcall(target.setGraphicsMode,0)
+            if not reset then target=outputFailure(target,problem) w,h=target.getSize() end
+          end
         end
         parent, width, height = target, w, h
         local bufferParent=parent
         if pixel and pixel.mode~=0 then bufferParent=require("system.graphics.legacy").parent(parent,pixel.mode) end
-        surface = window.create(bufferParent, 1, 1, w, h, false)
+        local created,result=pcall(window.create,bufferParent,1,1,w,h,false)
+        if not created and pixel and pixel.mode~=0 then
+          pixel.lastError=tostring(result) pixel:close() previous={}
+          if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,result) end
+          created,result=pcall(window.create,parent,1,1,w,h,false)
+        end
+        if not created then error(result,0) end
+        surface=result
         if pixel and pixel.mode~=0 then require("system.graphics.legacy").buffer(surface) end
         previous = {}
       elseif width ~= w or height ~= h then
@@ -8767,22 +8787,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.31", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.31", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.31", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.31", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.32", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.32", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.32", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.32", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.31", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.31", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.31", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.31", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.31", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.31", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.31", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.31", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.31", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.31", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.31", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.32", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.32", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.32", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.32", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.32", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.32", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.32", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.32", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.32", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.32", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.32", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -8830,7 +8850,7 @@ function M.start()
   local workspace=require("system.graphics.workspace").new(ctx)
   ctx.pixelWorkspace=workspace
   local screen = compositor.new(devices.getTarget, devices.outputFailed,{
-    mode=graphicsConfig.graphicsMode or "text",
+    mode=graphicsConfig.safeMode and "text" or "auto",
     beforeRender=function(backend) workspace:prepare(backend) end,
     pixelRender=function(backend) workspace:draw(backend) end,
     onGraphicsFailure=function(err) workspace:deactivate() log.error("graphics",tostring(err)) end,
@@ -9563,7 +9583,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.31",
+    version = meta.version or "0.18.32",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -17952,7 +17972,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.31
+0.18.32
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

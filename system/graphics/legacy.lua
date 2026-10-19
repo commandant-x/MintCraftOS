@@ -15,7 +15,10 @@ function M.parent(target,mode)
     "setTextColor","setTextColour","getBackgroundColor","getBackgroundColour",
     "setBackgroundColor","setBackgroundColour","scroll"}) do redirect[name]=target[name] end
   local function index(color)
-    if mode~=2 then return color end
+    -- The same text buffer can outlive graphics failure/fallback.
+    local active=mode
+    if type(target.getGraphicsMode)=="function" then active=target.getGraphicsMode() end
+    if active~=2 then return color end
     for i=0,15 do if color==2^i then return i end end
     error("Invalid legacy palette color",2)
   end

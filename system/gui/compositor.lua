@@ -11,6 +11,8 @@ function M.new(resolveTarget, onOutputFailure, options)
     if pixel then pixel:close() pixel=nil end
     previous = {}
     local native = term.native and term.native() or target
+    if type(native.setFrozen)=="function" then pcall(native.setFrozen,false) end
+    if type(native.setGraphicsMode)=="function" then pcall(native.setGraphicsMode,0) end
     term.redirect(native)
     if target == native then error(problem, 0) end
     failedTarget, fallbackTarget = target, native
@@ -58,11 +60,26 @@ function M.new(resolveTarget, onOutputFailure, options)
           if pixel.mode==0 and pixel.lastError and options and options.onGraphicsFailure then
             pcall(options.onGraphicsFailure,pixel.lastError)
           end
+        else
+          -- Peripheral graphics state survives a computer reboot. A fresh text
+          -- buffer must never inherit an indexed physical palette.
+          if type(target.setFrozen)=="function" then pcall(target.setFrozen,false) end
+          if type(target.setGraphicsMode)=="function" then
+            local reset,problem=pcall(target.setGraphicsMode,0)
+            if not reset then target=outputFailure(target,problem) w,h=target.getSize() end
+          end
         end
         parent, width, height = target, w, h
         local bufferParent=parent
         if pixel and pixel.mode~=0 then bufferParent=require("system.graphics.legacy").parent(parent,pixel.mode) end
-        surface = window.create(bufferParent, 1, 1, w, h, false)
+        local created,result=pcall(window.create,bufferParent,1,1,w,h,false)
+        if not created and pixel and pixel.mode~=0 then
+          pixel.lastError=tostring(result) pixel:close() previous={}
+          if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,result) end
+          created,result=pcall(window.create,parent,1,1,w,h,false)
+        end
+        if not created then error(result,0) end
+        surface=result
         if pixel and pixel.mode~=0 then require("system.graphics.legacy").buffer(surface) end
         previous = {}
       elseif width ~= w or height ~= h then

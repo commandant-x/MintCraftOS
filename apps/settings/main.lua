@@ -85,10 +85,7 @@ function M.run(ctx)
     if self.page=="system" then add("label","Set label")
     elseif self.page=="display" then
       add("refresh","Refresh")
-      local mode=config.load("/system/config/system.cfg",{}).graphicsMode or "text"
-      add("graphics:text","Text renderer",mode=="text")
-      add("graphics:auto","Pixel desktop",mode=="auto")
-      add("graphics:pixel16","Pixel 16 colors",mode=="pixel16")
+      add("graphics:auto","Retry pixel desktop")
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do

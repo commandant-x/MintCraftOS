@@ -7,6 +7,9 @@ end
 local ok, err = pcall(function()
   shell.setDir("/")
   assert(shell.run("/source/install.lua"), "installation failed")
+  local cfg=require("system.libraries.config")
+  local settings=cfg.load("/system/config/system.cfg",{})
+  settings.safeMode=true cfg.save("/system/config/system.cfg",settings)
   http = nil
   _G.http = nil
   local apps = require("system.libraries.apps")

@@ -2,7 +2,12 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.31:
+This repository currently contains V0.18.32:
+
+V0.18.32 makes the pixel desktop the normal boot path (256 -> 16 -> diagnostic
+text fallback). It resets persistent peripheral graphics state before text
+buffers and isolates incompatible ROM window initialization. See
+[routing and resolution notes](docs/GRAPHICS-0.18.32.md).
 
 V0.18.31 adds bounded bitmap text layout (wrapping, alignment, spacing, scales,
 UTF8-to-font display conversion), plus Files copy/cut/paste and cached properties.

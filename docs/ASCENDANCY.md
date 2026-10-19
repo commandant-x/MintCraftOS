@@ -103,7 +103,7 @@ or finished ASCENDANCY.
 | 21 | BLACKBOX bounded historical observations/statistics/resource trends/availability/decisions | Existing logs/alerts only; historical module pending |
 | 22 | Graphical WARROOM overview/atlas/oracle/synapse/dominion/swarm/tactical/aegis/blackbox | Existing NEXUS UI preserved; integrated pixel views pending |
 | 23 | First-run nonblank admin setup, existing permissions, explicit fleet authorization, truthful auth/confidentiality | Blank default admin confirmed in users.lua; first-run migration pending, not silently changed in graphics release |
-| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 92 fast suites, native Files/raw-pointer tests, terminal-transport simulation and framebuffer inspection; full final gate not met |
+| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 93 fast suites, native Files/raw-pointer tests, installed CC Graphics ROM-window emulation, terminal-transport simulation and framebuffer inspection; full final gate not met |
 | 25 | A-J incremental working releases, graphical completion before strategic expansion | A native workspace usable in emulation, B partial; C-J not complete |
 | 26 | Versioned source/tests/docs/changelog/installer/compatibility/migration/limitations | Required per increment; no blanket completion claim |
 | 27 | All 18 invariants (no fake APIs/data/performance, bounded work, safety, optional addons, fallback) | Preserve as release gates; real in-game validation still required |

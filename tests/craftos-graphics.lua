@@ -28,7 +28,8 @@ local ok,err=pcall(function()
   assert(shell.run("/source/install.lua"))
   local cfg=require("system.libraries.config")
   local settings=cfg.load("/system/config/system.cfg",{})
-  settings.graphicsMode="auto" cfg.save("/system/config/system.cfg",settings)
+  -- Persisted pre-migration text preference must not select a second desktop.
+  settings.graphicsMode="text" settings.safeMode=false cfg.save("/system/config/system.cfg",settings)
   if _G.mintcraftTerminalFixture then settings.displayTarget="terminal_0" cfg.save("/system/config/system.cfg",settings) end
   local apps=require("system.libraries.apps")
   local function capture(name)
