@@ -31,6 +31,7 @@ assert(b:present())
 local before=b.surface.rows[1]
 b.surface:pixel(306,0,1) assert(b.surface.rows[1]==before)
 local pixel16=Backend.new(target(true),"auto") assert(pixel16.mode==1)
+assert(pixel16.generation~=b.generation and Backend.new(target(),"auto").generation~=b.generation,"backend replacement reused counter generation")
 assert(Backend.new({getSize=function() return 51,19 end},"auto").mode==0)
 assert(Backend.new(t,"text").mode==0)
 local failed=Backend.new(t,"auto")

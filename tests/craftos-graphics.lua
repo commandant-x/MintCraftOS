@@ -49,7 +49,7 @@ local ok,err=pcall(function()
     assert(stats.backend=="PIXEL256","pixel backend inactive: "..tostring(stats.lastError))
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
-    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","nexus"}) do
+    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","taskmanager","nexus"}) do
       local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
@@ -162,6 +162,32 @@ local ok,err=pcall(function()
         apps.ctx.scheduler:kill(pid)
         for _=1,30 do if stopped and not manager:controlStatus().busy then break end sleep(0.05) end
         assert(stopped and manager:controlStatus().ok and not manager.services.viewer_fixture.started,"closing Services abandoned in-flight transition")
+      end
+      if id=="taskmanager" then
+        local win=proc.window local workspace=apps.ctx.pixelWorkspace
+        assert(win.pixelNative,"Task Manager is still a legacy client")
+        for _=1,60 do if #win.app.history>=2 and win.app.snapshot.render.generation then break end sleep(0.05) end
+        assert(#win.app.history>=2 and win.app.snapshot.render.generation,"task sampling unavailable: history="..#win.app.history.." backend="..tostring(win.app.snapshot.render.backend).." generation="..tostring(win.app.snapshot.render.generation))
+        win:toggleMaximize() os.queueEvent("mintcraft_test") sleep(0.2)
+        local client
+        for _,hit in ipairs(workspace.windowHits) do if hit.win==win then client=hit.client end end
+        local function click(id)
+          for _,hit in ipairs(win.app.pixelHits) do if hit.id==id then queueInput("mouse_click",1,client.x+hit.rect.x+2,client.y+hit.rect.y+2) return end end
+          error("missing Task Manager control "..id)
+        end
+        local fixture=apps.ctx.scheduler:spawn("isolated-task-fixture",function() while true do coroutine.yield() end end,{appId="isolated-test",permissions={}})
+        apps.ctx.scheduler:start(fixture)
+        win.app:refresh(true)
+        for index,row in ipairs(win.app:filteredRows()) do if row.pid==fixture then win.app:select(index) end end
+        win.dirty=true os.queueEvent("mintcraft_test") sleep(0.15)
+        capture("pixel-taskmanager-processes")
+        click("kill") sleep(0.1) assert(win.app.confirm and apps.ctx.scheduler.processes[fixture].state=="ready","fixture killed before confirmation")
+        click("cancel") sleep(0.1) assert(apps.ctx.scheduler.processes[fixture].state=="ready")
+        click("kill") sleep(0.1) click("confirm") sleep(0.15)
+        assert(apps.ctx.scheduler.processes[fixture].state=="killed","native delegated kill failed: "..win.app.message)
+        click("views") sleep(0.1) queueInput("key",keys.down) queueInput("key",keys.enter) sleep(0.15)
+        assert(win.app.page=="performance","native Task Manager keyboard view selector failed")
+        capture("pixel-taskmanager-performance")
       end
       if id=="files" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
@@ -281,7 +307,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Files operations, Combat keyboard, Logs details/filter, asynchronous Services/owner close, eight apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Files/Combat/Logs/Services, measured Task Manager/confirmed fixture kill, nine apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

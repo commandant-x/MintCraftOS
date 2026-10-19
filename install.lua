@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1436,7 +1436,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1835,7 +1835,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1921,7 +1921,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2317,7 +2317,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -3140,7 +3140,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -3439,7 +3439,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3558,7 +3558,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -4449,7 +4449,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -4688,7 +4688,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -5015,7 +5015,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -5130,149 +5130,426 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
 ]=],
   ["apps/taskmanager/main.lua"] = [=[
-local renderer = require("system.gui.renderer")
-local ui = require("system.gui.components")
-local theme = require("system.gui.theme")
-local addon = require("system.libraries.addon")
-
-local M = {}
-
-local function sizeLabel(bytes)
-  bytes = tonumber(bytes) or 0
-  if bytes >= 1024 * 1024 then
-    return string.format("%.1f MB", bytes / 1024 / 1024)
-  elseif bytes >= 1024 then
-    return string.format("%.1f KB", bytes / 1024)
-  end
-  return tostring(bytes) .. " B"
-end
-
-local function diskStats()
-  if not fs.getFreeSpace then return "Disk: unavailable" end
-  local free = fs.getFreeSpace("/")
-  local capacity = fs.getCapacity and fs.getCapacity("/") or nil
-  if capacity and capacity > 0 then
-    local used = capacity - free
-    local pct = math.floor((used / capacity) * 100 + 0.5)
-    return "Disk: " .. sizeLabel(used) .. "/" .. sizeLabel(capacity) .. " " .. pct .. "%"
-  end
-  return "Disk free: " .. sizeLabel(free)
-end
-
-local function memoryStats()
-  if not collectgarbage then return "RAM: unavailable" end
-  local ok, kb = pcall(collectgarbage, "count")
-  if not ok then return "RAM: unavailable" end
-  return string.format("RAM Lua: %.1f KB", kb)
-end
-
+local renderer=require("system.gui.renderer")
+local ui=require("system.gui.components")
+local theme=require("system.gui.theme")
+local metrics=require("apps.taskmanager.metrics")
+local pixel=require("apps.taskmanager.pixel")
+local M={}
 function M.run(ctx)
-  local app = { selectedPid = nil, scroll = 1 }
-  local sampleTime, sample
-  local function metrics()
-    local now = os.clock()
-    if not sample or now - sampleTime >= 1 then
-      local rows = ctx.listProcesses()
-      local ready,runtime=0,0
-      for _,process in ipairs(rows) do
-        if process.state=="ready" then ready=ready+1 end
-        runtime=runtime+(process.runtimeMs or 0)
-      end
-      sample={rows=rows,memory=memoryStats(),disk=diskStats(),ready=ready,runtimeMs=runtime,acquisition=addon.metrics()}
-      sampleTime = now
-    end
-    return sample
+  local app={page="processes",selectedPid=nil,scroll=1,history={},message="Ready",onlyLive=false}
+  local win,timer
+  local actions={{id="kill",label="Kill"},{id="refresh",label="Refresh"}}
+  function app:filteredRows()
+    if not self.graphicsActive then return self.snapshot.rows end
+    local rows={}
+    for _,row in ipairs(self.snapshot.rows) do if not self.onlyLive or row.state=="ready" then rows[#rows+1]=row end end
+    return rows
   end
-  local actions = {
-    { id = "kill", label = "Kill" },
-    { id = "refresh", label = "Refresh" },
-  }
-
-  function app:draw(w, h)
-    local snapshot = metrics()
-    local rows = snapshot.rows
-    local total = #rows
-
-    self.toolbar = ui.toolbar(1, 1, w, actions)
-    if h<9 then
-      renderer.writeAt(1,2,renderer.crop("Live: "..snapshot.ready.." | CPU unavailable",w),theme.get("windowFg"),theme.get("windowBg"))
-      if h>=4 then renderer.writeAt(1,3,renderer.crop(snapshot.memory,w),theme.get("windowFg"),theme.get("windowBg")) end
-      if h>=5 then renderer.writeAt(1,4,renderer.crop(snapshot.disk,w),theme.get("windowFg"),theme.get("windowBg")) end
-      self.listBottom=0 return
-    end
-    renderer.writeAt(1, 2, renderer.crop("MintCraft Task Manager", w), theme.get("windowFg"), theme.get("windowBg"))
-    renderer.writeAt(2,3,renderer.crop("CPU: unavailable | Live: "..snapshot.ready.." / "..total,w-2),theme.get("windowFg"),theme.get("windowBg"))
-    renderer.writeAt(2, 4, renderer.crop(snapshot.memory, w - 2), theme.get("windowFg"), theme.get("windowBg"))
-    renderer.writeAt(2, 5, renderer.crop(snapshot.disk, w - 2), theme.get("windowFg"), theme.get("windowBg"))
-    local io=snapshot.acquisition
-    renderer.writeAt(2,6,renderer.crop("Reads "..io.reads.." | Active "..io.inFlight.." | Queue "..io.queue.." | Overruns "..io.overruns,w-2),theme.get("windowFg"),theme.get("windowBg"))
-    renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), theme.get("windowFg"), theme.get("buttonBg"))
-
-    local visible=math.max(0,h-7-(self.selectedPid and 2 or 0))
-    self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-visible+1)))
-    self.listBottom=7+visible
-    for i = 1, math.min(#rows, visible) do
-      local p = rows[self.scroll + i - 1]
-      if p then
-        local bg = p.pid == self.selectedPid and colors.cyan or theme.get("windowBg")
-        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. tostring(p.appId or "-") .. "   " .. p.name, w), theme.get("windowFg"), bg)
-      end
-    end
-    if self.selectedPid then
-      for _, p in ipairs(rows) do
-        if p.pid == self.selectedPid then
-          local perms = table.concat(p.permissions or {}, ",")
-          renderer.writeAt(1,h-1,renderer.crop("Active wall time: "..tostring(p.runtimeMs or "?").."ms | Resumes: "..tostring(p.resumes or "?"),w),theme.get("buttonBg"),theme.get("windowBg"))
-          renderer.writeAt(1, h, renderer.crop("Perms: " .. (perms ~= "" and perms or "-") .. " Err: " .. tostring(p.error or "-"), w), theme.get("buttonBg"), theme.get("windowBg"))
-          break
-        end
-      end
-    end
+  function app:refresh(force)
+    local now=os.clock()
+    if not force and self.snapshot and now>=self.snapshot.timestamp and now-self.snapshot.timestamp<1 then return false end
+    self.snapshot=metrics.sample(ctx,self.baseline,now,self.observed)
+    self.observed=self.snapshot
+    if self.snapshot.gap then self.baseline=self.snapshot end
+    if metrics.record(self.history,self.snapshot) then self.baseline=self.snapshot end
+    local retained=false
+    for _,row in ipairs(self:filteredRows()) do if row.pid==self.selectedPid then retained=true if row.state~="ready" then self.confirm=nil end end end
+    if not retained then self.selectedPid=nil self.confirm=nil end
+    if win then win.dirty=true end
+    return true
   end
-
+  function app:kill(pid)
+    self:refresh(true)
+    if self.selectedPid~=pid then self.message="Selection changed; kill cancelled" return end
+    local target
+    for _,row in ipairs(self.snapshot.rows) do if row.pid==pid then target=row end end
+    if not target or target.state~="ready" or target.protected then self.message="Process not running or protected" return end
+    local ok,err=ctx.kill(pid)
+    self.message=ok and "Killed PID "..pid or tostring(err)
+    if ctx.notifications then ctx.notifications:push(ok and "success" or "error","Task Manager",self.message,4) end
+    self:refresh(true)
+  end
+  function app:draw(w,h)
+    if self.confirm then
+      if h<5 then self.confirm=nil return end
+      renderer.writeAt(1,2,renderer.crop("Kill PID "..self.confirm.pid.." - "..self.confirm.name.."?",w),theme.get("windowFg"),theme.get("windowBg"))
+      self.confirmBar=ui.toolbar(1,h-1,w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}}) return
+    end
+    self.toolbar=ui.toolbar(1,1,w,actions)
+    local s=self.snapshot
+    renderer.writeAt(1,2,renderer.crop("Live: "..s.ready.." / "..#s.rows.." | CPU unavailable",w),theme.get("windowFg"),theme.get("windowBg"))
+    if h>=4 then renderer.writeAt(1,3,renderer.crop(s.memory,w),theme.get("windowFg"),theme.get("windowBg")) end
+    if h>=5 then renderer.writeAt(1,4,renderer.crop(s.disk,w),theme.get("windowFg"),theme.get("windowBg")) end
+    if h<9 then self.listBottom=0 return end
+    local io=s.acquisition
+    renderer.writeAt(1,5,renderer.crop("Reads "..tostring(io.reads or "?").." | Active "..tostring(io.inFlight or "?").." | Queue "..tostring(io.queue or "?"),w),theme.get("windowFg"),theme.get("windowBg"))
+    renderer.writeAt(1,6,renderer.crop("PID STATE APP NAME",w),theme.get("windowFg"),theme.get("buttonBg"))
+    local rows=self:filteredRows() local visible=math.max(0,h-8)
+    self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-visible+1))) self.listBottom=6+visible
+    for i=self.scroll,math.min(#rows,self.scroll+visible-1) do
+      local row=rows[i] local bg=row.pid==self.selectedPid and theme.get("accent") or theme.get("windowBg")
+      renderer.writeAt(1,7+i-self.scroll,renderer.crop(tostring(row.pid).." "..row.state.." "..tostring(row.appId or "-").." "..row.name,w),theme.get("windowFg"),bg)
+    end
+    local selected
+    for _,row in ipairs(rows) do if row.pid==self.selectedPid then selected=row end end
+    if selected then renderer.writeAt(1,h-1,renderer.crop("Active wall ms: "..tostring(selected.runtimeMs or "?").." | Perms: "..table.concat(selected.permissions or {},","),w),theme.get("windowFg"),theme.get("windowBg")) end
+    renderer.writeAt(1,h,renderer.crop(tostring(self.message):gsub("[%c]"," "),w),theme.get("windowFg"),theme.get("windowBg"))
+  end
   function app:handle(event)
-    if event.name == "mouse_scroll" then
-      self.scroll = math.max(1, self.scroll + event.args[1])
-      return true
+    if self.graphicsActive and not event.name:match("^mouse_") then return self:handlePixels(event) end
+    if self.confirm then
+      if event.name=="key" and event.args[1]==keys.escape then self.confirm=nil return true end
+      if event.name=="mouse_click" then
+        local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
+        if id=="confirm" then local pid=self.confirm.pid self.confirm=nil self:kill(pid) elseif id=="cancel" then self.confirm=nil end
+      end return true
     end
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    local action = ui.toolbarHit(self.toolbar, x, y)
-    if action == "kill" and self.selectedPid then
-      local ok, err = ctx.kill(self.selectedPid)
-      sample = nil
-      if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Task Manager", ok and "Killed" or tostring(err), 3) end
-      return true
-    elseif action then
-      sample = nil
-      return true
-    end
-    if y >= 8 and y<=(self.listBottom or 0) then
-      local rows = metrics().rows
-      local p = rows[self.scroll + y - 8]
-      if p then self.selectedPid = p.pid return true end
+    if event.name=="mouse_scroll" then self.scroll=math.max(1,self.scroll+event.args[1]) return true end
+    if event.name~="mouse_click" then return false end
+    local _,x,y=table.unpack(event.args)
+    local action=ui.toolbarHit(self.toolbar,x,y)
+    if action=="kill" and self.selectedPid then
+      for _,row in ipairs(self.snapshot.rows) do if row.pid==self.selectedPid and row.state=="ready" and not row.protected then self.confirm={pid=row.pid,name=row.name} end end return true
+    elseif action=="refresh" then self:refresh(true) return true end
+    if y>=7 and y<=(self.listBottom or 0) then
+      local row=self:filteredRows()[self.scroll+y-7]
+      if row then self.selectedPid=row.pid return true end
     end
     return false
   end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Task Manager", w = math.min(58, sw - 4), h = math.min(16, sh - 3), x = 8, y = 4, app = app })
-  while not win.closed do ctx.pullEvent() end
+  pixel.attach(app)
+  app:refresh(true)
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="Task Manager",w=math.min(100,w-4),h=math.min(32,h-3),x=8,y=4,app=app})
+  ctx.onCleanup(function() if timer then ctx.cancelTimer(timer) end end)
+  timer=ctx.startTimer(1)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=="timer" and event.args[1]==timer then if not win.minimized then app:refresh(true) end timer=ctx.startTimer(1) end
+  end
 end
-
+return M
+]=],
+  ["apps/taskmanager/metrics.lua"] = [=[
+local addon=require("system.libraries.addon")
+local M={}
+local function finite(v) return type(v)=="number" and v==v and v>-math.huge and v<math.huge end
+M.finite=finite
+function M.size(bytes)
+  if not finite(bytes) or bytes<0 then return "unavailable" end
+  if bytes>=1048576 then return string.format("%.1f MiB",bytes/1048576) end
+  if bytes>=1024 then return string.format("%.1f KiB",bytes/1024) end
+  return string.format("%.0f B",bytes)
+end
+function M.rate(current,previous,elapsed)
+  if not finite(current) or not finite(previous) or current<0 or previous<0 or not finite(elapsed) or elapsed<0.25 or elapsed>5 or current<previous then return end
+  return (current-previous)/elapsed
+end
+function M.sourceChanged(current,previous)
+  if not previous then return false end
+  if not finite(previous.timestamp) or current.timestamp<previous.timestamp then return true end
+  local render,prior=current.render or {},previous.render or {}
+  if render.generation~=prior.generation or render.backend~=prior.backend then return true end
+  for _,pair in ipairs({{(current.acquisition or {}).reads,(previous.acquisition or {}).reads},{render.frames,prior.frames},{render.bytes,prior.bytes}}) do
+    if finite(pair[1])~=finite(pair[2]) or finite(pair[1]) and pair[1]<pair[2] then return true end
+  end
+  return false
+end
+function M.sample(ctx,previous,now,observed)
+  local errors={}
+  local function query(label,fn,...)
+    if type(fn)~="function" then return end
+    local ok,value=pcall(fn,...)
+    if not ok then errors[#errors+1]=label..": "..tostring(value) return end
+    return value
+  end
+  local s={timestamp=now,rows={},ready=0,errors=errors}
+  local permitted=true
+  if ctx.security and type(ctx.security.require)=="function" then
+    local called,ok,reason=pcall(ctx.security.require,"process.list") permitted=called and ok
+    if not permitted then errors[#errors+1]=tostring(called and reason or ok) end
+  end
+  if permitted then s.rows=query("Processes",ctx.listProcesses) or {} end
+  if type(s.rows)~="table" then errors[#errors+1]="Invalid process snapshot" s.rows={} end
+  for _,row in ipairs(s.rows) do if row.state=="ready" then s.ready=s.ready+1 end end
+  s.heapKB=query("Lua heap",collectgarbage,"count")
+  if not finite(s.heapKB) or s.heapKB<0 then s.heapKB=nil end
+  local free=query("Disk free",fs and fs.getFreeSpace,"/")
+  local capacity=query("Disk capacity",fs and fs.getCapacity,"/")
+  s.unlimited=free=="unlimited" or capacity=="unlimited"
+  s.free=finite(free) and free>=0 and free or nil
+  s.capacity=finite(capacity) and capacity>0 and capacity or nil
+  if s.free and s.capacity and s.free<=s.capacity then s.used=s.capacity-s.free end
+  if s.free and s.capacity and s.free>s.capacity then errors[#errors+1]="Inconsistent disk counters" end
+  s.disk=s.unlimited and "Disk: unlimited" or s.used and ("Disk: "..M.size(s.used).." / "..M.size(s.capacity)) or ("Disk free: "..M.size(s.free))
+  s.memory=s.heapKB and ("Lua heap: "..M.size(s.heapKB*1024)) or "Lua heap: unavailable"
+  s.acquisition=query("Peripheral counters",addon.metrics) or {}
+  s.render=query("Render counters",ctx.system and ctx.system.renderStats) or {}
+  if type(s.acquisition)~="table" then errors[#errors+1]="Invalid acquisition counters" s.acquisition={} end
+  if type(s.render)~="table" then errors[#errors+1]="Invalid render counters" s.render={} end
+  if previous and finite(previous.timestamp) then
+    local dt=now-previous.timestamp
+    s.readRate=M.rate(s.acquisition.reads,(previous.acquisition or {}).reads,dt)
+    s.renderRate=M.rate(s.render.frames,(previous.render or {}).frames,dt)
+    if (s.render.backend=="PIXEL16" or s.render.backend=="PIXEL256") and s.render.generation and s.render.generation==(previous.render or {}).generation and s.render.backend==previous.render.backend then
+      s.pixelRate=M.rate(s.render.bytes,previous.render.bytes,dt)
+    end
+  end
+  s.gap=M.sourceChanged(s,observed or previous)
+  if s.gap then s.readRate=nil s.renderRate=nil s.pixelRate=nil end
+  return s
+end
+function M.record(history,s)
+  local last=history[#history]
+  if last and s.timestamp<last.timestamp then for i=#history,1,-1 do history[i]=nil end last=nil end
+  if last and s.timestamp==last.timestamp and s.gap then last.readRate=nil last.pixelRate=nil last.renderRate=nil end
+  if not last or s.timestamp-last.timestamp>=0.5 or s.gap and s.timestamp>last.timestamp then
+    history[#history+1]={timestamp=s.timestamp,heapKB=s.heapKB,readRate=s.readRate,pixelRate=s.pixelRate,renderRate=s.renderRate}
+    if #history>60 then table.remove(history,1) end
+    return true
+  end
+end
+return M
+]=],
+  ["apps/taskmanager/pixel.lua"] = [=[
+local ui=require("system.graphics.widgets")
+local fonts=require("system.graphics.fonts")
+local View=require("system.graphics.view")
+local primitives=require("system.graphics.primitives")
+local metrics=require("apps.taskmanager.metrics")
+local M={}
+local pages={{id="processes",label="Processes"},{id="performance",label="Performance"},{id="renderer",label="Renderer"},{id="io",label="Acquisition"}}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
+local function number(v,unit) return metrics.finite(v) and string.format("%.1f%s",v,unit or "") or "unavailable" end
+local function selected(app)
+  for i,row in ipairs(app:filteredRows()) do if row.pid==app.selectedPid then return row,i end end
+end
+local function chart(s,r,history,key,label,p)
+  local maximum=0 local latest local observed=false
+  for _,point in ipairs(history) do if metrics.finite(point[key]) then maximum=math.max(maximum,point[key]) observed=true end end
+  if history[#history] then latest=history[#history][key] end
+  ui.label(s,r.x,r.y,label..": "..number(latest),r.w,p.text,p.panel)
+  local area=rect(r.x+42,r.y+18,r.w-46,r.h-26)
+  s:rect(area.x,area.y,area.w,area.h,p.desktop)
+  local axis=maximum>=1e6 and string.format("%.1fM",maximum/1e6) or maximum>=1e3 and string.format("%.1fk",maximum/1e3) or number(maximum)
+  ui.label(s,r.x,area.y,axis,38,p.muted,p.panel)
+  ui.label(s,r.x,area.y+area.h-9,"0",38,p.muted,p.panel)
+  for _,fraction in ipairs({0.5,1}) do primitives.line(s,area.x,area.y+math.floor((area.h-1)*fraction),area.x+area.w-1,area.y+math.floor((area.h-1)*fraction),p.border) end
+  local first,last=history[1],history[#history]
+  if not first or not last or not observed then ui.label(s,area.x+5,area.y+8,"Unavailable",area.w-10,p.muted,p.desktop) return end
+  local duration=last.timestamp-first.timestamp local previous
+  for _,point in ipairs(history) do
+    if metrics.finite(point[key]) then
+      local x=area.x+(duration>0 and (point.timestamp-first.timestamp)/duration or 1)*(area.w-1)
+      local y=area.y+area.h-1-(maximum>0 and point[key]/maximum or 0)*(area.h-1)
+      if previous and point.timestamp-previous.timestamp<=2.5 then primitives.line(s,previous.x,previous.y,x,y,p.accent) end
+      s:rect(math.floor(x),math.floor(y),2,2,p.accent) previous={x=x,y=y,timestamp=point.timestamp}
+    else previous=nil end
+  end
+end
+function M.attach(app)
+  function app:select(index)
+    local rows=self:filteredRows() index=clamp(index,1,math.max(1,#rows))
+    self.selectedPid=rows[index] and rows[index].pid or nil self.confirm=nil self.detailScroll=0 self.focus="list"
+    if index<self.scroll then self.scroll=index elseif index>=self.scroll+(self.visible or 1) then self.scroll=index-(self.visible or 1)+1 end
+  end
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel) self.pixelHits={} self.rowHits={} self.scrollbar=nil self.thumb=nil self.detailArea=nil self.pageArea=nil
+    self.smallLayout=w<200 or h<160
+    if self.smallLayout then self.confirm=nil self.dragging=false ui.label(s,5,6,"Task Manager: enlarge window",w-10,p.text,p.panel) return end
+    local snap=self.snapshot local age=os.clock()-snap.timestamp local stale=age<0 or age>2
+    local function button(id,label,r,active,disabled,kind)
+      if kind then ui.symbol(s,r,kind,p,active) else ui.button(s,r,label,disabled and {button=p.panel,text=p.muted} or p,active) end
+      if self.focus==id then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      self.pixelHits[#self.pixelHits+1]={id=id,rect=r,disabled=disabled}
+    end
+    local title="Processes" for _,page in ipairs(pages) do if page.id==self.page then title=page.label end end
+    button("views",title,rect(5,4,96,23),self.menu)
+    button("refresh","",rect(w-28,4,23,23),false,false,"refresh")
+    if self.page=="processes" then
+      local row=selected(self)
+      button("kill","Kill",rect(106,4,44,23),false,stale or not row or row.protected or row.state~="ready")
+      if w>=270 then button("details",self.inspect and "Back" or "Details",rect(155,4,64,23),self.inspect) end
+      if w>=340 then button("live",self.onlyLive and "Live" or "All",rect(224,4,52,23),self.onlyLive) end
+    end
+    local status=stale and ("STALE snapshot: "..number(math.max(0,age)," s")) or #snap.rows.." listed / "..snap.ready.." live | "..snap.memory
+    if snap.errors[1] then status="Read error: "..snap.errors[1] end
+    ui.label(s,6,34,status,w-12,(stale or snap.errors[1]) and 1 or p.muted,p.panel)
+    if self.page=="processes" then
+      local rows=self:filteredRows() local wide=w>=680 local width=wide and w-250 or w-10
+      local area=rect(5,64,width,h-86) self.visible=math.max(1,math.floor(area.h/20))
+      self.scroll=clamp(self.scroll,1,math.max(1,#rows-self.visible+1))
+      s:rect(area.x,48,area.w,14,p.desktop)
+      ui.label(s,area.x+4,51,"PID",38,p.muted,p.desktop) ui.label(s,area.x+46,51,"STATE",65,p.muted,p.desktop)
+      ui.label(s,area.x+116,51,"NAME",area.w-128,p.muted,p.desktop)
+      for i=self.scroll,math.min(#rows,self.scroll+self.visible-1) do
+        local row=rows[i] local y=area.y+(i-self.scroll)*20 local active=row.pid==self.selectedPid local bg=active and p.accent or p.panel local fg=active and p.ink or p.text
+        s:rect(area.x,y,area.w-10,20,bg)
+        ui.label(s,area.x+4,y+6,tostring(row.pid),38,fg,bg) ui.label(s,area.x+46,y+6,row.state,65,fg,bg)
+        ui.label(s,area.x+116,y+6,row.name..(row.protected and " [protected]" or ""),area.w-128,fg,bg)
+        self.rowHits[#self.rowHits+1]={index=i,rect=rect(area.x,y,area.w-10,20)}
+      end
+      if #rows==0 then ui.label(s,area.x+4,area.y+8,"No listed processes",area.w-14,p.muted,p.panel) end
+      self.scrollbar=rect(area.x+area.w-8,area.y,8,area.h) self.thumb=ui.scrollbar(s,self.scrollbar,#rows,self.visible,self.scroll,p)
+      if self.focus=="list" then primitives.rect(s,area.x,area.y,area.w,area.h,p.accent) end
+      local row=selected(self)
+      self.detailArea=self.inspect and rect(5,48,w-10,h-70) or wide and rect(w-238,48,233,h-70) or nil
+      if self.detailArea then
+        local r=self.detailArea
+        if self.inspect then s:rect(r.x,r.y,r.w,r.h,p.panel) self.scrollbar=nil self.rowHits={} if w<270 then button("details","Back",rect(5,4,96,23)) end end
+        local text=row and (row.name.."\nPID: "..row.pid.."\nState: "..row.state.."\nApp: "..tostring(row.appId or "unavailable").."\nProtected: "..tostring(row.protected==true)..
+          "\nEvents: "..tostring(row.eventMode or "unavailable").."\nWindow: "..tostring(row.windowId or "unavailable").."\nStarted (UTC ms): "..tostring(row.startedAt or "unavailable")..
+          "\nActive wall ms: "..number(row.runtimeMs).."\nResumes: "..tostring(row.resumes or "unavailable").."\nPermissions:\n"..table.concat(row.permissions or {},", ").."\n\nError:\n"..tostring(row.error or "none")) or "No process selected"
+        if self.detailText~=text or self.detailWidth~=r.w then self.detailLayout=fonts.layout(text,r.w-12,65536,{wrap=true,lineSpacing=2}) self.detailText=text self.detailWidth=r.w end
+        self.detailVisible=math.max(1,math.floor((r.h-20)/11)) self.detailMaximum=math.max(0,#self.detailLayout.lines-self.detailVisible) self.detailScroll=clamp(self.detailScroll or 0,0,self.detailMaximum)
+        ui.label(s,r.x+4,r.y+2,"DETAILS",r.w-8,p.muted,p.panel)
+        local v=View.new(s,r.x+5,r.y+18,r.w-10,r.h-20)
+        for i=self.detailScroll+1,math.min(#self.detailLayout.lines,self.detailScroll+self.detailVisible) do fonts.draw(v,0,(i-self.detailScroll-1)*11,self.detailLayout.lines[i].text,p.text,p.panel) end
+      end
+    else
+      local area=rect(5,49,w-18,h-71) self.pageArea=area
+      local columns=w>=680 and 2 or 1 local contentHeight
+      local lines
+      if self.page=="performance" then contentHeight=math.ceil(4/columns)*126+76
+      elseif self.page=="renderer" then
+        local r=snap.render
+        local pixels=r.backend=="PIXEL16" or r.backend=="PIXEL256"
+        lines={"Backend: "..tostring(r.backend or "unavailable"),"Pixel dimensions: "..tostring(r.pixelWidth or "?").." x "..tostring(r.pixelHeight or "?"),
+          "Compositor draw calls: "..number(r.frames),"Compositor draws / s: "..number(snap.renderRate),"Pixel payload total B: "..(pixels and r.generation and number(r.bytes) or "unavailable"),
+          "Pixel payload B / s: "..number(snap.pixelRate),"Dirty row submissions: "..(pixels and number(r.regions) or "unavailable"),"Last successful present ms: "..(pixels and metrics.finite(r.lastDrawSeconds) and number(r.lastDrawSeconds*1000) or "unavailable"),
+          "Backend generation: "..tostring(r.generation or "unavailable"),"Physical display FPS: unavailable","Aggregate network bytes: unavailable","Last render error:\n"..tostring(r.lastError or "none")}
+      else
+        local io=snap.acquisition
+        lines={"Instrumented peripheral acquisition","Read attempts: "..number(io.reads),"Read attempts / s: "..number(snap.readRate),"In flight: "..number(io.inFlight),"Queued: "..number(io.queue),
+          "Timeouts: "..number(io.timeouts),"Cycle overruns: "..number(io.overruns),"Concurrency limit: "..number(io.concurrency),"Read budget / tick: "..number(io.readsPerTick),"Aggregate network traffic: unavailable","","Runners:"}
+        local names={} for name in pairs(io.runners or {}) do names[#names+1]=name end table.sort(names)
+        for _,name in ipairs(names) do local r=io.runners[name] lines[#lines+1]=name..": last cycle "..number(r.seconds," s")..", "..number(r.reads).." reads; total overruns "..number(r.overruns) if r.error then lines[#lines+1]=tostring(r.error) end end
+      end
+      local layout
+      if lines then layout=fonts.layout(table.concat(lines,"\n"),area.w-8,65536,{wrap=true,lineSpacing=3}) contentHeight=#layout.lines*12+8 end
+      self.pageMaximum=math.max(0,contentHeight-area.h) self.pageScroll=clamp(self.pageScroll or 0,0,self.pageMaximum)
+      local v=View.new(s,area.x,area.y,area.w,area.h)
+      if self.page=="performance" then
+        local charts={{"heapKB","Lua heap KiB"},{"readRate","Instrumented reads / s"},{"pixelRate","Pixel payload B / s"},{"renderRate","Compositor draws / s"}}
+        local width=math.floor(area.w/columns)
+        for i,entry in ipairs(charts) do chart(v,rect((i-1)%columns*width,math.floor((i-1)/columns)*126-self.pageScroll,width-8,120),self.history,entry[1],entry[2],p) end
+        local y=math.ceil(4/columns)*126-self.pageScroll
+        ui.label(v,2,y,snap.disk,area.w-4,p.text,p.panel)
+        if snap.used and snap.capacity then v:rect(2,y+16,area.w-6,6,p.desktop) v:rect(2,y+16,math.floor((area.w-6)*snap.used/snap.capacity),6,p.accent) end
+        ui.label(v,2,y+34,"CPU utilization: unavailable",area.w-4,p.muted,p.panel)
+        ui.label(v,2,y+48,"Physical RAM: unavailable",area.w-4,p.muted,p.panel)
+      else
+        for _,line in ipairs(layout.lines) do if line.y-self.pageScroll>-12 and line.y-self.pageScroll<area.h then fonts.draw(v,2,line.y-self.pageScroll,line.text,p.text,p.panel) end end
+      end
+      self.scrollbar=rect(w-11,area.y,7,area.h) self.thumb=ui.scrollbar(s,self.scrollbar,contentHeight,area.h,self.pageScroll+1,p)
+    end
+    local footer=self.message
+    if self.page=="performance" and #self.history>1 then footer="History span: "..number(self.history[#self.history].timestamp-self.history[1].timestamp," s").." | "..footer end
+    ui.label(s,6,h-15,footer,w-12,p.muted,p.panel)
+    if self.menu then
+      local items={} for _,page in ipairs(pages) do items[#items+1]=page end items[#items+1]={id="live",label=self.onlyLive and "Show all processes" or "Show live processes"}
+      local capacity=math.max(1,math.floor((h-34)/23)) self.menuCapacity=capacity self.menuFirst=clamp(self.menuFirst or 1,1,math.max(1,#items-capacity+1))
+      for i=self.menuFirst,math.min(#items,self.menuFirst+capacity-1) do
+        local item=items[i] local r=rect(5,29+(i-self.menuFirst)*23,160,22)
+        button("page:"..item.id,item.label,r,item.id==self.page)
+        if i==(self.menuCursor or 1) then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      end
+    end
+    if self.confirm then
+      self.menu=false self.pixelHits={} self.rowHits={} self.scrollbar=nil self.detailArea=nil
+      local r=rect(8,math.max(32,math.floor(h/2)-43),w-16,86) s:rect(r.x,r.y,r.w,r.h,p.desktop)
+      ui.paragraph(s,rect(r.x+7,r.y+7,r.w-14,34),"Kill PID "..self.confirm.pid.." - "..self.confirm.name.."?",p.text,p.desktop,{wrap=true})
+      button("confirm","Confirm",rect(r.x+8,r.y+54,78,24)) button("cancel","Cancel",rect(r.x+94,r.y+54,70,24))
+    end
+  end
+  function app:handlePixels(event)
+    if self.smallLayout then return true end
+    local x,y=event.args[2],event.args[3]
+    local function action(id)
+      if id=="views" then self.menu=not self.menu self.menuFirst=1 self.menuCursor=1
+      elseif id=="refresh" then self:refresh(true)
+      elseif id=="live" or id=="page:live" then self.onlyLive=not self.onlyLive self.scroll=1 self.selectedPid=nil self.menu=false self.inspect=false self.focus="list"
+      elseif id:sub(1,5)=="page:" then self.page=id:sub(6) self.pageScroll=0 self.menu=false self.inspect=false self.focus="list"
+      elseif id=="details" then self.inspect=not self.inspect self.focus=self.inspect and "details" or "list"
+      elseif id=="kill" then
+        local row=selected(self) local age=os.clock()-self.snapshot.timestamp
+        if row and row.state=="ready" and not row.protected and age>=0 and age<=2 then self.confirm={pid=row.pid,name=row.name}
+        else self.message="Process snapshot stale, exited or protected" end
+      elseif id=="cancel" then self.confirm=nil
+      elseif id=="confirm" and self.confirm then local pid=self.confirm.pid self.confirm=nil self:kill(pid) end
+    end
+    if event.name=="key" then
+      local key=event.args[1]
+      if key==keys.escape then self.confirm=nil self.menu=false self.inspect=false self.focus="list" return true end
+      if self.confirm then if key==keys.enter then action("confirm") end return true end
+      if self.menu then
+        if key==keys.enter then action("page:"..(pages[self.menuCursor or 1] and pages[self.menuCursor or 1].id or "live"))
+        elseif key==keys.up or key==keys.down or key==keys.tab then
+          self.menuCursor=clamp((self.menuCursor or 1)+(key==keys.up and -1 or 1),1,#pages+1)
+          if self.menuCursor<(self.menuFirst or 1) then self.menuFirst=self.menuCursor
+          elseif self.menuCursor>=(self.menuFirst or 1)+(self.menuCapacity or 1) then self.menuFirst=self.menuCursor-(self.menuCapacity or 1)+1 end
+        end return true
+      end
+      if key==keys.tab then
+        local order={"views","refresh","kill","details","live","list"} local index=0 for i,id in ipairs(order) do if self.focus==id then index=i end end self.focus=order[index%#order+1] return true
+      elseif key==keys.enter then
+        for _,hit in ipairs(self.pixelHits or {}) do if hit.id==self.focus then if not hit.disabled then action(hit.id) end return true end end
+        if self.page=="processes" then self.inspect=true self.focus="details" end return true
+      elseif key==keys.up or key==keys.down or key==keys.home or key==keys["end"] or key==keys.pageUp or key==keys.pageDown then
+        local pageSize=self.page~="processes" and math.max(1,math.floor(((self.pageArea or {}).h or 96)/12)) or self.focus=="details" and (self.detailVisible or 1) or (self.visible or 1)
+        local step=key==keys.up and -1 or key==keys.pageUp and -pageSize or key==keys.pageDown and pageSize or 1
+        if self.menu then self.menuFirst=math.max(1,(self.menuFirst or 1)+step)
+        elseif self.page~="processes" then self.pageScroll=key==keys.home and 0 or key==keys["end"] and self.pageMaximum or clamp((self.pageScroll or 0)+step*12,0,self.pageMaximum or 0)
+        elseif self.focus=="details" then self.detailScroll=key==keys.home and 0 or key==keys["end"] and self.detailMaximum or clamp((self.detailScroll or 0)+step,0,self.detailMaximum or 0)
+        else local _,index=selected(self) index=index or self.scroll-1 self:select(key==keys.home and 1 or key==keys["end"] and #self:filteredRows() or index+step) end
+        return true
+      end
+      return false
+    end
+    if self.confirm and event.name~="mouse_click" then return true end
+    if event.name=="mouse_scroll" then
+      if self.menu then self.menuFirst=math.max(1,(self.menuFirst or 1)+event.args[1])
+      elseif self.page~="processes" then self.pageScroll=clamp((self.pageScroll or 0)+event.args[1]*36,0,self.pageMaximum or 0)
+      elseif ui.hit(self.detailArea,x,y) then self.detailScroll=clamp((self.detailScroll or 0)+event.args[1]*3,0,self.detailMaximum or 0)
+      else self.scroll=math.max(1,self.scroll+event.args[1]*3) end return true
+    end
+    if event.name=="mouse_up" then self.dragging=false return true end
+    if event.name=="mouse_drag" and self.dragging and self.scrollbar then
+      local y=y+(self.thumb and self.thumb.h/2 or 0)-(self.grab or (self.thumb and self.thumb.h/2 or 0))
+      if self.pageArea then self.pageScroll=ui.scrollbarValue(self.scrollbar,self.pageMaximum+self.pageArea.h,self.pageArea.h,y)-1
+      else self.scroll=ui.scrollbarValue(self.scrollbar,#self:filteredRows(),self.visible,y) end return true
+    end
+    if event.name~="mouse_click" then return false end
+    if event.args[1]~=1 then return true end
+    for i=#(self.pixelHits or {}),1,-1 do local hit=self.pixelHits[i] if ui.hit(hit.rect,x,y) then
+      if self.menu and hit.id~="views" and hit.id:sub(1,5)~="page:" then self.menu=false elseif not hit.disabled then action(hit.id) end return true
+    end end
+    if self.menu then self.menu=false return true end
+    if self.confirm then return true end
+    if ui.hit(self.scrollbar,x,y) then
+      self.grab=ui.hit(self.thumb,x,y) and y-self.thumb.y or nil self.dragging=true
+      if not self.grab then return self:handlePixels({name="mouse_drag",args={1,x,y}}) end return true
+    end
+    if ui.hit(self.detailArea,x,y) then self.focus="details" return true end
+    for _,hit in ipairs(self.rowHits or {}) do if ui.hit(hit.rect,x,y) then self:select(hit.index) if not self.detailArea then self.inspect=true self.focus="details" end return true end end
+    return true
+  end
+end
 return M
 ]=],
   ["apps/terminal/app.cfg"] = [=[
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.37",
+  version = "0.18.38",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -5742,7 +6019,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.37",
+  version = "0.18.38",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -6289,7 +6566,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.37",
+    version = "0.18.38",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -6671,7 +6948,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.37",
+  version = "0.18.38",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -7098,6 +7375,7 @@ return M
   ["system/graphics/backend.lua"] = [=[
 local Surface=require("system.graphics.surface")
 local M={}
+local serial=0
 local function dimensions(t,mode)
   local ok,w,h=pcall(t.getSize,mode)
   if ok and type(w)=="number" and type(h)=="number" and w%1==0 and h%1==0
@@ -7114,8 +7392,9 @@ function M.detect(t)
   return caps
 end
 function M.new(t,preference)
+  serial=serial+1
   local caps=M.detect(t)
-  local b={target=t,caps=caps,mode=0,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
+  local b={target=t,caps=caps,mode=0,generation=serial,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
   function b:palette(index,rgb)
     assert(self.mode==2 and index>=16 and index<=255 and index%1==0,"Extended palette unavailable")
     if not self.paletteBackup[index] then self.paletteBackup[index]={t.getPaletteColor(index)} end
@@ -8580,6 +8859,7 @@ function M.new(resolveTarget, onOutputFailure, options)
     stats = function()
       return { frames=stats.frames, rows=stats.rows, cells=stats.cells,
         backend=pixel and pixel.caps.backend or "TEXT",pixelWidth=pixelWidth,pixelHeight=pixelHeight,
+        generation=pixel and pixel.generation,
         bytes=pixel and pixel.bytes or 0,regions=pixel and pixel.regions or 0,
         lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError }
     end,
@@ -9673,22 +9953,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.37", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.37", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.37", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.37", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.38", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.38", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.38", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.38", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.37", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.37", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.37", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.37", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.37", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.37", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.37", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.37", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.37", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.37", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.37", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.38", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.38", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.38", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.38", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.38", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.38", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.38", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.38", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.38", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.38", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.38", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -9998,6 +10278,8 @@ function Scheduler:list()
       finishedAt = process.finishedAt,
       resumes = process.resumes,
       runtimeMs = process.runtimeAvailable and process.runtimeMs or nil,
+      protected = process.meta.protected==true,
+      eventMode = process.meta.eventMode or "structured",
     })
   end
   table.sort(rows, function(a, b) return a.pid < b.pid end)
@@ -10480,7 +10762,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.37",
+    version = meta.version or "0.18.38",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -19002,7 +19284,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.37
+0.18.38
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

@@ -168,6 +168,8 @@ function Scheduler:list()
       finishedAt = process.finishedAt,
       resumes = process.resumes,
       runtimeMs = process.runtimeAvailable and process.runtimeMs or nil,
+      protected = process.meta.protected==true,
+      eventMode = process.meta.eventMode or "structured",
     })
   end
   table.sort(rows, function(a, b) return a.pid < b.pid end)

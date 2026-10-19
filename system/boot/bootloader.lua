@@ -48,7 +48,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.37",
+    version = "0.18.38",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",

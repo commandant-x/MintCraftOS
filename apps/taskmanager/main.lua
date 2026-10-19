@@ -1,131 +1,100 @@
-local renderer = require("system.gui.renderer")
-local ui = require("system.gui.components")
-local theme = require("system.gui.theme")
-local addon = require("system.libraries.addon")
-
-local M = {}
-
-local function sizeLabel(bytes)
-  bytes = tonumber(bytes) or 0
-  if bytes >= 1024 * 1024 then
-    return string.format("%.1f MB", bytes / 1024 / 1024)
-  elseif bytes >= 1024 then
-    return string.format("%.1f KB", bytes / 1024)
-  end
-  return tostring(bytes) .. " B"
-end
-
-local function diskStats()
-  if not fs.getFreeSpace then return "Disk: unavailable" end
-  local free = fs.getFreeSpace("/")
-  local capacity = fs.getCapacity and fs.getCapacity("/") or nil
-  if capacity and capacity > 0 then
-    local used = capacity - free
-    local pct = math.floor((used / capacity) * 100 + 0.5)
-    return "Disk: " .. sizeLabel(used) .. "/" .. sizeLabel(capacity) .. " " .. pct .. "%"
-  end
-  return "Disk free: " .. sizeLabel(free)
-end
-
-local function memoryStats()
-  if not collectgarbage then return "RAM: unavailable" end
-  local ok, kb = pcall(collectgarbage, "count")
-  if not ok then return "RAM: unavailable" end
-  return string.format("RAM Lua: %.1f KB", kb)
-end
-
+local renderer=require("system.gui.renderer")
+local ui=require("system.gui.components")
+local theme=require("system.gui.theme")
+local metrics=require("apps.taskmanager.metrics")
+local pixel=require("apps.taskmanager.pixel")
+local M={}
 function M.run(ctx)
-  local app = { selectedPid = nil, scroll = 1 }
-  local sampleTime, sample
-  local function metrics()
-    local now = os.clock()
-    if not sample or now - sampleTime >= 1 then
-      local rows = ctx.listProcesses()
-      local ready,runtime=0,0
-      for _,process in ipairs(rows) do
-        if process.state=="ready" then ready=ready+1 end
-        runtime=runtime+(process.runtimeMs or 0)
-      end
-      sample={rows=rows,memory=memoryStats(),disk=diskStats(),ready=ready,runtimeMs=runtime,acquisition=addon.metrics()}
-      sampleTime = now
-    end
-    return sample
+  local app={page="processes",selectedPid=nil,scroll=1,history={},message="Ready",onlyLive=false}
+  local win,timer
+  local actions={{id="kill",label="Kill"},{id="refresh",label="Refresh"}}
+  function app:filteredRows()
+    if not self.graphicsActive then return self.snapshot.rows end
+    local rows={}
+    for _,row in ipairs(self.snapshot.rows) do if not self.onlyLive or row.state=="ready" then rows[#rows+1]=row end end
+    return rows
   end
-  local actions = {
-    { id = "kill", label = "Kill" },
-    { id = "refresh", label = "Refresh" },
-  }
-
-  function app:draw(w, h)
-    local snapshot = metrics()
-    local rows = snapshot.rows
-    local total = #rows
-
-    self.toolbar = ui.toolbar(1, 1, w, actions)
-    if h<9 then
-      renderer.writeAt(1,2,renderer.crop("Live: "..snapshot.ready.." | CPU unavailable",w),theme.get("windowFg"),theme.get("windowBg"))
-      if h>=4 then renderer.writeAt(1,3,renderer.crop(snapshot.memory,w),theme.get("windowFg"),theme.get("windowBg")) end
-      if h>=5 then renderer.writeAt(1,4,renderer.crop(snapshot.disk,w),theme.get("windowFg"),theme.get("windowBg")) end
-      self.listBottom=0 return
-    end
-    renderer.writeAt(1, 2, renderer.crop("MintCraft Task Manager", w), theme.get("windowFg"), theme.get("windowBg"))
-    renderer.writeAt(2,3,renderer.crop("CPU: unavailable | Live: "..snapshot.ready.." / "..total,w-2),theme.get("windowFg"),theme.get("windowBg"))
-    renderer.writeAt(2, 4, renderer.crop(snapshot.memory, w - 2), theme.get("windowFg"), theme.get("windowBg"))
-    renderer.writeAt(2, 5, renderer.crop(snapshot.disk, w - 2), theme.get("windowFg"), theme.get("windowBg"))
-    local io=snapshot.acquisition
-    renderer.writeAt(2,6,renderer.crop("Reads "..io.reads.." | Active "..io.inFlight.." | Queue "..io.queue.." | Overruns "..io.overruns,w-2),theme.get("windowFg"),theme.get("windowBg"))
-    renderer.writeAt(1, 7, renderer.crop("PID STATE    APP        NAME", w), theme.get("windowFg"), theme.get("buttonBg"))
-
-    local visible=math.max(0,h-7-(self.selectedPid and 2 or 0))
-    self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-visible+1)))
-    self.listBottom=7+visible
-    for i = 1, math.min(#rows, visible) do
-      local p = rows[self.scroll + i - 1]
-      if p then
-        local bg = p.pid == self.selectedPid and colors.cyan or theme.get("windowBg")
-        renderer.writeAt(1, i + 7, renderer.crop(tostring(p.pid) .. "   " .. p.state .. "   " .. tostring(p.appId or "-") .. "   " .. p.name, w), theme.get("windowFg"), bg)
-      end
-    end
-    if self.selectedPid then
-      for _, p in ipairs(rows) do
-        if p.pid == self.selectedPid then
-          local perms = table.concat(p.permissions or {}, ",")
-          renderer.writeAt(1,h-1,renderer.crop("Active wall time: "..tostring(p.runtimeMs or "?").."ms | Resumes: "..tostring(p.resumes or "?"),w),theme.get("buttonBg"),theme.get("windowBg"))
-          renderer.writeAt(1, h, renderer.crop("Perms: " .. (perms ~= "" and perms or "-") .. " Err: " .. tostring(p.error or "-"), w), theme.get("buttonBg"), theme.get("windowBg"))
-          break
-        end
-      end
-    end
+  function app:refresh(force)
+    local now=os.clock()
+    if not force and self.snapshot and now>=self.snapshot.timestamp and now-self.snapshot.timestamp<1 then return false end
+    self.snapshot=metrics.sample(ctx,self.baseline,now,self.observed)
+    self.observed=self.snapshot
+    if self.snapshot.gap then self.baseline=self.snapshot end
+    if metrics.record(self.history,self.snapshot) then self.baseline=self.snapshot end
+    local retained=false
+    for _,row in ipairs(self:filteredRows()) do if row.pid==self.selectedPid then retained=true if row.state~="ready" then self.confirm=nil end end end
+    if not retained then self.selectedPid=nil self.confirm=nil end
+    if win then win.dirty=true end
+    return true
   end
-
+  function app:kill(pid)
+    self:refresh(true)
+    if self.selectedPid~=pid then self.message="Selection changed; kill cancelled" return end
+    local target
+    for _,row in ipairs(self.snapshot.rows) do if row.pid==pid then target=row end end
+    if not target or target.state~="ready" or target.protected then self.message="Process not running or protected" return end
+    local ok,err=ctx.kill(pid)
+    self.message=ok and "Killed PID "..pid or tostring(err)
+    if ctx.notifications then ctx.notifications:push(ok and "success" or "error","Task Manager",self.message,4) end
+    self:refresh(true)
+  end
+  function app:draw(w,h)
+    if self.confirm then
+      if h<5 then self.confirm=nil return end
+      renderer.writeAt(1,2,renderer.crop("Kill PID "..self.confirm.pid.." - "..self.confirm.name.."?",w),theme.get("windowFg"),theme.get("windowBg"))
+      self.confirmBar=ui.toolbar(1,h-1,w,{{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}}) return
+    end
+    self.toolbar=ui.toolbar(1,1,w,actions)
+    local s=self.snapshot
+    renderer.writeAt(1,2,renderer.crop("Live: "..s.ready.." / "..#s.rows.." | CPU unavailable",w),theme.get("windowFg"),theme.get("windowBg"))
+    if h>=4 then renderer.writeAt(1,3,renderer.crop(s.memory,w),theme.get("windowFg"),theme.get("windowBg")) end
+    if h>=5 then renderer.writeAt(1,4,renderer.crop(s.disk,w),theme.get("windowFg"),theme.get("windowBg")) end
+    if h<9 then self.listBottom=0 return end
+    local io=s.acquisition
+    renderer.writeAt(1,5,renderer.crop("Reads "..tostring(io.reads or "?").." | Active "..tostring(io.inFlight or "?").." | Queue "..tostring(io.queue or "?"),w),theme.get("windowFg"),theme.get("windowBg"))
+    renderer.writeAt(1,6,renderer.crop("PID STATE APP NAME",w),theme.get("windowFg"),theme.get("buttonBg"))
+    local rows=self:filteredRows() local visible=math.max(0,h-8)
+    self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-visible+1))) self.listBottom=6+visible
+    for i=self.scroll,math.min(#rows,self.scroll+visible-1) do
+      local row=rows[i] local bg=row.pid==self.selectedPid and theme.get("accent") or theme.get("windowBg")
+      renderer.writeAt(1,7+i-self.scroll,renderer.crop(tostring(row.pid).." "..row.state.." "..tostring(row.appId or "-").." "..row.name,w),theme.get("windowFg"),bg)
+    end
+    local selected
+    for _,row in ipairs(rows) do if row.pid==self.selectedPid then selected=row end end
+    if selected then renderer.writeAt(1,h-1,renderer.crop("Active wall ms: "..tostring(selected.runtimeMs or "?").." | Perms: "..table.concat(selected.permissions or {},","),w),theme.get("windowFg"),theme.get("windowBg")) end
+    renderer.writeAt(1,h,renderer.crop(tostring(self.message):gsub("[%c]"," "),w),theme.get("windowFg"),theme.get("windowBg"))
+  end
   function app:handle(event)
-    if event.name == "mouse_scroll" then
-      self.scroll = math.max(1, self.scroll + event.args[1])
-      return true
+    if self.graphicsActive and not event.name:match("^mouse_") then return self:handlePixels(event) end
+    if self.confirm then
+      if event.name=="key" and event.args[1]==keys.escape then self.confirm=nil return true end
+      if event.name=="mouse_click" then
+        local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
+        if id=="confirm" then local pid=self.confirm.pid self.confirm=nil self:kill(pid) elseif id=="cancel" then self.confirm=nil end
+      end return true
     end
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    local action = ui.toolbarHit(self.toolbar, x, y)
-    if action == "kill" and self.selectedPid then
-      local ok, err = ctx.kill(self.selectedPid)
-      sample = nil
-      if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Task Manager", ok and "Killed" or tostring(err), 3) end
-      return true
-    elseif action then
-      sample = nil
-      return true
-    end
-    if y >= 8 and y<=(self.listBottom or 0) then
-      local rows = metrics().rows
-      local p = rows[self.scroll + y - 8]
-      if p then self.selectedPid = p.pid return true end
+    if event.name=="mouse_scroll" then self.scroll=math.max(1,self.scroll+event.args[1]) return true end
+    if event.name~="mouse_click" then return false end
+    local _,x,y=table.unpack(event.args)
+    local action=ui.toolbarHit(self.toolbar,x,y)
+    if action=="kill" and self.selectedPid then
+      for _,row in ipairs(self.snapshot.rows) do if row.pid==self.selectedPid and row.state=="ready" and not row.protected then self.confirm={pid=row.pid,name=row.name} end end return true
+    elseif action=="refresh" then self:refresh(true) return true end
+    if y>=7 and y<=(self.listBottom or 0) then
+      local row=self:filteredRows()[self.scroll+y-7]
+      if row then self.selectedPid=row.pid return true end
     end
     return false
   end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Task Manager", w = math.min(58, sw - 4), h = math.min(16, sh - 3), x = 8, y = 4, app = app })
-  while not win.closed do ctx.pullEvent() end
+  pixel.attach(app)
+  app:refresh(true)
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="Task Manager",w=math.min(100,w-4),h=math.min(32,h-3),x=8,y=4,app=app})
+  ctx.onCleanup(function() if timer then ctx.cancelTimer(timer) end end)
+  timer=ctx.startTimer(1)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=="timer" and event.args[1]==timer then if not win.minimized then app:refresh(true) end timer=ctx.startTimer(1) end
+  end
 end
-
 return M

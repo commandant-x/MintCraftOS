@@ -40,6 +40,7 @@ function M.new(resolveTarget, onOutputFailure, options)
     stats = function()
       return { frames=stats.frames, rows=stats.rows, cells=stats.cells,
         backend=pixel and pixel.caps.backend or "TEXT",pixelWidth=pixelWidth,pixelHeight=pixelHeight,
+        generation=pixel and pixel.generation,
         bytes=pixel and pixel.bytes or 0,regions=pixel and pixel.regions or 0,
         lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError }
     end,

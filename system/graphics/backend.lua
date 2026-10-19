@@ -1,5 +1,6 @@
 local Surface=require("system.graphics.surface")
 local M={}
+local serial=0
 local function dimensions(t,mode)
   local ok,w,h=pcall(t.getSize,mode)
   if ok and type(w)=="number" and type(h)=="number" and w%1==0 and h%1==0
@@ -16,8 +17,9 @@ function M.detect(t)
   return caps
 end
 function M.new(t,preference)
+  serial=serial+1
   local caps=M.detect(t)
-  local b={target=t,caps=caps,mode=0,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
+  local b={target=t,caps=caps,mode=0,generation=serial,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
   function b:palette(index,rgb)
     assert(self.mode==2 and index>=16 and index<=255 and index%1==0,"Extended palette unavailable")
     if not self.paletteBackup[index] then self.paletteBackup[index]={t.getPaletteColor(index)} end

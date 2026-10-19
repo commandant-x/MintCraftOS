@@ -9,9 +9,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.37 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.38 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files, Logs, Services, Navigation Flight and the main Combat views have native clients; other
+Files, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
 explicit migration. Combat's 0.18.35 increment is documented separately.
 
@@ -128,7 +128,7 @@ or finished ASCENDANCY.
 | Combat | Native 2D/3D radar, filters/details/lists/network/probe/fire; 20 Hz acquisition target with measured Hz and serial workers; existing fire tokens retained | Native configuration/setup forms, richer keyboard/accessibility, actual in-game acquisition/render validation |
 | Files | Native navigation/search/create/rename/trash/restore/copy/cut/paste/properties; descendant permission preflight and no draw acquisition tested | Cross-window clipboard, richer editing/accessibility and Unicode editing coverage |
 | Settings | Legacy configuration center retained, terminal selector added | Native controls, detected capabilities/UI scale/performance/recovery panels |
-| Task Manager | Legacy measured/estimated metrics retained | Native graphs, rendering/network statistics with accurate labels |
+| Task Manager | Native process/metric/renderer/acquisition views, bounded measured charts, backend generations, no draw acquisition and PID-bound delegated kill | In-game validation, richer sorting/search/accessibility; CPU/physical RAM/aggregate network counters remain unavailable rather than invented |
 | Logs | Native list/filter/details, live tail, draggable scrollbar and keyboard; reads/parse outside draw; read errors and compact inspector tested | In-game validation, search/copy/export and broader accessibility polish |
 | Services | Native cached state/list/details/errors, protected controls and confirmation; serialized manager-owned actions with live permissions and per-service locks | Runtime/performance presentation expansion and actual in-game lifecycle validation |
 | Store | Hidden legacy package UI retained | Native package states without inventing a populated catalog |
@@ -155,6 +155,12 @@ boot/recovery in text regardless of the previous physical display state.
 No external GPU, server changes, browser expansion or flight safety changes.
 
 ## Next Gates
+
+V0.18.38: Task Manager is native with honest measured charts and a bounded
+sampling history. Source resets and missing counters form gaps; no fake CPU,
+RAM percentages or FPS. 100 fast suites pass. See GRAPHICS-0.18.38.md. The
+remaining clients, remaining Navigation/Combat forms and full ASCENDANCY scope
+are still required; the goal stays active.
 
 V0.18.37: Services is native and UI control runs in a manager-owned yielding
 worker. Permission, owner, refusal, concurrency and hidden-confirmation guards
