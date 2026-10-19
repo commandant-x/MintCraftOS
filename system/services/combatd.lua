@@ -23,6 +23,7 @@ local READS = { radar = {"getTracks", "getPosition", "getRange", "getRotation", 
 local function loadSettings()
   settings = config.load("/system/config/combat.cfg", {})
   if type(settings)~="table" then settings={} end
+  settings.refreshSeconds=0.05
   settings.radar = settings.radar or {}
   settings.radar.maxTargets = math.max(1, math.min(128, tonumber(settings.radar.maxTargets) or 128))
   settings.radar.staleSeconds = 5
@@ -99,11 +100,11 @@ function M.acquire(rescan)
   local function acquisition()
     local elapsed=os.clock()-cycleStart
     return {startedAt=cycleStart,completed=completed,pending=#inventory-completed,
-      elapsed=elapsed,overrun=elapsed>0.2,targetHz=5,
+      elapsed=elapsed,overrun=elapsed>0.05,targetHz=20,
       cycleCapacityHz=elapsed>0 and 1/elapsed or nil,budget=addon.metrics()}
   end
   local function publishPartial()
-    if os.clock()-lastPartialAt<0.2 or completed==#inventory then return end
+    if os.clock()-lastPartialAt<0.05 or completed==#inventory then return end
     lastPartialAt=os.clock()
     local partial=addon.copy(snap)
     for _,key in ipairs({"radars","cannons","controllers","devices","unknownCombatDevices"}) do
@@ -653,7 +654,7 @@ function M.start(context)
   lastFault=nil
   tracks={} cached.targets={} slowReads={} lastCycleCompletedAt=nil
   loadSettings()
-  runner = addon.periodic(ctx,"combatd",0.2,M.acquire)
+  runner = addon.periodic(ctx,"combatd",0.05,M.acquire)
   runner.onError = function(err)
     revision=revision+1
     cached.errors = {err} cached.ok=false cached.revision=revision

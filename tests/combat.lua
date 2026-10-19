@@ -11,7 +11,10 @@ parallel={waitForAll=function(...) for _,fn in ipairs({...}) do fn() end end}
 local addon=require("system.libraries.addon")
 addon.configure({readsPerTick=1000000})
 addon.bounded=function(fn) return pcall(fn) end
-addon.periodic=function() return {stop=function() end,rescan=function() end} end
+addon.periodic=function(_,name,interval)
+  if name=="combatd" then assert(interval==0.05,"radar worker is not targeting 20 Hz") end
+  return {stop=function() end,rescan=function() end}
+end
 package.loaded["system.libraries.log"]={info=function() end,warn=function() end,error=function() end}
 package.loaded["system.security.permissions"]={require=function(actor) return actor.pid==1 end}
 package.loaded["system.services.sabled"]={status=function() return {inSublevel=false} end}

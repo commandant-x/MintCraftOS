@@ -80,6 +80,37 @@ local ok,err=pcall(function()
         pixel.sample=original
         assert(require("system.services.flightd").status().state~="armed","display navigation armed flight control")
       end
+      if id=="combat" then
+        local win=proc.window
+        assert(win.pixelNative,"Combat radar is still a legacy bitmap")
+        capture("pixel-combat-unavailable")
+        win:toggleMaximize() os.queueEvent("mintcraft_test") sleep(0.2)
+        local original=win.app.drawPixels
+        local fixture={revision=9999,radars={
+          {id="station_a",name="Station A",position={x=0,y=64,z=0},range=800,heading=35,fov=65,running=true},
+          {id="station_b",name="Station B",position={x=420,y=64,z=180},range=500,heading=245,fov=80,running=true,remote=true}},
+          targets={{id="player",label="Alex",labelSource="SIMULATED",category="player",timestamp=os.clock(),position={x=110,y=80,z=-240}},
+            {id="vessel",label="ID vessel",labelSource="SIMULATED",category="ship",timestamp=os.clock(),position={x=-180,y=170,z=120},history={
+              {position={x=-260,y=150,z=160}},{position={x=-220,y=160,z=140}},{position={x=-180,y=170,z=120}}}},
+            {id="mob",label="Zombie",labelSource="SIMULATED",category="mob",timestamp=os.clock(),position={x=150,y=66,z=280}}},
+          devices={},cannons={},acquisition={targetHz=20,pending=0,elapsed=0}}
+        -- Display fixture only: never installed in combatd's command snapshot.
+        win.title="Combat - SIMULATED RADAR FIXTURE"
+        win.app.drawPixels=function(self,...)
+          local previous=self.snapshot self.snapshot=fixture
+          local ok,err=pcall(original,self,...)
+          self.snapshot=previous
+          assert(ok,err)
+        end
+        win.app.radarId="station_a" win.app.view.network=true win.dirty=true
+        os.queueEvent("mintcraft_test") sleep(0.3)
+        assert(win.app.nativeGraph and #win.app.nativeGraph.hits==3,"native multi-radar fixture missing contacts")
+        capture("pixel-combat-2d-simulated")
+        win.app.page="three" win.dirty=true os.queueEvent("mintcraft_test") sleep(0.3)
+        assert(win.pixelNative and not win.closed,"native 3D radar crashed")
+        capture("pixel-combat-3d-simulated")
+        win.app.drawPixels=original win.title="Combat" win.dirty=true
+      end
       if id=="files" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
         local hit=workspace.windowHits[#workspace.windowHits]

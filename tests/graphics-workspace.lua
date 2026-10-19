@@ -1,4 +1,6 @@
 package.path="./?.lua;"..package.path
+-- Static-frame assertions must not race the real clock's minute transition.
+os.time=function() return 12 end
 local Surface=require("system.graphics.surface")
 package.loaded["system.gui.theme"]={currentId="mint"}
 local Workspace=require("system.graphics.workspace")

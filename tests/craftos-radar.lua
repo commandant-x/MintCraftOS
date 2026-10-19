@@ -1,6 +1,11 @@
 -- Isolated GUI test with main-thread-style yielding bearing reads and fresh config.
 local ok,err=pcall(function()
   shell.setDir('/') assert(shell.run('/source/install.lua'))
+  -- This suite exercises the text compatibility views. Native graphics and
+  -- the CC Graphics ROM window API are covered by craftos-ccgraphics.lua.
+  local config=require('system.libraries.config')
+  local display=config.load('/system/config/system.cfg',{})
+  display.safeMode=true assert(config.save('/system/config/system.cfg',display))
   http=nil
   local count,task=0,0
   local function native(value)

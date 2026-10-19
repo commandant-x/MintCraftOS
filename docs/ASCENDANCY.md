@@ -11,8 +11,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 The paragraphs below describe the inspected baseline. As of 0.18.33 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files and Navigation Flight have native clients; other clients/views continue
-to use isolated text compatibility buffers pending their explicit migration.
+Files, Navigation Flight and the main Combat views have native clients; other
+clients/views continue to use isolated text compatibility buffers pending their
+explicit migration. Combat's 0.18.35 increment is documented separately.
 
 The kernel owns event normalization, services, scheduler and window lifecycles.
 The existing compositor renders into a hidden standard window then publishes
@@ -124,7 +125,7 @@ or finished ASCENDANCY.
 | Messenger | Legacy client retained | Native chat input, lists, connection/error states |
 | NEXUS OVERMIND | Existing 0.4 workflows retained in container | Native WARROOM and later shared ASCENDANCY modules |
 | Navigation | Native Flight horizon/metrics, cache-only drawing, stale expiry and hybrid routing; existing calibration/control retained | Remaining panels and in-game sensor/render checks; safety gates unchanged |
-| Combat | Existing radar and safety retained | Native 2D/3D radar, filters/details and confirmed local fire workflow |
+| Combat | Native 2D/3D radar, filters/details/lists/network/probe/fire; 20 Hz acquisition target with measured Hz and serial workers; existing fire tokens retained | Native configuration/setup forms, richer keyboard/accessibility, actual in-game acquisition/render validation |
 | Files | Native navigation/search/create/rename/trash/restore/copy/cut/paste/properties; descendant permission preflight and no draw acquisition tested | Cross-window clipboard, richer editing/accessibility and Unicode editing coverage |
 | Settings | Legacy configuration center retained, terminal selector added | Native controls, detected capabilities/UI scale/performance/recovery panels |
 | Task Manager | Legacy measured/estimated metrics retained | Native graphs, rendering/network statistics with accurate labels |
@@ -154,6 +155,12 @@ boot/recovery in text regardless of the previous physical display state.
 No external GPU, server changes, browser expansion or flight safety changes.
 
 ## Next Gates
+
+V0.18.35: main Combat views now render natively. Acquisition targets 20 Hz,
+not a guaranteed source or display rate. See GRAPHICS-0.18.35.md for boundaries,
+tests and migration. Configuration/setup remain compatible pending migration;
+all sixteen application migrations and the full ASCENDANCY objective remain
+required. No strategic-module completion is claimed.
 
 V0.18.34: native client bitmaps are cached by content revision, dimensions
 and palette, within the shared 2 MiB payload budget. Moving a window reuses

@@ -15,7 +15,7 @@ local function step(name,method)
   counts[method]=(counts[method] or 0)+1
   local snap=combat.snapshot()
   if snap.acquisition and snap.acquisition.pending>0 and snap.revision~=lastRevision then
-    if lastPublishAt then assert(snap.timestamp-lastPublishAt>=0.2-1e-8,"partial publication exceeded 5 Hz") end
+    if lastPublishAt then assert(snap.timestamp-lastPublishAt>=0.05-1e-8,"partial publication exceeded 20 Hz") end
     lastRevision,lastPublishAt=snap.revision,snap.timestamp partials=partials+1
     assert(not combat.solution("none","none"),"incomplete cycle allowed command")
     if prior then

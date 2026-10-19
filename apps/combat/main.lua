@@ -9,6 +9,7 @@ local radarSetup=require("system.navigation.radar_setup")
 local combat=require("system.services.combatd")
 local radarNet=require("system.services.radarnetd")
 local filter=require("system.navigation.radar_filter")
+local pixel=require("apps.combat.pixel")
 local M={}
 local function find(rows,id) if id==nil then return nil end for _,row in ipairs(rows or {}) do if row.id==id or row.name==id then return row end end end
 local function fmt(value) return addon.finite(value) and string.format("%.1f",value) or "unavailable" end
@@ -22,11 +23,13 @@ function M.run(ctx)
   local function refresh()
     local status=combat.status()
     if not app.snapshot.radars or app.snapshot.revision~=status.revision then app.snapshot=combat.snapshot() end
+    if app.page=="network" then app.networkSnapshot=radarNet.snapshot() end
     if app.setup then app.setup:update(app.snapshot) end
     for _,target in ipairs(app.snapshot.targets or {}) do target.stale=target.pending or not target.freshnessKnown or os.clock()-target.timestamp>5 end
     if not find(app.snapshot.radars,app.radarId) then app.radarId=app.snapshot.radars[1] and app.snapshot.radars[1].id app.canvas=nil end
     if app.targetId and not find(app.snapshot.targets,app.targetId) then app.targetId=nil app.tracking=false app.confirm=nil app.solution=nil end
     if not app.cannonId and app.snapshot.cannons[1] then app.cannonId=app.snapshot.cannons[1].id end
+    if win then win.dirty=true end
   end
   local function report(ok,message) app.message=ok and (type(message)=="number" and "Queued #"..message or message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
@@ -181,7 +184,7 @@ function M.run(ctx)
         local rows=target and {target.label,"Name source: "..target.labelSource,"Distance "..fmt(relative and relative.distance).."m","Bearing "..fmt(relative and relative.bearing).."deg","Altitude "..fmt(target.position.y).."m","Age "..fmt(os.clock()-target.timestamp).."s",target.stale and "STALE - control blocked" or "", "Cone: "..tostring(radar and radar.fovSource or "unknown")} or {"No selection","Radars: "..#(snap.radars or {}),"Contacts: "..#filter.targets(snap.targets,self.filters),"Display target: 20 Hz","Zone: "..(snap.zone and snap.zone.alerts and "ON" or "OFF"),"Cone: "..tostring(radar and radar.fovSource or "unknown"),"Position: "..tostring(radar and radar.positionSource or "unavailable")}
         if target then rows[#rows+1]="Type: "..filter.category(target) rows[#rows+1]=target.remote and "Remote: display only" or "Local measurement" end
         if snap.acquisition then
-          rows[#rows+1]="Read target 5 Hz; measured "..fmt(snap.acquisition.effectiveHz).." Hz"
+          rows[#rows+1]="Read target 20 Hz; measured "..fmt(snap.acquisition.effectiveHz).." Hz"
           rows[#rows+1]="Pending "..snap.acquisition.pending.."; cycle "..fmt(snap.acquisition.elapsed).."s"
         end
         if radar then
@@ -265,7 +268,9 @@ function M.run(ctx)
       end return true
     end
     if self.form.edit then return self.form:handle(event) end
-    local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands},{name="categories",state=self.categories}},event)
+    local section,command,handled
+    if event.command then command=event.command
+    else section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands},{name="categories",state=self.categories}},event) end
     if handled then
       if section=="pages" then
         if command then self.page=command self.scroll=1 self.tracking=false self.canvas=nil end
@@ -353,6 +358,15 @@ function M.run(ctx)
     end
     return self.page=="config" and self.form:handle(event) or false
   end
+  pixel.attach(app,{
+    action=function(id) app:handle({name="mouse_click",args={1,-999,-999},command=id}) end,
+    select=selectTarget,
+    station=function(id)
+      local value=radarNet.configuration() local key=tostring(id)
+      if value.trusted[key] then value.trusted[key]=nil report(radarNet.configure(actor,value))
+      else confirm("Include station #"..key.."? Same world/dimension required",function() value.trusted[key]=true report(radarNet.configure(actor,value)) end) end
+    end,
+  },tabs)
   refresh()
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Combat",w=math.min(120,w-2),h=math.min(38,h-2),x=2,y=2,app=app})

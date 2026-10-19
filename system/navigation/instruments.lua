@@ -5,11 +5,13 @@ local filters=require("system.navigation.radar_filter")
 local M={}
 local categoryPalette={players=colors.lightBlue,mobs=colors.orange,vessels=colors.white,projectiles=colors.red,other=colors.lightGray}
 local unitCircle={}
+local nativeCircle={}
 local backgroundCache={}
 local cacheSerial=0
 local renderStats={backgroundBuilds=0,backgroundHits=0}
 function M.stats() return {backgroundBuilds=renderStats.backgroundBuilds,backgroundHits=renderStats.backgroundHits} end
 for step=0,48 do local a=step*math.pi/24 unitCircle[#unitCircle+1]={math.sin(a),math.cos(a)} end
+for step=0,192 do local a=step*math.pi/96 nativeCircle[#nativeCircle+1]={math.sin(a),math.cos(a)} end
 function M.horizon(w,h,pitch,roll)
   local canvas=pixels.new(w,h,colors.black)
   if not addon.finite(pitch) or not addon.finite(roll) then return canvas end
@@ -33,9 +35,10 @@ function M.horizon(w,h,pitch,roll)
   canvas:line(cx,cy-2,cx,cy+2,colors.yellow)
   return canvas
 end
-function M.radar(w,h,snap,radarId,selected,view)
+function M.radar(w,h,snap,radarId,selected,view,native)
   view=view or {}
-  local canvas=pixels.new(w,h,colors.black)
+  local canvas=native and require("system.graphics.radar_canvas").new(w,h,colors.black) or pixels.new(w,h,colors.black)
+  local divisorX,divisorY=native and 1 or 2,native and 1 or 3
   local radar
   for _,row in ipairs(snap.radars or {}) do if row.id==radarId then radar=row break end end
   radar=radar or (snap.radars or {})[1]
@@ -92,11 +95,13 @@ function M.radar(w,h,snap,radarId,selected,view)
   local zone=snap.zone
   keyPart(zone and zone.alerts)
   for _,key in ipairs({"x","y","z","radius"}) do keyPart(zone and zone[key]) end
+  keyPart(native==true)
   local backgroundKey=table.concat(parts,"|")
   local cachedBackground=backgroundCache[backgroundKey]
   local function circle(position,r,color)
     local previous
-    for _,point in ipairs(unitCircle) do
+    local points=native and nativeCircle or unitCircle
+    for _,point in ipairs(points) do
       local p={x=position.x+point[1]*r,y=position.y,z=position.z+point[2]*r}
       if previous then segment(previous,p,color) end previous=p
     end
@@ -144,7 +149,7 @@ function M.radar(w,h,snap,radarId,selected,view)
       local x,y=project(station.position)
       if x and x>=1 and x<=canvas.width and y>=1 and y<=canvas.height then
         canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,colors.cyan)
-        if view.network then labels[#labels+1]={x=math.ceil(x/2)+2,y=math.ceil(y/3),text=station.name,color=colors.cyan} end
+        if view.network then labels[#labels+1]={x=math.ceil(x/divisorX)+4,y=math.ceil(y/divisorY),text=station.name,color=colors.cyan} end
       end
     end end
   if zone and zone.alerts and addon.finite(zone.radius) and addon.vec({x=zone.x,y=zone.y,z=zone.z}) then
@@ -160,7 +165,7 @@ function M.radar(w,h,snap,radarId,selected,view)
   else
     drawBackground()
     renderStats.backgroundBuilds=renderStats.backgroundBuilds+1
-    if w*h<=8192 then
+    if not native and w*h<=8192 then
       for row=1,h do canvas:getLine(row) end
       local count,oldestKey,oldest=0,nil,math.huge
       for key,entry in pairs(backgroundCache) do
@@ -172,7 +177,7 @@ function M.radar(w,h,snap,radarId,selected,view)
       canvas=canvas:clone()
     end
   end
-  if not view.three and not view.relative then labels[#labels+1]={x=math.max(1,math.floor(cx/2)),y=1,text="N (-Z)",color=colors.white} end
+  if not view.three and not view.relative then labels[#labels+1]={x=math.max(1,math.floor(cx/divisorX)),y=1,text="N (-Z)",color=colors.white} end
   for _,target in ipairs(snap.targets or {}) do
     if filters.visible(target,view.filters) then
     local x,y=project(target.position)
@@ -182,9 +187,15 @@ function M.radar(w,h,snap,radarId,selected,view)
       for _,point in ipairs(target.history or {}) do
         if previous then segment(previous,point.position,colors.lightGray) end previous=point.position
       end
-      canvas:rect(math.floor(x)-1,math.floor(y)-1,3,3,color)
-      hits[#hits+1]={id=target.id,x=math.ceil(x/2),y=math.ceil(y/3),w=3,h=2}
-      labels[#labels+1]={id=target.id,x=math.ceil(x/2)+2,y=math.ceil(y/3),text=target.label,color=color}
+      local size=native and 5 or 3 local half=math.floor(size/2)
+      canvas:rect(math.floor(x)-half,math.floor(y)-half,size,size,color)
+      if native and target.id==selected then
+        local r=7
+        canvas:line(x-r,y-r,x+r,y-r,color) canvas:line(x-r,y+r,x+r,y+r,color)
+        canvas:line(x-r,y-r,x-r,y+r,color) canvas:line(x+r,y-r,x+r,y+r,color)
+      end
+      hits[#hits+1]={id=target.id,x=math.ceil(x/divisorX),y=math.ceil(y/divisorY),w=native and 12 or 3,h=native and 12 or 2}
+      labels[#labels+1]={id=target.id,x=math.ceil(x/divisorX)+(native and 9 or 2),y=math.ceil(y/divisorY),text=target.label,color=color}
     end
     end
   end
