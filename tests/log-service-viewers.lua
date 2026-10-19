@@ -51,18 +51,22 @@ local logs=require("apps.logs.main")
 for _,size in ipairs({{12,9},{20,10},{26,17},{72,18}}) do
   width,height=table.unpack(size) logs.run(ctx)
 end
-local stops,starts=0,0
+local requests={} local serviceReads=0
 ctx.system={services={
-  list=function() return {{name="flightd",state="degraded",lastSuccess=42,error="rescue pending",autostart=true}} end,
-  stop=function() stops=stops+1 return false,"rescue pending" end,
-  start=function() starts=starts+1 end,
+  list=function() serviceReads=serviceReads+1 return {{name="flightd",state="degraded",lastSuccess=42,error="rescue pending",autostart=true}} end,
+  controlStatus=function() return {busy=false} end,
+  requestAction=function(_,actor,action,name) requests[#requests+1]={action=action,name=name} return false,"rescue pending" end,
+  stop=function() error("UI stopped service synchronously") end,
+  start=function() error("UI started service synchronously") end,
 }}
 ctx.pullEvent=function()
   app:draw(width,height)
+  local reads=serviceReads for _=1,20 do app:draw(width,height) end
+  assert(serviceReads==reads,"service draw queried health")
   app:handle({name="mouse_click",args={1,1,3}})
   app:draw(width,height)
   app:handle({name="mouse_click",args={1,16,1}})
-  assert(stops==1 and starts==0,"restart started service after refused stop")
+  assert(#requests==1 and requests[1].action=="restart" and requests[1].name=="flightd" and app.message=="rescue pending","service action was not delegated")
   win.closed=true
 end
 width,height=46,14

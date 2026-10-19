@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1436,7 +1436,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1835,7 +1835,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1921,7 +1921,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2317,7 +2317,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -3140,7 +3140,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -3439,7 +3439,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3558,7 +3558,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -4449,91 +4449,246 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
 ]=],
   ["apps/services/main.lua"] = [=[
-local renderer = require("system.gui.renderer")
-local ui = require("system.gui.components")
-local theme = require("system.gui.theme")
-
-local M = {}
-
+local renderer=require("system.gui.renderer")
+local ui=require("system.gui.components")
+local theme=require("system.gui.theme")
+local pixel=require("apps.services.pixel")
+local M={}
 function M.run(ctx)
-  local app = { selected = nil, scroll = 1 }
-  local actions = {
-    { id = "start", label = "Start" },
-    { id = "stop", label = "Stop" },
-    { id = "restart", label = "Restart" },
-  }
-  local protected = { deviced = true, notifd = true, logd = true }
-
-  function app:draw(w, h)
-    renderer.fill(1, 1, w, h, theme.get("windowBg"))
-    self.toolbar = ui.toolbar(1, 1, w, actions)
-    renderer.writeAt(1, 2, renderer.crop("SERVICE       STATE      AUTO", w), theme.get("titleFg"), theme.get("titleBg"))
-    local rows = ctx.system.services:list()
-    for i = 1, math.min(#rows, h - 4) do
-      local s = rows[self.scroll + i - 1]
-      if s then
-        local bg = s.name == self.selected and theme.get("accent") or theme.get("windowBg")
-        local mark = protected[s.name] and " protected" or ""
-        renderer.writeAt(1, i + 2, renderer.crop(s.name .. "       " .. s.state .. "      " .. tostring(s.autostart) .. mark, w), theme.get("windowFg"), bg)
+  local manager=ctx.system.services
+  local app={selected=nil,scroll=1,rows={},control={busy=false},message="Ready"}
+  local win,timer
+  local actions={{id="start",label="Start"},{id="stop",label="Stop"},{id="restart",label="Restart"}}
+  function app:refresh()
+    local ok,rows=pcall(manager.list,manager)
+    if not ok then self.message="Read failed: "..tostring(rows):gsub("[%c]"," ") if win then win.dirty=true end return false end
+    self.rows=rows self.control=manager:controlStatus()
+    local retained=false
+    for _,row in ipairs(self.rows) do if row.name==self.selected then retained=true end end
+    if not retained then self.selected=nil end
+    if win then win.dirty=true end
+  end
+  function app:request(action)
+    if not self.selected then self.message="No service selected" return end
+    local called,ok,result=pcall(manager.requestAction,manager,{pid=ctx.pid},action,self.selected)
+    if not called then result=ok ok=false end
+    self.message=ok and ("Queued #"..result..": "..action.." "..self.selected) or tostring(result)
+    if ok then self.operation=result end
+    self:refresh()
+  end
+  function app:draw(w,h)
+    self.lastH=h
+    renderer.fill(1,1,w,h,theme.get("windowBg"))
+    self.toolbar=ui.toolbar(1,1,w,actions)
+    renderer.writeAt(1,2,renderer.crop("SERVICE       STATE      AUTO",w),theme.get("titleFg"),theme.get("titleBg"))
+    self.scroll=math.max(1,math.min(self.scroll,math.max(1,#self.rows-h+5)))
+    for i=1,math.max(0,math.min(#self.rows,h-4)) do
+      local row=self.rows[self.scroll+i-1]
+      if row then
+        local bg=row.name==self.selected and theme.get("accent") or theme.get("windowBg")
+        renderer.writeAt(1,i+2,renderer.crop(row.name.."       "..row.state.."      "..tostring(row.autostart)..(row.protected and " protected" or ""),w),theme.get("windowFg"),bg)
       end
     end
+    if h>=4 then renderer.writeAt(1,h,renderer.crop(tostring(self.message):gsub("[%c]"," "),w),theme.get("windowFg"),theme.get("windowBg")) end
     local selected
-    for _, s in ipairs(rows) do if s.name == self.selected then selected = s end end
-    if selected then
-      renderer.writeAt(1, h - 1, renderer.crop("Last success: " .. tostring(selected.lastSuccess or "unknown"), w), theme.get("windowFg"), theme.get("windowBg"))
-      renderer.writeAt(1, h, renderer.crop("Last error: " .. tostring(selected.error or "-"), w), theme.get("windowFg"), theme.get("windowBg"))
+    for _,row in ipairs(self.rows) do if row.name==self.selected then selected=row end end
+    if selected and h>=5 then
+      renderer.writeAt(1,h-1,renderer.crop(("Last: "..tostring(selected.lastSuccess or "unknown").." | Error: "..tostring(selected.error or "none")):gsub("[%c]"," "),w),theme.get("windowFg"),theme.get("windowBg"))
     end
   end
-
   function app:handle(event)
-    if event.name == "mouse_scroll" then
-      self.scroll = math.max(1, self.scroll + event.args[1])
-      return true
-    end
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    local action = ui.toolbarHit(self.toolbar, x, y)
-    if action and self.selected then
-      if protected[self.selected] and action ~= "start" then
-        if ctx.notifications then ctx.notifications:push("warn", "Services", self.selected .. " is protected", 3) end
-        return true
-      end
-      if action == "start" then
-        ctx.system.services:start(self.selected)
-      elseif action == "stop" then
-        ctx.system.services:stop(self.selected)
-      elseif action == "restart" then
-        local stopped = ctx.system.services:stop(self.selected)
-        if stopped then ctx.system.services:start(self.selected) end
-      end
-      return true
-    end
-    if y >= 3 then
-      local rows = ctx.system.services:list()
-      local s = rows[self.scroll + y - 3]
-      if s then self.selected = s.name return true end
+    if self.graphicsActive and not event.name:match("^mouse_") then return self:handlePixels(event) end
+    if event.name=="mouse_scroll" then self.scroll=math.max(1,self.scroll+event.args[1]) return true end
+    if event.name~="mouse_click" then return false end
+    local _,x,y=table.unpack(event.args)
+    local action=ui.toolbarHit(self.toolbar,x,y)
+    if action then self:request(action) return true end
+    if y>=3 and y<(self.lastH or 3) then
+      local row=self.rows[self.scroll+y-3]
+      if row then self.selected=row.name return true end
     end
     return false
   end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Services", w = math.min(46, sw - 4), h = math.min(14, sh - 3), x = 10, y = 4, app = app })
-  while not win.closed do ctx.pullEvent() end
+  pixel.attach(app)
+  app:refresh()
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="Services",w=math.min(88,w-4),h=math.min(28,h-3),x=10,y=4,app=app})
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end end)
+  timer=ctx.startTimer(0.5)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=="timer" and event.args[1]==timer then
+      if not win.minimized then app:refresh() end timer=ctx.startTimer(0.5)
+    elseif event and event.name=="mintcraft_service_result" and event.args[1]==ctx.pid and event.args[2]==app.operation then
+      app.operation=nil app.message=tostring(event.args[4]) app:refresh()
+      if ctx.notifications then ctx.notifications:push(event.args[3] and "success" or "error","Services",app.message,5) end
+    end
+  end
 end
-
+return M
+]=],
+  ["apps/services/pixel.lua"] = [=[
+local ui=require("system.graphics.widgets")
+local fonts=require("system.graphics.fonts")
+local View=require("system.graphics.view")
+local primitives=require("system.graphics.primitives")
+local M={}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
+local function selected(app)
+  if app.selected then for i,row in ipairs(app.rows) do if row.name==app.selected then return row,i end end end
+end
+function M.attach(app)
+  function app:select(index)
+    index=clamp(index,1,math.max(1,#self.rows))
+    self.selected=self.rows[index] and self.rows[index].name or nil
+    self.detailScroll=0 self.focus="list"
+    if index<self.scroll then self.scroll=index elseif index>=self.scroll+(self.visible or 1) then self.scroll=index-(self.visible or 1)+1 end
+  end
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel) self.pixelHits={} self.rowHits={} self.scrollbar=nil self.detailArea=nil self.thumb=nil
+    if w<200 or h<150 then
+      self.confirm=nil self.scrollDragging=false self.grab=nil
+      ui.label(s,5,6,"Services: enlarge window",w-10,p.text,p.panel) return
+    end
+    local row=selected(self)
+    local busy=self.control.busy
+    local function button(id,label,r,disabled,kind)
+      local palette=disabled and {button=p.panel,text=p.muted} or p
+      if kind then ui.symbol(s,r,kind,p,false) else ui.button(s,r,label,palette,false) end
+      if self.focus==id then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      self.pixelHits[#self.pixelHits+1]={id=id,rect=r,disabled=disabled}
+    end
+    button("start","Start",rect(5,4,46,23),busy or not row or row.transitioning or row.uncertain)
+    button("stop","Stop",rect(55,4,44,23),busy or not row or row.protected or row.transitioning)
+    button("restart","Restart",rect(103,4,62,23),busy or not row or row.protected or row.transitioning)
+    button("refresh","",rect(w-28,4,23,23),false,"refresh")
+    if w>=290 then button("details",self.inspect and "Back" or "Details",rect(170,4,64,23)) end
+    local degraded=0 for _,service in ipairs(self.rows) do if service.error or service.state=="crashed" or service.state=="degraded" then degraded=degraded+1 end end
+    ui.label(s,6,34,#self.rows.." services | "..degraded.." degraded"..(busy and " | transition "..tostring(self.control.phase) or ""),w-12,busy and 1 or p.muted,p.panel)
+    local wide=w>=620
+    local width=wide and w-250 or w-10
+    local bottom=not wide and h>=300 and h-128 or h-24
+    local area=rect(5,64,width,math.max(18,bottom-64))
+    self.visible=math.max(1,math.floor(area.h/20))
+    self.scroll=clamp(self.scroll,1,math.max(1,#self.rows-self.visible+1))
+    s:rect(area.x,48,area.w,14,p.desktop)
+    ui.label(s,area.x+4,51,"SERVICE",math.max(48,area.w-124),p.muted,p.desktop)
+    ui.label(s,area.x+area.w-114,51,"STATE",65,p.muted,p.desktop)
+    ui.label(s,area.x+area.w-42,51,"AUTO",32,p.muted,p.desktop)
+    local stateColor={running=p.accent,stopped=p.muted,degraded=1,crashed=14}
+    for i=self.scroll,math.min(#self.rows,self.scroll+self.visible-1) do
+      local service=self.rows[i] local y=area.y+(i-self.scroll)*20
+      local active=service.name==self.selected local bg=active and p.accent or p.panel local fg=active and p.ink or p.text
+      s:rect(area.x,y,area.w-10,20,bg)
+      ui.label(s,area.x+4,y+6,service.name..(service.protected and " [protected]" or ""),math.max(48,area.w-124),fg,bg)
+      ui.label(s,area.x+area.w-114,y+6,service.transitioning and "pending" or service.state,65,active and p.ink or service.transitioning and 1 or stateColor[service.state] or p.muted,bg)
+      ui.label(s,area.x+area.w-42,y+6,service.autostart and "yes" or "no",28,fg,bg)
+      self.rowHits[#self.rowHits+1]={index=i,rect=rect(area.x,y,area.w-10,20)}
+    end
+    if #self.rows==0 then ui.label(s,area.x+4,area.y+8,"No registered services",area.w-14,p.muted,p.panel) end
+    self.scrollbar=rect(area.x+area.w-8,area.y,8,area.h)
+    self.thumb=ui.scrollbar(s,self.scrollbar,#self.rows,self.visible,self.scroll,p)
+    if self.focus=="list" then primitives.rect(s,area.x,area.y,area.w,area.h,p.accent) end
+    self.detailArea=self.inspect and rect(5,48,w-10,h-70) or wide and rect(w-238,48,233,h-70) or h>=300 and rect(5,h-122,w-10,98) or nil
+    if self.detailArea then
+      local r=self.detailArea
+      if self.inspect then
+        s:rect(r.x,r.y,r.w,r.h,p.panel) self.scrollbar=nil self.rowHits={}
+        if w<290 then button("details","Back",rect(5,4,46,23)) end
+      end
+      local text=row and (row.name.."\nState: "..tostring(row.state).."\nAutostart: "..tostring(row.autostart).."\nPID: "..tostring(row.pid or "unavailable")..
+        "\nProtected: "..tostring(row.protected==true).."\nUncertain: "..tostring(row.uncertain==true).."\nLast success: "..tostring(row.lastSuccess or "unavailable").."\n\nLast error:\n"..tostring(row.error or "none")) or "No service selected"
+      if not self.detailLayout or self.detailText~=text or self.detailWidth~=r.w then
+        self.detailLayout=fonts.layout(text,math.max(1,r.w-12),65536,{wrap=true,lineSpacing=2}) self.detailText=text self.detailWidth=r.w
+      end
+      ui.label(s,r.x+4,r.y+2,"DETAILS",r.w-8,p.muted,p.panel)
+      local view=View.new(s,r.x+5,r.y+18,r.w-10,math.max(1,r.h-20))
+      self.detailVisible=math.max(1,math.floor((r.h-20)/11)) self.detailMaximum=math.max(0,#self.detailLayout.lines-self.detailVisible)
+      self.detailScroll=clamp(self.detailScroll or 0,0,self.detailMaximum)
+      for i=self.detailScroll+1,math.min(#self.detailLayout.lines,self.detailScroll+self.detailVisible) do fonts.draw(view,0,(i-self.detailScroll-1)*11,self.detailLayout.lines[i].text,p.text,p.panel) end
+      if self.focus=="details" then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+    end
+    ui.label(s,6,h-15,busy and (tostring(self.control.action).." "..tostring(self.control.name)..": "..tostring(self.control.message or self.control.phase)) or self.message,w-12,busy and 1 or p.muted,p.panel)
+    if self.confirm then
+      self.pixelHits={} self.rowHits={} self.scrollbar=nil self.detailArea=nil
+      local r=rect(8,math.max(32,math.floor(h/2)-43),w-16,86)
+      s:rect(r.x,r.y,r.w,r.h,p.desktop)
+      ui.paragraph(s,rect(r.x+7,r.y+7,r.w-14,34),self.confirm.action.." "..self.confirm.name.."?",p.text,p.desktop,{wrap=true})
+      button("confirm","Confirm",rect(r.x+8,r.y+54,78,24)) button("cancel","Cancel",rect(r.x+94,r.y+54,70,24))
+    end
+  end
+  function app:handlePixels(event)
+    local x,y=event.args[2],event.args[3]
+    local function action(id)
+      if id=="cancel" then self.confirm=nil
+      elseif id=="confirm" and self.confirm then
+        local request=self.confirm self.confirm=nil
+        if self.selected~=request.name then self.message="Selection changed; action cancelled" else self:request(request.action) end
+      elseif id=="refresh" then self:refresh()
+      elseif id=="details" then self.inspect=not self.inspect self.focus=self.inspect and "details" or "list"
+      elseif id=="start" then self:request("start")
+      elseif id=="stop" or id=="restart" then self.confirm={action=id,name=self.selected} end
+    end
+    if event.name=="key" then
+      local key=event.args[1]
+      if key==keys.escape then self.confirm=nil self.inspect=false self.focus="list" return true end
+      if self.confirm then if key==keys.enter then action("confirm") end return true end
+      if key==keys.tab then
+        local order={"start","stop","restart","refresh","list","details"} local index=0
+        for i,id in ipairs(order) do if id==self.focus then index=i end end
+        self.focus=order[index%#order+1] return true
+      elseif key==keys.enter then
+        for _,hit in ipairs(self.pixelHits or {}) do if hit.id==self.focus then if not hit.disabled then action(hit.id) end return true end end
+        self.inspect=not self.detailArea self.focus="details" return true
+      elseif key==keys.up or key==keys.down or key==keys.home or key==keys["end"] or key==keys.pageUp or key==keys.pageDown then
+        if self.focus=="details" then self.detailScroll=key==keys.home and 0 or key==keys["end"] and (self.detailMaximum or 0) or clamp((self.detailScroll or 0)+(key==keys.up and -1 or key==keys.pageUp and -(self.detailVisible or 1) or key==keys.pageDown and (self.detailVisible or 1) or 1),0,self.detailMaximum or 0)
+        else
+          local _,index=selected(self) index=index or (key==keys.up and self.scroll+(self.visible or 1) or self.scroll-1)
+          local step=key==keys.up and -1 or key==keys.pageUp and -(self.visible or 1) or key==keys.pageDown and (self.visible or 1) or 1
+          self:select(key==keys.home and 1 or key==keys["end"] and #self.rows or index+step)
+        end return true
+      end
+      return false
+    end
+    if self.confirm and event.name~="mouse_click" then return true end
+    if event.name=="mouse_scroll" then
+      if ui.hit(self.detailArea,x,y) then self.detailScroll=clamp((self.detailScroll or 0)+event.args[1]*3,0,self.detailMaximum or 0)
+      else self.scroll=math.max(1,self.scroll+event.args[1]*3) end return true
+    end
+    if event.name=="mouse_up" then self.scrollDragging=false self.grab=nil return true end
+    if event.name=="mouse_drag" and self.scrollDragging and self.scrollbar then
+      self.scroll=ui.scrollbarValue(self.scrollbar,#self.rows,self.visible,y+(self.thumb and self.thumb.h/2 or 0)-(self.grab or (self.thumb and self.thumb.h/2 or 0))) return true
+    end
+    if event.name~="mouse_click" then return false end
+    if event.args[1]~=1 then return true end
+    for i=#(self.pixelHits or {}),1,-1 do local hit=self.pixelHits[i] if ui.hit(hit.rect,x,y) then if not hit.disabled then action(hit.id) end return true end end
+    if self.confirm then return true end
+    if ui.hit(self.scrollbar,x,y) then
+      self.grab=ui.hit(self.thumb,x,y) and y-self.thumb.y or nil
+      if not self.grab then self.scroll=ui.scrollbarValue(self.scrollbar,#self.rows,self.visible,y) end
+      self.scrollDragging=true return true
+    end
+    if ui.hit(self.detailArea,x,y) then self.focus="details" return true end
+    for _,hit in ipairs(self.rowHits or {}) do if ui.hit(hit.rect,x,y) then
+      self:select(hit.index) if not self.detailArea then self.inspect=true self.focus="details" end return true
+    end end
+    return true
+  end
+end
 return M
 ]=],
   ["apps/settings/app.cfg"] = [=[
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -4860,7 +5015,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -4975,7 +5130,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -5117,7 +5272,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.36",
+  version = "0.18.37",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -5587,7 +5742,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.36",
+  version = "0.18.37",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -6134,7 +6289,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.36",
+    version = "0.18.37",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -6516,7 +6671,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.36",
+  version = "0.18.37",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -9518,22 +9673,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.36", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.36", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.36", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.36", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.37", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.37", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.37", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.37", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.36", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.36", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.36", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.36", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.36", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.36", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.36", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.36", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.36", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.36", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.36", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.37", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.37", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.37", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.37", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.37", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.37", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.37", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.37", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.37", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.37", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.37", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -10325,7 +10480,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.36",
+    version = meta.version or "0.18.37",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -17243,15 +17398,114 @@ end
 
 return M
 ]=],
+  ["system/services/service_control.lua"] = [=[
+local permissions=require("system.security.permissions")
+local log=require("system.libraries.log")
+local M={}
+function M.new(manager)
+  local scheduler=assert(manager.ctx.scheduler,"Service control requires scheduler")
+  local self={serial=0,busy=false}
+  local pending,pid
+  local function authorize(owner)
+    local process=scheduler.processes[owner]
+    if not process or process.state~="ready" then return false,"Owner not running" end
+    local attached,open=false,false
+    for _,win in ipairs(process.windows or {}) do attached=true if not win.closed then open=true break end end
+    if attached and not open then return false,"Owner windows closed" end
+    if type(permissions.require)~="function" then return false,"Permission service unavailable" end
+    return permissions.require({pid=owner,appId=process.meta and process.meta.appId,permissions=process.permissions or {}},"services.control")
+  end
+  local function perform(request)
+    local ok,err=authorize(request.owner)
+    if not ok then return false,err end
+    if manager:isProtected(request.name) and request.action~="start" then return false,"Protected service" end
+    if request.action=="start" then return manager:start(request.name) end
+    local stopped,reason=manager:stop(request.name)
+    if not stopped then return false,reason or "Stop refused" end
+    if request.action=="stop" then return true,"Stopped" end
+    local authorized,denied=authorize(request.owner)
+    if not authorized then return false,"Restart stopped before start: "..tostring(denied).."; service remains stopped" end
+    return manager:start(request.name)
+  end
+  local function ensureWorker()
+    if pid and scheduler.processes[pid] and scheduler.processes[pid].state=="ready" then return end
+    pid=scheduler:spawn("Service operations",function()
+      while true do
+        if pending then
+          local request=pending pending=nil
+          self.phase="running"
+          local ran,ok,message=pcall(function()
+            return manager:withTransition(request.name,function() return perform(request) end)
+          end)
+          if not ran then message="Transition failed; inspect service before retry: "..tostring(ok) ok=false end
+          self.busy=false self.phase="finished" self.ok=ok==true
+          self.message=tostring(message or (ok and "Completed" or "Refused"))
+          pcall(ok and log.info or log.warn,"service-control",request.action.." "..request.name..": "..self.message)
+          os.queueEvent("mintcraft_service_result",request.owner,request.id,self.ok,self.message)
+        end
+        os.pullEvent("mintcraft_service_action")
+      end
+    end,{eventMode="raw",appId="service-control",permissions={},protected=true})
+    assert(scheduler:start(pid))
+  end
+  function self:request(actor,action,name)
+    if action~="start" and action~="stop" and action~="restart" then return false,"Invalid service action" end
+    if type(name)~="string" or not manager.services[name] then return false,"No such service" end
+    if self.busy then return false,"Service transition already running" end
+    local ok,err=authorize(actor and actor.pid)
+    if not ok then return false,err end
+    if manager:isProtected(name) and action~="start" then return false,"Protected service" end
+    ensureWorker()
+    self.serial=self.serial+1
+    pending={id=self.serial,owner=actor.pid,action=action,name=name}
+    self.busy=true self.phase="queued" self.name=name self.action=action self.owner=actor.pid self.message="Queued" self.ok=nil
+    os.queueEvent("mintcraft_service_action",pid)
+    return true,self.serial
+  end
+  function self:status()
+    local worker=pid and scheduler.processes[pid]
+    if self.busy and (not worker or worker.state~="ready") then
+      return {busy=true,phase="uncertain",name=self.name,action=self.action,owner=self.owner,id=self.serial,
+        message="Service worker stopped; transition may be partial. Inspect before recovery.",ok=false,pid=pid}
+    end
+    return {busy=self.busy,phase=self.phase,name=self.name,action=self.action,owner=self.owner,id=self.serial,message=self.message,ok=self.ok,pid=pid}
+  end
+  return self
+end
+return M
+]=],
   ["system/services/service_manager.lua"] = [=[
 local log = require("system.libraries.log")
 local profile = require("system.libraries.profile")
 
 local ServiceManager = {}
 ServiceManager.__index = ServiceManager
+local protected={deviced=true,notifd=true,logd=true,securityd=true}
+
+function ServiceManager:isProtected(name) return protected[name]==true end
+function ServiceManager:requestAction(actor,action,name)
+  if not self.control then self.control=require("system.services.service_control").new(self) end
+  return self.control:request(actor,action,name)
+end
+function ServiceManager:controlStatus() return self.control and self.control:status() or {busy=false} end
 
 function ServiceManager.new(ctx)
-  return setmetatable({ ctx = ctx, services = {}, order = {} }, ServiceManager)
+  return setmetatable({ ctx = ctx, services = {}, order = {}, transitions={} }, ServiceManager)
+end
+
+function ServiceManager:withTransition(name,fn)
+  if type(name)~="string" or not self.services[name] then return false,"No such service" end
+  local owner=coroutine.running()
+  local lock=self.transitions[name]
+  if lock then
+    if lock.owner~=owner then return false,"Service transition in progress: "..name end
+    return fn()
+  end
+  self.transitions[name]={owner=owner}
+  local result=table.pack(pcall(fn))
+  self.transitions[name]=nil
+  if not result[1] then return false,tostring(result[2]) end
+  return table.unpack(result,2,result.n)
 end
 
 function ServiceManager:register(name, moduleName, autostart)
@@ -17264,9 +17518,11 @@ function ServiceManager:register(name, moduleName, autostart)
   }
 end
 
-function ServiceManager:start(name)
+function ServiceManager:start(name) return self:withTransition(name,function() return self:_start(name) end) end
+function ServiceManager:_start(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
+  if service.uncertain then return false,"Service state uncertain; inspect and complete cleanup before starting" end
   if service.started then return true end
   if not profile.serviceEnabled(name) then return false,"Disabled by app profile" end
 
@@ -17287,7 +17543,10 @@ function ServiceManager:start(name)
     local started, result, detail = pcall(mod.start, self.ctx)
     if not started or result == false then
       local err = started and (detail or "start refused") or result
-      if type(mod.stop) == "function" then pcall(mod.stop, self.ctx) end
+      local cleaned,result=false,nil
+      if type(mod.stop) == "function" then cleaned,result=pcall(mod.stop,self.ctx) end
+      service.uncertain=not cleaned or result==false
+      if service.uncertain then err=tostring(err).."; startup cleanup unconfirmed" end
       service.state = "crashed"
       service.error = tostring(err)
       log.error("service", name .. ": " .. tostring(err))
@@ -17304,18 +17563,23 @@ function ServiceManager:start(name)
     end
   end
   service.error = nil
+  service.uncertain = false
   log.info("service", name .. " running")
   return true
 end
 
-function ServiceManager:stop(name)
+function ServiceManager:stop(name) return self:withTransition(name,function() return self:_stop(name) end) end
+function ServiceManager:_stop(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
+  if service.uncertain and (not service.module or type(service.module.stop)~="function") then
+    return false,"Service cleanup unavailable; inspect uncertain state before recovery"
+  end
   if service.module and type(service.module.stop) == "function" then
     local ok, result, detail = pcall(service.module.stop, self.ctx)
     if not ok or result == false then
       -- A refused stop leaves its worker running (for example, pending rescue).
-      if not ok then service.state = "crashed" end
+      if not ok then service.state = "crashed" service.uncertain=true end
       service.error = tostring(ok and (detail or "stop refused") or result)
       log.error("service", name .. ": " .. service.error)
       return false, service.error
@@ -17323,6 +17587,7 @@ function ServiceManager:stop(name)
   end
   service.state = "stopped"
   service.started, service.error = false, nil
+  service.uncertain=false
   log.info("service", name .. " stopped")
   return true
 end
@@ -17381,6 +17646,9 @@ function ServiceManager:list()
       error = health.error,
       lastSuccess = health.lastSuccess,
       pid = health.pid,
+      protected = self:isProtected(service.name),
+      transitioning = self.transitions[service.name]~=nil,
+      uncertain = service.uncertain==true,
     })
   end
   table.sort(rows, function(a, b) return a.name < b.name end)
@@ -18734,7 +19002,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.36
+0.18.37
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

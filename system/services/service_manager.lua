@@ -3,9 +3,32 @@ local profile = require("system.libraries.profile")
 
 local ServiceManager = {}
 ServiceManager.__index = ServiceManager
+local protected={deviced=true,notifd=true,logd=true,securityd=true}
+
+function ServiceManager:isProtected(name) return protected[name]==true end
+function ServiceManager:requestAction(actor,action,name)
+  if not self.control then self.control=require("system.services.service_control").new(self) end
+  return self.control:request(actor,action,name)
+end
+function ServiceManager:controlStatus() return self.control and self.control:status() or {busy=false} end
 
 function ServiceManager.new(ctx)
-  return setmetatable({ ctx = ctx, services = {}, order = {} }, ServiceManager)
+  return setmetatable({ ctx = ctx, services = {}, order = {}, transitions={} }, ServiceManager)
+end
+
+function ServiceManager:withTransition(name,fn)
+  if type(name)~="string" or not self.services[name] then return false,"No such service" end
+  local owner=coroutine.running()
+  local lock=self.transitions[name]
+  if lock then
+    if lock.owner~=owner then return false,"Service transition in progress: "..name end
+    return fn()
+  end
+  self.transitions[name]={owner=owner}
+  local result=table.pack(pcall(fn))
+  self.transitions[name]=nil
+  if not result[1] then return false,tostring(result[2]) end
+  return table.unpack(result,2,result.n)
 end
 
 function ServiceManager:register(name, moduleName, autostart)
@@ -18,9 +41,11 @@ function ServiceManager:register(name, moduleName, autostart)
   }
 end
 
-function ServiceManager:start(name)
+function ServiceManager:start(name) return self:withTransition(name,function() return self:_start(name) end) end
+function ServiceManager:_start(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
+  if service.uncertain then return false,"Service state uncertain; inspect and complete cleanup before starting" end
   if service.started then return true end
   if not profile.serviceEnabled(name) then return false,"Disabled by app profile" end
 
@@ -41,7 +66,10 @@ function ServiceManager:start(name)
     local started, result, detail = pcall(mod.start, self.ctx)
     if not started or result == false then
       local err = started and (detail or "start refused") or result
-      if type(mod.stop) == "function" then pcall(mod.stop, self.ctx) end
+      local cleaned,result=false,nil
+      if type(mod.stop) == "function" then cleaned,result=pcall(mod.stop,self.ctx) end
+      service.uncertain=not cleaned or result==false
+      if service.uncertain then err=tostring(err).."; startup cleanup unconfirmed" end
       service.state = "crashed"
       service.error = tostring(err)
       log.error("service", name .. ": " .. tostring(err))
@@ -58,18 +86,23 @@ function ServiceManager:start(name)
     end
   end
   service.error = nil
+  service.uncertain = false
   log.info("service", name .. " running")
   return true
 end
 
-function ServiceManager:stop(name)
+function ServiceManager:stop(name) return self:withTransition(name,function() return self:_stop(name) end) end
+function ServiceManager:_stop(name)
   local service = self.services[name]
   if not service then return false, "No such service" end
+  if service.uncertain and (not service.module or type(service.module.stop)~="function") then
+    return false,"Service cleanup unavailable; inspect uncertain state before recovery"
+  end
   if service.module and type(service.module.stop) == "function" then
     local ok, result, detail = pcall(service.module.stop, self.ctx)
     if not ok or result == false then
       -- A refused stop leaves its worker running (for example, pending rescue).
-      if not ok then service.state = "crashed" end
+      if not ok then service.state = "crashed" service.uncertain=true end
       service.error = tostring(ok and (detail or "stop refused") or result)
       log.error("service", name .. ": " .. service.error)
       return false, service.error
@@ -77,6 +110,7 @@ function ServiceManager:stop(name)
   end
   service.state = "stopped"
   service.started, service.error = false, nil
+  service.uncertain=false
   log.info("service", name .. " stopped")
   return true
 end
@@ -135,6 +169,9 @@ function ServiceManager:list()
       error = health.error,
       lastSuccess = health.lastSuccess,
       pid = health.pid,
+      protected = self:isProtected(service.name),
+      transitioning = self.transitions[service.name]~=nil,
+      uncertain = service.uncertain==true,
     })
   end
   table.sort(rows, function(a, b) return a.name < b.name end)

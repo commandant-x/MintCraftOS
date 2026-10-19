@@ -9,9 +9,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.36 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.37 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files, Logs, Navigation Flight and the main Combat views have native clients; other
+Files, Logs, Services, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
 explicit migration. Combat's 0.18.35 increment is documented separately.
 
@@ -130,7 +130,7 @@ or finished ASCENDANCY.
 | Settings | Legacy configuration center retained, terminal selector added | Native controls, detected capabilities/UI scale/performance/recovery panels |
 | Task Manager | Legacy measured/estimated metrics retained | Native graphs, rendering/network statistics with accurate labels |
 | Logs | Native list/filter/details, live tail, draggable scrollbar and keyboard; reads/parse outside draw; read errors and compact inspector tested | In-game validation, search/copy/export and broader accessibility polish |
-| Services | Legacy protected service controls retained | Native state/actions/error panels |
+| Services | Native cached state/list/details/errors, protected controls and confirmation; serialized manager-owned actions with live permissions and per-service locks | Runtime/performance presentation expansion and actual in-game lifecycle validation |
 | Store | Hidden legacy package UI retained | Native package states without inventing a populated catalog |
 | Devices | Legacy peripheral list retained, terminal role added | Native inventory/probe/display workflows |
 | Editor | Hidden integrated editor retained | Native mono text, selection/caret/scroll/search/save/errors without whole-document redraw per key |
@@ -155,6 +155,11 @@ boot/recovery in text regardless of the previous physical display state.
 No external GPU, server changes, browser expansion or flight safety changes.
 
 ## Next Gates
+
+V0.18.37: Services is native and UI control runs in a manager-owned yielding
+worker. Permission, owner, refusal, concurrency and hidden-confirmation guards
+have dedicated tests; 98 fast suites pass. See GRAPHICS-0.18.37.md for real
+boundaries and recovery limits. Remaining app migrations and ASCENDANCY stay open.
 
 V0.18.36: Logs is native, with cached acquisition, scrolling and full-message
 inspection. Combat's native keyboard delivery is corrected. Fast suites: 96;

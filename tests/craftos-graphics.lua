@@ -49,7 +49,7 @@ local ok,err=pcall(function()
     assert(stats.backend=="PIXEL256","pixel backend inactive: "..tostring(stats.lastError))
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
-    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","nexus"}) do
+    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","nexus"}) do
       local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
@@ -134,6 +134,34 @@ local ok,err=pcall(function()
         queueInput("key",keys.down) queueInput("key",keys.enter) sleep(0.15)
         assert(win.app.filter=="error" and #win.app.rows>=1,"native log keyboard filter failed")
         capture("pixel-logs-filtered")
+      end
+      if id=="services" then
+        local win=proc.window local manager=apps.ctx.services local workspace=apps.ctx.pixelWorkspace
+        assert(win.pixelNative,"Services is still a legacy client")
+        local stopping,stopped=false,false
+        package.loaded["isolated.viewer-service"]={start=function() return true end,status=function() return {ok=true} end,stop=function()
+          stopping=true local timer=os.startTimer(0.8)
+          while true do local _,tick=os.pullEvent("timer") if tick==timer then break end end
+          stopped=true return true
+        end}
+        manager:register("viewer_fixture","isolated.viewer-service",false)
+        assert(manager:start("viewer_fixture"))
+        win.app:refresh() win.app.selected="viewer_fixture" win.dirty=true os.queueEvent("mintcraft_test") sleep(0.15)
+        local client
+        for _,hit in ipairs(workspace.windowHits) do if hit.win==win then client=hit.client end end
+        local function click(id)
+          for _,hit in ipairs(win.app.pixelHits) do if hit.id==id then
+            queueInput("mouse_click",1,client.x+hit.rect.x+2,client.y+hit.rect.y+2) return
+          end end error("missing service action "..id)
+        end
+        capture("pixel-services")
+        click("stop") sleep(0.1) assert(win.app.confirm and not stopping,"service stopped before confirmation")
+        click("confirm") sleep(0.1)
+        assert(stopping and not stopped and manager:controlStatus().busy,"native yielding service request failed: "..tostring(win.app.message))
+        capture("pixel-services-pending")
+        apps.ctx.scheduler:kill(pid)
+        for _=1,30 do if stopped and not manager:controlStatus().busy then break end sleep(0.05) end
+        assert(stopped and manager:controlStatus().ok and not manager.services.viewer_fixture.started,"closing Services abandoned in-flight transition")
       end
       if id=="files" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
@@ -253,7 +281,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Files operations, Combat keyboard, Logs details/filter, drag/minimize/restore, shared keyboard/search, seven apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Files operations, Combat keyboard, Logs details/filter, asynchronous Services/owner close, eight apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end
