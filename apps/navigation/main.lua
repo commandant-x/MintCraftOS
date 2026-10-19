@@ -14,6 +14,7 @@ local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
 local config=require("system.libraries.config")
+local pixel=require("apps.navigation.pixel")
 local M={}
 local axes={"pitch","roll","altitude","heading"}
 local sides={"top","bottom","left","right","front","back"}
@@ -28,11 +29,14 @@ function M.run(ctx)
   local original=config.load("/system/config/navigation.cfg",{})
   local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
   if draft.vehicle.type=="unknown" then app.page="vehicle" end
+  if ctx.args and ctx.args.page=="flight" then app.page="flight" end
   local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="setup",label="Setup guide"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
     app.bridge=vehicleBridge.snapshot()
+    app.nativeFlight,app.nativeLastAttitude=pixel.sample(app.av,app.sub,app.flight,flight.telemetry(),app.nativeLastAttitude,os.clock())
+    if win then win.dirty=true end
   end
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
@@ -280,6 +284,7 @@ function M.run(ctx)
     if not self.confirm and not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
   function app:handle(event)
+    if self:handleNativeKey(event) then return true end
     if self.confirm then
       if event.name=="mouse_click" then
         local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
@@ -289,7 +294,9 @@ function M.run(ctx)
       return true
     end
     if self.form.edit then return self.form:handle(event) end
-    local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
+    local section,command,handled
+    if event.navigationCommand then section,command,handled="commands",event.navigationCommand,true
+    else section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event) end
     if handled then
       if section=="pages" then
         if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil if command=="setup" then guide() end end
@@ -413,9 +420,23 @@ function M.run(ctx)
     if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
+  pixel.attach(app,{
+    page=function(id)
+      for _,tab in ipairs(tabs) do if tab.id==id then
+        app.page=id app.form.scroll=1 app.scroll=1 app.testValue=nil
+        if id=="setup" then guide() end
+        if win then win.dirty=true end
+        return
+      end end
+    end,
+    action=function(id)
+      if id=="rescan" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
+    end,
+  },tabs)
   refresh()
   local w,h=term.getSize()
-  win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,app=app})
+  win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,
+    minPixelWidth=156,minPixelHeight=180,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end flight.release(ctx.pid,"Navigation closed/crashed/killed") end)
   timer=ctx.startTimer(0.2)
   while not win.closed do

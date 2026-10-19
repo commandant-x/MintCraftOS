@@ -22,6 +22,9 @@ View.new(surface,5,7,10,12):rect(0,0,10,12,2)
 assert(surface.rows[9]:byte(8)==2 and surface.rows[9]:byte(7)==4)
 surface.clip=old
 win.dirty=false assert(win:handlePixels({name="mouse_click",args={1,0,0}}) and win.dirty)
+win.pixelNative=true win.dirty=true
+win:draw() assert(win.surfaceRevision==1 and not win.dirty,"native client did not publish invalidation")
+win:draw() assert(win.surfaceRevision==1,"static native window revision changed")
 app.drawPixels=function() error("application draw failure") end
 assert(not win:drawPixels(View.new(surface,0,0,10,12),10,12,{}) and win.closed and errors==1)
 win.closed=false app.handlePixels=function() error("application input failure") end

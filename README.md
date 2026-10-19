@@ -2,7 +2,12 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.32:
+This repository currently contains V0.18.33:
+
+V0.18.33 gives Navigation's Flight view native pixel instruments, cached
+row-based attitude rendering, and explicit stale/unavailable telemetry. Other
+Navigation pages retain their existing controls/safety while their UI migration
+continues. See [Navigation graphics notes](docs/GRAPHICS-0.18.33.md).
 
 V0.18.32 makes the pixel desktop the normal boot path (256 -> 16 -> diagnostic
 text fallback). It resets persistent peripheral graphics state before text

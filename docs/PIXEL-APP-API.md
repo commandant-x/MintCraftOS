@@ -49,6 +49,10 @@ not a secure sandbox for arbitrary untrusted Lua.
 minPixelWidth/minPixelHeight are optional create-window hints, constrained by
 the actual viewport. Text-mode dimensions and legacy apps remain compatible.
 Apps without the native pair stay in the bitmap-rasterized text container.
+An optional `app.pixelPages={flight=true}` restricts native rendering/input to
+`app.page` entries marked true while other pages retain their text UI. Native
+clients skip legacy draw work but still publish dirty window revisions. This
+is a migration mechanism, not proof that all views have been modernized.
 
 The scene compares final byte rows after damaged layers are recomposed. Static
 controls repainted by an app are not retransmitted when their final pixels did

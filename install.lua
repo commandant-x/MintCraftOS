@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2872,7 +2872,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2952,7 +2952,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3071,7 +3071,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3093,6 +3093,7 @@ local sable=require("system.services.sabled")
 local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
 local config=require("system.libraries.config")
+local pixel=require("apps.navigation.pixel")
 local M={}
 local axes={"pitch","roll","altitude","heading"}
 local sides={"top","bottom","left","right","front","back"}
@@ -3107,11 +3108,14 @@ function M.run(ctx)
   local original=config.load("/system/config/navigation.cfg",{})
   local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
   if draft.vehicle.type=="unknown" then app.page="vehicle" end
+  if ctx.args and ctx.args.page=="flight" then app.page="flight" end
   local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="setup",label="Setup guide"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
     app.bridge=vehicleBridge.snapshot()
+    app.nativeFlight,app.nativeLastAttitude=pixel.sample(app.av,app.sub,app.flight,flight.telemetry(),app.nativeLastAttitude,os.clock())
+    if win then win.dirty=true end
   end
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
@@ -3359,6 +3363,7 @@ function M.run(ctx)
     if not self.confirm and not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
   function app:handle(event)
+    if self:handleNativeKey(event) then return true end
     if self.confirm then
       if event.name=="mouse_click" then
         local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
@@ -3368,7 +3373,9 @@ function M.run(ctx)
       return true
     end
     if self.form.edit then return self.form:handle(event) end
-    local section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
+    local section,command,handled
+    if event.navigationCommand then section,command,handled="commands",event.navigationCommand,true
+    else section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event) end
     if handled then
       if section=="pages" then
         if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil if command=="setup" then guide() end end
@@ -3492,9 +3499,23 @@ function M.run(ctx)
     if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
+  pixel.attach(app,{
+    page=function(id)
+      for _,tab in ipairs(tabs) do if tab.id==id then
+        app.page=id app.form.scroll=1 app.scroll=1 app.testValue=nil
+        if id=="setup" then guide() end
+        if win then win.dirty=true end
+        return
+      end end
+    end,
+    action=function(id)
+      if id=="rescan" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
+    end,
+  },tabs)
   refresh()
   local w,h=term.getSize()
-  win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,app=app})
+  win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,
+    minPixelWidth=156,minPixelHeight=180,app=app})
   ctx.onCleanup(function() if timer then os.cancelTimer(timer) end flight.release(ctx.pid,"Navigation closed/crashed/killed") end)
   timer=ctx.startTimer(0.2)
   while not win.closed do
@@ -3502,6 +3523,182 @@ function M.run(ctx)
     if event.name=="timer" and event.args[1]==timer then
       if not win.minimized then refresh() end timer=ctx.startTimer(0.2)
     end
+  end
+end
+return M
+]=],
+  ["apps/navigation/pixel.lua"] = [=[
+local ui=require("system.graphics.widgets")
+local fonts=require("system.graphics.fonts")
+local Surface=require("system.graphics.surface")
+local View=require("system.graphics.view")
+local primitives=require("system.graphics.primitives")
+local attitude=require("system.navigation.attitude")
+local addon=require("system.libraries.addon")
+local M={}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function number(value,unit)
+  return addon.finite(value) and string.format("%.1f%s",value,unit or "") or "unavailable"
+end
+function M.sample(av,sub,state,t,previous,now)
+  local sample,fresh=attitude.sample(av.measurements or {},previous,now)
+  if sample and (not addon.finite(sample.observedAt) or sample.observedAt>now) then sample,fresh=nil,false end
+  local out={attitude=sample,fresh=fresh,state=state.state or "unknown",source=t.headingSource,
+    sublevel=sub.status or "unavailable",observedAt=now,values={},expires={}}
+  if sample then
+    local a,b=(av.measurements or {}).pitch,(av.measurements or {}).roll
+    out.attitudeValidUntil=math.min(a and a.validUntil or sample.observedAt+0.5,b and b.validUntil or sample.observedAt+0.5)
+  end
+  for _,key in ipairs({"altitude","altitudeRate","heading"}) do
+    local m=t.measurements and t.measurements[key]
+    local observed=m and (m.observedAt or m.timestamp) or t.timestamp
+    local valid=m and m.valid==true and addon.finite(m.validUntil) and now<=m.validUntil
+    if not m then valid=addon.finite(t.timestamp) and now-t.timestamp<=0.5 end
+    valid=valid and addon.finite(observed) and observed<=now
+    if valid and addon.finite(t[key]) then out.values[key]=t[key] out.expires[key]=m and m.validUntil or observed+0.5 end
+  end
+  local physical=sub.sublevel or {}
+  local function current(key)
+    local timing=physical.timings and physical.timings[key]
+    local observed=timing and timing.startedAt or physical.observedAt or sub.timestamp
+    return addon.finite(observed) and now>=observed and now-observed<=1 and not (timing and timing.ok==false),observed
+  end
+  local massFresh,massAt=current("mass")
+  if massFresh then out.values.mass=addon.finite(physical.mass) and physical.mass or nil out.expires.mass=massAt+1 end
+  local speedFresh,speedAt=current("linearVelocity")
+  if speedFresh then
+    local v=addon.vec(physical.linearVelocity)
+    out.values.speed=v and math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z) or nil
+    out.expires.speed=speedAt+1
+  end
+  return out,sample
+end
+local function horizon(cache,w,h,pitch,roll)
+  local key=w..":"..h..":"..(pitch and string.format("%.1f",pitch) or "?")..":"..(roll and string.format("%.1f",roll) or "?")
+  if cache and cache.key==key then return cache end
+  local image=cache and cache.image.width==w and cache.image.height==h and cache.image or Surface.new(w,h,15)
+  if not (addon.finite(pitch) and addon.finite(roll)) then image:rect(0,0,w,h,15)
+  else
+    local a=math.rad(roll) local s,c=math.sin(a),math.cos(a)
+    local cx,cy=(w-1)/2,(h-1)/2
+    -- Preserve the existing instrument's pitch sign and 60-deg vertical scale.
+    local shift=math.max(-90,math.min(90,pitch))*h/60
+    for y=0,h-1 do
+      local d=(y-cy)*c+shift
+      if math.abs(s)<1e-9 then image:span(0,y,string.rep(string.char(d<0 and 3 or 12),w))
+      else
+        local cut=math.max(0,math.min(w,math.ceil(cx-d/s)))
+        image:span(0,y,string.rep(string.char(s>0 and 3 or 12),cut)..string.rep(string.char(s>0 and 12 or 3),w-cut))
+      end
+    end
+    for degree=-30,30,10 do
+      local dy=degree*h/60-shift local half=degree==0 and w or degree%20==0 and w/7 or w/10
+      primitives.line(image,cx-half*c+dy*s,cy+dy*c+half*s,cx+half*c+dy*s,cy+dy*c-half*s,0)
+    end
+    local span=math.max(8,math.min(26,w/7))
+    primitives.line(image,cx-span,cy,cx-4,cy,4) primitives.line(image,cx+4,cy,cx+span,cy,4)
+    primitives.line(image,cx,cy-4,cx,cy+4,4)
+  end
+  return {key=key,image=image,builds=(cache and cache.builds or 0)+1}
+end
+function M.attach(app,api,tabs)
+  app.pixelPages={flight=true}
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel) self.nativeHits={}
+    local function button(id,label,r)
+      ui.button(s,r,label,p) self.nativeHits[#self.nativeHits+1]={id=id,rect=r}
+    end
+    local controlWidth=w<260 and 56 or 78
+    local controlX=w-controlWidth-30
+    button("views","Flight",rect(4,3,math.min(96,controlX-8),22))
+    button("control","Control",rect(controlX,3,controlWidth,22))
+    local rescan=rect(w-26,3,22,22) ui.symbol(s,rescan,"refresh",p)
+    self.nativeHits[#self.nativeHits+1]={id="rescan",rect=rescan}
+    local snap=self.nativeFlight or {values={},state="unknown"}
+    local now=os.clock()
+    local sample=snap.attitude and now<=snap.attitude.observedAt+1 and snap.attitude or nil
+    local fresh=sample and snap.fresh and now<=(snap.attitudeValidUntil or 0)
+    ui.label(s,6,33,fresh and "MEASURED | attitude" or sample and "STALE | held attitude" or "ATTITUDE UNAVAILABLE",w-12,fresh and p.accent or 1,p.panel)
+    local side=w>=450
+    local gw=side and math.floor(w*0.62) or w-12
+    local gh=math.max(24,side and h-99 or math.floor((h-86)*0.52))
+    local r=rect(6,52,gw,gh)
+    local pitch=sample and sample.pitch local roll=sample and sample.roll
+    self.nativeHorizon=horizon(self.nativeHorizon,r.w,r.h,pitch,roll)
+    local image=self.nativeHorizon.image
+    local canvas=View.new(s,r.x,r.y,r.w,r.h)
+    for y=math.max(0,canvas.clip.y),math.min(r.h,canvas.clip.y+canvas.clip.h)-1 do canvas:span(0,y,image.rows[y+1]) end
+    if not sample then ui.label(s,r.x+4,r.y+math.floor(r.h/2),"No valid gimbal",r.w-8,p.text,15,"center") end
+    local v={}
+    for key,value in pairs(snap.values) do if snap.expires and now<=(snap.expires[key] or 0) then v[key]=value end end
+    local x,top,width=side and r.x+r.w+12 or 6,side and 54 or r.y+r.h+19,side and w-r.w-24 or w-12
+    local rows={{"Altitude",number(v.altitude," m")},{"Vertical speed",number(v.altitudeRate," m/s")},
+      {"Heading (+Z=0)",number(v.heading," deg")},{"Speed",number(v.speed," m/s")},
+      {"Mass",number(v.mass," kg")},{"Control",snap.observedAt and now-snap.observedAt<=1 and snap.state or "stale"}}
+    local step=side and math.max(24,math.floor((h-108)/6)) or 11
+    self.nativeMetricRows={}
+    for i,row in ipairs(rows) do
+      local y=top+(i-1)*step
+      if y+(side and 24 or 9)>h-27 then break end
+      if not side then
+        local short={"ALT","V/S","HDG","SPD","MASS","CTRL"}
+        ui.label(s,x,y,short[i].." "..row[2],width,p.text,p.panel)
+      else
+        ui.label(s,x,y,row[1],width,p.muted,p.panel)
+        local scale=width>=200 and step>=32 and 2 or 1
+        fonts.drawText(s,x,y+10,width,18,row[2],p.text,p.panel,{wrap=false,scale=scale})
+      end
+      self.nativeMetricRows[#self.nativeMetricRows+1]={label=row[1],value=row[2]}
+    end
+    ui.label(s,r.x,r.y+r.h+5,"P "..number(pitch).." | R "..number(roll),r.w,p.text,p.panel)
+    ui.label(s,6,h-20,tostring(snap.source or "Heading source unavailable").." | "..tostring(self.message or ""),w-12,p.muted,p.panel)
+    if self.nativeViews then
+      local capacity=math.max(1,math.floor((h-55)/22))
+      self.nativeCapacity=capacity
+      self.nativeFirst=math.max(1,math.min(self.nativeFirst or 1,math.max(1,#tabs-capacity+1)))
+      self.nativeViewHits={}
+      local width=math.min(w-8,196)
+      s:rect(4,28,width,capacity*22+24,p.desktop)
+      for i=self.nativeFirst,math.min(#tabs,self.nativeFirst+capacity-1) do
+        local r=rect(6,30+(i-self.nativeFirst)*22,width-4,21)
+        ui.button(s,r,tabs[i].label,p,i==(self.nativeSelected or 1))
+        self.nativeViewHits[#self.nativeViewHits+1]={id=tabs[i].id,rect=r}
+      end
+      for _,item in ipairs({{"view_up","previous",6},{"view_down","next",width-20}}) do
+        local r=rect(item[3],30+capacity*22,20,18) ui.symbol(s,r,item[2],p)
+        self.nativeViewHits[#self.nativeViewHits+1]={id=item[1],rect=r}
+      end
+    end
+  end
+  function app:handlePixels(event)
+    if self.nativeViews and event.name=="mouse_scroll" then self.nativeFirst=math.max(1,(self.nativeFirst or 1)+event.args[1]) return true end
+    if event.name~="mouse_click" then return false end
+    local _,x,y=table.unpack(event.args)
+    if self.nativeViews then
+      for _,hit in ipairs(self.nativeViewHits or {}) do if ui.hit(hit.rect,x,y) then
+        if hit.id=="view_up" or hit.id=="view_down" then self.nativeFirst=math.max(1,(self.nativeFirst or 1)+(hit.id=="view_up" and -1 or 1))
+        else self.nativeViews=false api.page(hit.id) end return true
+      end end
+      self.nativeViews=false return true
+    end
+    for _,hit in ipairs(self.nativeHits or {}) do if ui.hit(hit.rect,x,y) then
+      if hit.id=="views" then self.nativeViews=true self.nativeFirst=1 self.nativeSelected=1
+      elseif hit.id=="control" then api.page("control")
+      else api.action(hit.id) end return true
+    end end
+    return true
+  end
+  function app:handleNativeKey(event)
+    if not self.graphicsActive or not self.nativeViews or event.name~="key" then return false end
+    local key=event.args[1]
+    if key==keys.escape then self.nativeViews=false
+    elseif key==keys.up or key==keys.down then
+      local index=math.max(1,math.min(#tabs,(self.nativeSelected or 1)+(key==keys.up and -1 or 1)))
+      self.nativeSelected=index
+      if index<(self.nativeFirst or 1) then self.nativeFirst=index
+      elseif index>=(self.nativeFirst or 1)+(self.nativeCapacity or 1) then self.nativeFirst=index-(self.nativeCapacity or 1)+1 end
+    elseif key==keys.enter then self.nativeViews=false api.page(tabs[self.nativeSelected or 1].id) end
+    return true
   end
 end
 return M
@@ -3765,7 +3962,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3849,7 +4046,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -4176,7 +4373,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -4291,7 +4488,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4433,7 +4630,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.32",
+  version = "0.18.33",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -4903,7 +5100,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.32",
+  version = "0.18.33",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5450,7 +5647,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.32",
+    version = "0.18.33",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -5832,7 +6029,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.32",
+  version = "0.18.33",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -7016,7 +7213,7 @@ function M.new(ctx)
   self.keyboardState.onTab=self.keyboardState.onEnter
   function self:deactivate()
     for _,win in ipairs(ctx.wm.windows) do
-      win.pixelManaged,win.pixelController=false,nil
+      win.pixelManaged,win.pixelController,win.pixelNative=false,nil,false
       if win.app then win.app.graphicsActive=false end
       if win.maximized then win.maximized=false end
     end
@@ -7076,7 +7273,11 @@ function M.new(ctx)
           b=box(0,0,self.width,self.height-BAR)
         end
         win.pixelManaged=true
-        win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function" or false
+        win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function"
+          and (not win.app.pixelPages or win.app.pixelPages[win.app.page]==true) or false
+        if win.pixelNative and self.content[win.id] then
+          self.cacheBytes=self.cacheBytes-self.content[win.id].bytes self.content[win.id]=nil
+        end
         if win.app then win.app.graphicsActive=win.pixelNative end
         win.pixelController=function() self:toggle(win) end
         fit(win,b)
@@ -8787,22 +8988,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.32", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.32", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.32", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.32", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.33", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.33", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.33", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.33", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.32", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.32", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.32", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.32", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.32", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.32", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.32", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.32", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.32", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.32", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.32", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.33", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.33", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.33", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.33", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.33", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.33", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.33", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.33", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.33", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.33", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.33", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -9583,7 +9784,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.32",
+    version = meta.version or "0.18.33",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -17682,6 +17883,10 @@ end
 function Window:draw()
   if self.closed or self.minimized then return end
   self:clamp()
+  if self.pixelNative then
+    if self.dirty then self.surfaceRevision=(self.surfaceRevision or 0)+1 self.dirty=false end
+    return
+  end
   local _, screenHeight = term.getSize()
   renderer.fill(self.x + 1, self.y + 1, self.w, math.min(self.h, screenHeight - self.y - 1), theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
@@ -17972,7 +18177,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.32
+0.18.33
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

@@ -9,6 +9,11 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
+The paragraphs below describe the inspected baseline. As of 0.18.33 the normal
+boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
+Files and Navigation Flight have native clients; other clients/views continue
+to use isolated text compatibility buffers pending their explicit migration.
+
 The kernel owns event normalization, services, scheduler and window lifecycles.
 The existing compositor renders into a hidden standard window then publishes
 changed text rows. WindowManager owns focus, stacking, minimize/maximize and
@@ -103,7 +108,7 @@ or finished ASCENDANCY.
 | 21 | BLACKBOX bounded historical observations/statistics/resource trends/availability/decisions | Existing logs/alerts only; historical module pending |
 | 22 | Graphical WARROOM overview/atlas/oracle/synapse/dominion/swarm/tactical/aegis/blackbox | Existing NEXUS UI preserved; integrated pixel views pending |
 | 23 | First-run nonblank admin setup, existing permissions, explicit fleet authorization, truthful auth/confidentiality | Blank default admin confirmed in users.lua; first-run migration pending, not silently changed in graphics release |
-| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 93 fast suites, native Files/raw-pointer tests, installed CC Graphics ROM-window emulation, terminal-transport simulation and framebuffer inspection; full final gate not met |
+| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 94 fast suites, native Files/Flight/raw-pointer tests, installed CC Graphics ROM-window emulation, terminal-transport simulation and framebuffer inspection; full final gate not met |
 | 25 | A-J incremental working releases, graphical completion before strategic expansion | A native workspace usable in emulation, B partial; C-J not complete |
 | 26 | Versioned source/tests/docs/changelog/installer/compatibility/migration/limitations | Required per increment; no blanket completion claim |
 | 27 | All 18 invariants (no fake APIs/data/performance, bounded work, safety, optional addons, fallback) | Preserve as release gates; real in-game validation still required |
@@ -118,7 +123,7 @@ or finished ASCENDANCY.
 | CraftTube | Hidden legacy app retained | Native client, existing media limitations preserved |
 | Messenger | Legacy client retained | Native chat input, lists, connection/error states |
 | NEXUS OVERMIND | Existing 0.4 workflows retained in container | Native WARROOM and later shared ASCENDANCY modules |
-| Navigation | Existing acquisition/calibration/control retained | Native instruments and panels, unchanged arming/rescue gates |
+| Navigation | Native Flight horizon/metrics, cache-only drawing, stale expiry and hybrid routing; existing calibration/control retained | Remaining panels and in-game sensor/render checks; safety gates unchanged |
 | Combat | Existing radar and safety retained | Native 2D/3D radar, filters/details and confirmed local fire workflow |
 | Files | Native navigation/search/create/rename/trash/restore/copy/cut/paste/properties; descendant permission preflight and no draw acquisition tested | Cross-window clipboard, richer editing/accessibility and Unicode editing coverage |
 | Settings | Legacy configuration center retained, terminal selector added | Native controls, detected capabilities/UI scale/performance/recovery panels |

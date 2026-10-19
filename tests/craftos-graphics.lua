@@ -50,10 +50,36 @@ local ok,err=pcall(function()
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
     for _,id in ipairs({"files","terminal","settings","navigation","combat","nexus"}) do
-      local launched,pid=apps.launch(id) assert(launched,tostring(pid))
+      local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
       assert(proc.state=="ready" and proc.window and not proc.window.closed,id..": "..tostring(proc.error))
+      if id=="navigation" then
+        local win=proc.window local workspace=apps.ctx.pixelWorkspace
+        assert(win.pixelNative and win.app.page=="flight","Flight is not a native client")
+        capture("pixel-navigation-unavailable")
+        win:toggleMaximize() os.queueEvent("mintcraft_test") sleep(0.2)
+        -- Synthetic display-only telemetry, never injected into flight control.
+        local pixel=require("apps.navigation.pixel") local original=pixel.sample
+        local now=os.clock()
+        local fixture={fresh=true,observedAt=now,attitude={pitch=12,roll=24,observedAt=now},attitudeValidUntil=now+10,
+          state="disarmed",source="SIMULATED display fixture",values={altitude=128,altitudeRate=0.2,heading=359,speed=12,mass=80},
+          expires={altitude=now+10,altitudeRate=now+10,heading=now+10,speed=now+10,mass=now+10}}
+        pixel.sample=function() return fixture,fixture.attitude end
+        win.app.nativeFlight=fixture win.dirty=true
+        os.queueEvent("mintcraft_test") sleep(0.25)
+        capture("pixel-navigation-simulated")
+        assert(win.app.nativeHorizon and win.app.nativeHorizon.image.width>100,"pixel instrument missing")
+        local client
+        for _,hit in ipairs(workspace.windowHits) do if hit.win==win then client=hit.client end end
+        local control
+        for _,hit in ipairs(win.app.nativeHits) do if hit.id=="control" then control=hit.rect end end
+        assert(client and control)
+        queueInput("mouse_click",1,client.x+control.x+2,client.y+control.y+2) sleep(0.25)
+        assert(win.app.page=="control" and not win.pixelNative and not win.closed,"safe control page lost during hybrid transition")
+        pixel.sample=original
+        assert(require("system.services.flightd").status().state~="armed","display navigation armed flight control")
+      end
       if id=="files" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
         local hit=workspace.windowHits[#workspace.windowHits]

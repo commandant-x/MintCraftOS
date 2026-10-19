@@ -53,7 +53,7 @@ function M.new(ctx)
   self.keyboardState.onTab=self.keyboardState.onEnter
   function self:deactivate()
     for _,win in ipairs(ctx.wm.windows) do
-      win.pixelManaged,win.pixelController=false,nil
+      win.pixelManaged,win.pixelController,win.pixelNative=false,nil,false
       if win.app then win.app.graphicsActive=false end
       if win.maximized then win.maximized=false end
     end
@@ -113,7 +113,11 @@ function M.new(ctx)
           b=box(0,0,self.width,self.height-BAR)
         end
         win.pixelManaged=true
-        win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function" or false
+        win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function"
+          and (not win.app.pixelPages or win.app.pixelPages[win.app.page]==true) or false
+        if win.pixelNative and self.content[win.id] then
+          self.cacheBytes=self.cacheBytes-self.content[win.id].bytes self.content[win.id]=nil
+        end
         if win.app then win.app.graphicsActive=win.pixelNative end
         win.pixelController=function() self:toggle(win) end
         fit(win,b)

@@ -115,6 +115,10 @@ end
 function Window:draw()
   if self.closed or self.minimized then return end
   self:clamp()
+  if self.pixelNative then
+    if self.dirty then self.surfaceRevision=(self.surfaceRevision or 0)+1 self.dirty=false end
+    return
+  end
   local _, screenHeight = term.getSize()
   renderer.fill(self.x + 1, self.y + 1, self.w, math.min(self.h, screenHeight - self.y - 1), theme.get("shadow"))
   renderer.fill(self.x, self.y, self.w, self.h, theme.get("windowBg"))
