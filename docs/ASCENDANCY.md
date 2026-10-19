@@ -155,6 +155,15 @@ No external GPU, server changes, browser expansion or flight safety changes.
 
 ## Next Gates
 
+V0.18.34: native client bitmaps are cached by content revision, dimensions
+and palette, within the shared 2 MiB payload budget. Moving a window reuses
+its content instead of invoking drawPixels for each damaged rectangle.
+Mouse dragging coalesces visual frames at 20 Hz; event bus and scheduler
+dispatch remain unconditional. Release flushes the final position. Measurement
+expiry and flight safety thresholds are unchanged. Fast suites: 94 passed;
+visible isolated CraftOS-PC with the installed CC Graphics ROM: passed.
+Actual Minecraft telemetry under sustained dragging remains to be validated.
+
 Continue B: complete reusable controls, UI scale, typography, cursor behavior,
 native WM polish and real CC Terminals validation.
 Then C: migrate every app, explicitly tracking each of the sixteen, before

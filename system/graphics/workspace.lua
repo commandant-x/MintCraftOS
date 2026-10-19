@@ -115,9 +115,6 @@ function M.new(ctx)
         win.pixelManaged=true
         win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function"
           and (not win.app.pixelPages or win.app.pixelPages[win.app.page]==true) or false
-        if win.pixelNative and self.content[win.id] then
-          self.cacheBytes=self.cacheBytes-self.content[win.id].bytes self.content[win.id]=nil
-        end
         if win.app then win.app.graphicsActive=win.pixelNative end
         win.pixelController=function() self:toggle(win) end
         fit(win,b)
@@ -179,9 +176,22 @@ function M.new(ctx)
         local client=box(b.x+1,b.y+TITLE,b.w-2,b.h-TITLE-1)
         local cw,ch=win.w-2,win.h-2
         local cache=self.content[win.id]
+        if cache and cache.native~=win.pixelNative then
+          self.cacheBytes=self.cacheBytes-cache.bytes self.content[win.id]=nil cache=nil
+        end
+        if win.pixelNative and (not cache or cache.width~=client.w or cache.height~=client.h or cache.revision~=win.surfaceRevision or cache.palette~=p) then
+          self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
+          cache={native=true,width=client.w,height=client.h,revision=win.surfaceRevision,palette=p,bytes=0}
+          local bytes=client.w*client.h
+          if self.cacheBytes+bytes<=self.cacheLimit then
+            cache.surface=Surface.new(client.w,client.h,p.panel) cache.bytes=bytes
+            win:drawPixels(View.new(cache.surface,0,0,client.w,client.h),client.w,client.h,p)
+          end
+          self.cacheBytes=self.cacheBytes+cache.bytes self.content[win.id]=cache
+        end
         if not win.pixelNative and win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
-          cache={width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
+          cache={native=false,width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
           local bytes=cw*ch*54
           if self.cacheBytes+bytes<=self.cacheLimit then
             cache.surface=Surface.new(cw*6,ch*9,15) cache.bytes=bytes
@@ -196,9 +206,9 @@ function M.new(ctx)
         self:layer(layers,"window:"..win.id,b,revision,function(canvas)
           canvas:rect(b.x,b.y,b.w,b.h,p.panel)
           primitives.rect(canvas,b.x,b.y,b.w,b.h,win==active and p.accent or p.border)
-          widgets.label(canvas,b.x+7,b.y+6,self.drag and self.drag.win==win and "Move" or win.title,math.max(0,b.w-68),p.text,p.panel)
+          widgets.label(canvas,b.x+7,b.y+6,win.title,math.max(0,b.w-68),p.text,p.panel)
           for kind,r in pairs(controls) do widgets.symbol(canvas,r,kind,p,false) end
-          if win.pixelNative then
+          if win.pixelNative and not (cache and cache.surface) then
             win:drawPixels(View.new(canvas,client.x,client.y,client.w,client.h),client.w,client.h,p)
           elseif cache then
             if cache.surface then
@@ -214,8 +224,9 @@ function M.new(ctx)
               local last=math.min(ch,math.ceil((canvas.clip.y+canvas.clip.h-client.y)/9))
               for row=first,last do local text,fg,bg=win.surface.getLine(row) Legacy.row(view,row,text,fg,bg,cw,ch) end
             end
-            local cx,cy=win.surface.getCursorPos()
-            if win==active and win.surface.getCursorBlink() and cx>=1 and cx<=cw and cy>=1 and cy<=ch then
+            local cx,cy=1,1
+            if not win.pixelNative then cx,cy=win.surface.getCursorPos() end
+            if not win.pixelNative and win==active and win.surface.getCursorBlink() and cx>=1 and cx<=cw and cy>=1 and cy<=ch then
               canvas:rect(client.x+(cx-1)*6,client.y+cy*9-1,5,1,p.text)
             end
           end

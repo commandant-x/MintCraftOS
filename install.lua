@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2872,7 +2872,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2952,7 +2952,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3071,7 +3071,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3962,7 +3962,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -4046,7 +4046,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -4373,7 +4373,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -4488,7 +4488,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4630,7 +4630,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.33",
+  version = "0.18.34",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -5100,7 +5100,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.33",
+  version = "0.18.34",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5647,7 +5647,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.33",
+    version = "0.18.34",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -6029,7 +6029,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.33",
+  version = "0.18.34",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -7275,9 +7275,6 @@ function M.new(ctx)
         win.pixelManaged=true
         win.pixelNative=win.app and type(win.app.drawPixels)=="function" and type(win.app.handlePixels)=="function"
           and (not win.app.pixelPages or win.app.pixelPages[win.app.page]==true) or false
-        if win.pixelNative and self.content[win.id] then
-          self.cacheBytes=self.cacheBytes-self.content[win.id].bytes self.content[win.id]=nil
-        end
         if win.app then win.app.graphicsActive=win.pixelNative end
         win.pixelController=function() self:toggle(win) end
         fit(win,b)
@@ -7339,9 +7336,22 @@ function M.new(ctx)
         local client=box(b.x+1,b.y+TITLE,b.w-2,b.h-TITLE-1)
         local cw,ch=win.w-2,win.h-2
         local cache=self.content[win.id]
+        if cache and cache.native~=win.pixelNative then
+          self.cacheBytes=self.cacheBytes-cache.bytes self.content[win.id]=nil cache=nil
+        end
+        if win.pixelNative and (not cache or cache.width~=client.w or cache.height~=client.h or cache.revision~=win.surfaceRevision or cache.palette~=p) then
+          self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
+          cache={native=true,width=client.w,height=client.h,revision=win.surfaceRevision,palette=p,bytes=0}
+          local bytes=client.w*client.h
+          if self.cacheBytes+bytes<=self.cacheLimit then
+            cache.surface=Surface.new(client.w,client.h,p.panel) cache.bytes=bytes
+            win:drawPixels(View.new(cache.surface,0,0,client.w,client.h),client.w,client.h,p)
+          end
+          self.cacheBytes=self.cacheBytes+cache.bytes self.content[win.id]=cache
+        end
         if not win.pixelNative and win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
-          cache={width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
+          cache={native=false,width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
           local bytes=cw*ch*54
           if self.cacheBytes+bytes<=self.cacheLimit then
             cache.surface=Surface.new(cw*6,ch*9,15) cache.bytes=bytes
@@ -7356,9 +7366,9 @@ function M.new(ctx)
         self:layer(layers,"window:"..win.id,b,revision,function(canvas)
           canvas:rect(b.x,b.y,b.w,b.h,p.panel)
           primitives.rect(canvas,b.x,b.y,b.w,b.h,win==active and p.accent or p.border)
-          widgets.label(canvas,b.x+7,b.y+6,self.drag and self.drag.win==win and "Move" or win.title,math.max(0,b.w-68),p.text,p.panel)
+          widgets.label(canvas,b.x+7,b.y+6,win.title,math.max(0,b.w-68),p.text,p.panel)
           for kind,r in pairs(controls) do widgets.symbol(canvas,r,kind,p,false) end
-          if win.pixelNative then
+          if win.pixelNative and not (cache and cache.surface) then
             win:drawPixels(View.new(canvas,client.x,client.y,client.w,client.h),client.w,client.h,p)
           elseif cache then
             if cache.surface then
@@ -7374,8 +7384,9 @@ function M.new(ctx)
               local last=math.min(ch,math.ceil((canvas.clip.y+canvas.clip.h-client.y)/9))
               for row=first,last do local text,fg,bg=win.surface.getLine(row) Legacy.row(view,row,text,fg,bg,cw,ch) end
             end
-            local cx,cy=win.surface.getCursorPos()
-            if win==active and win.surface.getCursorBlink() and cx>=1 and cx<=cw and cy>=1 and cy<=ch then
+            local cx,cy=1,1
+            if not win.pixelNative then cx,cy=win.surface.getCursorPos() end
+            if not win.pixelNative and win==active and win.surface.getCursorBlink() and cx>=1 and cx<=cw and cy>=1 and cy<=ch then
               canvas:rect(client.x+(cx-1)*6,client.y+cy*9-1,5,1,p.text)
             end
           end
@@ -8988,22 +8999,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.33", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.33", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.33", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.33", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.34", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.34", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.34", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.34", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.33", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.33", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.33", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.33", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.33", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.33", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.33", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.33", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.33", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.33", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.33", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.34", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.34", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.34", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.34", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.34", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.34", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.34", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.34", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.34", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.34", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.34", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -9074,6 +9085,7 @@ function M.start()
   drawFrame()
   local clockTimer = os.startTimer(0.5)
   local diagnosticTimer=os.startTimer(1)
+  local dragFrameTimer
 
   while true do
     local raw = table.pack(os.pullEventRaw())
@@ -9123,7 +9135,17 @@ function M.start()
           ctx.notifications:handle(event)
         end
 
-        if not internal or ctx.notifications.nextId~=notificationVersion then drawFrame() end
+        if event.name=="timer" and event.args[1]==dragFrameTimer then
+          dragFrameTimer=nil
+          drawFrame()
+        elseif workspace.drag and not workspace.drag.touch then
+          -- Coalesce visual work only: acquisition and scheduler dispatch above
+          -- still receive every event, including timers and peripheral replies.
+          if not dragFrameTimer then dragFrameTimer=os.startTimer(0.05) end
+        elseif not internal or ctx.notifications.nextId~=notificationVersion then
+          if dragFrameTimer then os.cancelTimer(dragFrameTimer) dragFrameTimer=nil end
+          drawFrame()
+        end
       end
     end
   end
@@ -9784,7 +9806,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.33",
+    version = meta.version or "0.18.34",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -18177,7 +18199,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.33
+0.18.34
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

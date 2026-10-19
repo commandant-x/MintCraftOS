@@ -96,13 +96,21 @@ assert(win.pixelBounds.x==origin+3 and not workspace.drag,"monitor tap-to-place 
 hit=workspace.windowHits[1]
 pointer("mouse_click",hit.controls.close.x+2,hit.controls.close.y+2) assert(closed==1)
 workspace:deactivate() assert(not win.pixelManaged and not win.pixelController)
-local stream={}
+local stream={} local nativeDraws=0
 local native={id=2,title="Native",x=3,y=3,w=30,h=16,surfaceRevision=1,
-  app={drawPixels=function(_,s,w,h) s:rect(0,0,w,h,4) end,
+  app={drawPixels=function(_,s,w,h) nativeDraws=nativeDraws+1 s:rect(0,0,w,h,4) end,
     handlePixels=function(_,e) stream[#stream+1]=e return true end}}
 native.drawPixels=function(self,...) return self.app.drawPixels(self.app,...) end
 native.handlePixels=function(self,e) return self.app.handlePixels(self.app,e) end
+workspace.cacheLimit=2097152
 ctx.wm.windows={native} ctx.wm:focus(native) frame()
+local draws=nativeDraws
+pointer("mouse_click",native.pixelBounds.x+5,native.pixelBounds.y+5) frame()
+for i=1,4 do pointer("mouse_drag",native.pixelBounds.x+6,native.pixelBounds.y+5) frame() end
+pointer("mouse_up",0,0) frame()
+assert(nativeDraws==draws,"moving a native window resampled its client")
+native.surfaceRevision=native.surfaceRevision+1 frame()
+assert(nativeDraws==draws+1,"native telemetry revision did not refresh cached content")
 local client=workspace.windowHits[1].client
 pointer("mouse_click",client.x+4,client.y+6)
 pointer("mouse_drag",700,400) pointer("mouse_up",700,400)
