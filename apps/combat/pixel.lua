@@ -36,6 +36,7 @@ function M.attach(app,api,tabs)
   app.pixelPages={radar=true,three=true,targets=true,cannons=true,fire=true,probe=true,network=true}
   local legacyHandle=app.handle
   function app:handle(event)
+    if self.graphicsActive and event.name=="key" then return self:handlePixels(event) end
     local handled=legacyHandle(self,event)
     self.pixelPages.radar=not self.setup self.pixelPages.three=not self.setup
     return handled

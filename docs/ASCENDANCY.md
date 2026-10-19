@@ -9,9 +9,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.33 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.36 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files, Navigation Flight and the main Combat views have native clients; other
+Files, Logs, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
 explicit migration. Combat's 0.18.35 increment is documented separately.
 
@@ -129,7 +129,7 @@ or finished ASCENDANCY.
 | Files | Native navigation/search/create/rename/trash/restore/copy/cut/paste/properties; descendant permission preflight and no draw acquisition tested | Cross-window clipboard, richer editing/accessibility and Unicode editing coverage |
 | Settings | Legacy configuration center retained, terminal selector added | Native controls, detected capabilities/UI scale/performance/recovery panels |
 | Task Manager | Legacy measured/estimated metrics retained | Native graphs, rendering/network statistics with accurate labels |
-| Logs | Legacy filtering and readable records retained | Native list/filter/details with scrolling |
+| Logs | Native list/filter/details, live tail, draggable scrollbar and keyboard; reads/parse outside draw; read errors and compact inspector tested | In-game validation, search/copy/export and broader accessibility polish |
 | Services | Legacy protected service controls retained | Native state/actions/error panels |
 | Store | Hidden legacy package UI retained | Native package states without inventing a populated catalog |
 | Devices | Legacy peripheral list retained, terminal role added | Native inventory/probe/display workflows |
@@ -155,6 +155,11 @@ boot/recovery in text regardless of the previous physical display state.
 No external GPU, server changes, browser expansion or flight safety changes.
 
 ## Next Gates
+
+V0.18.36: Logs is native, with cached acquisition, scrolling and full-message
+inspection. Combat's native keyboard delivery is corrected. Fast suites: 96;
+visible isolated graphics and terminal-transport scenarios pass. See
+GRAPHICS-0.18.36.md. The remaining applications and broader scope stay pending.
 
 V0.18.35: main Combat views now render natively. Acquisition targets 20 Hz,
 not a guaranteed source or display rate. See GRAPHICS-0.18.35.md for boundaries,

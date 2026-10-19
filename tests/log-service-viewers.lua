@@ -19,12 +19,15 @@ local invalidates=0
 package.loaded["system.libraries.log"]={
   revision=function() return revision end,
   invalidate=function() invalidates=invalidates+1 revision=revision+1 end,
-  tail=function() tailReads=tailReads+1 return {"error","info"} end,
+  tail=function() tailReads=tailReads+1 return {"error","info","error"} end,
   parse=function(line) return {time="now",level=line,source="test",message="hello\nworld"} end,
 }
 term={getSize=function() return width,height end}
 local ctx={windowManager={create=function(_,spec) app=spec.app win={closed=false} return win end}}
+ctx.startTimer=function() return 1 end
+ctx.onCleanup=function() end
 ctx.pullEvent=function()
+  assert(app.records[1].id~=app.records[3].id,"identical log entries share selection identity")
   app:draw(width,height)
   local reads=tailReads
   for _=1,20 do app:draw(width,height) end
@@ -40,7 +43,7 @@ ctx.pullEvent=function()
   app.menu.first=1 app:draw(width,height)
   local box=app.menu.menuBoxes[1]
   app:handle({name="mouse_click",args={1,box.x,box.y}})
-  revision=revision+1 app:draw(width,height)
+  revision=revision+1 app:refresh() app:draw(width,height)
   assert(tailReads>reads,"changed revision ignored")
   win.closed=true
 end

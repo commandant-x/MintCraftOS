@@ -2,6 +2,7 @@ local M = {}
 local LOG_PATH = "/var/logs/system.log"
 local MAX_BYTES, MAX_RECORDS = 65536, 512
 local revision, cachedRevision, cached = 0, -1, {}
+local tailStatus={ok=nil,revision=-1}
 
 local function safeString(value)
   local ok, result = pcall(tostring, value)
@@ -111,10 +112,13 @@ function M.tail(limit)
     local ok, rows = pcall(readTail)
     if ok then cached = rows end
     cachedRevision = revision
+    tailStatus={ok=ok,revision=revision,error=not ok and safeString(rows) or nil}
   end
   local out = {}
   for i = math.max(1, #cached - limit + 1), #cached do out[#out + 1] = cached[i] end
   return out
 end
+
+function M.tailStatus() return {ok=tailStatus.ok,revision=tailStatus.revision,error=tailStatus.error} end
 
 return M

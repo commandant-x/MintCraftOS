@@ -68,7 +68,9 @@ for _,suffix in ipairs({"",".1",".2"}) do assert(#(files[path..suffix] or "")<=6
 assert(files["/var/logs/last_crash.log"]=="recovery" and files["/var/logs/peripheral_probe.log"]=="probe")
 files[path]=string.rep("x",65536)
 for _,stage in ipairs({"delete","move"}) do fail=stage assert(not log.info("test","rotate")) end
-fail="read" log.invalidate() assert(pcall(log.tail,20)) fail=nil
+fail="read" log.invalidate() assert(pcall(log.tail,20))
+assert(log.tailStatus().ok==false and log.tailStatus().error,"read failure silently served cached logs as fresh")
+fail=nil log.invalidate() log.tail(20) assert(log.tailStatus().ok==true and not log.tailStatus().error)
 local exists=fs.exists
 fs.exists=function() return false end
 fail="mkdir" assert(not log.info("test","mkdir failed")) fail=nil fs.exists=exists

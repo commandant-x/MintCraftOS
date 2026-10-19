@@ -3,6 +3,20 @@ local primitives=require("system.graphics.primitives")
 local textCodec=require("system.graphics.text")
 local M={}
 function M.hit(r,x,y) return r and x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
+function M.scrollbar(s,r,total,visible,first,p)
+  s:rect(r.x,r.y,r.w,r.h,p.desktop)
+  local height=math.min(r.h,math.max(math.min(12,r.h),math.floor(r.h*visible/math.max(1,total))))
+  local travel=r.h-height local maximum=math.max(1,total-visible+1)
+  local y=r.y+(maximum>1 and math.floor(travel*(math.max(1,math.min(maximum,first))-1)/(maximum-1)) or 0)
+  s:rect(r.x+1,y,math.max(1,r.w-2),height,p.border)
+  return {x=r.x,y=y,w=r.w,h=height}
+end
+function M.scrollbarValue(r,total,visible,y)
+  local maximum=math.max(1,total-visible+1)
+  local height=math.min(r.h,math.max(math.min(12,r.h),math.floor(r.h*visible/math.max(1,total))))
+  if r.h<=height then return 1 end
+  return math.max(1,math.min(maximum,1+math.floor((y-r.y-height/2)/(r.h-height)*(maximum-1)+0.5)))
+end
 function M.label(s,x,y,text,width,fg,bg,align)
   text=textCodec.single(text)
   local count=math.max(0,math.floor(width/6))

@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1217,6 +1217,7 @@ function M.attach(app,api,tabs)
   app.pixelPages={radar=true,three=true,targets=true,cannons=true,fire=true,probe=true,network=true}
   local legacyHandle=app.handle
   function app:handle(event)
+    if self.graphicsActive and event.name=="key" then return self:handlePixels(event) end
     local handled=legacyHandle(self,event)
     self.pixelPages.radar=not self.setup self.pixelPages.three=not self.setup
     return handled
@@ -1435,7 +1436,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1834,7 +1835,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1920,7 +1921,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2316,7 +2317,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -3139,7 +3140,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -3149,11 +3150,13 @@ local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 local menu = require("system.gui.action_menu")
 local theme = require("system.gui.theme")
+local pixel = require("apps.logs.pixel")
 
 local M = {}
 
 function M.run(ctx)
-  local app = { filter = "all", menu = menu.new() }
+  local app = { filter = "all", menu = menu.new(), records={}, rows={}, lines={}, first=1, follow=true }
+  local win,timer
   local actions = {
     { id = "all", label = "All" },
     { id = "error", label = "Error" },
@@ -3177,18 +3180,43 @@ function M.run(ctx)
     return tostring(row.level or "") == filter
   end
 
+  function app:refresh(force)
+    local changed=force or self.revision~=log.revision() or self.cachedFilter~=self.filter
+    if not changed then return false end
+    if force or self.revision~=log.revision() then
+      self.records={}
+      local occurrences={}
+      for _,line in ipairs(log.tail(120)) do
+        local row=parse(line)
+        occurrences[line]=(occurrences[line] or 0)+1
+        self.records[#self.records+1]={id=occurrences[line]..":"..line,time=tostring(row.time or ""),level=tostring(row.level or "?"),source=tostring(row.source or "?"),message=tostring(row.message or "")}
+      end
+      self.readError=log.tailStatus and log.tailStatus().error or nil
+      if self.readError then self.readError=tostring(self.readError):gsub("[%c]"," ") end
+      self.revision=log.revision()
+    end
+    self.rows,self.lines={},{}
+    local retained=false
+    for _,row in ipairs(self.records) do if matches(row,self.filter) then
+      self.rows[#self.rows+1]=row self.lines[#self.lines+1]=format(row)
+      if self.selected==row.id then retained=true end
+    end end
+    if not retained then self.selected=nil self.detailScroll=0 end
+    self.cachedFilter=self.filter
+    if win then win.dirty=true end
+    return true
+  end
+  function app:setFilter(id)
+    self.filter=id self.first=1 self.detailScroll=0 self:refresh()
+  end
+  function app:requestRefresh()
+    log.invalidate() self:refresh(true)
+  end
+
   function app:draw(w, h)
     renderer.fill(1, 1, w, h, theme.get("windowBg"))
     menu.bar(self.menu, 1, 1, w, actions, {selector=true,label="Filter: " .. self.filter,title="Log filters",selected=self.filter})
-    if h >= 2 then renderer.writeAt(1, 2, renderer.crop("System Logs - " .. self.filter, w), theme.get("windowFg"), theme.get("windowBg")) end
-    if self.revision ~= log.revision() or self.cachedFilter ~= self.filter then
-      self.lines = {}
-      for _, line in ipairs(log.tail(120)) do
-        local row = parse(line)
-        if matches(row, self.filter) then table.insert(self.lines, format(row)) end
-      end
-      self.revision, self.cachedFilter = log.revision(), self.filter
-    end
+    if h >= 2 then renderer.writeAt(1, 2, renderer.crop(self.readError and ("Read error: "..self.readError) or ("System Logs - " .. self.filter), w), theme.get("windowFg"), theme.get("windowBg")) end
     local lines = self.lines
     local start = math.max(1, #lines - h + 3)
     local y = 3
@@ -3202,24 +3230,216 @@ function M.run(ctx)
   end
 
   function app:handle(event)
+    if self.graphicsActive and not event.name:match("^mouse_") then return self:handlePixels(event) end
     local action, handled = menu.handle(self.menu, event)
-    if action == "refresh" then log.invalidate()
-    elseif action then self.filter = action end
+    if action == "refresh" then self:requestRefresh()
+    elseif action then self:setFilter(action) end
     return handled
   end
 
+  pixel.attach(app)
+  app:refresh()
   local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Logs", w = math.min(72, sw - 4), h = math.min(18, sh - 3), x = 5, y = 3, app = app })
-  while not win.closed do ctx.pullEvent() end
+  win = ctx.windowManager:create({ title = "Logs", w = math.min(90, sw - 4), h = math.min(28, sh - 3), x = 5, y = 3, app = app })
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end end)
+  timer=ctx.startTimer(0.5)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=="timer" and event.args[1]==timer then
+      if not win.minimized then app:refresh() end
+      timer=ctx.startTimer(0.5)
+    end
+  end
 end
 
+return M
+]=],
+  ["apps/logs/pixel.lua"] = [=[
+local ui=require("system.graphics.widgets")
+local fonts=require("system.graphics.fonts")
+local View=require("system.graphics.view")
+local primitives=require("system.graphics.primitives")
+local M={}
+local levels={"all","error","warn","info","debug"}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
+local function clean(text) return tostring(text or ""):gsub("[%c]"," ") end
+local function selected(app)
+  if app.selected then for i,row in ipairs(app.rows) do if row.id==app.selected then return row,i end end end
+end
+function M.attach(app)
+  function app:select(index)
+    local row=self.rows[clamp(index,1,math.max(1,#self.rows))]
+    self.selected=row and row.id or nil self.detailScroll=0 self.follow=false self.focus="list"
+    if index<self.first then self.first=math.max(1,index)
+    elseif index>=self.first+(self.visible or 1) then self.first=index-(self.visible or 1)+1 end
+  end
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel) self.pixelHits={} self.rowHits={}
+    self.scrollbar=nil self.scrollThumb=nil self.detailArea=nil self.listArea=nil
+    if w<170 or h<130 then ui.label(s,5,6,"Logs: enlarge window",w-10,p.text,p.panel) return end
+    local function button(id,label,r,kind,active)
+      if kind then ui.symbol(s,r,kind,p,active) else ui.button(s,r,label,p,active) end
+      if self.focus==id then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      self.pixelHits[#self.pixelHits+1]={id=id,rect=r}
+    end
+    button("filter",self.filter:upper(),rect(5,4,80,23),nil,self.filterOpen)
+    button("refresh","",rect(90,4,23,23),"refresh")
+    button("follow","Live",rect(118,4,46,23),nil,self.follow)
+    if w>=250 then button("details",self.inspect and "Back" or "Details",rect(170,4,70,23),nil,self.inspect) end
+    ui.label(s,6,34,self.readError and ("Read failed: "..self.readError) or (#self.rows.." / "..#self.records.." cached records"),w-12,self.readError and 14 or p.muted,p.panel)
+    local wide=w>=620
+    local listWidth=wide and w-246 or w-10
+    local listBottom=wide and h-20 or h>=240 and h-108 or h-20
+    self.listArea=rect(5,63,listWidth,math.max(18,listBottom-63))
+    local area=self.listArea
+    self.visible=math.max(1,math.floor(area.h/18))
+    local maximum=math.max(1,#self.rows-self.visible+1)
+    self.first=self.follow and maximum or clamp(self.first,1,maximum)
+    s:rect(area.x,48,area.w,13,p.desktop)
+    ui.label(s,area.x+4,50,"LEVEL",45,p.muted,p.desktop)
+    local messageX=area.x+51
+    if area.w>=400 then
+      ui.label(s,area.x+51,50,"TIME",110,p.muted,p.desktop)
+      ui.label(s,area.x+166,50,"SOURCE",90,p.muted,p.desktop)
+      messageX=area.x+260
+    end
+    ui.label(s,messageX,50,"MESSAGE",math.max(0,area.x+area.w-messageX-12),p.muted,p.desktop)
+    local severity={error=14,warn=1,info=p.accent,debug=p.muted}
+    for i=self.first,math.min(#self.rows,self.first+self.visible-1) do
+      local row=self.rows[i] local y=area.y+(i-self.first)*18
+      local active=row.id==self.selected local bg=active and p.accent or p.panel local fg=active and p.ink or p.text
+      s:rect(area.x,y,area.w-10,18,bg)
+      ui.label(s,area.x+4,y+5,row.level:upper(),45,active and p.ink or severity[row.level] or p.muted,bg)
+      if area.w>=400 then
+        ui.label(s,area.x+51,y+5,clean(row.time),110,fg,bg)
+        ui.label(s,area.x+166,y+5,clean(row.source),90,fg,bg)
+      end
+      ui.label(s,messageX,y+5,clean(row.message),math.max(0,area.x+area.w-messageX-14),fg,bg)
+      self.rowHits[#self.rowHits+1]={index=i,rect=rect(area.x,y,area.w-10,18)}
+    end
+    if #self.rows==0 then ui.label(s,area.x+4,area.y+8,"No matching records",area.w-18,p.muted,p.panel) end
+    self.scrollbar=rect(area.x+area.w-8,area.y,8,area.h)
+    self.scrollThumb=ui.scrollbar(s,self.scrollbar,#self.rows,self.visible,self.first,p)
+    if self.focus=="list" then primitives.rect(s,area.x,area.y,area.w,area.h,p.accent) end
+    self.detailArea=self.inspect and rect(5,48,w-10,h-68) or wide and rect(w-234,48,229,h-70) or h>=240 and rect(5,h-102,w-10,82) or nil
+    local row=selected(self)
+    if self.detailArea then
+      local r=self.detailArea
+      if self.inspect then
+        s:rect(r.x,r.y,r.w,r.h,p.panel) self.scrollbar=nil self.rowHits={}
+        if w<250 then button("details","Back",rect(5,4,80,23)) end
+      end
+      ui.label(s,r.x+4,r.y+2,"DETAILS",r.w-8,p.muted,p.panel)
+      if self.focus=="details" then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      local key=row and row.id or self.readError or "none"
+      if not self.detailLayout or self.detailKey~=key or self.detailWidth~=r.w then
+        local text=row and (row.time.."\n"..row.level:upper().." | "..row.source.."\n\n"..row.message) or self.readError or "No record selected"
+        self.detailLayout=fonts.layout(text,math.max(1,r.w-14),65536,{wrap=true,lineSpacing=2})
+        self.detailKey,self.detailWidth=key,r.w
+      end
+      local layout=self.detailLayout
+      self.detailVisible=math.max(1,math.floor((r.h-19)/11))
+      self.detailMaximum=math.max(0,#layout.lines-self.detailVisible)
+      self.detailScroll=clamp(self.detailScroll or 0,0,self.detailMaximum)
+      local detail=View.new(s,r.x+5,r.y+17,r.w-12,math.max(1,r.h-18))
+      for i=self.detailScroll+1,math.min(#layout.lines,self.detailScroll+self.detailVisible) do
+        fonts.draw(detail,0,(i-self.detailScroll-1)*11,layout.lines[i].text,p.text,p.panel)
+      end
+    end
+    ui.label(s,6,h-14,self.follow and "Live tail" or "History",w-12,p.muted,p.panel)
+    if self.filterOpen then
+      self.filterCapacity=math.max(1,math.floor((h-32)/23))
+      self.filterFirst=clamp(self.filterFirst or 1,1,math.max(1,#levels-self.filterCapacity+1))
+      for i=self.filterFirst,math.min(#levels,self.filterFirst+self.filterCapacity-1) do
+        local r=rect(5,29+(i-self.filterFirst)*23,100,22)
+        button("level:"..levels[i],levels[i]:upper(),r,nil,levels[i]==self.filter)
+        if i==(self.filterCursor or 1) then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      end
+    end
+  end
+  function app:handlePixels(event)
+    local name=event.name local x,y=event.args[2],event.args[3]
+    local function action(id)
+      if id=="filter" then self.filterOpen=not self.filterOpen self.filterFirst=1 self.filterCursor=1
+      elseif id=="refresh" then self:requestRefresh()
+      elseif id=="follow" then self.follow=not self.follow
+      elseif id=="details" then self.inspect=not self.inspect self.focus=self.inspect and "details" or "list" self.filterOpen=false
+      elseif id:sub(1,6)=="level:" then self:setFilter(id:sub(7)) self.filterOpen=false self.focus="list" end
+    end
+    if name=="key" then
+      local key=event.args[1]
+      if key==keys.escape then self.filterOpen=false self.inspect=false self.focus="list" return true end
+      if self.filterOpen then
+        if key==keys.up or key==keys.down then
+          self.filterCursor=clamp((self.filterCursor or 1)+(key==keys.up and -1 or 1),1,#levels)
+          if self.filterCursor<(self.filterFirst or 1) then self.filterFirst=self.filterCursor
+          elseif self.filterCursor>=(self.filterFirst or 1)+(self.filterCapacity or 1) then self.filterFirst=self.filterCursor-(self.filterCapacity or 1)+1 end
+        elseif key==keys.enter then action("level:"..levels[self.filterCursor or 1]) end
+        return true
+      end
+      if key==keys.tab then
+        local order={"filter","refresh","follow","list","details"} local index=0
+        for i,id in ipairs(order) do if id==self.focus then index=i end end
+        self.focus=order[index%#order+1] return true
+      end
+      if key==keys.enter then
+        if self.focus=="filter" or self.focus=="refresh" or self.focus=="follow" then action(self.focus)
+        else if not self.detailArea then self.inspect=true end self.focus="details" end
+        return true
+      end
+      if key==keys.up or key==keys.down or key==keys.pageUp or key==keys.pageDown or key==keys.home or key==keys["end"] then
+        if self.focus=="details" then
+          self.detailScroll=key==keys.home and 0 or key==keys["end"] and (self.detailMaximum or 0) or clamp((self.detailScroll or 0)+(key==keys.up and -1 or key==keys.pageUp and -(self.detailVisible or 1) or key==keys.pageDown and (self.detailVisible or 1) or 1),0,self.detailMaximum or 0)
+        else
+          local _,index=selected(self)
+          index=index or (key==keys.up and self.first+(self.visible or 1) or self.first-1)
+          local step=key==keys.pageUp and -(self.visible or 1) or key==keys.pageDown and (self.visible or 1) or key==keys.up and -1 or 1
+          self:select(key==keys.home and 1 or key==keys["end"] and #self.rows or clamp(index+step,1,math.max(1,#self.rows)))
+          if key==keys["end"] then self.follow=true end
+        end
+        return true
+      end
+      return false
+    end
+    if name=="mouse_scroll" then
+      if self.filterOpen then self.filterFirst=math.max(1,(self.filterFirst or 1)+event.args[1])
+      elseif ui.hit(self.detailArea,x,y) then self.detailScroll=clamp((self.detailScroll or 0)+event.args[1]*3,0,self.detailMaximum or 0)
+      else self.follow=false self.first=math.max(1,self.first+event.args[1]*3) end
+      return true
+    end
+    if name=="mouse_up" then self.scrollDragging=false self.scrollGrab=nil return true end
+    if name=="mouse_drag" and self.scrollDragging and self.scrollbar then
+      local centre=y+(self.scrollThumb and self.scrollThumb.h/2 or 0)-(self.scrollGrab or (self.scrollThumb and self.scrollThumb.h/2 or 0))
+      self.first=ui.scrollbarValue(self.scrollbar,#self.rows,self.visible,centre) self.follow=false return true
+    end
+    if name~="mouse_click" then return false end
+    for i=#(self.pixelHits or {}),1,-1 do local hit=self.pixelHits[i] if ui.hit(hit.rect,x,y) then
+      if self.filterOpen and hit.id~="filter" and hit.id:sub(1,6)~="level:" then self.filterOpen=false
+      else action(hit.id) end return true
+    end end
+    if self.filterOpen then self.filterOpen=false return true end
+    if ui.hit(self.scrollbar,x,y) then
+      self.scrollGrab=ui.hit(self.scrollThumb,x,y) and y-self.scrollThumb.y or nil
+      if not self.scrollGrab then self.first=ui.scrollbarValue(self.scrollbar,#self.rows,self.visible,y) end
+      self.scrollDragging=true self.follow=false return true
+    end
+    if ui.hit(self.detailArea,x,y) then self.focus="details" return true end
+    for _,hit in ipairs(self.rowHits or {}) do if ui.hit(hit.rect,x,y) then
+      self:select(hit.index)
+      if not self.detailArea then self.inspect=true self.focus="details" end
+      return true
+    end end
+    return true
+  end
+end
 return M
 ]=],
   ["apps/messenger/app.cfg"] = [=[
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3338,7 +3558,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -4229,7 +4449,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -4313,7 +4533,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -4640,7 +4860,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -4755,7 +4975,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4897,7 +5117,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.35",
+  version = "0.18.36",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -5367,7 +5587,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.35",
+  version = "0.18.36",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5914,7 +6134,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.35",
+    version = "0.18.36",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -6296,7 +6516,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.35",
+  version = "0.18.36",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -7376,6 +7596,20 @@ local primitives=require("system.graphics.primitives")
 local textCodec=require("system.graphics.text")
 local M={}
 function M.hit(r,x,y) return r and x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
+function M.scrollbar(s,r,total,visible,first,p)
+  s:rect(r.x,r.y,r.w,r.h,p.desktop)
+  local height=math.min(r.h,math.max(math.min(12,r.h),math.floor(r.h*visible/math.max(1,total))))
+  local travel=r.h-height local maximum=math.max(1,total-visible+1)
+  local y=r.y+(maximum>1 and math.floor(travel*(math.max(1,math.min(maximum,first))-1)/(maximum-1)) or 0)
+  s:rect(r.x+1,y,math.max(1,r.w-2),height,p.border)
+  return {x=r.x,y=y,w=r.w,h=height}
+end
+function M.scrollbarValue(r,total,visible,y)
+  local maximum=math.max(1,total-visible+1)
+  local height=math.min(r.h,math.max(math.min(12,r.h),math.floor(r.h*visible/math.max(1,total))))
+  if r.h<=height then return 1 end
+  return math.max(1,math.min(maximum,1+math.floor((y-r.y-height/2)/(r.h-height)*(maximum-1)+0.5)))
+end
 function M.label(s,x,y,text,width,fg,bg,align)
   text=textCodec.single(text)
   local count=math.max(0,math.floor(width/6))
@@ -9284,22 +9518,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.35", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.35", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.35", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.35", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.36", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.36", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.36", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.36", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.35", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.35", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.35", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.35", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.35", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.35", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.35", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.35", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.35", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.35", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.35", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.36", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.36", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.36", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.36", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.36", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.36", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.36", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.36", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.36", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.36", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.36", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -10091,7 +10325,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.35",
+    version = meta.version or "0.18.36",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -10442,6 +10676,7 @@ local M = {}
 local LOG_PATH = "/var/logs/system.log"
 local MAX_BYTES, MAX_RECORDS = 65536, 512
 local revision, cachedRevision, cached = 0, -1, {}
+local tailStatus={ok=nil,revision=-1}
 
 local function safeString(value)
   local ok, result = pcall(tostring, value)
@@ -10551,11 +10786,14 @@ function M.tail(limit)
     local ok, rows = pcall(readTail)
     if ok then cached = rows end
     cachedRevision = revision
+    tailStatus={ok=ok,revision=revision,error=not ok and safeString(rows) or nil}
   end
   local out = {}
   for i = math.max(1, #cached - limit + 1), #cached do out[#out + 1] = cached[i] end
   return out
 end
+
+function M.tailStatus() return {ok=tailStatus.ok,revision=tailStatus.revision,error=tailStatus.error} end
 
 return M
 ]=],
@@ -18496,7 +18734,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.35
+0.18.36
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

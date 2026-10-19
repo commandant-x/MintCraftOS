@@ -49,7 +49,7 @@ local ok,err=pcall(function()
     assert(stats.backend=="PIXEL256","pixel backend inactive: "..tostring(stats.lastError))
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
-    for _,id in ipairs({"files","terminal","settings","navigation","combat","nexus"}) do
+    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","nexus"}) do
       local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
@@ -83,6 +83,8 @@ local ok,err=pcall(function()
       if id=="combat" then
         local win=proc.window
         assert(win.pixelNative,"Combat radar is still a legacy bitmap")
+        queueInput("key",keys.tab) sleep(0.1)
+        assert(win.app.nativeFocus,"native Combat keyboard input not routed")
         capture("pixel-combat-unavailable")
         win:toggleMaximize() os.queueEvent("mintcraft_test") sleep(0.2)
         local original=win.app.drawPixels
@@ -110,6 +112,28 @@ local ok,err=pcall(function()
         assert(win.pixelNative and not win.closed,"native 3D radar crashed")
         capture("pixel-combat-3d-simulated")
         win.app.drawPixels=original win.title="Combat" win.dirty=true
+      end
+      if id=="logs" then
+        local win=proc.window local workspace=apps.ctx.pixelWorkspace
+        assert(win.pixelNative,"Logs is not a native client")
+        local log=require("system.libraries.log")
+        for i=1,45 do log.info("isolated-test","Viewer entry "..i) end
+        log.error("isolated-test","Full diagnostic\n"..string.rep("Wrapped message from isolated test. ",25))
+        win.app:refresh() win.dirty=true os.queueEvent("mintcraft_test") sleep(0.2)
+        local client
+        for _,hit in ipairs(workspace.windowHits) do if hit.win==win then client=hit.client end end
+        local row=win.app.rowHits[#win.app.rowHits] assert(client and row)
+        queueInput("mouse_click",1,client.x+row.rect.x+2,client.y+row.rect.y+2) sleep(0.15)
+        assert(win.app.selected and win.app.detailArea,"native log details inaccessible")
+        capture("pixel-logs-detail")
+        queueInput("key",keys.escape) sleep(0.1)
+        assert(not win.app.inspect,"native log keyboard escape not routed")
+        local filter
+        for _,hit in ipairs(win.app.pixelHits) do if hit.id=="filter" then filter=hit.rect end end
+        queueInput("mouse_click",1,client.x+filter.x+2,client.y+filter.y+2) sleep(0.1)
+        queueInput("key",keys.down) queueInput("key",keys.enter) sleep(0.15)
+        assert(win.app.filter=="error" and #win.app.rows>=1,"native log keyboard filter failed")
+        capture("pixel-logs-filtered")
       end
       if id=="files" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
@@ -229,7 +253,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Files UTF8 create/copy/paste/properties, drag/minimize/restore, shared keyboard/search, six apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Files operations, Combat keyboard, Logs details/filter, drag/minimize/restore, shared keyboard/search, seven apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end
