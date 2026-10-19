@@ -1,9 +1,10 @@
 local fonts=require("system.graphics.fonts")
 local primitives=require("system.graphics.primitives")
+local textCodec=require("system.graphics.text")
 local M={}
 function M.hit(r,x,y) return r and x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
 function M.label(s,x,y,text,width,fg,bg,align)
-  text=tostring(text or ""):gsub("[%c]"," ")
+  text=textCodec.single(text)
   local count=math.max(0,math.floor(width/6))
   if #text>count then text=count>=3 and text:sub(1,count-3).."..." or text:sub(1,count) end
   local offset=align=="center" and math.floor((width-#text*6)/2) or align=="right" and width-#text*6 or 0
@@ -16,14 +17,17 @@ function M.button(s,r,label,p,active,padding)
   M.label(s,r.x+pad,r.y+math.floor((r.h-9)/2),label,r.w-pad*2,active and p.ink or p.text,bg,"center")
 end
 function M.input(s,r,value,p,focused,placeholder,reserve)
-  value=tostring(value or ""):gsub("[%c]"," ") reserve=reserve or 0
+  value=textCodec.single(value) reserve=reserve or 0
   s:rect(r.x,r.y,r.w,r.h,p.desktop)
   if focused then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
   local count=math.max(0,math.floor((r.w-10-reserve)/6))
-  local shown=value=="" and (placeholder or ""):sub(1,count) or (count>0 and value:sub(-count) or "")
+  local shown=value=="" and textCodec.single(placeholder):sub(1,count) or (count>0 and value:sub(-count) or "")
   local y=r.y+math.floor((r.h-9)/2)
   fonts.draw(s,r.x+5,y,shown,value=="" and p.muted or p.text,p.desktop)
   if focused and count>0 then s:rect(r.x+5+math.min(#value,count)*6,y,1,9,p.accent) end
+end
+function M.paragraph(s,r,text,fg,bg,options)
+  return fonts.drawText(s,r.x,r.y,r.w,r.h,text,fg,bg,options)
 end
 function M.symbol(s,r,kind,p,active)
   local bg=active and p.accent or p.button

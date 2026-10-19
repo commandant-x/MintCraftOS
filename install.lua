@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1168,7 +1168,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1567,7 +1567,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1653,7 +1653,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2049,7 +2049,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -2150,6 +2150,10 @@ function M.run(ctx)
     { label = "New file", id = "new_file" },
     { label = "New dir", id = "new_dir" },
     { label = "Rename", id = "rename" },
+    { label = "Copy", id = "copy" },
+    { label = "Cut", id = "cut" },
+    { label = "Paste", id = "paste" },
+    { label = "Properties", id = "properties" },
     { label = "Delete", id = "delete" },
     { label = "Restore", id = "restore" },
     { label = "Delete forever", id = "delete_forever" },
@@ -2267,6 +2271,62 @@ function M.run(ctx)
     return fileNames.absolute(fs.combine(app.path, app.selected))
   end
 
+  local function inside(path,root)
+    return path==root or path:sub(1,#root+1)==root.."/"
+  end
+
+  local function pasteItem()
+    local clip=app.clipboard
+    if not clip then error("Clipboard is empty",0) end
+    local from=fileNames.absolute(clip.path)
+    local to=writable(fs.combine(app.path,basename(from)))
+    if inside(from,trash) or inside(to,trash) then error("Use Restore for trash items",0) end
+    if inside(to,from) then error("Cannot paste into the source or its descendants",0) end
+    if fs.exists(to) then error("Destination already exists; nothing overwritten",0) end
+    allowed("read",app.path) allowed("write",app.path)
+    if not fs.exists(from) then error("Clipboard source is no longer available",0) end
+    -- Preflight every descendant before touching either tree; bound traversal.
+    local pending={{from=from,to=to,depth=0}} local count,index=1,1
+    while pending[index] do
+      local item=pending[index] index=index+1
+      if inside(item.from,trash) or inside(item.to,trash) then error("Transfer includes trash; restore items first",0) end
+      allowed("read",item.from) writable(item.to)
+      if clip.cut then writable(item.from) end
+      if fs.isDir(item.from) then
+        if item.depth>=32 then error("Transfer exceeds 32 folder levels",0) end
+        for _,name in ipairs(fs.list(item.from)) do
+          count=count+1
+          if count>1024 then error("Transfer exceeds 1024 items; use smaller folders",0) end
+          pending[#pending+1]={from=fileNames.absolute(fs.combine(item.from,name)),
+            to=fileNames.absolute(fs.combine(item.to,name)),depth=item.depth+1}
+        end
+      end
+    end
+    local ok,problem=pcall(clip.cut and fs.move or fs.copy,from,to)
+    if not ok then error("Transfer failed; inspect destination before retrying: "..tostring(problem),0) end
+    if clip.cut then app.clipboard=nil end
+    app.selected=basename(to)
+    refresh()
+    ctx.notifications:push("success","Files",clip.cut and "Moved" or "Copied",3)
+  end
+
+  local function properties(path)
+    allowed("read",path)
+    if not fs.exists(path) then error("Item is no longer available",0) end
+    local attrs=type(fs.attributes)=="function" and fs.attributes(path) or nil
+    local folder=fs.isDir(path)
+    local size=attrs and attrs.size
+    if size==nil and not folder and type(fs.getSize)=="function" then size=fs.getSize(path) end
+    local readOnly=attrs and attrs.isReadOnly
+    if readOnly==nil and type(fs.isReadOnly)=="function" then readOnly=fs.isReadOnly(path) end
+    local lines={"Name: "..basename(path),"Type: "..(folder and "Folder" or "File"),
+      "Size: "..(folder and "not calculated" or size~=nil and tostring(size).." bytes" or "unavailable"),
+      "Read only: "..(readOnly==nil and "unavailable" or readOnly and "yes" or "no")}
+    if attrs and attrs.modified then lines[#lines+1]="Modified (epoch ms): "..tostring(attrs.modified) end
+    lines[#lines+1]="Path: "..path
+    app.properties={lines=lines,text=table.concat(lines,"\n"),path=path,scroll=0}
+  end
+
   local function navigate(path, backwards)
     path = fileNames.absolute(path)
     allowed("read", path)
@@ -2280,7 +2340,7 @@ function M.run(ctx)
     end
     app.path, app.selected, app.scroll = path, nil, 1
     app.nativeQuery,app.nativeSearchFocused="",false
-    app.mode, app.confirm = nil, nil
+    app.mode, app.confirm,app.properties = nil, nil,nil
     refresh()
     return true
   end
@@ -2359,6 +2419,15 @@ function M.run(ctx)
       setMode("new_dir", basename(uniquePath(app.path, "new_folder_", "")))
     elseif action == "rename" then
       if app.selected then setMode("rename", app.selected) end
+    elseif action=="copy" or action=="cut" then
+      local path=selectedPath()
+      if not path then error("Select an item first",0) end
+      allowed("read",path)
+      if inside(path,trash) then error("Restore trash items before transferring",0) end
+      if action=="cut" then writable(path) end
+      app.clipboard={path=path,cut=action=="cut"}
+    elseif action=="paste" then pasteItem()
+    elseif action=="properties" then properties(selectedPath() or app.path)
     elseif action == "delete" then
       if app.selected then
         local full = selectedPath()
@@ -2425,12 +2494,20 @@ function M.run(ctx)
     action=function(id) attempt(perform,id) end,
     open=function(name) attempt(openFile,fs.combine(app.path,name)) end,
     submit=function() attempt(submitInput) end,
-    cancel=function() setMode(nil) app.confirm=nil end,
+    cancel=function() setMode(nil) app.confirm=nil app.properties=nil end,
     confirm=confirmAction,
   },actions)
 
   function app:draw(w, h)
     if w < 1 or h < 1 then return end
+    if self.properties then
+      toolbar=ui.toolbar(1,1,w,{{id="cancel",label="Close"},{id="properties_up",label="Up"},{id="properties_down",label="Down"}})
+      local first=self.properties.scroll+1
+      for i=first,math.min(#self.properties.lines,first+h-3) do
+        renderer.writeAt(1,i-first+3,renderer.crop(self.properties.lines[i],w),theme.get("windowFg"),theme.get("windowBg"))
+      end
+      return
+    end
     if self.confirm then
       toolbar = ui.toolbar(1, 1, w, {{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
     elseif self.mode then
@@ -2461,6 +2538,22 @@ function M.run(ctx)
 
   function app:handle(event)
     if self:handlePixelKey(event) then return true end
+    if self.properties then
+      if event.name=="key" and (event.args[1]==keys.escape or event.args[1]==keys.enter) then self.properties=nil
+      elseif event.name=="key" and (event.args[1]==keys.up or event.args[1]==keys.down) then
+        self.properties.scroll=math.max(0,math.min(#self.properties.lines-1,self.properties.scroll+(event.args[1]==keys.up and -1 or 1)))
+      elseif event.name=="mouse_scroll" then self.properties.scroll=math.max(0,math.min(#self.properties.lines-1,self.properties.scroll+event.args[1]))
+      elseif event.name=="mouse_click" then
+        for _,box in ipairs(toolbar) do if ui.hit(box,event.args[2],event.args[3]) then
+          if box.id=="cancel" then self.properties=nil
+          elseif box.id=="properties_up" or box.id=="properties_down" then
+            self.properties.scroll=math.max(0,math.min(#self.properties.lines-1,self.properties.scroll+(box.id=="properties_up" and -1 or 1)))
+          end
+          break
+        end end
+      end
+      return true
+    end
     if self.confirm and event.name == "key" and event.args[1] == keys.escape then self.confirm = nil return true end
     if self.confirm and event.name ~= "mouse_click" then return true end
     if event.name == "key" then
@@ -2545,6 +2638,7 @@ return M
 local ui=require("system.graphics.widgets")
 local primitives=require("system.graphics.primitives")
 local keyboard=require("system.graphics.keyboard")
+local fonts=require("system.graphics.fonts")
 local M={}
 local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -2589,6 +2683,29 @@ function M.attach(app,api,actions)
     local function button(id,label,r,active)
       ui.button(s,r,label,p,active) self.pixelButtons[#self.pixelButtons+1]={id=id,rect=r}
     end
+    if self.properties then
+      ui.label(s,6,8,"Properties",w-40,p.text,p.panel)
+      symbol("cancel","close",w-26,2,22,22)
+      local text=self.properties.text
+      if self.properties.layoutWidth~=w then
+        self.properties.layout=fonts.layout(text,w-12,65536,{lineSpacing=3})
+        self.properties.layoutWidth=w
+      end
+      local layout=self.properties.layout
+      self.properties.pixelLineCount=#layout.lines
+      local visible=math.max(1,math.floor((h-56)/12))
+      self.properties.visibleRows=visible
+      self.properties.scroll=clamp(self.properties.scroll,0,math.max(0,#layout.lines-visible))
+      local first=self.properties.scroll+1
+      for i=first,math.min(#layout.lines,first+visible-1) do
+        -- Layout has already decoded display text; do not auto-decode it twice.
+        fonts.draw(s,6,30+(i-first)*12,layout.lines[i].text,p.text,p.panel)
+      end
+      symbol("properties_up","up",4,h-22,22,18)
+      symbol("properties_down","down",w-26,h-22,22,18)
+      ui.label(s,30,h-17,tostring(first).."-"..math.min(#layout.lines,first+visible-1).." / "..#layout.lines,w-60,p.muted,p.panel,"center")
+      return
+    end
     if self.confirm then
       self.nativeSearchFocused=false
       local title=self.confirm=="trash" and "Move to trash" or self.confirm=="empty_trash" and "Empty trash forever" or "Delete forever"
@@ -2596,7 +2713,7 @@ function M.attach(app,api,actions)
       local target=tostring(self.confirmPath or "")
       local name=target:match("([^/]+)$") or target
       ui.label(s,6,27,name,w-12,p.text,p.panel)
-      ui.label(s,6,41,target,w-12,p.muted,p.panel)
+      ui.paragraph(s,rect(6,41,w-12,math.max(0,h-74)),target,p.muted,p.panel)
       local bw=math.floor((w-12)/2)
       button("confirm","Confirm",rect(4,h-27,bw,22),true)
       button("cancel","Cancel",rect(w-bw-4,h-27,bw,22))
@@ -2658,7 +2775,8 @@ function M.attach(app,api,actions)
       local offset=math.floor((trackH-thumb)*(self.scroll-1)/math.max(1,#rows-self.pixelVisibleRows))
       s:rect(w-14,trackY+offset,4,thumb,p.accent)
     end
-    ui.label(s,6,h-13,tostring(#rows).." items"..(self.selected and " | "..self.selected or ""),w-12,p.muted,p.panel)
+    local clipboard=self.clipboard and (self.clipboard.cut and " | Cut ready" or " | Copy ready") or ""
+    ui.label(s,6,h-13,tostring(#rows).." items"..clipboard..(self.selected and " | "..self.selected or ""),w-12,p.muted,p.panel)
     if self.showSearchKeyboard then keyboard.draw(s,4,h-18-kbHeight,w-8,kbHeight,searchKeyboard,p) end
     if self.nativeMenu then
       local items={{id="open",label="Open"}}
@@ -2678,7 +2796,8 @@ function M.attach(app,api,actions)
   end
   function app:handlePixels(event)
     if event.name=="mouse_scroll" then
-      if self.nativeMenu then self.nativeMenuFirst=math.max(1,(self.nativeMenuFirst or 1)+event.args[1])
+      if self.properties then self.properties.scroll=clamp(self.properties.scroll+event.args[1],0,math.max(0,(self.properties.pixelLineCount or 1)-(self.properties.visibleRows or 1)))
+      elseif self.nativeMenu then self.nativeMenuFirst=math.max(1,(self.nativeMenuFirst or 1)+event.args[1])
       else self.scroll=math.max(1,self.scroll+event.args[1]) end
       return true
     end
@@ -2700,10 +2819,13 @@ function M.attach(app,api,actions)
       elseif hit.id=="search_keyboard" then self.showSearchKeyboard=not self.showSearchKeyboard self.nativeSearchFocused=true
       elseif hit.id=="scroll_up" or hit.id=="scroll_down" then self.scroll=math.max(1,self.scroll+(hit.id=="scroll_up" and -1 or 1))
       elseif hit.id=="submit" then api.submit()
+      elseif hit.id=="properties_up" or hit.id=="properties_down" then
+        self.properties.scroll=clamp(self.properties.scroll+(hit.id=="properties_up" and -1 or 1),0,
+          math.max(0,(self.properties.pixelLineCount or 1)-(self.properties.visibleRows or 1)))
       else action(hit.id) end
       return true
     end end
-    if self.mode or self.confirm then return true end
+    if self.mode or self.confirm or self.properties then return true end
     if ui.hit(self.pixelSearch,x,y) then self.nativeSearchFocused=true return true end
     self.nativeSearchFocused=false
     for _,hit in ipairs(self.pixelFileRows) do if ui.hit(hit.rect,x,y) then
@@ -2716,6 +2838,14 @@ function M.attach(app,api,actions)
   end
   function app:handlePixelKey(event)
     if not self.graphicsActive then return false end
+    if self.properties then
+      if event.name=="key" then
+        local key=event.args[1]
+        if key==keys.escape or key==keys.enter then api.cancel()
+        elseif key==keys.up or key==keys.down then self.properties.scroll=clamp(self.properties.scroll+(key==keys.up and -1 or 1),0,math.max(0,(self.properties.pixelLineCount or 1)-(self.properties.visibleRows or 1))) end
+      end
+      return true
+    end
     if event.name=="key" and event.args[1]==keys.escape and self.nativeMenu then self.nativeMenu=false return true end
     if self.nativeSearchFocused and not self.mode and not self.confirm then
       if event.name=="char" or event.name=="paste" then input(tostring(event.args[1])) return true end
@@ -2742,7 +2872,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -2822,7 +2952,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -2941,7 +3071,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -3635,7 +3765,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -3719,7 +3849,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -4049,7 +4179,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -4164,7 +4294,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -4306,7 +4436,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.30",
+  version = "0.18.31",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -4776,7 +4906,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.30",
+  version = "0.18.31",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -5323,7 +5453,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.30",
+    version = "0.18.31",
     theme = "mint",
     displayScale = 0.5,
     debug = true,
@@ -5703,7 +5833,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.30",
+  version = "0.18.31",
   theme = "mint",
   graphicsMode = "text",
   displayScale = 0.5,
@@ -6237,6 +6367,8 @@ POSSIBILITY OF SUCH DAMAGE.
 ]=],
   ["system/graphics/fonts.lua"] = [=[
 local data=require("system.graphics.font_data")
+local textCodec=require("system.graphics.text")
+local View=require("system.graphics.view")
 local M={width=6,height=9}
 local glyphs={}
 for code=0,255 do
@@ -6252,14 +6384,16 @@ function M.row(code,y,fg,bg)
   row[6]=string.char(bg)
   return table.concat(row)
 end
-function M.measure(text,scale)
+function M.measure(text,scale,encoding)
+  if encoding then text=textCodec.decode(text,encoding) end
   scale=scale or 1
   assert(scale>=1 and scale<=4 and scale%1==0,"Invalid font scale")
   local width,lines=0,0
   for line in (text.."\n"):gmatch("([^\n]*)\n") do width=math.max(width,#line*6*scale) lines=lines+1 end
   return width,lines*9*scale
 end
-function M.draw(surface,x,y,text,fg,bg,scale)
+function M.draw(surface,x,y,text,fg,bg,scale,encoding)
+  if encoding then text=textCodec.decode(text,encoding) end
   scale=scale or 1 M.measure("",scale)
   local origin=x
   for i=1,#text do
@@ -6275,6 +6409,64 @@ function M.draw(surface,x,y,text,fg,bg,scale)
     end
   end
 end
+-- Layout uses glyph bytes, so measurement, clipping and drawing agree exactly.
+function M.layout(value,width,height,options)
+  options=options or {}
+  local scale=options.scale or 1 M.measure("",scale)
+  local spacing=options.lineSpacing or 0
+  assert(type(spacing)=="number" and spacing%1==0 and spacing>=0 and spacing<=64,"Invalid line spacing")
+  assert(type(width)=="number" and width>=0 and width<math.huge and type(height)=="number" and height>=0 and height<math.huge,"Invalid text bounds")
+  local align,valign=options.align or "left",options.valign or "top"
+  assert(align=="left" or align=="center" or align=="right","Invalid text alignment")
+  assert(valign=="top" or valign=="center" or valign=="bottom","Invalid text vertical alignment")
+  local text,truncated=textCodec.decode(value,options.encoding or "auto")
+  text=text:gsub("\r\n","\n"):gsub("\r","\n"):gsub("[%z\1-\8\11\12\14-\31\127]","?")
+  local gw,gh=6*scale,9*scale
+  local columns=math.floor(width/gw)
+  local capacity=math.min(4096,math.max(0,math.floor((height+spacing)/(gh+spacing))))
+  local lines={} local overflow=truncated
+  local function add(s)
+    if #lines>=capacity then overflow=true return false end
+    if #s>columns then overflow=true s=s:sub(1,columns) end
+    lines[#lines+1]={text=s,width=#s*gw}
+    return true
+  end
+  if columns==0 or capacity==0 then return {lines=lines,width=0,height=0,overflow=#text>0 or truncated,scale=scale} end
+  for paragraph in (text.."\n"):gmatch("([^\n]*)\n") do
+    local expanded,col={},0
+    for i=1,#paragraph do
+      local c=paragraph:sub(i,i)
+      if c=="\t" then local n=4-col%4 expanded[#expanded+1]=string.rep(" ",n) col=col+n
+      else expanded[#expanded+1]=c col=col+1 end
+    end
+    paragraph=table.concat(expanded)
+    local stopped,pos=false,1
+    while options.wrap~=false and #paragraph-pos+1>columns do
+      local cut
+      for i=pos+1,pos+columns do if paragraph:byte(i)==32 then cut=i end end
+      local first=cut and paragraph:sub(pos,cut-1):gsub(" +$","") or paragraph:sub(pos,pos+columns-1)
+      if not add(first) then stopped=true break end
+      pos=cut and cut+1 or pos+columns
+      if cut then while paragraph:byte(pos)==32 do pos=pos+1 end end
+    end
+    if stopped or not add(paragraph:sub(pos)) then break end
+  end
+  local total=#lines>0 and #lines*(gh+spacing)-spacing or 0
+  local top=valign=="center" and math.floor((height-total)/2) or valign=="bottom" and height-total or 0
+  local measured=0
+  for i,line in ipairs(lines) do
+    line.x=align=="center" and math.floor((width-line.width)/2) or align=="right" and width-line.width or 0
+    line.y=top+(i-1)*(gh+spacing) measured=math.max(measured,line.width)
+  end
+  return {lines=lines,width=measured,height=total,overflow=overflow,scale=scale}
+end
+function M.drawText(surface,x,y,width,height,text,fg,bg,options)
+  local layout=M.layout(text,width,height,options)
+  local canvas=View.new(surface,x,y,width,height)
+  for _,line in ipairs(layout.lines) do M.draw(canvas,line.x,line.y,line.text,fg,bg,layout.scale) end
+  return layout
+end
+M.decode=textCodec.decode
 return M
 ]=],
   ["system/graphics/keyboard.lua"] = [=[
@@ -6599,6 +6791,71 @@ function M.new(w,h,color)
 end
 return M
 ]=],
+  ["system/graphics/text.lua"] = [=[
+-- Convert display strings to the embedded CP437 font, never alter stored text.
+local M={limit=65536}
+local latin={
+  [0x00c7]=128,[0x00fc]=129,[0x00e9]=130,[0x00e2]=131,[0x00e4]=132,[0x00e0]=133,
+  [0x00e5]=134,[0x00e7]=135,[0x00ea]=136,[0x00eb]=137,[0x00e8]=138,[0x00ef]=139,
+  [0x00ee]=140,[0x00ec]=141,[0x00c4]=142,[0x00c5]=143,[0x00c9]=144,[0x00e6]=145,
+  [0x00c6]=146,[0x00f4]=147,[0x00f6]=148,[0x00f2]=149,[0x00fb]=150,[0x00f9]=151,
+  [0x00ff]=152,[0x00d6]=153,[0x00dc]=154,[0x00a2]=155,[0x00a3]=156,[0x00a5]=157,
+  [0x00e1]=160,[0x00ed]=161,[0x00f3]=162,[0x00fa]=163,[0x00f1]=164,[0x00d1]=165,
+  [0x00aa]=166,[0x00ba]=167,[0x00bf]=168,[0x00ac]=170,[0x00bd]=171,[0x00bc]=172,
+  [0x00a1]=173,[0x00ab]=174,[0x00bb]=175,[0x00df]=225,[0x00b5]=230,[0x00b0]=248,
+  [0x00b7]=250,[0x00b2]=253,[0x00a0]=255,
+}
+local substitutes={[0x0153]="oe",[0x0152]="OE",[0x2018]="'",[0x2019]="'",
+  [0x201c]='"',[0x201d]='"',[0x2013]="-",[0x2014]="-",[0x2026]="..."}
+local combining={
+  [0x0300]={[97]=133,[101]=138,[105]=141,[111]=149,[117]=151},
+  [0x0301]={[97]=160,[101]=130,[105]=161,[111]=162,[117]=163,[69]=144},
+  [0x0302]={[97]=131,[101]=136,[105]=140,[111]=147,[117]=150},
+  [0x0308]={[97]=132,[101]=137,[105]=139,[111]=148,[117]=129,[121]=152,[65]=142,[79]=153,[85]=154},
+  [0x0327]={[99]=135,[67]=128},
+}
+local function nextCode(s,i)
+  local a,b,c,d=s:byte(i,i+3)
+  if a<128 then return a,i+1 end
+  local n=a>=194 and a<=223 and 2 or a>=224 and a<=239 and 3 or a>=240 and a<=244 and 4
+  if not n then return nil,i+1 end
+  if not b or b<128 or b>191 then return nil,i+1 end
+  if n>=3 and (not c or c<128 or c>191 or a==224 and b<160 or a==237 and b>159) then return nil,i+1 end
+  if n==4 and (not d or d<128 or d>191 or a==240 and b<144 or a==244 and b>143) then return nil,i+1 end
+  local cp=n==2 and (a-192)*64+b-128 or n==3 and (a-224)*4096+(b-128)*64+c-128
+    or (a-240)*262144+(b-128)*4096+(c-128)*64+d-128
+  return cp,i+n
+end
+function M.decode(value,encoding)
+  local s=tostring(value or "")
+  encoding=encoding or "cp437"
+  assert(encoding=="cp437" or encoding=="utf8" or encoding=="auto","Invalid text encoding")
+  local clipped=#s>M.limit
+  s=s:sub(1,M.limit)
+  if encoding=="auto" then
+    local i,valid=1,true
+    while i<=#s do local cp,j=nextCode(s,i) if not cp then valid=false break end i=j end
+    encoding=valid and "utf8" or "cp437"
+  end
+  if encoding=="cp437" then return s,clipped end
+  local out,i={},1
+  while i<=#s do
+    local cp,j=nextCode(s,i)
+    if cp and combining[cp] and #out>0 and #out[#out]==1 and combining[cp][out[#out]:byte()] then
+      out[#out]=string.char(combining[cp][out[#out]:byte()])
+    else
+      local mapped=cp and (cp<128 and string.char(cp) or latin[cp] and string.char(latin[cp]) or substitutes[cp])
+      out[#out+1]=mapped or "?"
+    end
+    i=j
+  end
+  return table.concat(out),clipped
+end
+function M.single(value,encoding)
+  return (M.decode(value,encoding or "auto"):gsub("[%c]"," "))
+end
+return M
+]=],
   ["system/graphics/view.lua"] = [=[
 -- Local, zero-based drawing surface clipped to a parent client rectangle.
 local M={}
@@ -6631,10 +6888,11 @@ return M
   ["system/graphics/widgets.lua"] = [=[
 local fonts=require("system.graphics.fonts")
 local primitives=require("system.graphics.primitives")
+local textCodec=require("system.graphics.text")
 local M={}
 function M.hit(r,x,y) return r and x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
 function M.label(s,x,y,text,width,fg,bg,align)
-  text=tostring(text or ""):gsub("[%c]"," ")
+  text=textCodec.single(text)
   local count=math.max(0,math.floor(width/6))
   if #text>count then text=count>=3 and text:sub(1,count-3).."..." or text:sub(1,count) end
   local offset=align=="center" and math.floor((width-#text*6)/2) or align=="right" and width-#text*6 or 0
@@ -6647,14 +6905,17 @@ function M.button(s,r,label,p,active,padding)
   M.label(s,r.x+pad,r.y+math.floor((r.h-9)/2),label,r.w-pad*2,active and p.ink or p.text,bg,"center")
 end
 function M.input(s,r,value,p,focused,placeholder,reserve)
-  value=tostring(value or ""):gsub("[%c]"," ") reserve=reserve or 0
+  value=textCodec.single(value) reserve=reserve or 0
   s:rect(r.x,r.y,r.w,r.h,p.desktop)
   if focused then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
   local count=math.max(0,math.floor((r.w-10-reserve)/6))
-  local shown=value=="" and (placeholder or ""):sub(1,count) or (count>0 and value:sub(-count) or "")
+  local shown=value=="" and textCodec.single(placeholder):sub(1,count) or (count>0 and value:sub(-count) or "")
   local y=r.y+math.floor((r.h-9)/2)
   fonts.draw(s,r.x+5,y,shown,value=="" and p.muted or p.text,p.desktop)
   if focused and count>0 then s:rect(r.x+5+math.min(#value,count)*6,y,1,9,p.accent) end
+end
+function M.paragraph(s,r,text,fg,bg,options)
+  return fonts.drawText(s,r.x,r.y,r.w,r.h,text,fg,bg,options)
 end
 function M.symbol(s,r,kind,p,active)
   local bg=active and p.accent or p.button
@@ -8506,22 +8767,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.30", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.30", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.30", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.30", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.31", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.31", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.31", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.31", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.30", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.30", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.30", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.30", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.30", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.30", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.30", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.30", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.30", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.30", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.30", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.31", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.31", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.31", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.31", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.31", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.31", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.31", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.31", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.31", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.31", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.31", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -9302,7 +9563,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.30",
+    version = meta.version or "0.18.31",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -17691,7 +17952,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.30
+0.18.31
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

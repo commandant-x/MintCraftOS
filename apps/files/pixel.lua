@@ -1,6 +1,7 @@
 local ui=require("system.graphics.widgets")
 local primitives=require("system.graphics.primitives")
 local keyboard=require("system.graphics.keyboard")
+local fonts=require("system.graphics.fonts")
 local M={}
 local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -45,6 +46,29 @@ function M.attach(app,api,actions)
     local function button(id,label,r,active)
       ui.button(s,r,label,p,active) self.pixelButtons[#self.pixelButtons+1]={id=id,rect=r}
     end
+    if self.properties then
+      ui.label(s,6,8,"Properties",w-40,p.text,p.panel)
+      symbol("cancel","close",w-26,2,22,22)
+      local text=self.properties.text
+      if self.properties.layoutWidth~=w then
+        self.properties.layout=fonts.layout(text,w-12,65536,{lineSpacing=3})
+        self.properties.layoutWidth=w
+      end
+      local layout=self.properties.layout
+      self.properties.pixelLineCount=#layout.lines
+      local visible=math.max(1,math.floor((h-56)/12))
+      self.properties.visibleRows=visible
+      self.properties.scroll=clamp(self.properties.scroll,0,math.max(0,#layout.lines-visible))
+      local first=self.properties.scroll+1
+      for i=first,math.min(#layout.lines,first+visible-1) do
+        -- Layout has already decoded display text; do not auto-decode it twice.
+        fonts.draw(s,6,30+(i-first)*12,layout.lines[i].text,p.text,p.panel)
+      end
+      symbol("properties_up","up",4,h-22,22,18)
+      symbol("properties_down","down",w-26,h-22,22,18)
+      ui.label(s,30,h-17,tostring(first).."-"..math.min(#layout.lines,first+visible-1).." / "..#layout.lines,w-60,p.muted,p.panel,"center")
+      return
+    end
     if self.confirm then
       self.nativeSearchFocused=false
       local title=self.confirm=="trash" and "Move to trash" or self.confirm=="empty_trash" and "Empty trash forever" or "Delete forever"
@@ -52,7 +76,7 @@ function M.attach(app,api,actions)
       local target=tostring(self.confirmPath or "")
       local name=target:match("([^/]+)$") or target
       ui.label(s,6,27,name,w-12,p.text,p.panel)
-      ui.label(s,6,41,target,w-12,p.muted,p.panel)
+      ui.paragraph(s,rect(6,41,w-12,math.max(0,h-74)),target,p.muted,p.panel)
       local bw=math.floor((w-12)/2)
       button("confirm","Confirm",rect(4,h-27,bw,22),true)
       button("cancel","Cancel",rect(w-bw-4,h-27,bw,22))
@@ -114,7 +138,8 @@ function M.attach(app,api,actions)
       local offset=math.floor((trackH-thumb)*(self.scroll-1)/math.max(1,#rows-self.pixelVisibleRows))
       s:rect(w-14,trackY+offset,4,thumb,p.accent)
     end
-    ui.label(s,6,h-13,tostring(#rows).." items"..(self.selected and " | "..self.selected or ""),w-12,p.muted,p.panel)
+    local clipboard=self.clipboard and (self.clipboard.cut and " | Cut ready" or " | Copy ready") or ""
+    ui.label(s,6,h-13,tostring(#rows).." items"..clipboard..(self.selected and " | "..self.selected or ""),w-12,p.muted,p.panel)
     if self.showSearchKeyboard then keyboard.draw(s,4,h-18-kbHeight,w-8,kbHeight,searchKeyboard,p) end
     if self.nativeMenu then
       local items={{id="open",label="Open"}}
@@ -134,7 +159,8 @@ function M.attach(app,api,actions)
   end
   function app:handlePixels(event)
     if event.name=="mouse_scroll" then
-      if self.nativeMenu then self.nativeMenuFirst=math.max(1,(self.nativeMenuFirst or 1)+event.args[1])
+      if self.properties then self.properties.scroll=clamp(self.properties.scroll+event.args[1],0,math.max(0,(self.properties.pixelLineCount or 1)-(self.properties.visibleRows or 1)))
+      elseif self.nativeMenu then self.nativeMenuFirst=math.max(1,(self.nativeMenuFirst or 1)+event.args[1])
       else self.scroll=math.max(1,self.scroll+event.args[1]) end
       return true
     end
@@ -156,10 +182,13 @@ function M.attach(app,api,actions)
       elseif hit.id=="search_keyboard" then self.showSearchKeyboard=not self.showSearchKeyboard self.nativeSearchFocused=true
       elseif hit.id=="scroll_up" or hit.id=="scroll_down" then self.scroll=math.max(1,self.scroll+(hit.id=="scroll_up" and -1 or 1))
       elseif hit.id=="submit" then api.submit()
+      elseif hit.id=="properties_up" or hit.id=="properties_down" then
+        self.properties.scroll=clamp(self.properties.scroll+(hit.id=="properties_up" and -1 or 1),0,
+          math.max(0,(self.properties.pixelLineCount or 1)-(self.properties.visibleRows or 1)))
       else action(hit.id) end
       return true
     end end
-    if self.mode or self.confirm then return true end
+    if self.mode or self.confirm or self.properties then return true end
     if ui.hit(self.pixelSearch,x,y) then self.nativeSearchFocused=true return true end
     self.nativeSearchFocused=false
     for _,hit in ipairs(self.pixelFileRows) do if ui.hit(hit.rect,x,y) then
@@ -172,6 +201,14 @@ function M.attach(app,api,actions)
   end
   function app:handlePixelKey(event)
     if not self.graphicsActive then return false end
+    if self.properties then
+      if event.name=="key" then
+        local key=event.args[1]
+        if key==keys.escape or key==keys.enter then api.cancel()
+        elseif key==keys.up or key==keys.down then self.properties.scroll=clamp(self.properties.scroll+(key==keys.up and -1 or 1),0,math.max(0,(self.properties.pixelLineCount or 1)-(self.properties.visibleRows or 1))) end
+      end
+      return true
+    end
     if event.name=="key" and event.args[1]==keys.escape and self.nativeMenu then self.nativeMenu=false return true end
     if self.nativeSearchFocused and not self.mode and not self.confirm then
       if event.name=="char" or event.name=="paste" then input(tostring(event.args[1])) return true end

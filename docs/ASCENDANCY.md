@@ -85,7 +85,7 @@ or finished ASCENDANCY.
 | 1-2 | Extend existing OS; inspect current remote and actual integrations; preserve data | Baseline verified; additive backend, existing tests retained |
 | 3 | Actual 256/16 pixels, dimensions, detection, resizing, safe fallback | Engine + native test; target/device capabilities UI and all failure paths need expansion |
 | 4 | Modular raster, clipping, windows, dirty rectangles, memory limits, metrics | Retained native scene, clipped damage/opaque occlusion, bitmap sprites, 2 MiB payload cache; extended primitives and benchmark expansion remain |
-| 5 | Bitmap fonts, wrapping/alignment/accents, readable UI/mono, assets rights | BSD font + scales + measurement; wrapping/alignment/encoding and UI typography pending |
+| 5 | Bitmap fonts, wrapping/alignment/accents, readable UI/mono, assets rights | BSD bitmap + scales, bounded UTF8/CP437 layout/wrap/align/spacing and supported accents tested; richer UI font, full encoding/editing coverage and in-game legibility remain |
 | 6 | Pixel WM, resize/drag/focus/minimize/restore, controls, shortcuts, terminal source routing | Native chrome, input fields, shared keyboard, pointer capture, source-isolated terminal routing and F1 integrated; complete widget set, UI scale and in-game checks pending |
 | 7 | Dark polished desktop, wallpaper, taskbar, icons, menus, search, clock, notifications | Native dark shell, sprite icons, paged launcher/tasks, search, context menu and dismissible notifications; wallpaper/customization/polish remain |
 | 8 | All sixteen apps migrated without functionality loss | Files' existing workflows have native UI; other fifteen app clients and remaining explorer requirements pending (see app matrix) |
@@ -103,7 +103,7 @@ or finished ASCENDANCY.
 | 21 | BLACKBOX bounded historical observations/statistics/resource trends/availability/decisions | Existing logs/alerts only; historical module pending |
 | 22 | Graphical WARROOM overview/atlas/oracle/synapse/dominion/swarm/tactical/aegis/blackbox | Existing NEXUS UI preserved; integrated pixel views pending |
 | 23 | First-run nonblank admin setup, existing permissions, explicit fleet authorization, truthful auth/confidentiality | Blank default admin confirmed in users.lua; first-run migration pending, not silently changed in graphics release |
-| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 91 fast suites, native Files/raw-pointer tests, terminal-transport simulation and framebuffer inspection; full final gate not met |
+| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 92 fast suites, native Files/raw-pointer tests, terminal-transport simulation and framebuffer inspection; full final gate not met |
 | 25 | A-J incremental working releases, graphical completion before strategic expansion | A native workspace usable in emulation, B partial; C-J not complete |
 | 26 | Versioned source/tests/docs/changelog/installer/compatibility/migration/limitations | Required per increment; no blanket completion claim |
 | 27 | All 18 invariants (no fake APIs/data/performance, bounded work, safety, optional addons, fallback) | Preserve as release gates; real in-game validation still required |
@@ -120,7 +120,7 @@ or finished ASCENDANCY.
 | NEXUS OVERMIND | Existing 0.4 workflows retained in container | Native WARROOM and later shared ASCENDANCY modules |
 | Navigation | Existing acquisition/calibration/control retained | Native instruments and panels, unchanged arming/rescue gates |
 | Combat | Existing radar and safety retained | Native 2D/3D radar, filters/details and confirmed local fire workflow |
-| Files | Native navigation/search/create/rename/trash/restore; no draw acquisition tested | GUI copy/move/clipboard, file details, broader editing/accessibility and Unicode coverage |
+| Files | Native navigation/search/create/rename/trash/restore/copy/cut/paste/properties; descendant permission preflight and no draw acquisition tested | Cross-window clipboard, richer editing/accessibility and Unicode editing coverage |
 | Settings | Legacy configuration center retained, terminal selector added | Native controls, detected capabilities/UI scale/performance/recovery panels |
 | Task Manager | Legacy measured/estimated metrics retained | Native graphs, rendering/network statistics with accurate labels |
 | Logs | Legacy filtering and readable records retained | Native list/filter/details with scrolling |

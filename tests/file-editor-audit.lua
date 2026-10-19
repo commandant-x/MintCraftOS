@@ -49,6 +49,15 @@ fs = {
     end
     for key,value in pairs(moved) do nodes[key] = value end
   end,
+  copy = function(a,b)
+    a,b=norm(a),norm(b)
+    assert(nodes[a]~=nil and nodes[b]==nil,"unsafe copy")
+    local copied={}
+    for key,value in pairs(nodes) do if key==a or key:sub(1,#a+1)==a.."/" then copied[b..key:sub(#a+1)]=value end end
+    for key,value in pairs(copied) do nodes[key]=value end
+  end,
+  getSize=function(p) return type(nodes[norm(p)])=="string" and #nodes[norm(p)] or 0 end,
+  isReadOnly=function() return false end,
   delete = function(p)
     p = norm(p)
     if failDelete and p == failDelete then error("delete failed") end
@@ -97,6 +106,13 @@ local function draw(app,w,h)
   app:draw(drawW,drawH)
 end
 local function action(app,id,w,h)
+  for _=1,20 do
+    draw(app,w,h)
+    local previous
+    for _,box in ipairs(boxes) do if box.delta==-1 then previous=box end end
+    if not previous then break end
+    app:handle({name="mouse_click",args={1,previous.x,previous.y}})
+  end
   for _=1,20 do
     draw(app,w,h)
     local nextBox
@@ -302,4 +318,62 @@ assert(nodes["/home/user/docs/renamed.txt"]=="")
 fs.makeDir("/system") nodes["/system/kernel.lua"]="protected"
 explorer.path="/system" explorer.selected="kernel.lua" explorer.files={"kernel.lua"} explorer.directories={} explorer.fileRevision=100
 pixelAction("delete") assert(not explorer.confirm and nodes["/system/kernel.lua"]=="protected")
+explorer.path="/home/user/docs" explorer.selected="original.txt" pixelAction("refresh")
+pixelAction("copy") assert(explorer.clipboard.path=="/home/user/docs/original.txt")
+pixelAction("up") pixelAction("paste")
+assert(nodes["/home/user/original.txt"]=="original" and nodes["/home/user/docs/original.txt"]=="original")
+nodes["/home/user/original.txt"]="do not overwrite" pixelAction("paste")
+assert(nodes["/home/user/original.txt"]=="do not overwrite" and explorer.clipboard)
+explorer.selected="original.txt" pixelAction("cut")
+explorer.path="/home/user/docs" pixelAction("paste")
+assert(nodes["/home/user/original.txt"]=="do not overwrite" and explorer.clipboard,"collision lost cut source")
+fs.makeDir("/home/user/destination") explorer.path="/home/user/destination" pixelAction("paste")
+assert(not nodes["/home/user/original.txt"] and nodes["/home/user/destination/original.txt"]=="do not overwrite" and not explorer.clipboard)
+explorer.selected="original.txt" pixelAction("properties")
+assert(explorer.properties.text:find("16 bytes",1,true))
+pixelDraw(154,122)
+local down
+for _,hit in ipairs(explorer.pixelButtons) do if hit.id=="properties_down" then down=hit.rect end end
+assert(down) pixelClick(down) assert(explorer.properties.scroll==1,"tactile properties scroll failed")
+pixelDraw(960,400)
+pixelAction("cancel") assert(not explorer.properties)
+-- Recursive permissions are checked before either tree is modified.
+explorer.path="/home/user" explorer.selected="docs" pixelAction("copy")
+explorer.path="/home/user/destination"
+denied=function(permission,target) return permission=="filesystem.read" and target=="/home/user/docs/original.txt" end
+pixelAction("paste") assert(not nodes["/home/user/destination/docs"])
+denied=nil
+pixelAction("paste") assert(nodes["/home/user/destination/docs/original.txt"]=="original")
+explorer.path="/home/user/docs" pixelAction("paste")
+assert(not nodes["/home/user/docs/docs"],"recursive self-copy accepted")
+explorer.path="/system" explorer.selected="kernel.lua" pixelAction("cut")
+assert(explorer.clipboard.path=="/home/user/docs" and nodes["/system/kernel.lua"]=="protected")
+explorer.path=trash explorer.selected="renamed.txt" pixelAction("copy")
+assert(explorer.clipboard.path=="/home/user/docs","trash metadata bypassed")
+explorer.path="/home/user" explorer.selected="docs" pixelAction("copy")
+fs.makeDir("/home/user/bounded")
+for i=1,1025 do nodes["/home/user/docs/item"..i]="x" end
+explorer.path="/home/user/bounded" pixelAction("paste")
+assert(not nodes["/home/user/bounded/docs"],"oversized transfer was partially executed")
+explorer.path="/home/user" explorer.selected="destination" pixelAction("copy")
+explorer.path="/home/user/bounded"
+local copy=fs.copy
+fs.copy=function() error("disk full") end
+pixelAction("paste")
+fs.copy=copy
+assert(nodes["/home/user/destination/original.txt"]=="do not overwrite" and explorer.clipboard,"failed copy lost source/clipboard")
+local fallback=start("apps.files.main","/home/user/destination")
+fallback.selected="original.txt"
+action(fallback,"properties") assert(fallback.properties)
+action(fallback,"properties_down") assert(fallback.properties.scroll==1)
+action(fallback,"cancel") assert(not fallback.properties)
+action(fallback,"copy")
+fallback.path="/home/user/bounded"
+action(fallback,"paste") assert(nodes["/home/user/bounded/original.txt"]=="do not overwrite")
+fs.makeDir("/home/user/deep/"..string.rep("nested/",33))
+fallback.path="/home/user" fallback.selected="deep" action(fallback,"copy")
+fallback.path="/home/user/bounded" action(fallback,"paste")
+assert(not nodes["/home/user/bounded/deep"],"deep transfer bypassed preflight limit")
+fs.delete("/home/user/deep") action(fallback,"paste")
+assert(fallback.clipboard and not nodes["/home/user/bounded/deep"],"missing source discarded clipboard")
 print("file/editor audit and native Files: no draw acquisition, search, create, rename, confirmed trash, restore and protected paths passed")

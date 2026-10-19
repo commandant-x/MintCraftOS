@@ -93,6 +93,10 @@ function M.run(ctx)
     { label = "New file", id = "new_file" },
     { label = "New dir", id = "new_dir" },
     { label = "Rename", id = "rename" },
+    { label = "Copy", id = "copy" },
+    { label = "Cut", id = "cut" },
+    { label = "Paste", id = "paste" },
+    { label = "Properties", id = "properties" },
     { label = "Delete", id = "delete" },
     { label = "Restore", id = "restore" },
     { label = "Delete forever", id = "delete_forever" },
@@ -210,6 +214,62 @@ function M.run(ctx)
     return fileNames.absolute(fs.combine(app.path, app.selected))
   end
 
+  local function inside(path,root)
+    return path==root or path:sub(1,#root+1)==root.."/"
+  end
+
+  local function pasteItem()
+    local clip=app.clipboard
+    if not clip then error("Clipboard is empty",0) end
+    local from=fileNames.absolute(clip.path)
+    local to=writable(fs.combine(app.path,basename(from)))
+    if inside(from,trash) or inside(to,trash) then error("Use Restore for trash items",0) end
+    if inside(to,from) then error("Cannot paste into the source or its descendants",0) end
+    if fs.exists(to) then error("Destination already exists; nothing overwritten",0) end
+    allowed("read",app.path) allowed("write",app.path)
+    if not fs.exists(from) then error("Clipboard source is no longer available",0) end
+    -- Preflight every descendant before touching either tree; bound traversal.
+    local pending={{from=from,to=to,depth=0}} local count,index=1,1
+    while pending[index] do
+      local item=pending[index] index=index+1
+      if inside(item.from,trash) or inside(item.to,trash) then error("Transfer includes trash; restore items first",0) end
+      allowed("read",item.from) writable(item.to)
+      if clip.cut then writable(item.from) end
+      if fs.isDir(item.from) then
+        if item.depth>=32 then error("Transfer exceeds 32 folder levels",0) end
+        for _,name in ipairs(fs.list(item.from)) do
+          count=count+1
+          if count>1024 then error("Transfer exceeds 1024 items; use smaller folders",0) end
+          pending[#pending+1]={from=fileNames.absolute(fs.combine(item.from,name)),
+            to=fileNames.absolute(fs.combine(item.to,name)),depth=item.depth+1}
+        end
+      end
+    end
+    local ok,problem=pcall(clip.cut and fs.move or fs.copy,from,to)
+    if not ok then error("Transfer failed; inspect destination before retrying: "..tostring(problem),0) end
+    if clip.cut then app.clipboard=nil end
+    app.selected=basename(to)
+    refresh()
+    ctx.notifications:push("success","Files",clip.cut and "Moved" or "Copied",3)
+  end
+
+  local function properties(path)
+    allowed("read",path)
+    if not fs.exists(path) then error("Item is no longer available",0) end
+    local attrs=type(fs.attributes)=="function" and fs.attributes(path) or nil
+    local folder=fs.isDir(path)
+    local size=attrs and attrs.size
+    if size==nil and not folder and type(fs.getSize)=="function" then size=fs.getSize(path) end
+    local readOnly=attrs and attrs.isReadOnly
+    if readOnly==nil and type(fs.isReadOnly)=="function" then readOnly=fs.isReadOnly(path) end
+    local lines={"Name: "..basename(path),"Type: "..(folder and "Folder" or "File"),
+      "Size: "..(folder and "not calculated" or size~=nil and tostring(size).." bytes" or "unavailable"),
+      "Read only: "..(readOnly==nil and "unavailable" or readOnly and "yes" or "no")}
+    if attrs and attrs.modified then lines[#lines+1]="Modified (epoch ms): "..tostring(attrs.modified) end
+    lines[#lines+1]="Path: "..path
+    app.properties={lines=lines,text=table.concat(lines,"\n"),path=path,scroll=0}
+  end
+
   local function navigate(path, backwards)
     path = fileNames.absolute(path)
     allowed("read", path)
@@ -223,7 +283,7 @@ function M.run(ctx)
     end
     app.path, app.selected, app.scroll = path, nil, 1
     app.nativeQuery,app.nativeSearchFocused="",false
-    app.mode, app.confirm = nil, nil
+    app.mode, app.confirm,app.properties = nil, nil,nil
     refresh()
     return true
   end
@@ -302,6 +362,15 @@ function M.run(ctx)
       setMode("new_dir", basename(uniquePath(app.path, "new_folder_", "")))
     elseif action == "rename" then
       if app.selected then setMode("rename", app.selected) end
+    elseif action=="copy" or action=="cut" then
+      local path=selectedPath()
+      if not path then error("Select an item first",0) end
+      allowed("read",path)
+      if inside(path,trash) then error("Restore trash items before transferring",0) end
+      if action=="cut" then writable(path) end
+      app.clipboard={path=path,cut=action=="cut"}
+    elseif action=="paste" then pasteItem()
+    elseif action=="properties" then properties(selectedPath() or app.path)
     elseif action == "delete" then
       if app.selected then
         local full = selectedPath()
@@ -368,12 +437,20 @@ function M.run(ctx)
     action=function(id) attempt(perform,id) end,
     open=function(name) attempt(openFile,fs.combine(app.path,name)) end,
     submit=function() attempt(submitInput) end,
-    cancel=function() setMode(nil) app.confirm=nil end,
+    cancel=function() setMode(nil) app.confirm=nil app.properties=nil end,
     confirm=confirmAction,
   },actions)
 
   function app:draw(w, h)
     if w < 1 or h < 1 then return end
+    if self.properties then
+      toolbar=ui.toolbar(1,1,w,{{id="cancel",label="Close"},{id="properties_up",label="Up"},{id="properties_down",label="Down"}})
+      local first=self.properties.scroll+1
+      for i=first,math.min(#self.properties.lines,first+h-3) do
+        renderer.writeAt(1,i-first+3,renderer.crop(self.properties.lines[i],w),theme.get("windowFg"),theme.get("windowBg"))
+      end
+      return
+    end
     if self.confirm then
       toolbar = ui.toolbar(1, 1, w, {{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}})
     elseif self.mode then
@@ -404,6 +481,22 @@ function M.run(ctx)
 
   function app:handle(event)
     if self:handlePixelKey(event) then return true end
+    if self.properties then
+      if event.name=="key" and (event.args[1]==keys.escape or event.args[1]==keys.enter) then self.properties=nil
+      elseif event.name=="key" and (event.args[1]==keys.up or event.args[1]==keys.down) then
+        self.properties.scroll=math.max(0,math.min(#self.properties.lines-1,self.properties.scroll+(event.args[1]==keys.up and -1 or 1)))
+      elseif event.name=="mouse_scroll" then self.properties.scroll=math.max(0,math.min(#self.properties.lines-1,self.properties.scroll+event.args[1]))
+      elseif event.name=="mouse_click" then
+        for _,box in ipairs(toolbar) do if ui.hit(box,event.args[2],event.args[3]) then
+          if box.id=="cancel" then self.properties=nil
+          elseif box.id=="properties_up" or box.id=="properties_down" then
+            self.properties.scroll=math.max(0,math.min(#self.properties.lines-1,self.properties.scroll+(box.id=="properties_up" and -1 or 1)))
+          end
+          break
+        end end
+      end
+      return true
+    end
     if self.confirm and event.name == "key" and event.args[1] == keys.escape then self.confirm = nil return true end
     if self.confirm and event.name ~= "mouse_click" then return true end
     if event.name == "key" then

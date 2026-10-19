@@ -80,7 +80,7 @@ local ok,err=pcall(function()
         queueInput("mouse_click",1,client.x+action.x+2,client.y+action.y+2) sleep(0.2)
         assert(win.app.mode=="new_file","native create dialog did not open")
         for _=1,#win.app.input do queueInput("key",keys.backspace) end
-        local testName="native-pixel-"..os.epoch("utc")..".txt"
+        local testName="native-caf"..string.char(195,169).."-"..os.epoch("utc")..".txt"
         sleep(0.3) queueInput("paste",testName) sleep(0.2)
         local destination=fs.combine(win.app.path,testName)
         assert(not fs.exists(destination),"native dialog wrote before submit")
@@ -88,6 +88,42 @@ local ok,err=pcall(function()
         for _=1,60 do if fs.exists(destination) then break end sleep(0.05) end
         assert(fs.exists(destination),"native keyboard/paste create failed")
         capture("pixel-files-created")
+        local function fileAction(id)
+          -- Toasts are real overlays; dismiss them before clicking covered menus.
+          for _=1,4 do
+            local toast=workspace.notificationHits[#workspace.notificationHits]
+            if not toast then break end
+            queueInput("mouse_click",1,toast.close.x+2,toast.close.y+2) sleep(0.1)
+          end
+          for _=1,22 do
+            local target
+            for _,item in ipairs(win.app.pixelButtons) do if item.id==id then target=item.rect end end
+            if not target and win.app.nativeMenu then
+              for _,item in ipairs(win.app.pixelMenuItems) do if item.id==id then target=item.rect end end
+            end
+            if target then
+              queueInput("mouse_click",1,client.x+target.x+2,client.y+target.y+2) sleep(0.15) return
+            end
+            for _,item in ipairs(win.app.pixelButtons) do
+              if item.id==(win.app.nativeMenu and "menu_next" or "menu") then target=item.rect end
+            end
+            assert(target,"file menu control missing")
+            queueInput("mouse_click",1,client.x+target.x+2,client.y+target.y+2) sleep(0.15)
+          end
+          error("file action unreachable: "..id)
+        end
+        fileAction("copy") assert(win.app.clipboard,"copy action failed")
+        fileAction("new_dir")
+        for _=1,#win.app.input do queueInput("key",keys.backspace) end
+        local folder="transfer-"..os.epoch("utc")
+        queueInput("paste",folder) queueInput("key",keys.enter) sleep(0.3)
+        fileAction("open")
+        assert(fs.getName(win.app.path)==folder,"new folder navigation failed")
+        fileAction("paste")
+        assert(fs.exists(fs.combine(win.app.path,testName)) and fs.exists(destination),"copy/paste changed source or lost destination")
+        fileAction("properties") assert(win.app.properties,"properties dialog missing")
+        capture("pixel-properties")
+        fileAction("cancel") assert(not win.app.properties,"properties modal did not close")
       end
       apps.ctx.scheduler:kill(pid)
     end
@@ -135,7 +171,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop and Files create via pixels/paste, drag/minimize/restore, shared keyboard/search, six apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Files UTF8 create/copy/paste/properties, drag/minimize/restore, shared keyboard/search, six apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

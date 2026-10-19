@@ -56,3 +56,30 @@ not change. Frontbuffer memory and legacy pixel-cache budgets remain bounded.
 
 Reference implementation: apps/files/pixel.lua. Its filesystem actions are
 delegated back to Files' existing validated and permission-checked functions.
+
+## Bitmap Text Layout (0.18.31)
+
+`fonts.draw` / `fonts.measure` retain CP437 bytes by default. Their final optional
+encoding argument accepts `cp437`, `utf8` or `auto`. Layout defaults to auto:
+strict valid UTF8 is converted, otherwise CP437 bytes are retained. Common French
+accents map to the embedded font; unknown Unicode becomes `?`. Ligatures oe/OE,
+curly quotes, dashes and ellipsis are ASCII substitutions. Conversion is for
+display only; never save converted glyph bytes over user files.
+
+```lua
+local fonts = require("system.graphics.fonts")
+local layout = fonts.drawText(canvas, 8, 24, width - 16, height - 32,
+  message, palette.text, palette.panel, {
+    encoding = "auto", scale = 1, wrap = true,
+    align = "left", valign = "top", lineSpacing = 3,
+  })
+-- layout.lines: decoded text, x/y offsets, pixel width.
+-- layout.width/height and layout.overflow describe the bounded viewport.
+```
+
+`fonts.layout(text,width,height,options)` performs no drawing/acquisition. Cache
+by text/bounds/options. drawText clips to the local rectangle and retains parent
+damage clipping. Tabs use four-glyph stops. Wrap prefers word boundaries and
+splits long words/paths. `widgets.paragraph(canvas,rect,text,fg,bg,options)` shares
+the same pipeline; labels/inputs use its codec before truncation. Limits: 64 KiB
+source, 4096 lines, scale 1-4, integer line spacing 0-64.
