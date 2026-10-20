@@ -5,6 +5,8 @@ local safeWrite = require("system.libraries.safe_write")
 local fileNames = require("system.libraries.file_names")
 local theme = require("system.gui.theme")
 local ui = require("system.gui.components")
+local editing=require('apps.editor.editing')
+local pixel=require('apps.editor.pixel')
 
 local M = {}
 
@@ -39,6 +41,7 @@ local function currentPrefix(line, col)
 end
 
 local function insertText(app, text)
+  editing.removeSelection(app)
   app.revision = app.revision + 1
   local line = app.lines[app.cy]
   local before = line:sub(1, app.cx - 1)
@@ -144,6 +147,7 @@ function M.run(ctx)
   end
 
   app.persistDraft = function()
+    app.isDirty=dirty() app.revealCursor=true
     if draftBlocked then return end
     local ok, problem = pcall(function()
       draftAllowed()
@@ -194,6 +198,7 @@ function M.run(ctx)
       return cleaned and reason or (reason .. "; draft cleanup failed: " .. tostring(problem))
     end)
     app.status = ok and message or ("Save failed: " .. tostring(message))
+    app.isDirty=dirty()
     return ok
   end
 
@@ -214,6 +219,7 @@ function M.run(ctx)
     if not dirty() then pcall(clearDraft) return true end
     self.persistDraft()
     self.closePrompt, closeWindow = true, win
+    self.closeFocus=nil
     self.status = "Unsaved changes"
     if ctx.invalidate then ctx.invalidate() end
     return false
@@ -232,6 +238,7 @@ function M.run(ctx)
   end
 
   local function applySuggestion()
+    if editing.range(app) then return false end
     local line = app.lines[app.cy]
     local sug, prefix = suggestion()
     if not sug then return false end
@@ -249,9 +256,13 @@ function M.run(ctx)
     return true
   end
 
-  app.keyboard.onText = function(ch) insertText(app, ch) end
+  app.keyboard.onText = function(ch)
+    if app.searchOpen then app.searchQuery=((app.searchQuery or '')..ch):sub(1,256) else insertText(app,ch) end
+  end
   app.keyboard.onBackspace = function()
+    if app.searchOpen then app.searchQuery=(app.searchQuery or ''):sub(1,-2) return end
     app.revision = app.revision + 1
+    if editing.removeSelection(app) then app.persistDraft() return end
     local line = app.lines[app.cy]
     if app.cx > 1 then
       app.lines[app.cy] = line:sub(1, app.cx - 2) .. line:sub(app.cx)
@@ -264,18 +275,41 @@ function M.run(ctx)
     end
     app.persistDraft()
   end
-  app.keyboard.onEnter = function() insertText(app, "\n") end
-  app.keyboard.onTab = applySuggestion
+  app.keyboard.onEnter = function() if app.searchOpen then app:action('findNext') else insertText(app,'\n') end end
+  app.keyboard.onTab = function() if app.searchOpen then app:action('findNext') else return applySuggestion() end end
   app.keyboard.onControl = function(ch)
     if ch == "s" then
       save()
+    else
+      local actions={f='find',a='selectAll',c='copy',x='cut'}
+      if actions[ch] then app:action(actions[ch]) end
+    end
+  end
+
+  function app:refreshCompletion() self.completion=suggestion() end
+  function app:insert(value) insertText(self,value) end
+  function app:action(id)
+    if self.closePrompt then closeChoice(id) return end
+    if id=='save' then local ok=save() self.isDirty=dirty() return ok
+    elseif id=='compile' then
+      local ok,problem=pcall(function() allowed('dev.compile',path) allowed('filesystem.read','/var/tmp') compile(self,allowed) end)
+      if not ok then self.status='Compile failed: '..tostring(problem) end
+    elseif id=='keyboard' then self.keyboardVisible=not self.keyboardVisible self.pixelKeyboard=not self.pixelKeyboard
+    elseif id=='find' then self.searchOpen=not self.searchOpen self.searchQuery=self.searchQuery or ''
+    elseif id=='findNext' then self.status=editing.find(self,self.searchQuery or '') and 'Match selected' or 'No match'
+    elseif id=='copy' then self.clipboard=editing.selected(self) self.status=#self.clipboard>0 and 'Selection copied inside Editor' or 'No selection'
+    elseif id=='cut' then
+      self:action('copy') if self.clipboard~='' then insertText(self,'') end
+    elseif id=='paste' then if self.clipboard and self.clipboard~='' then insertText(self,self.clipboard) end
+    elseif id=='selectAll' then self.anchor={row=1,col=1} self.cy=#self.lines self.cx=#self.lines[self.cy]+1 self.revealCursor=true
     end
   end
 
   function app:draw(w, h)
+    if not self.graphicsActive then self.searchOpen=false self.anchor=nil self.controlHeld=false self.shiftHeld=false end
     self.lastH = h
     if w < 1 or h < 1 then return end
-    local sug = suggestion()
+    local sug = self.completion
     if self.closePrompt then
       closeBoxes = ui.toolbar(1, 1, w, {{id="save",label="Save"},{id="discard",label="Discard"},{id="cancel",label="Cancel"}}, closeState)
     else
@@ -291,7 +325,7 @@ function M.run(ctx)
       local marker = lineNo == self.cy and ">" or " "
       renderer.writeAt(1, row + 1, renderer.crop(marker .. tostring(lineNo) .. " " .. text, w), theme.get("windowFg"), theme.get("windowBg"))
     end
-    if h - kbH - 1 >= 2 then renderer.writeAt(1, h - kbH - 1, renderer.crop(self.status .. (dirty() and " * " or " ") .. self.path, w), theme.get("buttonFg"), theme.get("buttonBg")) end
+    if h - kbH - 1 >= 2 then renderer.writeAt(1, h - kbH - 1, renderer.crop(self.status .. (self.isDirty and " * " or " ") .. self.path, w), theme.get("buttonFg"), theme.get("buttonBg")) end
     if h - kbH >= 2 then renderer.writeAt(1, h - kbH, renderer.crop(sug and ("Tab: " .. sug.label .. " [" .. sug.kind .. "]") or "", w), theme.get("windowFg"), theme.get("warning")) end
     self.keyboard.x = 1
     self.keyboard.y = h - kbH + 1
@@ -300,6 +334,7 @@ function M.run(ctx)
   end
 
   function app:handle(event)
+    if self.graphicsActive and not event.name:match('^mouse_') then return self:handlePixels(event) end
     if self.closePrompt then
       if event.name == "key" and event.args[1] == keys.escape then closeChoice("cancel") return true end
       if event.name == "mouse_click" and event.args[1] == 1 then
@@ -375,6 +410,19 @@ function M.run(ctx)
     return false
   end
 
+  app.isDirty=dirty() app:refreshCompletion()
+  pixel.attach(app)
+  if ctx.system and ctx.system.eventBus and ctx.onCleanup then
+    local bus=ctx.system.eventBus
+    local listener=bus:on('key_up',function(key)
+      if key==keys.leftCtrl or key==keys.rightCtrl then app.controlHeld=false end
+      if key==keys.leftShift or key==keys.rightShift then app.shiftHeld=false end
+    end)
+    ctx.onCleanup(function() bus:off(listener) end)
+  end
+  local handle,handlePixels=app.handle,app.handlePixels
+  app.handle=function(self,event) local result=handle(self,event) self:refreshCompletion() return result end
+  app.handlePixels=function(self,event) local result=handlePixels(self,event) self:refreshCompletion() return result end
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Editor", w = math.min(78, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
   local originalDraw = app.draw

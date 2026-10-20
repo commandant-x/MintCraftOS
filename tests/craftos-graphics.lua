@@ -49,11 +49,32 @@ local ok,err=pcall(function()
     assert(stats.backend=="PIXEL256","pixel backend inactive: "..tostring(stats.lastError))
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
-    for _,id in ipairs({"files","terminal","settings","messenger","navigation","combat","logs","services","devices","taskmanager","update","nexus"}) do
-      local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
+    for _,id in ipairs({"files","editor","terminal","settings","messenger","navigation","combat","logs","services","devices","taskmanager","update","nexus"}) do
+      local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or id=='editor' and {path='/home/user/native-editor.lua'} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
       assert(proc.state=="ready" and proc.window and not proc.window.closed,id..": "..tostring(proc.error))
+        if id=='editor' then
+          local win=proc.window local app=win.app
+          assert(win.pixelNative,'Editor is still a legacy client')
+          win:toggleMaximize() os.queueEvent('mintcraft_test') sleep(0.2)
+          queueInput('key',keys.leftCtrl) queueInput('key',keys.a) queueInput('key_up',keys.leftCtrl)
+          queueInput('paste','local altitude = 42\nreturn altitude') sleep(0.15)
+          assert(#app.lines==2 and app.lines[1]=='local altitude = 42','native selection/paste replacement failed')
+          queueInput('key',keys.leftCtrl) queueInput('key',keys.s) queueInput('key_up',keys.leftCtrl) sleep(0.15)
+          local file=assert(fs.open('/home/user/native-editor.lua','r')) local saved=file.readAll() file.close()
+          assert(saved==table.concat(app.lines,'\n') and not app.isDirty,'native save shortcut failed: '..tostring(app.status))
+          app:action('compile') assert(app.status=='Compile OK',tostring(app.status))
+          app:action('find') app.keyboard.onText('altitude') app:action('findNext')
+          assert(require('apps.editor.editing').selected(app)=='altitude','native find selection failed')
+          win.dirty=true os.queueEvent('mintcraft_test') sleep(0.15) capture('pixel-editor-search')
+          app.searchOpen=false app:insert('height')
+          assert(app:canClose(win)==false and app.closePrompt and not win.closed,'unsaved editor closed without confirmation')
+          win.dirty=true os.queueEvent('mintcraft_test') sleep(0.1) capture('pixel-editor-close')
+          app:action('cancel') assert(not app.closePrompt and not win.closed)
+          app:action('save') app.pixelKeyboard=true win.dirty=true os.queueEvent('mintcraft_test') sleep(0.15)
+          capture('pixel-editor-keyboard')
+        end
         if id=="settings" then
           local win=proc.window local app=win.app
           assert(win.pixelNative,'Settings is still a legacy client')
@@ -386,7 +407,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Messenger rollover/paste/keyboard, Settings twelve pages/service-owned label write, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, twelve apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Editor selection/save/find/close protection, Messenger rollover/paste/keyboard, Settings twelve pages/service-owned label write, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, thirteen apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

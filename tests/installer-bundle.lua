@@ -17,4 +17,5 @@ for _,path in ipairs({'VERSION','boot.lua','startup.lua','system/libraries/insta
   assert(captured[path],'Required release file omitted: '..path)
 end
 assert(count>100,'Unexpectedly incomplete installer')
+assert(captured['apps/editor/editing.lua'] and captured['apps/editor/pixel.lua'],'Required native Editor modules missing')
 print('installer bundle: every embedded source matches the release tree; required Devices/Settings modules present')

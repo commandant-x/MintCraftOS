@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.42:
+This repository currently contains V0.18.43:
+
+V0.18.43 adds a native pixel Editor with line numbers, caret, selection, literal
+search, basic Lua coloring and shared tactile input. Existing draft recovery,
+conflict-checked saves and compile-without-execution remain intact. Only visible
+rows are drawn and unchanged visible text reuses its token cache. See
+[Editor graphics notes](docs/GRAPHICS-0.18.43.md).
 
 V0.18.42 gives Messenger native wrapped message history, bitmap draft input,
 Live scrolling and a tactile keyboard. Transport runs outside drawing; receive

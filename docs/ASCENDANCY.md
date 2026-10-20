@@ -9,9 +9,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.42 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.43 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files, Messenger, Settings, Devices, Update, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
+Files, Editor, Messenger, Settings, Devices, Update, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
 explicit migration. Combat's 0.18.35 increment is documented separately.
 
@@ -133,7 +133,7 @@ or finished ASCENDANCY.
 | Services | Native cached state/list/details/errors, protected controls and confirmation; serialized manager-owned actions with live permissions and per-service locks | Runtime/performance presentation expansion and actual in-game lifecycle validation |
 | Store | Hidden legacy package UI retained | Native package states without inventing a populated catalog |
 | Devices | Native cached inventory/search/category/inspector, keyboard and scrollbar, asynchronous metadata, identity-bound Probe results, hotplug invalidation and authorized Display-settings shortcut | In-game peripheral/hotplug validation, richer sorting and independent diagnostic-service lifecycle when Combat is disabled |
-| Editor | Hidden integrated editor retained | Native mono text, selection/caret/scroll/search/save/errors without whole-document redraw per key |
+| Editor | Native visible-row text/caret/line numbers, selection/drag/literal search, local clipboard, basic Lua coloring and tactile input; existing conflict-safe saves, compile and draft recovery retained | Unicode/grapheme editing, cross-app/system clipboard, large-file draft/write optimization and in-game legibility/input validation remain |
 | Update | Native cached versions/source/checkpoint, wrapped diagnostic inspector, keyboard, disabled states; service-owned yielding transaction with single-use source/version-bound confirmations and live caller/session checks | In-game lifecycle validation and broader recovery/fault UX; trusted installer is not a Lua sandbox |
 
 V0.18.39 also connects associated NEXUS agents to Combat through bounded,
@@ -205,6 +205,12 @@ asynchronous transport worker. The full-inbox cursor bug is fixed with monotonic
 sequences. Public chat remains explicitly unauthenticated/unencrypted, distinct
 from NEXUS association. 112 fast suites, twelve-app native/terminal simulations,
 text fallback and update/migration gates pass. See GRAPHICS-0.18.42.md.
+
+V0.18.43: Editor now uses native visible-row rendering, caret, line numbers,
+selection/drag/literal search, basic Lua coloring and tactile input. Existing
+conflict/draft/save/compile protections are retained. 114 fast suites and the
+thirteen-app native/terminal workflows pass. See GRAPHICS-0.18.43.md for limits.
+Remaining app/forms migration, global UI scale and E-J scope stay required.
 
 Continue B: complete reusable controls, UI scale, typography, cursor behavior,
 native WM polish and real CC Terminals validation.
