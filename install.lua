@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1467,7 +1467,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1866,7 +1866,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -2214,7 +2214,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2884,7 +2884,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -3707,7 +3707,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -4006,7 +4006,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -4224,7 +4224,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -5115,7 +5115,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -5354,7 +5354,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -5978,7 +5978,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -6093,7 +6093,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -6512,9 +6512,9 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.43",
+  version = "0.18.44",
   main = "apps.terminal.main",
-  permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
+  permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
 ]=],
   ["apps/terminal/main.lua"] = [=[
@@ -6526,6 +6526,7 @@ local autocomplete = require("system.dev.autocomplete")
 local securityd = require("system.services.securityd")
 local fileNames = require("system.libraries.file_names")
 local authentication = require("system.libraries.auth_worker")
+local pixel=require('apps.terminal.pixel')
 
 local M = {}
 
@@ -6540,9 +6541,14 @@ local function displayInput(input)
   return command .. (args ~= "" and " ***" or "")
 end
 
-local function append(app, line)
-  table.insert(app.lines, line)
-  if #app.lines > 200 then table.remove(app.lines, 1) end
+local function append(app, line, color)
+  line=tostring(line)
+  if #line>4096 then line=line:sub(1,4070)..' [output truncated]' end
+  app.outputSequence=(app.outputSequence or #app.lines)+1
+  app.lineIds=app.lineIds or {} app.lineColors=app.lineColors or {}
+  table.insert(app.lines,line) table.insert(app.lineIds,app.outputSequence) table.insert(app.lineColors,color or 'text')
+  if #app.lines > 200 then table.remove(app.lines,1) table.remove(app.lineIds,1) table.remove(app.lineColors,1) end
+  app.outputRevision=(app.outputRevision or 0)+1
 end
 
 local help = {
@@ -6582,6 +6588,9 @@ local function trashPath(name)
   return fs.combine("/home/user/.trash", name)
 end
 
+local readPermissions={ls='filesystem.read',cd='filesystem.read',cat='filesystem.read',type='filesystem.read',
+  cp='filesystem.read',ps='process.list',logs='logs.read'}
+
 local function runCommand(app, ctx, input)
   append(app, "> " .. displayInput(input))
   if app.pending then
@@ -6598,9 +6607,13 @@ local function runCommand(app, ctx, input)
 
   local cmd, rest = input:match("^(%S+)%s*(.*)$")
   if not cmd then return end
+  if readPermissions[cmd] then
+    local ok,err=ctx.security.require(readPermissions[cmd],rest~='' and rest or app.cwd)
+    if not ok then append(app,err,'error') return end
+  end
 
   if cmd == "clear" then
-    app.lines = {}
+    app:clearOutput()
   elseif cmd == "ls" then
     local path = rest ~= "" and fs.combine(app.cwd, rest) or app.cwd
     if fs.exists(path) and fs.isDir(path) then
@@ -6808,6 +6821,7 @@ function M.run(ctx)
     history = {},
     historyIndex = nil,
     keyboard = {},
+    lineIds={1,2},lineColors={'accent','muted'},outputSequence=2,outputRevision=0,follow=true,
   }
 
   local quick = {
@@ -6820,35 +6834,41 @@ function M.run(ctx)
   }
 
   local function currentWord()
-    return autocomplete.prefix(app.input, #app.input + 1, "([%w_%-/%.]+)$")
+    return autocomplete.prefix(app.input, app.cursor or #app.input + 1, "([%w_%-/%.]+)$")
   end
 
-  local suggestionInput, suggestionCwd, suggestionTime
+  local suggestionInput, suggestionCwd, suggestionTime, suggestionCursor
   local function updateSuggestion()
     local now = os.clock()
-    if suggestionInput == app.input and suggestionCwd == app.cwd and now - suggestionTime < 1 then return end
-    suggestionInput, suggestionCwd, suggestionTime = app.input, app.cwd, now
     if sensitive(app.input) then
-      app.suggestion = nil
+      app.suggestion=nil suggestionInput=nil app.completionError=nil
       return
     end
-    local prefix = currentWord()
-    app.suggestion = autocomplete.suggest({ mode = "terminal", prefix = prefix, cwd = app.cwd, text = app.input, cursor = #app.input + 1 })
+    if suggestionInput == app.input and suggestionCwd == app.cwd and suggestionCursor==app.cursor and now - suggestionTime < 1 then return end
+    suggestionInput, suggestionCwd, suggestionTime,suggestionCursor=app.input,app.cwd,now,app.cursor
+    local readable=ctx.security.require('filesystem.read',app.cwd)
+    if not readable then app.suggestion=nil app.completionError='Autocomplete unavailable' return end
+    local ok,result=pcall(function()
+      local prefix=currentWord()
+      return autocomplete.suggest({mode='terminal',prefix=prefix,cwd=app.cwd,text=app.input,cursor=app.cursor or #app.input+1})
+    end)
+    app.suggestion=ok and result or nil app.completionError=not ok and 'Autocomplete unavailable' or nil
   end
 
   local function acceptSuggestion()
-    updateSuggestion()
+    if not app.suggestion or suggestionInput~=app.input or suggestionCwd~=app.cwd or suggestionCursor~=app.cursor then updateSuggestion() end
     if not app.suggestion then return false end
     local prefix = currentWord()
-    local text = autocomplete.apply(app.input, #app.input + 1, app.suggestion, prefix)
+    local text,cursor = autocomplete.apply(app.input, app.cursor or #app.input + 1, app.suggestion, prefix)
     app.input = text
+    app.cursor=cursor or #text+1
     app.suggestion = nil
     return true
   end
 
   local function submit()
     local input = app.input
-    app.input = ""
+    app.input='' app.cursor=nil app.suggestion=nil app.follow=true
     if input ~= "" and not sensitive(input) then
       table.insert(app.history, input)
       if #app.history > 100 then table.remove(app.history, 1) end
@@ -6866,7 +6886,7 @@ function M.run(ctx)
     if not ok then
       app.pending = nil
       if sensitive(input) then err = "Authentication command failed" end
-      append(app, "Error: " .. tostring(err))
+      append(app, "Error: " .. tostring(err),'error')
       log.error("terminal", tostring(err))
     end
   end
@@ -6886,18 +6906,48 @@ function M.run(ctx)
     return false
   end
 
-  app.keyboard.onText = function(ch) app.input = app.input .. ch updateSuggestion() end
-  app.keyboard.onBackspace = function() app.input = string.sub(app.input, 1, -2) updateSuggestion() end
+  app.keyboard.onText = function(ch)
+    ch=tostring(ch or ''):match('^[^\r\n]*') or ''
+    local col=math.max(1,math.min(#app.input+1,app.cursor or #app.input+1))
+    ch=ch:sub(1,math.max(0,4096-#app.input))
+    app.input=app.input:sub(1,col-1)..ch..app.input:sub(col) app.cursor=col+#ch
+    updateSuggestion()
+  end
+  app.keyboard.onBackspace = function()
+    local col=math.max(1,math.min(#app.input+1,app.cursor or #app.input+1))
+    if col>1 then app.input=app.input:sub(1,col-2)..app.input:sub(col) app.cursor=col-1 end
+    updateSuggestion()
+  end
   app.keyboard.onEnter = submit
   app.keyboard.onTab = acceptSuggestion
   app.keyboard.onControl = function(ch)
-    if ch == "l" then app.lines = {}
-    elseif ch == "u" then app.input = "" updateSuggestion() end
+    if ch == "l" then app:clearOutput()
+    elseif ch == "u" then app.input='' app.cursor=nil updateSuggestion() end
+    if ch=='c' then app:action('copy') end
+  end
+
+  function app:clearOutput()
+    self.lines={} self.lineIds={} self.lineColors={} self.selection=nil self.outputRevision=self.outputRevision+1 self.follow=true
+  end
+  function app:visibleInput() return displayInput(self.input),sensitive(self.input) end
+  function app:refreshSuggestion() if type(autocomplete.suggest)=='function' then updateSuggestion() end end
+  function app:action(id)
+    if id=='keyboard' then self.pixelKeyboard=not self.pixelKeyboard
+    elseif id=='live' then self.follow=true
+    elseif id=='copy' then
+      local rows={} local first,last=self.selection and self.selection.first,self.selection and self.selection.last
+      if first and last then for i,line in ipairs(self.lines) do local seq=self.lineIds[i]
+        if seq>=math.min(first,last) and seq<=math.max(first,last) then rows[#rows+1]=line end
+      end end self.clipboard=table.concat(rows,'\n')
+    elseif id=='paste' then if self.clipboard then self.keyboard.onText(self.clipboard) end
+    elseif id=='clear' then self:clearOutput()
+    elseif id=='submit' then submit()
+    else for _,item in ipairs(quick) do if item.id==id then self.input=item.text self.cursor=nil submit() break end end end
   end
 
   function app:draw(w, h)
+    if not self.graphicsActive then self.cursor=nil self.controlHeld=false end
     self.lastH = h
-    updateSuggestion()
     local top = math.max(3, h - keyboard.height())
     local logHeight = math.max(1, top - 3)
     self.quickBoxes = ui.toolbar(1, 1, w, quick)
@@ -6921,9 +6971,7 @@ function M.run(ctx)
 
   function app:handle(event)
     if event.name == "char" or event.name=="paste" then
-      local text=tostring(event.args[1] or ""):match("^[^\r\n]*") or ""
-      self.input = (self.input .. text):sub(1,4096)
-      if type(autocomplete.suggest)=="function" then updateSuggestion() end
+      self.keyboard.onText(event.args[1])
       return true
     elseif event.name == "key" then
       local key = event.args[1]
@@ -6931,8 +6979,7 @@ function M.run(ctx)
         submit()
         return true
       elseif key == keys.backspace then
-        self.input = string.sub(self.input, 1, -2)
-        updateSuggestion()
+        self.keyboard.onBackspace()
         return true
       elseif key == keys.tab then
         acceptSuggestion()
@@ -6941,12 +6988,14 @@ function M.run(ctx)
         if #self.history > 0 then
           self.historyIndex = self.historyIndex and math.max(1, self.historyIndex - 1) or #self.history
           self.input = self.history[self.historyIndex] or self.input
+          self.cursor=nil self:refreshSuggestion()
         end
         return true
       elseif key == keys.down then
         if self.historyIndex then
           self.historyIndex = self.historyIndex + 1
           if self.historyIndex > #self.history then self.historyIndex = nil self.input = "" else self.input = self.history[self.historyIndex] end
+          self.cursor=nil self:refreshSuggestion()
         end
         return true
       end
@@ -6964,6 +7013,19 @@ function M.run(ctx)
     return false
   end
 
+  app.handleText=app.handle
+  pixel.attach(app)
+  if ctx.system and ctx.system.eventBus and ctx.onCleanup then
+    local bus=ctx.system.eventBus
+    local listener=bus:on('key_up',function(key)
+      if key==keys.leftCtrl or key==keys.rightCtrl then app.controlHeld=false end
+    end)
+    ctx.onCleanup(function() bus:off(listener) end)
+  end
+  app.handle=function(self,event)
+    if self.graphicsActive and not event.name:match('^mouse_') then return self:handlePixels(event) end
+    return self:handleText(event)
+  end
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Terminal", w = math.min(72, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })
   authWorker=authentication.new(ctx,function(input,options)
@@ -6978,11 +7040,155 @@ end
 
 return M
 ]=],
+  ["apps/terminal/pixel.lua"] = [=[
+local ui=require('system.graphics.widgets')
+local fonts=require('system.graphics.fonts')
+local View=require('system.graphics.view')
+local primitives=require('system.graphics.primitives')
+local Keyboard=require('system.graphics.keyboard')
+local M={}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
+local commands={{'ls','List files'},{'home','Home directory'},{'files','Open Files'},{'ps','Processes'},
+  {'logs','Recent logs'},{'clear','Clear output'},{'copy','Copy selected output'},{'paste','Paste copied text'}}
+function M.attach(app)
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel) self.pixelHits={} self.keyboard.pixelBoxes={} self.rowHits={} self.scrollbar=nil self.bodyArea=nil self.inputArea=nil
+    self.nativeReady=w>=200 and h>=120
+    if not self.nativeReady then self.commandMenu=false self.pixelKeyboard=false ui.label(s,5,6,'Terminal: enlarge window',w-10,p.text,p.panel) return end
+    local function button(id,label,r,kind)
+      if kind then ui.symbol(s,r,kind,p) else ui.button(s,r,label,p,id=='live' and self.follow) end
+      self.pixelHits[#self.pixelHits+1]={id=id,rect=r}
+    end
+    local function input(r)
+      self.inputArea=r local value,private=self:visibleInput() self.privateInput=private
+      local count=math.max(1,math.floor((r.w-10)/6)-1)
+      local cursor=private and #value+1 or clamp(self.cursor or #value+1,1,#value+1)
+      local left=math.max(1,cursor-count+1) self.inputLeft=left
+      s:rect(r.x,r.y,r.w,r.h,p.desktop) primitives.rect(s,r.x,r.y,r.w,r.h,p.accent)
+      local top=r.y+math.floor((r.h-9)/2)
+      fonts.draw(s,r.x+5,top,value:sub(left,left+count-1),p.text,p.desktop)
+      s:rect(r.x+5+(cursor-left)*6,top,1,9,p.accent)
+    end
+    if self.pixelKeyboard and h<230 then
+      ui.label(s,5,3,self.authBusy and 'Authenticating...' or 'Terminal',w-37,p.muted,p.panel)
+      button('keyboard','',rect(w-26,1,22,18),'close') input(rect(5,23,w-40,23))
+      button('submit','',rect(w-30,23,25,23),'next')
+      Keyboard.draw(s,5,46,w-10,h-49,self.keyboard,p)
+    else
+      ui.label(s,5,10,self.cwd,w-122,p.muted,p.panel)
+      button('live','Live',rect(w-115,4,48,24)) button('keyboard','',rect(w-62,4,25,24),'keyboard')
+      button('menu','',rect(w-32,4,25,24),'more')
+      local kbH=self.pixelKeyboard and math.min(130,math.floor(h/3)) or 0
+      local inputY=h-kbH-49
+      input(rect(5,inputY,w-43,25)) button('submit','',rect(w-33,inputY,28,25),'next')
+      local status=self.authBusy and 'Authentication running' or self.pending and 'Confirmation pending: type yes, or another command to cancel'
+        or self.completionError or self.suggestion and ('Tab: '..self.suggestion.label) or (#self.lines..' cached output records')
+      ui.label(s,5,h-kbH-17,status,w-10,p.muted,p.panel)
+      if kbH>0 then Keyboard.draw(s,5,h-kbH,w-10,kbH-2,self.keyboard,p) end
+      local area=rect(5,34,w-20,math.max(1,inputY-41)) self.bodyArea=area
+      local layout=self.outputLayout
+      if not layout or layout.revision~=self.outputRevision or layout.width~=area.w then
+        local cache={} local groups={} local budget=8192 local truncated=false
+        for i=#self.lines,1,-1 do
+          if budget==0 then truncated=true break end
+          local id=self.lineIds[i] local source=self.lines[i]
+          local old=self.outputTextCache and self.outputTextCache[id]
+          local text=old and old.source==source and old.width==area.w and old.text or fonts.layout(source,area.w-8,8192,{wrap=true,lineSpacing=2})
+          cache[id]={source=source,width=area.w,text=text}
+          local first=math.max(1,#text.lines-budget+1) local group={id=id,color=self.lineColors[i],lines={}}
+          if first>1 then truncated=true end
+          for index=first,#text.lines do group.lines[#group.lines+1]=text.lines[index].text end
+          groups[#groups+1]=group budget=budget-#group.lines
+        end
+        layout={revision=self.outputRevision,width=area.w,rows={},truncated=truncated}
+        for i=#groups,1,-1 do local group=groups[i] for _,line in ipairs(group.lines) do layout.rows[#layout.rows+1]={id=group.id,text=line,color=group.color} end end
+        self.outputTextCache=cache self.outputLayout=layout
+      end
+      self.visibleRows=math.max(1,math.floor(area.h/11)) self.outputFirst=clamp(self.outputFirst or 1,1,math.max(1,#layout.rows-self.visibleRows+1))
+      if self.follow then self.outputFirst=math.max(1,#layout.rows-self.visibleRows+1) end
+      local view=View.new(s,area.x,area.y,area.w,area.h)
+      for i=1,self.visibleRows do local row=layout.rows[self.outputFirst+i-1] if not row then break end
+        local selection=self.selection local selected=selection and row.id>=math.min(selection.first,selection.last) and row.id<=math.max(selection.first,selection.last)
+        local bg=selected and p.accent or p.panel local fg=selected and p.ink or row.color=='accent' and p.accent or row.color=='muted' and p.muted or row.color=='error' and 14 or p.text
+        view:rect(0,(i-1)*11,area.w,11,bg) fonts.draw(view,3,(i-1)*11+1,row.text,fg,bg)
+        self.rowHits[#self.rowHits+1]={id=row.id,rect=rect(area.x,area.y+(i-1)*11,area.w,11)}
+      end
+      self.scrollbar=rect(w-10,area.y,6,area.h) ui.scrollbar(s,self.scrollbar,#layout.rows,self.visibleRows,self.outputFirst,p)
+      if layout.truncated then ui.label(s,5,area.y, 'Older visual rows clipped',area.w,p.muted,p.panel) end
+    end
+    if self.commandMenu then
+      self.pixelHits={} self.rowHits={} self.keyboard.pixelBoxes={} self.scrollbar=nil self.inputArea=nil
+      local capacity=math.max(1,math.floor((h-36)/23)) local index=clamp(self.menuIndex or 1,1,#commands)
+      self.menuIndex=index local first=clamp(self.menuFirst or 1,1,math.max(1,#commands-capacity+1)) self.menuFirst=first
+      local mw=math.min(210,w-10) s:rect(4,30,mw+2,math.min(capacity,#commands)*23+2,p.desktop)
+      for i=first,math.min(#commands,first+capacity-1) do local item=commands[i]
+        button(item[1],item[2],rect(5,31+(i-first)*23,mw,22))
+        if i==index then primitives.rect(s,5,31+(i-first)*23,mw,22,p.accent) end
+      end
+    end
+  end
+  function app:handlePixels(event)
+    if not self.nativeReady then return false end
+    local name,key=event.name,event.args[1] local x,y=event.args[2],event.args[3]
+    if name=='key_up' and (key==keys.leftCtrl or key==keys.rightCtrl) then self.controlHeld=false return true end
+    if self.commandMenu then
+      if name=='key' then
+        if key==keys.escape then self.commandMenu=false
+        elseif key==keys.enter then local item=commands[self.menuIndex or 1] self.commandMenu=false self:action(item[1])
+        elseif key==keys.up or key==keys.down then
+          self.menuIndex=clamp((self.menuIndex or 1)+(key==keys.up and -1 or 1),1,#commands)
+          local capacity=math.max(1,math.floor((self.lastPixelH-36)/23))
+          if self.menuIndex<(self.menuFirst or 1) then self.menuFirst=self.menuIndex elseif self.menuIndex>=(self.menuFirst or 1)+capacity then self.menuFirst=self.menuIndex-capacity+1 end
+        end
+      elseif name=='mouse_click' then
+        for _,hit in ipairs(self.pixelHits) do if ui.hit(hit.rect,x,y) then self.commandMenu=false self:action(hit.id) return true end end self.commandMenu=false
+      elseif name=='mouse_scroll' then self.menuFirst=clamp((self.menuFirst or 1)+key,1,#commands) self.menuIndex=self.menuFirst end return true
+    end
+    if name=='char' and self.controlHeld then return true end
+    if name=='char' or name=='paste' then return self:handleText(event)
+    elseif name=='key' then
+      if key==keys.leftCtrl or key==keys.rightCtrl then self.controlHeld=true return true end
+      if self.controlHeld then
+        if key==keys.l then self.keyboard.onControl('l') elseif key==keys.u then self.keyboard.onControl('u') elseif key==keys.c then self.keyboard.onControl('c') end return true
+      end
+      if key==keys.escape then self.pixelKeyboard=false self.selection=nil return true end
+      if key==keys.pageUp or key==keys.pageDown then self.follow=false self.outputFirst=math.max(1,(self.outputFirst or 1)+(key==keys.pageUp and -1 or 1)*(self.visibleRows or 5)) return true end
+      local col=clamp(self.cursor or #self.input+1,1,#self.input+1)
+      if key==keys.left then self.cursor=math.max(1,col-1)
+      elseif key==keys.right then self.cursor=math.min(#self.input+1,col+1)
+      elseif key==keys.home then self.cursor=1 elseif key==keys['end'] then self.cursor=#self.input+1
+      elseif key==keys.delete then self.input=self.input:sub(1,col-1)..self.input:sub(col+1)
+      else return self:handleText(event) end self:refreshSuggestion() return true
+    elseif name=='mouse_up' then self.selecting=false self.scrollDragging=false return true
+    elseif name=='mouse_scroll' and self.bodyArea then self.follow=false self.outputFirst=math.max(1,(self.outputFirst or 1)+key*3) return true
+    elseif name=='mouse_click' then
+      self.controlHeld=false
+      for _,hit in ipairs(self.pixelHits) do if ui.hit(hit.rect,x,y) then
+        if hit.id=='menu' then self.commandMenu=true self.menuFirst=1 self.menuIndex=1 else self:action(hit.id) end return true
+      end end
+      if self.pixelKeyboard and Keyboard.handle(event,self.keyboard) then return true end
+      if ui.hit(self.inputArea,x,y) then
+        self.cursor=self.privateInput and #self.input+1 or clamp((self.inputLeft or 1)+math.floor((x-self.inputArea.x-5)/6),1,#self.input+1)
+        self:refreshSuggestion()
+        if event.monitorTouch then self.pixelKeyboard=true end return true
+      end
+      if ui.hit(self.scrollbar,x,y) then self.scrollDragging=true self.follow=false self.outputFirst=ui.scrollbarValue(self.scrollbar,#self.outputLayout.rows,self.visibleRows,y) return true end
+      for _,row in ipairs(self.rowHits) do if ui.hit(row.rect,x,y) then self.selection={first=row.id,last=row.id} self.selecting=true return true end end
+    elseif name=='mouse_drag' then
+      if self.scrollDragging and self.scrollbar then self.follow=false self.outputFirst=ui.scrollbarValue(self.scrollbar,#self.outputLayout.rows,self.visibleRows,y) return true end
+      if self.selecting and self.selection then for _,row in ipairs(self.rowHits) do if ui.hit(row.rect,x,y) then self.selection.last=row.id return true end end end
+    end return false
+  end
+  local draw=app.drawPixels app.drawPixels=function(self,s,w,h,p) self.lastPixelH=h return draw(self,s,w,h,p) end
+end
+return M
+]=],
   ["apps/update/app.cfg"] = [=[
 {
   id = "update",
   name = "Update",
-  version = "0.18.43",
+  version = "0.18.44",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -7612,7 +7818,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.43",
+    version = "0.18.44",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -7994,7 +8200,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.43",
+  version = "0.18.44",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -11001,22 +11207,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.43", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.43", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.43", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.43", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.44", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.44", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.44", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.43", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.43", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.43", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.43", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.43", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.43", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.43", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.43", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.43", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.43", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.43", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.44", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.44", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.44", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.44", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.44", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.44", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.44", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.44", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.44", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -11811,7 +12017,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.43",
+    version = meta.version or "0.18.44",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -20906,7 +21112,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.43
+0.18.44
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

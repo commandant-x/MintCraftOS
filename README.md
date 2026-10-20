@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.43:
+This repository currently contains V0.18.44:
+
+V0.18.44 adds a native pixel Terminal with wrapped/colored output, cursor editing,
+command history, scrolling, record selection/local copy and a tactile keyboard.
+Autocomplete no longer reads during drawing and private commands remain masked.
+Read commands now check their live permission before accessing data. See
+[Terminal graphics notes](docs/GRAPHICS-0.18.44.md).
 
 V0.18.43 adds a native pixel Editor with line numbers, caret, selection, literal
 search, basic Lua coloring and shared tactile input. Existing draft recovery,

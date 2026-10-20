@@ -54,6 +54,28 @@ local ok,err=pcall(function()
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
       assert(proc.state=="ready" and proc.window and not proc.window.closed,id..": "..tostring(proc.error))
+        if id=='terminal' then
+          local win=proc.window local app=win.app
+          assert(win.pixelNative,'Terminal is still a legacy client')
+          win:toggleMaximize() os.queueEvent('mintcraft_test') sleep(0.2)
+          queueInput('paste','pxd') queueInput('key',keys.left) queueInput('key',keys.left)
+          queueInput('key',keys.delete) queueInput('char','w') sleep(0.1)
+          assert(app.input=='pwd','native input cursor editing failed: '..app.input)
+          queueInput('key',keys.enter) sleep(0.1)
+          assert(app.lines[#app.lines]==app.cwd,'native command did not execute')
+          queueInput('key',keys.up) sleep(0.1) assert(app.input=='pwd','native command history failed')
+          queueInput('key',keys.leftCtrl) queueInput('key',keys.u) queueInput('key_up',keys.leftCtrl)
+          queueInput('paste','unlock display-only-secret') sleep(0.1)
+          local shown,private=app:visibleInput() assert(private and shown=='unlock ***' and not app.suggestion,'private command was not masked')
+          win.dirty=true os.queueEvent('mintcraft_test') sleep(0.1) capture('pixel-terminal-masked')
+          queueInput('key',keys.leftCtrl) queueInput('key',keys.u) queueInput('key_up',keys.leftCtrl) sleep(0.1)
+          for _=1,110 do app.input='pwd' app.cursor=nil app.keyboard.onEnter() end
+          assert(#app.lines==200 and #app.lineIds==200 and #app.lineColors==200,'Terminal output metadata diverged')
+          app.selection={first=app.lineIds[199],last=app.lineIds[200]} app:action('copy')
+          assert(app.clipboard:find(app.cwd,1,true),'native output copy missing')
+          app.pixelKeyboard=true win.dirty=true os.queueEvent('mintcraft_test') sleep(0.15)
+          capture('pixel-terminal-history')
+        end
         if id=='editor' then
           local win=proc.window local app=win.app
           assert(win.pixelNative,'Editor is still a legacy client')
@@ -407,7 +429,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Editor selection/save/find/close protection, Messenger rollover/paste/keyboard, Settings twelve pages/service-owned label write, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, thirteen apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Terminal cursor/history/private input/output copy, Editor selection/save/find/close protection, Messenger rollover/paste/keyboard, Settings twelve pages/service-owned label write, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, thirteen apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

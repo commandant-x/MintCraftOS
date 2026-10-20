@@ -68,6 +68,11 @@ allowed=true command("display") assert(app.lines[#app.lines]=="* computer")
 allowed=false command("display computer") assert(displayCalls==0)
 allowed=true command("display computer") assert(displayCalls==1)
 package.loaded["system.dev.autocomplete"].suggest=function() return nil end
+allowed=false
+for _,text in ipairs({'cat private.txt','type private.txt','ls /','cd /','cp private.txt copy.txt','ps','logs'}) do
+  command(text) assert(app.lines[#app.lines]=='denied','read command bypassed live permission: '..text)
+end
+allowed=true
 package.loaded["system.dev.autocomplete"].prefix=function() return "computer" end
 app.input="" assert(app:handle({name="paste",args={"display computer\nreboot"}}) and app.input=="display computer")
 app.keyboard.onEnter() assert(displayCalls==2)

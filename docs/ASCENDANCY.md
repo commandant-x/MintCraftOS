@@ -9,9 +9,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.43 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.44 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files, Editor, Messenger, Settings, Devices, Update, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
+Terminal, Files, Editor, Messenger, Settings, Devices, Update, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
 explicit migration. Combat's 0.18.35 increment is documented separately.
 
@@ -119,7 +119,7 @@ or finished ASCENDANCY.
 
 | Application | Current native client evidence | Remaining final requirements |
 | --- | --- | --- |
-| Terminal | Compatibility container; paste and authorized display CLI tested | Native terminal UI, scrolling/selection/copy, resize and keyboard coverage |
+| Terminal | Native built-in console, bitmap input/caret, wrapped colored records, scroll/follow/selection/local copy, history and tactile keyboard; drawing is cache-only and private commands excluded from completion | In-game input/resize validation, byte/glyph editing expansion, cross-app/system clipboard, long-command responsiveness and richer terminal program/color contracts remain |
 | Browser | Legacy reader retained, no new web features | Native client while preserving reader/HTML/JS limitations |
 | CraftTube | Hidden legacy app retained | Native client, existing media limitations preserved |
 | Messenger | Native wrapped history, draft, keyboard/touch input, Live/scroll/clear and connection/error states; worker-only transport and sequence-based full-inbox delivery | Public chat is unauthenticated/unencrypted; in-game modem/multi-client validation and richer message selection/copy remain |
@@ -211,6 +211,13 @@ selection/drag/literal search, basic Lua coloring and tactile input. Existing
 conflict/draft/save/compile protections are retained. 114 fast suites and the
 thirteen-app native/terminal workflows pass. See GRAPHICS-0.18.43.md for limits.
 Remaining app/forms migration, global UI scale and E-J scope stay required.
+
+V0.18.44: Terminal's existing command engine now has a native cached console,
+cursor editing, wrapped colored output, scrolling/record selection/local copy
+and tactile input. Private commands bypass completion/history; read commands
+gain missing live guards. 116 fast suites and thirteen-app native/terminal,
+text fallback and update/migration workflows pass. See GRAPHICS-0.18.44.md.
+Remaining app/forms migration, global UI scale and E-J scope remain required.
 
 Continue B: complete reusable controls, UI scale, typography, cursor behavior,
 native WM polish and real CC Terminals validation.
