@@ -49,7 +49,7 @@ local ok,err=pcall(function()
     assert(stats.backend=="PIXEL256","pixel backend inactive: "..tostring(stats.lastError))
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
-    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","devices","taskmanager","update","nexus"}) do
+    for _,id in ipairs({"files","terminal","settings","messenger","navigation","combat","logs","services","devices","taskmanager","update","nexus"}) do
       local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
@@ -74,6 +74,21 @@ local ok,err=pcall(function()
           assert(allowed,tostring(operation))
           for _=1,40 do if os.getComputerLabel()=='Isolated native Settings' then break end sleep(0.05) end
           assert(os.getComputerLabel()=='Isolated native Settings','Settings service label write failed')
+        end
+        if id=='messenger' then
+          local win=proc.window local app=win.app
+          assert(win.pixelNative,'Messenger is still a legacy client')
+          win:toggleMaximize() os.queueEvent('mintcraft_test') sleep(0.2)
+          for i=1,115 do apps.ctx.eventBus:emit('rednet_message',900,{type='message',from='SIMULATED public sender',text='Isolated receive fixture '..i},'mintcraft.chat') end
+          app:sync() win.dirty=true os.queueEvent('mintcraft_test') sleep(0.15)
+          assert(#app.messages==80 and app.messages[80].text=='Isolated receive fixture 115','Messenger full inbox stopped updating')
+          capture('pixel-messenger-history')
+          local prior=app.seen app:action('clear') app:sync() assert(#app.messages==0 and app.seen==prior,'clear replayed received history')
+          queueInput('paste','Retained offline draft') sleep(0.1)
+          assert(app.input=='Retained offline draft','Messenger native paste not routed')
+          app.softKeyboard=true win.dirty=true os.queueEvent('mintcraft_test') sleep(0.15)
+          assert(#app.keyboard.pixelBoxes>0,'Messenger pixel keyboard missing')
+          capture('pixel-messenger-keyboard')
         end
         if id=="navigation" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
@@ -371,7 +386,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Settings twelve pages/service-owned label write, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, eleven apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Messenger rollover/paste/keyboard, Settings twelve pages/service-owned label write, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, twelve apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

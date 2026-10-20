@@ -9,9 +9,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.41 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.42 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files, Settings, Devices, Update, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
+Files, Messenger, Settings, Devices, Update, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
 explicit migration. Combat's 0.18.35 increment is documented separately.
 
@@ -122,7 +122,7 @@ or finished ASCENDANCY.
 | Terminal | Compatibility container; paste and authorized display CLI tested | Native terminal UI, scrolling/selection/copy, resize and keyboard coverage |
 | Browser | Legacy reader retained, no new web features | Native client while preserving reader/HTML/JS limitations |
 | CraftTube | Hidden legacy app retained | Native client, existing media limitations preserved |
-| Messenger | Legacy client retained | Native chat input, lists, connection/error states |
+| Messenger | Native wrapped history, draft, keyboard/touch input, Live/scroll/clear and connection/error states; worker-only transport and sequence-based full-inbox delivery | Public chat is unauthenticated/unencrypted; in-game modem/multi-client validation and richer message selection/copy remain |
 | NEXUS OVERMIND | Existing 0.4 workflows retained in container | Native WARROOM and later shared ASCENDANCY modules |
 | Navigation | Native Flight horizon/metrics, cache-only drawing, stale expiry and hybrid routing; existing calibration/control retained | Remaining panels and in-game sensor/render checks; safety gates unchanged |
 | Combat | Native 2D/3D radar, filters/details/lists/network/probe/fire; 20 Hz acquisition target with measured Hz and serial workers; existing fire tokens retained | Native configuration/setup forms, richer keyboard/accessibility, actual in-game acquisition/render validation |
@@ -199,6 +199,12 @@ live caller/session/permission checks; authentication retains its cancellable
 worker. 110 fast suites and isolated native/text/update workflows pass. See
 GRAPHICS-0.18.41.md. UI scale and performance policy are still fixed/read-only;
 their configurable final-scope controls and other application migrations remain.
+
+V0.18.42: Messenger now has native cached history/input/touch controls and an
+asynchronous transport worker. The full-inbox cursor bug is fixed with monotonic
+sequences. Public chat remains explicitly unauthenticated/unencrypted, distinct
+from NEXUS association. 112 fast suites, twelve-app native/terminal simulations,
+text fallback and update/migration gates pass. See GRAPHICS-0.18.42.md.
 
 Continue B: complete reusable controls, UI scale, typography, cursor behavior,
 native WM polish and real CC Terminals validation.

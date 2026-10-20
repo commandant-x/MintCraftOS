@@ -3,6 +3,7 @@ local log = require("system.libraries.log")
 local M = {
   protocol = "mintcraft.chat",
   inbox = {},
+  sequence = 0,
   status = "not started",
   side = nil,
   ctx = nil,
@@ -52,6 +53,7 @@ local function parse(data, sender)
 end
 
 local function push(packet)
+  M.sequence=M.sequence+1 packet.sequence=M.sequence
   table.insert(M.inbox, packet)
   if #M.inbox > 100 then table.remove(M.inbox, 1) end
 end
@@ -89,6 +91,17 @@ function M.list()
   return M.inbox
 end
 
+function M.snapshot(after)
+  after=type(after)=='number' and after==after and after>=0 and after or 0
+  local rows={}
+  for _,packet in ipairs(M.inbox) do if packet.sequence>after then
+    rows[#rows+1]={sequence=packet.sequence,id=packet.id,from=packet.from,text=packet.text,time=packet.time}
+  end end
+  return {sequence=M.sequence,messages=rows,status=M.status,side=M.side,
+    dropped=M.inbox[1] and after>0 and after<M.inbox[1].sequence-1 or false,
+    securityWarning=M.securityWarning}
+end
+
 function M.send(text)
   text = tostring(text or "")
   if text == "" then return false, "empty message" end
@@ -104,6 +117,7 @@ function M.send(text)
   }
   local sent, problem = pcall(rednet.broadcast, textutils.serialize(packet), M.protocol)
   if not sent then M.status = "send failed: " .. tostring(problem) return false, M.status end
+  M.status='sent'
   return true, "sent"
 end
 

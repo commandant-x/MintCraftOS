@@ -31,6 +31,15 @@ assert(#service.list()==1)
 textutils.unserialize=function() error('malformed serialized data') end
 bus:emit('rednet_message',20,'safe plain text','mintcraft.chat')
 assert(#service.list()==2 and service.list()[2].text=='safe plain text')
+local seen=service.snapshot().sequence
+for i=1,130 do bus:emit('rednet_message',20,{type='message',text='message '..i},'mintcraft.chat') end
+local snapshot=service.snapshot(seen)
+assert(#service.list()==100 and #snapshot.messages==100 and snapshot.dropped and snapshot.sequence==seen+130)
+assert(snapshot.messages[#snapshot.messages].text=='message 130')
+snapshot.messages[1].text='changed' assert(service.list()[1].text~='changed','snapshot aliases inbox')
+assert(#service.snapshot(snapshot.sequence).messages==0,'duplicate cached delivery')
+bus:emit('rednet_message',20,{type='message',text='after rollover'},'mintcraft.chat')
+assert(service.snapshot(snapshot.sequence).messages[1].text=='after rollover','full inbox lost new messages')
 attached=false
 bus:emit("peripheral_detach","left")
 assert(service.side==nil and service.statusText()=="no modem")

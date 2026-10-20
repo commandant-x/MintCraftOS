@@ -2,7 +2,12 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.41:
+This repository currently contains V0.18.42:
+
+V0.18.42 gives Messenger native wrapped message history, bitmap draft input,
+Live scrolling and a tactile keyboard. Transport runs outside drawing; receive
+cursors survive full inbox rotation. Public chat remains explicitly insecure,
+not authenticated or encrypted. See [Messenger graphics notes](docs/GRAPHICS-0.18.42.md).
 
 V0.18.41 migrates all twelve Settings sections to native pixel controls, cached
 diagnostics, dropdowns, checkboxes and masked keyboard/touch input. Configuration
