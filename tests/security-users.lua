@@ -61,4 +61,10 @@ assert(finished and not changed and stale:find("Session changed"),"yielded KDF o
 assert(stored.currentUser=="guest" and stored.users.admin.passwordHash.digest=="another password")
 hook=nil
 assert(users.login("admin","another password"),"completed auth failed to release mutex")
+local revision=security.sessionRevision()
+assert(not security.login('admin','wrong')) assert(security.sessionRevision()==revision,'Failed login changed session identity')
+assert(security.lock()) assert(security.sessionRevision()==revision+1)
+assert(security.unlock('another password')) assert(security.sessionRevision()==revision+2)
+assert(security.logout()) assert(security.sessionRevision()==revision+3)
+assert(security.login('admin','another password')) assert(security.sessionRevision()==revision+4,'Same-user login reused session identity')
 print("read-only users, locked/guest reset denial, reauth, migration, transactional saves, stale writes, throttle and actor permission passed")

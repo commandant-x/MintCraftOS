@@ -1,6 +1,7 @@
 local config = require("system.libraries.config")
 local log = require("system.libraries.log")
 local users = require("system.security.users")
+local sessionRevision=0
 
 local M = {
   cfgPath = "/system/config/security.cfg",
@@ -39,15 +40,18 @@ end
 function M.isLocked()
   return users.isLocked()
 end
+function M.sessionRevision() return sessionRevision end
 
 function M.login(name, password, options)
   local ok, msg = users.login(name, password, options)
+  if ok then sessionRevision=sessionRevision+1 end
   log.info("securityd", ok and msg or ("login failed " .. tostring(name)))
   return ok, msg
 end
 
 function M.unlock(password, options)
   local ok, msg = users.unlock(password, options)
+  if ok then sessionRevision=sessionRevision+1 end
   log.info("securityd", ok and "session unlocked" or "unlock failed")
   return ok, msg
 end
@@ -55,6 +59,7 @@ end
 function M.lock()
   local ok, err = users.lock()
   if not ok then return false, err end
+  sessionRevision=sessionRevision+1
   log.info("securityd", "session locked")
   return true
 end
@@ -62,6 +67,7 @@ end
 function M.logout()
   local ok, err = users.logout()
   if not ok then return false, err end
+  sessionRevision=sessionRevision+1
   log.info("securityd", "logged out to guest")
   return true
 end
@@ -75,6 +81,7 @@ function M.setPassword(name, password, oldPassword, actor, options)
   end
   if not allowed then return false, reason end
   local ok, msg = users.setPassword(name, password, oldPassword, options)
+  if ok then sessionRevision=sessionRevision+1 end
   log.info("securityd", ok and ("password changed for " .. tostring(name)) or tostring(msg))
   return ok, msg
 end

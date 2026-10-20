@@ -1,5 +1,7 @@
 local ok,err=pcall(function()
   shell.setDir('/') assert(shell.run('/source/install.lua')) pocket=nil
+  local config=require('system.libraries.config') local settings=config.load('/system/config/system.cfg',{})
+  settings.safeMode=true config.save('/system/config/system.cfg',settings)
   local sha=string.rep('a',40) local closed=0 local failedRead=false local received=0
   local installer='-- MintCraft installer protocol: 2\nlocal f={ ["VERSION"]="9.9.9\\n",["system/update-test.lua"]="return true",["system/config/keep-test.cfg"]="new default" }; require("system.libraries.installer").install(f,mintcraftInstallOptions)'
   local function response(body,broken)
@@ -46,17 +48,17 @@ local ok,err=pcall(function()
     launched,pid=apps.launch('update') assert(launched,tostring(pid)) sleep(0.2)
     proc=apps.ctx.scheduler.processes[pid] app=proc.window.app
     draw(app,24,10) app:refresh()
-    assert(app.busy) sleep(0.7)
+    assert(app.busy) sleep(1.0)
     assert(proc.state=='ready' and not app.busy and app.status.remoteVersion=='9.9.9','Update check failed')
     local freeSpace=fs.getFreeSpace fs.getFreeSpace=function() return 0 end
-    app:apply() sleep(1.6)
+    app:apply() assert(app.confirm,'Apply missing confirmation') app:confirmAction() sleep(1.6)
     assert(proc.state=='ready' and app.message:find('UPD-DISK',1,true),'disk failure did not stay in Update UI')
     fs.getFreeSpace=freeSpace
-    app:apply() sleep(1.6)
+    app:apply() assert(app.confirm) app:confirmAction() sleep(1.6)
     assert(proc.state=='ready' and not app.busy and app.message:find('reboot',1,true),'Update Apply failed: '..app.message)
     assert(fs.exists('/system/update-test.lua'))
     assert(not fs.exists('/var/tmp/mintcraft_update.lua'),'installer needlessly stored on disk')
-    app:rollback() sleep(0.4)
+    app:rollback() assert(app.confirm) app:confirmAction() sleep(0.4)
     assert(proc.state=='ready' and not app.busy and app.message:find('reboot',1,true),'Rollback failed: '..app.message)
     local h=assert(fs.open('/VERSION','r')) local restored=h.readAll() h.close()
     assert(restored==original and not fs.exists('/system/update-test.lua'),'granular rollback incomplete')

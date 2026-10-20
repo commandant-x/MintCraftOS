@@ -2,7 +2,7 @@ package.path="./?.lua;"..package.path
 local testRoot=fs and fs.exists('/source/tests/storage-fixture.lua') and '/source/' or ''
 local fixture=dofile(testRoot.."tests/storage-fixture.lua")
 local source={}
-for _,path in ipairs({"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/nexus/bootstrap.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}) do
+for _,path in ipairs({"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/nexus/radar.lua","system/nexus/bootstrap.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}) do
   local h=assert(io.open(testRoot..path,"rb")) source[path]=h:read("*a") h:close()
 end
 os.epoch=os.epoch or function() return 1700000000000 end
@@ -111,6 +111,44 @@ local function deliverMaster()
 end
 deliverMaster()
 assert(service.snapshot().online==7,"Seven agents did not enroll")
+local radarHub=require('system.nexus.radar_hub')
+switch(1)
+local radarKey=store.load('/nexus/config.cfg').key
+local radarBody={group='factory',name='right',measuredAt=os.epoch('utc')/1000,frame='world',position={x=1,y=64,z=2},range=1000,targets={}}
+local telemetry=wire.sign(radarKey,1,0,'radar','radar-valid',radarBody)
+local forgedTelemetry=wire.sign(string.rep('z',32),1,0,'radar','radar-forged',radarBody)
+local otherGroup=addon.copy(radarBody) otherGroup.group='other-dimension'
+local crossDomain=wire.sign(radarKey,1,0,'radar','radar-cross-domain',otherGroup)
+switch(0)
+callbacks.rednet_message(1,forgedTelemetry,wire.name) service.tick()
+assert(#radarHub.snapshot(now).radars==0,'Forged radar imported')
+callbacks.rednet_message(1,crossDomain,wire.name) service.tick()
+assert(#radarHub.snapshot(now).radars==0,'Other deployment group imported into radar coordinate domain')
+callbacks.rednet_message(1,telemetry,wire.name) service.tick()
+assert(#radarHub.snapshot(now).radars==1,'Associated radar not imported')
+assert(service.select(actor,1,false,'factory')) assert(#radarHub.snapshot(now).radars==0,'Deselected agent remained in radar cache')
+assert(service.select(actor,1,true,'factory'))
+local savedPeripheral=peripheral
+local radarReads=0
+peripheral=setmetatable({
+  getNames=function() local names=savedPeripheral.getNames() names[#names+1]='right' return names end,
+  getType=function(name) if name=='right' then return 'create_radar:radar_bearing' end return savedPeripheral.getType(name) end,
+  hasType=function(name,kind) if name=='right' then return kind=='create_radar:radar_bearing' end return savedPeripheral.hasType(name,kind) end,
+  getMethods=function(name) assert(name=='right') return {'getTracks','getScanGeometry','setRotation','fire'} end,
+  call=function(name,method,...)
+    if name~='right' then return savedPeripheral.call(name,method,...) end
+    radarReads=radarReads+1
+    if method=='getTracks' then return {} end
+    assert(method=='getScanGeometry','Agent called radar command')
+    return {version=1,positionFrame='world',position={x=3,y=64,z=4},range=1000}
+  end,
+},{__index=savedPeripheral})
+switch(1) agents[1].lastScan=-math.huge agents[1]:tick()
+assert(radarReads==0,'Radar acquisition blocked heartbeat receiver')
+assert(agents[1]:workStep() and radarReads==2,'Agent did not automatically read adjacent radar')
+switch(0) deliverMaster()
+assert(#radarHub.snapshot(now).radars==1,'Agent stream did not reach MASTER')
+peripheral=savedPeripheral
 assert(not textutils.serialize(service.snapshot()):find("private-test-key",1,true),"MASTER secret leaked in GUI snapshot")
 assert(service.request(actor,"mission",{id=1,type="sum",count=100})) service.tick()
 local command

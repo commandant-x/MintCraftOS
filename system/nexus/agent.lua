@@ -1,12 +1,13 @@
 local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local observe=require("system.nexus.observe")
+local radar=require("system.nexus.radar")
 local M={}
 local function safeCount(value) return type(value)=="number" and value%1==0 and value>=0 and value<=10000 end
 function M.new(cfg,options)
   options=options or {}
   assert(cfg.role=="agent" and cfg.id==os.getComputerID() and wire.validKey(cfg.key),"Invalid agent association")
-  local self={cfg=cfg,seen={},sequence=0,nextHeartbeat=os.clock()+(cfg.id%8)*0.05,boot=tostring(os.epoch("utc")),inventory={},lastScan=-math.huge,work={},pending={}}
+  local self={cfg=cfg,seen={},sequence=0,nextHeartbeat=os.clock()+(cfg.id%8)*0.05,boot=tostring(os.epoch("utc")),inventory={},lastScan=-math.huge,work={},pending={},radars={},radarIndex=0,nextRadar=0}
   store.recover("/nexus/receipts.cfg")
   self.receipts=store.load("/nexus/receipts.cfg",{})
   store.recover("/nexus/receipt-expiry.cfg")
@@ -18,13 +19,22 @@ function M.new(cfg,options)
     return ok and sent==true
   end
   function self:tick()
-    if os.clock()-self.lastScan>=10 then self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock() end
+    if os.clock()-self.lastScan>=10 then
+      self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock()
+      self.radars={}
+      for _,device in ipairs(self.inventory) do if device.kind=='radar' and #self.radars<8 then self.radars[#self.radars+1]=device.name end end
+    end
+    if self.modems>0 and #self.radars>0 and os.clock()>=self.nextRadar then
+      self.radarDue=true self.nextRadar=os.clock()+0.5
+      if options.wake then options.wake() end
+    end
     if self.modems>0 and os.clock()>=self.nextHeartbeat then
       local _,free=pcall(fs.getFreeSpace,'/') local _,capacity=pcall(fs.getCapacity,'/')
       local diskFree=type(free)=='number' and free==free and free>=0 and free<1e15 and free or nil
       local diskCapacity=type(capacity)=='number' and capacity==capacity and capacity>=0 and capacity<1e15 and capacity or nil
       self:send("heartbeat",{version=wire.version,release=cfg.active,provisionToken=cfg.provisionToken,label=tostring(os.getComputerLabel() or "Agent "..cfg.id):sub(1,64),
-        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe"},queueDepth=#self.work+(self.working and 1 or 0),diskFree=diskFree,diskCapacity=diskCapacity})
+        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe","radar.read"},queueDepth=#self.work+(self.working and 1 or 0),diskFree=diskFree,diskCapacity=diskCapacity,
+        radarCount=#self.radars,radarError=self.radarError})
       self.nextHeartbeat=os.clock()+5
     end
   end
@@ -73,6 +83,23 @@ function M.new(cfg,options)
     return self:perform(task)
   end
   function self:workStep()
+    if self.radarDue then
+      self.radarDue=false
+      self.radarIndex=self.radarIndex%math.max(1,#self.radars)+1
+      local name=self.radars[self.radarIndex]
+      if name then
+        self.working=true
+        local ok,result=pcall(radar.read,name)
+        if ok and result then
+          result.group=cfg.group
+          local ran,sent=pcall(self.send,self,'radar',result)
+          self.radarError=(not ran or not sent) and 'Radar transmission failed' or nil
+        else self.radarError=tostring(result):sub(1,120) end
+        self.working=false
+      end
+      -- A continuous scan stream must not starve authorized read-only missions.
+      if #self.work==0 then return true end
+    end
     local task=table.remove(self.work,1) if not task then return false end
     self.working=true
     local ok,err=pcall(self.perform,self,task)

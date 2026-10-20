@@ -1,88 +1,88 @@
-local renderer = require("system.gui.renderer")
-local updated = require("system.services.updated")
+local renderer=require("system.gui.renderer")
+local updated=require("system.services.updated")
 local ui=require("system.gui.components")
-local appWorker=require("system.libraries.app_worker")
-
-local M = {}
-
+local theme=require("system.gui.theme")
+local pixel=require("apps.update.pixel")
+local M={}
 function M.run(ctx)
-  local app = {
-    status = updated.status,
-    message = "Ready",
-  }
-  local worker
-  local function submit(action)
-    if app.busy then app.message="Operation already running" return end
-    if action~="check" then
-      local allowed,denied=ctx.security.require("system.update",action)
-      if not allowed then app.message=tostring(denied) return end
-      ctx.security.audit("update "..action,"GitHub/backup")
+  local actor={pid=ctx.pid}
+  local app={status=updated.status,control={busy=false},message="Ready",detailScroll=1}
+  local win,timer
+  local function call(fn,...)
+    local ran,ok,result=pcall(fn,...)
+    if not ran then return false,tostring(ok) end
+    return ok,result
+  end
+  function app:poll()
+    self.control=updated.controlStatus() self.busy=self.control.busy self.status=updated.status
+    if not self.busy then
+      local ok,metadata=pcall(function() return {cfg=updated.loadConfig(),backup=updated.rollbackInfo(),localVersion=updated.localVersion()} end)
+      if ok then self.metadata=metadata else self.message="Metadata read failed: "..tostring(metadata) end
     end
-    app.busy=true app.message=action.."..."
-    local ok,err=worker:submit({action=action})
-    if not ok then app.busy=false app.message=tostring(err) end
+    if win then win.dirty=true end
   end
-
-  function app:refresh()
-    submit("check")
+  function app:request(action,token)
+    if self.busy then self.message="UPD-BUSY: operation already running" return end
+    local ok,result=call(updated.requestAction,actor,action,token)
+    self.message=ok and ("Queued #"..result..": "..action) or tostring(result)
+    if ok then self.operation=result self.detailScroll=1 end
+    self:poll()
   end
-
-  function app:apply()
-    submit("apply")
+  function app:prepare(action)
+    if self.busy then return end
+    local ok,result=call(updated.prepareAction,actor,action)
+    if ok then self.confirm=result else self.message=tostring(result) end
   end
-
-  function app:rollback()
-    submit("rollback")
+  function app:confirmAction()
+    local pending=self.confirm self.confirm=nil
+    if pending then self:request(pending.action,pending.token) end
   end
-
-  function app:draw(w, h)
-    self.lastH = h
-    self.status=updated.status
-    local rollback = updated.rollbackInfo()
-    renderer.writeAt(1, 1, renderer.crop("MintCraft Update", w), colors.black, colors.lightGray)
-    renderer.writeAt(2, 3, renderer.crop("Local : " .. tostring(self.status.localVersion), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 4, renderer.crop("GitHub: " .. tostring(self.status.remoteVersion), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 5, renderer.crop("State : " .. tostring(self.message=="Ready" and self.status.message or self.message), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 7, renderer.crop("Rollback: " .. tostring(rollback and rollback.fromVersion or "none"), w - 2), colors.black, colors.lightGray)
-    self.barState=self.barState or {}
-    self.buttons=ui.toolbar(1,h-1,w,{{id="check",label="Check"},{id="apply",label="Apply"},{id="rollback",label="Rollback"}},self.barState)
+  function app:refresh() self:request("check") end
+  function app:apply() self:prepare("apply") end
+  function app:rollback() self:prepare("rollback") end
+  function app:activate(id)
+    if id=="confirm" then self:confirmAction()
+    elseif id=="cancel" then self.confirm=nil
+    elseif id=="check" then self:refresh()
+    elseif id=="apply" then self:apply()
+    elseif id=="rollback" then self:rollback() end
   end
-
+  function app:draw(w,h)
+    self.lastH=h self.buttons={}
+    renderer.fill(1,1,w,h,theme.get("windowBg"))
+    if w<20 or h<8 then self.confirm=nil renderer.writeAt(1,1,"Enlarge Update",theme.get("windowFg")) return end
+    local status,metadata=self.status,self.metadata or {}
+    local lines={"Installed: "..tostring(metadata.localVersion or status.localVersion),"Release: "..tostring(status.remoteVersion),
+      "State: "..tostring(self.control.phase or "idle"),"Rollback: "..tostring(metadata.backup and metadata.backup.fromVersion or "none"),
+      tostring(self.control.message or self.message),tostring(self.message)}
+    if self.confirm then
+      local c=self.confirm
+      lines={"Confirm "..c.action.."?",tostring(c.localVersion).." -> "..tostring(c.version),c.source and c.source.sha or ("Checkpoint "..tostring(c.backupId)),"Transaction continues after first write."}
+    end
+    for i=1,math.min(#lines,h-2) do renderer.writeAt(1,i,renderer.crop(lines[i]:gsub("[%c]"," "),w),theme.get("windowFg"),theme.get("windowBg")) end
+    self.buttons=ui.toolbar(1,h-1,w,self.confirm and {{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}} or {{id="check",label="Check"},{id="apply",label="Apply"},{id="rollback",label="Rollback"}})
+  end
   function app:handle(event)
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    for _,box in ipairs(self.buttons or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
-    local action=ui.toolbarHit(self.buttons,x,y)
-    if action=="check" then
-      self:refresh()
-      return true
-    elseif action=="apply" then
-      self:apply()
-      return true
-    elseif action=="rollback" then
-      self:rollback()
-      return true
-    end
+    if self.graphicsActive and not event.name:match("^mouse_") then return self:handlePixels(event) end
+    if event.name=="key" and event.args[1]==keys.escape then self.confirm=nil return true end
+    if event.name~="mouse_click" then return false end
+    local action=ui.toolbarHit(self.buttons,event.args[2],event.args[3])
+    if action then self:activate(action) return true end
     return false
   end
-
-  local sw, sh = term.getSize()
-  app.lastH = math.min(12, sh - 3)
-  local win = ctx.windowManager:create({ title = "Update", w = math.min(44, sw - 4), h = app.lastH, x = 7, y = 4, app = app })
-  worker=appWorker.new(ctx,"Update operations",function(request)
-    if request.action=="check" then return updated.check() end
-    if request.action=="apply" then return updated.apply() end
-    return updated.rollback()
-  end,function(request,ok,result,message)
-    app.busy=false
-    if not ok then app.message="Update failed: "..tostring(result)
-    elseif request.action=="check" then app.status=result app.message=result.message
-    else app.message=tostring(message or result) end
-    if ctx.notifications and (not ok or request.action~="check") then
-      ctx.notifications:push(ok and result~=false and "success" or "error","Update",app.message,6)
+  pixel.attach(app)
+  app:poll()
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="Update",w=math.min(88,w-4),h=math.min(30,h-3),x=7,y=4,app=app})
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end end)
+  timer=ctx.startTimer(0.2)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=="timer" and event.args[1]==timer then
+      if not win.minimized then app:poll() end timer=ctx.startTimer(0.2)
+    elseif event and event.name=="mintcraft_update_result" and event.args[1]==ctx.pid and event.args[2]==app.operation then
+      app.operation=nil app.message=tostring(event.args[4]) app:poll()
     end
-  end)
-  while not win.closed do ctx.pullEvent() end
+  end
 end
-
 return M

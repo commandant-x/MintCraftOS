@@ -30,6 +30,9 @@ local function identical(path,content)
 end
 
 function M.install(files,options)
+  local function progress(phase,path,done,total)
+    if options and type(options.onProgress)=="function" then pcall(options.onProgress,phase,path,done,total) end
+  end
   -- A retained transaction may contain the only backup after an interrupted write.
   if fs.exists(root) then error("Unfinished installation: recover " .. root .. " before retrying") end
   local paths = {}
@@ -54,7 +57,8 @@ function M.install(files,options)
   local changed, touched = {}, {}
   local ok, err = pcall(function()
     fs.makeDir(root)
-    for _, path in ipairs(plan.changed) do
+    for index, path in ipairs(plan.changed) do
+        progress("stage",path,index-1,#plan.changed)
         write(root .. "/stage/" .. path, files[path])
         if path:match("%.lua$") then
           local fn, problem = loadfile(root .. "/stage/" .. path)
@@ -63,7 +67,8 @@ function M.install(files,options)
         table.insert(changed, path)
     end
     local entries = {}
-    for _, path in ipairs(changed) do
+    for index, path in ipairs(changed) do
+      progress("backup",path,index-1,#changed)
       local exists = fs.exists("/" .. path)
       assert(not exists or not fs.isDir("/" .. path), "Destination is a directory: " .. path)
       if exists then
@@ -74,7 +79,8 @@ function M.install(files,options)
       table.insert(entries, { path = path, existed = exists })
     end
     write(root .. "/journal.cfg", textutils.serialize(entries))
-    for _, entry in ipairs(entries) do
+    for index, entry in ipairs(entries) do
+      progress("install",entry.path,index-1,#entries)
       table.insert(touched, entry)
       write("/" .. entry.path, files[entry.path])
       -- The durable journal/backup, not the validated staging copy, drives undo.
@@ -105,6 +111,8 @@ function M.install(files,options)
     end
     error(err)
   end
+  progress("install","Files committed",#plan.changed,#plan.changed)
+  if options and type(options.onCommitted)=="function" then pcall(options.onCommitted,plan.version) end
   pcall(fs.delete, root)
   return true
 end

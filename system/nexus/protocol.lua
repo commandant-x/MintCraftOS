@@ -43,7 +43,7 @@ function M.inventory()
   for i=1,math.min(128,#names) do
     local name=names[i]
     local ok,kind=pcall(peripheral.getType,name)
-    local category=observe.kind(name)
+    local category=observe.kind(name) or (require('system.nexus.radar').kind(name) and 'radar')
     local target=category and priority or rows
     target[#target+1]={name=tostring(name):sub(1,64),type=ok and tostring(kind):sub(1,64) or "unavailable",kind=category}
   end

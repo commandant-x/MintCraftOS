@@ -40,7 +40,7 @@ assert(not updated.remoteVersion() and closes==2)
 bodies[commitURL]=string.rep("x",262145)
 assert(not updated.downloadInstaller() and writes==0 and closes==3)
 bodies[commitURL]="commit"
-bodies[installerURL]=string.rep("x",1048577)
+bodies[installerURL]=string.rep("x",updated.maxInstallerBytes+1)
 assert(not updated.downloadInstaller() and writes==0 and closes==5)
 bodies[installerURL]="installer"
 assert(updated.downloadInstaller() and writes==1 and closes==7)

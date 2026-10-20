@@ -4,8 +4,10 @@ local source = require("system.libraries.update_source")
 local safeWrite = require("system.libraries.safe_write")
 local httpClient = require("system.network.http_client")
 local operation
+local rootContext,controller
 
 local M = {
+  maxInstallerBytes = 4194304,
   cfgPath = "/system/config/update.cfg",
   rollbackRoot = "/var/backups/update",
   status = {
@@ -15,6 +17,17 @@ local M = {
     message = "never checked",
   },
 }
+
+local function phase(options,name,message,done,total)
+  if options and type(options.progress)=="function" then pcall(options.progress,name,message,done,total) end
+end
+local function authorize(options)
+  if options and options.authorize then local ok,err=options.authorize() if not ok then error("UPD-AUTH: "..tostring(err),0) end end
+end
+local function commit(options)
+  authorize(options)
+  if options and options.commit then options.commit() end
+end
 
 local function trim(value)
   return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -144,10 +157,18 @@ function M.remoteVersion()
   return trim(data)
 end
 
-function M.check()
+function M.check(options)
+  authorize(options)
   local cfg = M.loadConfig()
   local localVersion = M.localVersion()
-  local remoteVersion, err = M.remoteVersion()
+  phase(options,"resolve","Resolving GitHub commit")
+  local pinned,err=source.resolve(cfg,getCommit)
+  local remoteVersion
+  if pinned then
+    phase(options,"version","Reading pinned VERSION")
+    remoteVersion,err=httpGet(source.url(pinned,"VERSION"))
+    if remoteVersion then remoteVersion=trim(remoteVersion) end
+  end
 
   if not remoteVersion then
     M.status = {
@@ -155,6 +176,7 @@ function M.check()
       remoteVersion = "unknown",
       updateAvailable = false,
       message = err or "check failed",
+      ok = false,
     }
   else
     local comparison, problem = version.compare(remoteVersion, localVersion)
@@ -163,9 +185,13 @@ function M.check()
       remoteVersion = remoteVersion,
       updateAvailable = comparison == 1,
       message = problem or (comparison == 1 and "update available" or (comparison == -1 and "local version is newer" or "up to date")),
+      ok = comparison~=nil,
+      source = {repo=pinned.repo,sha=pinned.sha,ref=cfg.branch},
     }
   end
 
+  authorize(options)
+  cfg=M.loadConfig()
   cfg.lastStatus = M.status.message
   cfg.lastLocalVersion = M.status.localVersion
   cfg.lastRemoteVersion = M.status.remoteVersion
@@ -181,7 +207,7 @@ function M.downloadInstaller(pinned)
     if not pinned then return nil, err end
   end
   local url = source.url(pinned, "install.lua")
-  local data, err = httpGet(url, 1048576)
+  local data, err = httpGet(url, M.maxInstallerBytes)
   if not data then return nil, err end
 
   local path = "/var/tmp/mintcraft_update.lua"
@@ -269,10 +295,16 @@ function M.createRollback(reason,changes)
   return result, detail
 end
 
-local function rollback()
+local function rollback(options)
+  authorize(options)
+  if options and options.localVersion and M.localVersion()~=options.localVersion then return false,"UPD-STALE: installed version changed" end
+  local selected=M.rollbackInfo()
+  if options and options.backupId and (not selected or selected.id~=options.backupId) then return false,"UPD-STALE: rollback checkpoint changed" end
   if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") then
     return false, "Recover pending installation before rollback"
   end
+  commit(options)
+  phase(options,"recovery","Checking pending restore")
   local recovered, recoveryErr = safeWrite.recoverRestore()
   if not recovered then return false, recoveryErr end
   local info = M.rollbackInfo()
@@ -306,7 +338,8 @@ local function rollback()
 
   assert(config.save("/var/tmp/mintcraft-rollback.cfg", {id=info.id}))
 
-  for _, path in ipairs(manifest.paths) do
+  for index, path in ipairs(manifest.paths) do
+    phase(options,"rollback",path,index-1,#manifest.paths)
     local ok,err
     if path == "/packages" then
       ok = true -- Package databases and user-installed packages are not system rollback data.
@@ -316,6 +349,8 @@ local function rollback()
     if not ok then return false, err end
   end
   fs.delete("/var/tmp/mintcraft-rollback.cfg")
+  phase(options,"rollback","Checkpoint restored",#manifest.paths,#manifest.paths)
+  M.status.localVersion=M.localVersion() M.status.source=nil M.status.updateAvailable=false
   return true, "rollback restored " .. tostring(manifest.fromVersion or "previous") .. ", reboot required"
 end
 
@@ -326,46 +361,60 @@ local function exclusive(name, fn)
   local ok, result, detail = pcall(fn)
   operation = nil
   _G.mintcraftStorageOperation = nil
-  if not ok then return false, name .. " failed: " .. tostring(result) .. "; backup retained" end
+  if not ok then return false, name .. " failed: " .. tostring(result) end
   return result, detail
 end
 
-function M.rollback() return exclusive("Rollback", rollback) end
+function M.rollback(options) return exclusive("Rollback",function() return rollback(options) end) end
 
-local function apply()
+local function apply(options)
+  authorize(options)
+  if options and options.localVersion and M.localVersion()~=options.localVersion then return false,"UPD-STALE: installed version changed" end
   if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
     or fs.exists("/var/tmp/mintcraft-restore") then return false, "Recover pending update before applying" end
-  local pinned, err = source.resolve(M.loadConfig(), getCommit)
+  phase(options,"resolve","Resolving release source")
+  local pinned, err
+  if options and options.source then pinned={repo=options.source.repo,sha=options.source.sha}
+  else pinned,err=source.resolve(M.loadConfig(),getCommit) end
   if not pinned then return false, err end
+  phase(options,"version","Reading pinned VERSION")
   local remote, problem = httpGet(source.url(pinned, "VERSION"))
   if not remote then return false, problem end
+  if options and options.version and trim(remote)~=options.version then return false,"UPD-STALE: confirmed release version changed" end
   local comparison, invalid = version.compare(trim(remote), M.localVersion())
   if comparison ~= 1 then return false, invalid or "Pinned release is not newer than installed version" end
-  local data,downloadErr=httpGet(source.url(pinned,"install.lua"),1048576)
+  phase(options,"download","Downloading pinned installer")
+  local data,downloadErr=httpGet(source.url(pinned,"install.lua"),M.maxInstallerBytes)
   if not data then return false,downloadErr end
   if not data:find("-- MintCraft installer protocol: 2",1,true) then return false,"Unsupported installer; use a pinned manual installation" end
   local environment=setmetatable({print=function() end},{__index=_ENV})
-  local backedUp=false
+  local backedUp,committed=false,false
   environment.mintcraftInstallOptions={beforeInstall=function(plan)
+    authorize(options)
     assert(version.compare(trim(plan.version),trim(remote))==0,"Pinned installer/version mismatch")
     assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed; check again")
     local free=fs.getFreeSpace and fs.getFreeSpace("/")
     local required=plan.stageBytes+plan.backupBytes*2+math.max(32768,#plan.changed*256)
     if type(free)=="number" and free<required then error("UPD-DISK: need "..required.." free bytes; available "..free..". Backups retained.") end
+    commit(options)
+    phase(options,"checkpoint","Creating rollback checkpoint")
     local ok,backup=M.createRollback("before update",plan.changed)
     assert(ok,tostring(backup)) backedUp=true
     assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed during checkpoint")
-  end}
+    phase(options,"install","Running transactional installer")
+  end,onProgress=function(name,path,done,total) phase(options,name,path,done,total) end,
+    onCommitted=function(installed) committed=trim(installed)==trim(remote) end}
   local fn,loadErr=load(data,"@github-update-"..pinned.sha,"t",environment)
   if not fn then return false,loadErr end
   local ok, runErr = pcall(fn)
   if not ok then return false, tostring(runErr) end
   if not backedUp then return false,"Installer did not create a rollback checkpoint" end
+  if not committed or M.localVersion()~=trim(remote) then return false,"UPD-STATE: installer commit/version not verified; inspect rollback checkpoint" end
   M.status.localVersion=M.localVersion() M.status.updateAvailable=false M.status.message="Installed; reboot required"
   return true, "installer finished, reboot required"
 end
 
-function M.apply() return exclusive("Apply", apply) end
+function M.apply(options) return exclusive("Apply",function() return apply(options) end) end
 
 function M.storageBytes(path)
   if not fs.exists(path) then return 0 end
@@ -476,8 +525,36 @@ function M.cleanup(kind, options)
   return M.pruneBackups(options.confirm == true)
 end
 
+local function stopAutomatic()
+  if M.ctx and M.ctx.eventBus then
+    for _, id in ipairs(M.listeners or {}) do M.ctx.eventBus:off(id) end
+  end
+  if M.timer and os.cancelTimer then os.cancelTimer(M.timer) end
+  M.ctx, M.listeners, M.timer = nil, {}, nil
+end
+
+local function control()
+  if not rootContext or not rootContext.scheduler then return nil,"UPD-SERVICE: scheduler unavailable" end
+  if not controller then controller=require("system.services.update_control").new(rootContext,M) end
+  return controller
+end
+function M.prepareAction(actor,action)
+  local worker,err=control() if not worker then return false,err end
+  return worker:prepare(actor,action)
+end
+function M.requestAction(actor,action,token)
+  local worker,err=control() if not worker then return false,err end
+  local ok,result=worker:request(actor,action,token)
+  if ok then stopAutomatic() end
+  return ok,result
+end
+function M.controlStatus() return controller and controller:status() or {busy=false,phase="idle",message="Ready"} end
+
 function M.start(ctx)
-  M.stop()
+  if controller and controller:status().busy then return false,"Update transaction running" end
+  if controller then controller:stop() controller=nil end
+  stopAutomatic()
+  rootContext=ctx
   M.status.localVersion=M.localVersion()
   local cfg = M.loadConfig()
   if not cfg.autoCheck then return end
@@ -498,7 +575,7 @@ function M.start(ctx)
     if M.status.updateAvailable and ctx.notifications then
       ctx.notifications:push("info", "Update", "Version " .. remote .. " available; open Update to install", 6)
     end
-    M.stop()
+    stopAutomatic()
   end
   table.insert(M.listeners, ctx.eventBus:on("http_success", function(address, handle)
     if address ~= url then return end
@@ -519,11 +596,11 @@ function M.start(ctx)
 end
 
 function M.stop()
-  if M.ctx and M.ctx.eventBus then
-    for _, id in ipairs(M.listeners or {}) do M.ctx.eventBus:off(id) end
-  end
-  if M.timer and os.cancelTimer then os.cancelTimer(M.timer) end
-  M.ctx, M.listeners, M.timer = nil, {}, nil
+  if operation or controller and controller:status().busy then return false,"Update transaction running; cannot stop" end
+  stopAutomatic()
+  if controller then controller:stop() controller=nil end
+  rootContext=nil
+  return true
 end
 
 return M

@@ -49,7 +49,7 @@ local ok,err=pcall(function()
     assert(stats.backend=="PIXEL256","pixel backend inactive: "..tostring(stats.lastError))
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
-    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","taskmanager","nexus"}) do
+    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","taskmanager","update","nexus"}) do
       local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
@@ -189,6 +189,17 @@ local ok,err=pcall(function()
         assert(win.app.page=="performance","native Task Manager keyboard view selector failed")
         capture("pixel-taskmanager-performance")
       end
+      if id=="update" then
+        local win=proc.window assert(win.pixelNative,"Update is still a legacy client")
+        win:toggleMaximize() os.queueEvent("mintcraft_test") sleep(0.2)
+        win.app.message="UPD-NET: simulated transport diagnostic\n"..string.rep("Long technical detail remains readable. ",400)
+        win.dirty=true os.queueEvent("mintcraft_test") sleep(0.15)
+        assert(win.app.detailLayout and #win.app.detailLayout.lines>3,"Update diagnostics not wrapped")
+        capture("pixel-update-diagnostic")
+        local before=win.app.detailScroll
+        queueInput("mouse_scroll",1,win.pixelBounds.x+20,win.pixelBounds.y+170) sleep(0.15)
+        assert(win.app.detailScroll>before,"Update diagnostic scroll not routed")
+      end
       if id=="files" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
         local hit=workspace.windowHits[#workspace.windowHits]
@@ -307,7 +318,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Files/Combat/Logs/Services, measured Task Manager/confirmed fixture kill, nine apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, ten apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

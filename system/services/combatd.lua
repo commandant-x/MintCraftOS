@@ -356,6 +356,9 @@ function M.acquire(rescan)
     if now - target.timestamp > 10 then tracks[id] = nil else snap.targets[#snap.targets + 1] = addon.copy(target) end
   end
   local mesh=radarNet.snapshot()
+  local agents=require("system.nexus.radar_hub").snapshot(now)
+  for _,radar in ipairs(agents.radars) do mesh.radars[#mesh.radars+1]=radar end
+  for _,target in ipairs(agents.targets) do mesh.targets[#mesh.targets+1]=target end
   snap.network=mesh
   snap.zone=radarNet.configuration()
   local byId={} for _,target in ipairs(snap.targets) do byId[target.id]=target end
@@ -365,7 +368,7 @@ function M.acquire(rescan)
     if not existing and #snap.targets<settings.radar.maxTargets then
       target.label=settings.aliases[target.id] or target.renderName or ("ID "..target.id:sub(1,8))
       target.labelSource=settings.aliases[target.id] and "alias" or target.renderName and "api" or "id"
-      target.stale=now-target.timestamp>5
+      target.stale=target.stale or now-target.timestamp>5
       snap.targets[#snap.targets+1]=target byId[target.id]=target
     elseif existing then
       existing.sources=existing.sources or {[existing.radarId]=existing.timestamp}
@@ -375,7 +378,7 @@ function M.acquire(rescan)
         local sources=existing.sources
         for key in pairs(existing) do existing[key]=nil end
         for key,value in pairs(target) do existing[key]=addon.copy(value) end
-        existing.sources=sources existing.remote=true existing.stale=false
+        existing.sources=sources existing.remote=true existing.stale=target.stale or now-target.timestamp>5
         existing.label=settings.aliases[existing.id] or existing.renderName or ("ID "..existing.id:sub(1,8))
         existing.labelSource=settings.aliases[existing.id] and "alias" or existing.renderName and "api" or "id"
       end

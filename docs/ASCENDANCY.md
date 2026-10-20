@@ -9,7 +9,7 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.38 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.39 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
 Files, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
@@ -109,7 +109,7 @@ or finished ASCENDANCY.
 | 21 | BLACKBOX bounded historical observations/statistics/resource trends/availability/decisions | Existing logs/alerts only; historical module pending |
 | 22 | Graphical WARROOM overview/atlas/oracle/synapse/dominion/swarm/tactical/aegis/blackbox | Existing NEXUS UI preserved; integrated pixel views pending |
 | 23 | First-run nonblank admin setup, existing permissions, explicit fleet authorization, truthful auth/confidentiality | Blank default admin confirmed in users.lua; first-run migration pending, not silently changed in graphics release |
-| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 94 fast suites, native Files/Flight/raw-pointer tests, installed CC Graphics ROM-window emulation, terminal-transport simulation and framebuffer inspection; full final gate not met |
+| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 104 fast suites, native Files/Flight/Combat/Update and raw-pointer tests, installed CC Graphics ROM-window emulation, terminal-transport simulation, signed radar agents and prior-updater migration; full final gate not met |
 | 25 | A-J incremental working releases, graphical completion before strategic expansion | A native workspace usable in emulation, B partial; C-J not complete |
 | 26 | Versioned source/tests/docs/changelog/installer/compatibility/migration/limitations | Required per increment; no blanket completion claim |
 | 27 | All 18 invariants (no fake APIs/data/performance, bounded work, safety, optional addons, fallback) | Preserve as release gates; real in-game validation still required |
@@ -134,7 +134,12 @@ or finished ASCENDANCY.
 | Store | Hidden legacy package UI retained | Native package states without inventing a populated catalog |
 | Devices | Legacy peripheral list retained, terminal role added | Native inventory/probe/display workflows |
 | Editor | Hidden integrated editor retained | Native mono text, selection/caret/scroll/search/save/errors without whole-document redraw per key |
-| Update | Legacy update/rollback behavior retained | Native progress, version/state/errors and safe confirmations |
+| Update | Native cached versions/source/checkpoint, wrapped diagnostic inspector, keyboard, disabled states; service-owned yielding transaction with single-use source/version-bound confirmations and live caller/session checks | In-game lifecycle validation and broader recovery/fault UX; trusted installer is not a Lua sandbox |
+
+V0.18.39 also connects associated NEXUS agents to Combat through bounded,
+signed read-only radar samples. This is not the full ORACLE/CORE milestone.
+Source geometry can remain unknown and is not invented. See release notes
+for deployment-group/dimension and remote cadence limitations.
 
 No row is marked globally complete merely because the compatibility container
 boots. Native client adoption and full feature acceptance are separate gates.

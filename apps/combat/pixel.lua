@@ -48,7 +48,21 @@ function M.attach(app,api,tabs)
       if self.nativeFocus==id then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
       self.nativeHits[#self.nativeHits+1]={id=id,rect=r}
     end
-    if w<180 or h<180 then ui.label(s,5,6,"Combat: enlarge window",w-10,p.text,p.panel) return end
+    if w<180 or h<180 then self.nativeMap=nil self.nativeActions=nil ui.label(s,5,6,"Combat: enlarge window",w-10,p.text,p.panel) return end
+    local function toolbar(actions)
+      self.nativeActions=actions
+      local required=0
+      for _,action in ipairs(actions) do required=required+#action[2]*6+20 end
+      if required>w-10 then
+        button("actions","Actions",rect(5,h-49,78,22),self.nativeActionMenu)
+      else
+        local x=5
+        for _,action in ipairs(actions) do
+          local width=#action[2]*6+16
+          button(action[1],action[2],rect(x,h-49,width,22)) x=x+width+4
+        end
+      end
+    end
     local map=self.page=="radar" or self.page=="three"
     local title="Combat" for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
     button("views",title,rect(4,3,96,22),self.nativeViews)
@@ -130,8 +144,7 @@ function M.attach(app,api,tabs)
       end
       local controls={{"zoomOut","-"},{"zoomIn","+"},{"radarNext","Radar"},{"radarConfig","Setup"},{"radarProbe","Probe"}}
       if self.page=="three" then controls={{"zoomOut","-"},{"zoomIn","+"},{"left","Yaw -"},{"right","Yaw +"},{"up","Tilt +"},{"down","Tilt -"}} end
-      local bx=4
-      for _,control in ipairs(controls) do local bw=#control[2]*6+14 if bx+bw<w-4 then button(control[1],control[2],rect(bx,h-47,bw,22)) bx=bx+bw+4 end end
+      toolbar(controls)
       ui.label(s,6,h-20,graph.status or "",w-12,p.muted,p.panel)
     else
       local rows=self.page=="targets" and filter.targets(snap.targets,self.filters) or self.page=="cannons" and snap.cannons or self.page=="network" and (self.networkSnapshot or {}).nodes or snap.devices
@@ -169,10 +182,24 @@ function M.attach(app,api,tabs)
         end
       end
       local actions=self.page=="fire" and {{"solve","Solve"},{"aim","Aim"},{"track",self.tracking and "Stop" or "Track"},{"fire","Fire"}} or self.page=="network" and {{"networkToggle","Network"},{"publishToggle","Station"},{"networkConfig","Configure"},{"networkRescan","Discover"}} or self.page=="probe" and {{"probe","Read/export"},{"previous","Up"},{"next","Down"}} or {{"previous","Up"},{"next","Down"},{self.page=="targets" and "alias" or "ack",self.page=="targets" and "Alias" or "Verify"}}
-      local bx=5 for _,a in ipairs(actions) do local bw=#a[2]*6+16 if bx+bw<w then button(a[1],a[2],rect(bx,h-49,bw,22)) bx=bx+bw+4 end end
+      toolbar(actions)
       ui.label(s,6,h-20,self.message or "",w-12,p.muted,p.panel)
     end
-    if self.nativeViews or self.nativeRadars then
+    if self.nativeActionMenu then
+      local rows=self.nativeActions or {}
+      local capacity=math.max(1,math.floor((h-82)/23))
+      self.nativeActionFirst=math.max(1,math.min(self.nativeActionFirst or 1,math.max(1,#rows-capacity+1)))
+      self.nativeHits={} self.nativeContacts={}
+      local width=math.min(210,w-12)
+      local count=math.min(capacity,#rows-self.nativeActionFirst+1)
+      local top=h-55-count*23
+      s:rect(4,top-3,width+4,count*23+6,p.desktop)
+      for i=self.nativeActionFirst,math.min(#rows,self.nativeActionFirst+capacity-1) do
+        local row=rows[i]
+        button("action:"..row[1],row[2],rect(6,top+(i-self.nativeActionFirst)*23,width,22))
+      end
+      button("actions","Close",rect(5,h-49,78,22),true)
+    elseif self.nativeViews or self.nativeRadars then
       local mw=math.min(180,w-12) local capacity=math.max(1,math.floor((h-42)/23))
       local rows=self.nativeViews and tabs or snap.radars or {}
       self.nativeViewFirst=math.max(1,math.min(self.nativeViewFirst or 1,math.max(1,#rows-capacity+1)))
@@ -183,7 +210,7 @@ function M.attach(app,api,tabs)
       end
     end
     if self.confirm then
-      self.nativeViews=false self.nativeRadars=false self.nativeHits={} self.nativeContacts={}
+      self.nativeViews=false self.nativeRadars=false self.nativeActionMenu=false self.nativeHits={} self.nativeContacts={}
       local r=rect(8,math.max(28,math.floor(h/2)-42),w-16,86)
       s:rect(r.x,r.y,r.w,r.h,p.desktop)
       ui.paragraph(s,rect(r.x+8,r.y+7,r.w-16,38),self.confirm.title,p.text,p.desktop,{wrap=true})
@@ -194,7 +221,7 @@ function M.attach(app,api,tabs)
     local x,y=event.args[2],event.args[3]
     if event.name=="key" then
       local key=event.args[1]
-      if key==keys.escape then self.nativeViews=false self.nativeRadars=false self.confirm=nil return true end
+      if key==keys.escape then self.nativeViews=false self.nativeRadars=false self.nativeActionMenu=false self.confirm=nil return true end
       if key==keys.tab then
         local hits=self.nativeHits or {} local index=0
         for i,hit in ipairs(hits) do if hit.id==self.nativeFocus then index=i break end end
@@ -209,7 +236,8 @@ function M.attach(app,api,tabs)
     end
     if self.confirm and event.name~="mouse_click" then return true end
     if event.name=="mouse_scroll" then
-      if self.nativeViews or self.nativeRadars then self.nativeViewFirst=math.max(1,(self.nativeViewFirst or 1)+event.args[1])
+      if self.nativeActionMenu then self.nativeActionFirst=math.max(1,(self.nativeActionFirst or 1)+event.args[1])
+      elseif self.nativeViews or self.nativeRadars then self.nativeViewFirst=math.max(1,(self.nativeViewFirst or 1)+event.args[1])
       elseif self.page=="radar" or self.page=="three" then api.action(event.args[1]>0 and "zoomOut" or "zoomIn")
       else self.scroll=math.max(1,self.scroll+event.args[1]) end
       return true
@@ -220,6 +248,8 @@ function M.attach(app,api,tabs)
       if self.confirm then
         if id=="confirm" then local callback=self.confirm.callback self.confirm=nil callback()
         elseif id=="cancel" then self.confirm=nil end
+      elseif id=="actions" then self.nativeActionMenu=not self.nativeActionMenu self.nativeViews=false self.nativeRadars=false self.nativeActionFirst=1
+      elseif id:sub(1,7)=="action:" then self.nativeActionMenu=false api.action(id:sub(8))
       elseif id=="views" then self.nativeViews=not self.nativeViews self.nativeRadars=false self.nativeViewFirst=1
       elseif id:sub(1,5)=="page:" then self.page=id:sub(6) self.scroll=1 self.tracking=false self.nativeViews=false
       elseif id:sub(1,8)=="station:" then
@@ -244,6 +274,7 @@ function M.attach(app,api,tabs)
       else api.action(id) end
       return true
     end end
+    if self.nativeActionMenu then self.nativeActionMenu=false return true end
     if self.nativeViews or self.nativeRadars then self.nativeViews=false self.nativeRadars=false return true end
     for _,hit in ipairs(self.nativeContacts or {}) do if ui.hit(hit.rect,x,y) then api.select(hit.id) return true end end
     return true

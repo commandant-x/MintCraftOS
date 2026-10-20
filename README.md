@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.33:
+This repository currently contains V0.18.39:
+
+V0.18.39 adds a native pixel Update client, service-owned confirmed update and
+rollback transactions, and signed read-only radar telemetry from associated
+NEXUS agents into Combat. Ender modems carry Rednet, not peripheral access:
+the radar must be attached to its agent. See [release notes](docs/GRAPHICS-0.18.39.md).
+Application migration remains in progress; this is not the full ASCENDANCY release.
 
 V0.18.33 gives Navigation's Flight view native pixel instruments, cached
 row-based attitude rendering, and explicit stale/unavailable telemetry. Other

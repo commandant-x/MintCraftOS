@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1229,7 +1229,21 @@ function M.attach(app,api,tabs)
       if self.nativeFocus==id then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
       self.nativeHits[#self.nativeHits+1]={id=id,rect=r}
     end
-    if w<180 or h<180 then ui.label(s,5,6,"Combat: enlarge window",w-10,p.text,p.panel) return end
+    if w<180 or h<180 then self.nativeMap=nil self.nativeActions=nil ui.label(s,5,6,"Combat: enlarge window",w-10,p.text,p.panel) return end
+    local function toolbar(actions)
+      self.nativeActions=actions
+      local required=0
+      for _,action in ipairs(actions) do required=required+#action[2]*6+20 end
+      if required>w-10 then
+        button("actions","Actions",rect(5,h-49,78,22),self.nativeActionMenu)
+      else
+        local x=5
+        for _,action in ipairs(actions) do
+          local width=#action[2]*6+16
+          button(action[1],action[2],rect(x,h-49,width,22)) x=x+width+4
+        end
+      end
+    end
     local map=self.page=="radar" or self.page=="three"
     local title="Combat" for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
     button("views",title,rect(4,3,96,22),self.nativeViews)
@@ -1311,8 +1325,7 @@ function M.attach(app,api,tabs)
       end
       local controls={{"zoomOut","-"},{"zoomIn","+"},{"radarNext","Radar"},{"radarConfig","Setup"},{"radarProbe","Probe"}}
       if self.page=="three" then controls={{"zoomOut","-"},{"zoomIn","+"},{"left","Yaw -"},{"right","Yaw +"},{"up","Tilt +"},{"down","Tilt -"}} end
-      local bx=4
-      for _,control in ipairs(controls) do local bw=#control[2]*6+14 if bx+bw<w-4 then button(control[1],control[2],rect(bx,h-47,bw,22)) bx=bx+bw+4 end end
+      toolbar(controls)
       ui.label(s,6,h-20,graph.status or "",w-12,p.muted,p.panel)
     else
       local rows=self.page=="targets" and filter.targets(snap.targets,self.filters) or self.page=="cannons" and snap.cannons or self.page=="network" and (self.networkSnapshot or {}).nodes or snap.devices
@@ -1350,10 +1363,24 @@ function M.attach(app,api,tabs)
         end
       end
       local actions=self.page=="fire" and {{"solve","Solve"},{"aim","Aim"},{"track",self.tracking and "Stop" or "Track"},{"fire","Fire"}} or self.page=="network" and {{"networkToggle","Network"},{"publishToggle","Station"},{"networkConfig","Configure"},{"networkRescan","Discover"}} or self.page=="probe" and {{"probe","Read/export"},{"previous","Up"},{"next","Down"}} or {{"previous","Up"},{"next","Down"},{self.page=="targets" and "alias" or "ack",self.page=="targets" and "Alias" or "Verify"}}
-      local bx=5 for _,a in ipairs(actions) do local bw=#a[2]*6+16 if bx+bw<w then button(a[1],a[2],rect(bx,h-49,bw,22)) bx=bx+bw+4 end end
+      toolbar(actions)
       ui.label(s,6,h-20,self.message or "",w-12,p.muted,p.panel)
     end
-    if self.nativeViews or self.nativeRadars then
+    if self.nativeActionMenu then
+      local rows=self.nativeActions or {}
+      local capacity=math.max(1,math.floor((h-82)/23))
+      self.nativeActionFirst=math.max(1,math.min(self.nativeActionFirst or 1,math.max(1,#rows-capacity+1)))
+      self.nativeHits={} self.nativeContacts={}
+      local width=math.min(210,w-12)
+      local count=math.min(capacity,#rows-self.nativeActionFirst+1)
+      local top=h-55-count*23
+      s:rect(4,top-3,width+4,count*23+6,p.desktop)
+      for i=self.nativeActionFirst,math.min(#rows,self.nativeActionFirst+capacity-1) do
+        local row=rows[i]
+        button("action:"..row[1],row[2],rect(6,top+(i-self.nativeActionFirst)*23,width,22))
+      end
+      button("actions","Close",rect(5,h-49,78,22),true)
+    elseif self.nativeViews or self.nativeRadars then
       local mw=math.min(180,w-12) local capacity=math.max(1,math.floor((h-42)/23))
       local rows=self.nativeViews and tabs or snap.radars or {}
       self.nativeViewFirst=math.max(1,math.min(self.nativeViewFirst or 1,math.max(1,#rows-capacity+1)))
@@ -1364,7 +1391,7 @@ function M.attach(app,api,tabs)
       end
     end
     if self.confirm then
-      self.nativeViews=false self.nativeRadars=false self.nativeHits={} self.nativeContacts={}
+      self.nativeViews=false self.nativeRadars=false self.nativeActionMenu=false self.nativeHits={} self.nativeContacts={}
       local r=rect(8,math.max(28,math.floor(h/2)-42),w-16,86)
       s:rect(r.x,r.y,r.w,r.h,p.desktop)
       ui.paragraph(s,rect(r.x+8,r.y+7,r.w-16,38),self.confirm.title,p.text,p.desktop,{wrap=true})
@@ -1375,7 +1402,7 @@ function M.attach(app,api,tabs)
     local x,y=event.args[2],event.args[3]
     if event.name=="key" then
       local key=event.args[1]
-      if key==keys.escape then self.nativeViews=false self.nativeRadars=false self.confirm=nil return true end
+      if key==keys.escape then self.nativeViews=false self.nativeRadars=false self.nativeActionMenu=false self.confirm=nil return true end
       if key==keys.tab then
         local hits=self.nativeHits or {} local index=0
         for i,hit in ipairs(hits) do if hit.id==self.nativeFocus then index=i break end end
@@ -1390,7 +1417,8 @@ function M.attach(app,api,tabs)
     end
     if self.confirm and event.name~="mouse_click" then return true end
     if event.name=="mouse_scroll" then
-      if self.nativeViews or self.nativeRadars then self.nativeViewFirst=math.max(1,(self.nativeViewFirst or 1)+event.args[1])
+      if self.nativeActionMenu then self.nativeActionFirst=math.max(1,(self.nativeActionFirst or 1)+event.args[1])
+      elseif self.nativeViews or self.nativeRadars then self.nativeViewFirst=math.max(1,(self.nativeViewFirst or 1)+event.args[1])
       elseif self.page=="radar" or self.page=="three" then api.action(event.args[1]>0 and "zoomOut" or "zoomIn")
       else self.scroll=math.max(1,self.scroll+event.args[1]) end
       return true
@@ -1401,6 +1429,8 @@ function M.attach(app,api,tabs)
       if self.confirm then
         if id=="confirm" then local callback=self.confirm.callback self.confirm=nil callback()
         elseif id=="cancel" then self.confirm=nil end
+      elseif id=="actions" then self.nativeActionMenu=not self.nativeActionMenu self.nativeViews=false self.nativeRadars=false self.nativeActionFirst=1
+      elseif id:sub(1,7)=="action:" then self.nativeActionMenu=false api.action(id:sub(8))
       elseif id=="views" then self.nativeViews=not self.nativeViews self.nativeRadars=false self.nativeViewFirst=1
       elseif id:sub(1,5)=="page:" then self.page=id:sub(6) self.scroll=1 self.tracking=false self.nativeViews=false
       elseif id:sub(1,8)=="station:" then
@@ -1425,6 +1455,7 @@ function M.attach(app,api,tabs)
       else api.action(id) end
       return true
     end end
+    if self.nativeActionMenu then self.nativeActionMenu=false return true end
     if self.nativeViews or self.nativeRadars then self.nativeViews=false self.nativeRadars=false return true end
     for _,hit in ipairs(self.nativeContacts or {}) do if ui.hit(hit.rect,x,y) then api.select(hit.id) return true end end
     return true
@@ -1436,7 +1467,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1835,7 +1866,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -1921,7 +1952,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2317,7 +2348,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -3140,7 +3171,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -3439,7 +3470,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3558,7 +3589,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -4449,7 +4480,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -4688,7 +4719,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -5015,7 +5046,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -5130,7 +5161,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -5549,7 +5580,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.38",
+  version = "0.18.39",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -6019,97 +6050,180 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.38",
+  version = "0.18.39",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
-local renderer = require("system.gui.renderer")
-local updated = require("system.services.updated")
+local renderer=require("system.gui.renderer")
+local updated=require("system.services.updated")
 local ui=require("system.gui.components")
-local appWorker=require("system.libraries.app_worker")
-
-local M = {}
-
+local theme=require("system.gui.theme")
+local pixel=require("apps.update.pixel")
+local M={}
 function M.run(ctx)
-  local app = {
-    status = updated.status,
-    message = "Ready",
-  }
-  local worker
-  local function submit(action)
-    if app.busy then app.message="Operation already running" return end
-    if action~="check" then
-      local allowed,denied=ctx.security.require("system.update",action)
-      if not allowed then app.message=tostring(denied) return end
-      ctx.security.audit("update "..action,"GitHub/backup")
+  local actor={pid=ctx.pid}
+  local app={status=updated.status,control={busy=false},message="Ready",detailScroll=1}
+  local win,timer
+  local function call(fn,...)
+    local ran,ok,result=pcall(fn,...)
+    if not ran then return false,tostring(ok) end
+    return ok,result
+  end
+  function app:poll()
+    self.control=updated.controlStatus() self.busy=self.control.busy self.status=updated.status
+    if not self.busy then
+      local ok,metadata=pcall(function() return {cfg=updated.loadConfig(),backup=updated.rollbackInfo(),localVersion=updated.localVersion()} end)
+      if ok then self.metadata=metadata else self.message="Metadata read failed: "..tostring(metadata) end
     end
-    app.busy=true app.message=action.."..."
-    local ok,err=worker:submit({action=action})
-    if not ok then app.busy=false app.message=tostring(err) end
+    if win then win.dirty=true end
   end
-
-  function app:refresh()
-    submit("check")
+  function app:request(action,token)
+    if self.busy then self.message="UPD-BUSY: operation already running" return end
+    local ok,result=call(updated.requestAction,actor,action,token)
+    self.message=ok and ("Queued #"..result..": "..action) or tostring(result)
+    if ok then self.operation=result self.detailScroll=1 end
+    self:poll()
   end
-
-  function app:apply()
-    submit("apply")
+  function app:prepare(action)
+    if self.busy then return end
+    local ok,result=call(updated.prepareAction,actor,action)
+    if ok then self.confirm=result else self.message=tostring(result) end
   end
-
-  function app:rollback()
-    submit("rollback")
+  function app:confirmAction()
+    local pending=self.confirm self.confirm=nil
+    if pending then self:request(pending.action,pending.token) end
   end
-
-  function app:draw(w, h)
-    self.lastH = h
-    self.status=updated.status
-    local rollback = updated.rollbackInfo()
-    renderer.writeAt(1, 1, renderer.crop("MintCraft Update", w), colors.black, colors.lightGray)
-    renderer.writeAt(2, 3, renderer.crop("Local : " .. tostring(self.status.localVersion), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 4, renderer.crop("GitHub: " .. tostring(self.status.remoteVersion), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 5, renderer.crop("State : " .. tostring(self.message=="Ready" and self.status.message or self.message), w - 2), colors.black, colors.lightGray)
-    renderer.writeAt(2, 7, renderer.crop("Rollback: " .. tostring(rollback and rollback.fromVersion or "none"), w - 2), colors.black, colors.lightGray)
-    self.barState=self.barState or {}
-    self.buttons=ui.toolbar(1,h-1,w,{{id="check",label="Check"},{id="apply",label="Apply"},{id="rollback",label="Rollback"}},self.barState)
+  function app:refresh() self:request("check") end
+  function app:apply() self:prepare("apply") end
+  function app:rollback() self:prepare("rollback") end
+  function app:activate(id)
+    if id=="confirm" then self:confirmAction()
+    elseif id=="cancel" then self.confirm=nil
+    elseif id=="check" then self:refresh()
+    elseif id=="apply" then self:apply()
+    elseif id=="rollback" then self:rollback() end
   end
-
+  function app:draw(w,h)
+    self.lastH=h self.buttons={}
+    renderer.fill(1,1,w,h,theme.get("windowBg"))
+    if w<20 or h<8 then self.confirm=nil renderer.writeAt(1,1,"Enlarge Update",theme.get("windowFg")) return end
+    local status,metadata=self.status,self.metadata or {}
+    local lines={"Installed: "..tostring(metadata.localVersion or status.localVersion),"Release: "..tostring(status.remoteVersion),
+      "State: "..tostring(self.control.phase or "idle"),"Rollback: "..tostring(metadata.backup and metadata.backup.fromVersion or "none"),
+      tostring(self.control.message or self.message),tostring(self.message)}
+    if self.confirm then
+      local c=self.confirm
+      lines={"Confirm "..c.action.."?",tostring(c.localVersion).." -> "..tostring(c.version),c.source and c.source.sha or ("Checkpoint "..tostring(c.backupId)),"Transaction continues after first write."}
+    end
+    for i=1,math.min(#lines,h-2) do renderer.writeAt(1,i,renderer.crop(lines[i]:gsub("[%c]"," "),w),theme.get("windowFg"),theme.get("windowBg")) end
+    self.buttons=ui.toolbar(1,h-1,w,self.confirm and {{id="confirm",label="Confirm"},{id="cancel",label="Cancel"}} or {{id="check",label="Check"},{id="apply",label="Apply"},{id="rollback",label="Rollback"}})
+  end
   function app:handle(event)
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    for _,box in ipairs(self.buttons or {}) do if box.delta and ui.hit(box,x,y) then self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true end end
-    local action=ui.toolbarHit(self.buttons,x,y)
-    if action=="check" then
-      self:refresh()
-      return true
-    elseif action=="apply" then
-      self:apply()
-      return true
-    elseif action=="rollback" then
-      self:rollback()
-      return true
+    if self.graphicsActive and not event.name:match("^mouse_") then return self:handlePixels(event) end
+    if event.name=="key" and event.args[1]==keys.escape then self.confirm=nil return true end
+    if event.name~="mouse_click" then return false end
+    local action=ui.toolbarHit(self.buttons,event.args[2],event.args[3])
+    if action then self:activate(action) return true end
+    return false
+  end
+  pixel.attach(app)
+  app:poll()
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title="Update",w=math.min(88,w-4),h=math.min(30,h-3),x=7,y=4,app=app})
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end end)
+  timer=ctx.startTimer(0.2)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=="timer" and event.args[1]==timer then
+      if not win.minimized then app:poll() end timer=ctx.startTimer(0.2)
+    elseif event and event.name=="mintcraft_update_result" and event.args[1]==ctx.pid and event.args[2]==app.operation then
+      app.operation=nil app.message=tostring(event.args[4]) app:poll()
+    end
+  end
+end
+return M
+]=],
+  ["apps/update/pixel.lua"] = [=[
+local ui=require("system.graphics.widgets")
+local fonts=require("system.graphics.fonts")
+local primitives=require("system.graphics.primitives")
+local M={}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+function M.attach(app)
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel) self.pixelHits={} self.detailArea=nil
+    if w<200 or h<170 then self.confirm=nil ui.label(s,5,6,"Enlarge Update",w-10,p.text,p.panel) return end
+    local function button(id,label,r,disabled)
+      ui.button(s,r,label,p,false)
+      if disabled then ui.label(s,r.x+4,r.y+7,label,r.w-8,p.muted,p.button,"center") end
+      if self.focus==id then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      self.pixelHits[#self.pixelHits+1]={id=id,rect=r,disabled=disabled}
+    end
+    local control,status,meta=self.control or {},self.status or {},self.metadata or {}
+    local cfg=meta.cfg or {} local backup=meta.backup
+    button("check","Check",rect(6,5,60,24),control.busy)
+    button("apply","Apply",rect(72,5,60,24),control.busy or not status.ok or not status.updateAvailable or not status.source)
+    button("rollback","Rollback",rect(138,5,math.min(82,w-144),24),control.busy or not backup)
+    local scale=w>=450 and 2 or 1
+    fonts.draw(s,8,40,tostring(meta.localVersion or status.localVersion or "unknown"),p.text,p.panel,scale)
+    ui.label(s,8,40+9*scale+6,"Installed | release "..tostring(status.remoteVersion or "unchecked"),w-16,p.muted,p.panel)
+    local y=40+9*scale+24
+    ui.label(s,8,y,tostring(cfg.repo or "Source unavailable").." @ "..tostring(cfg.branch or "?"),w-16,p.text,p.panel)
+    local source=status.source
+    ui.label(s,8,y+14,source and ("Commit "..source.sha) or "No verified release commit",w-16,p.muted,p.panel)
+    ui.label(s,8,y+28,"Rollback: "..tostring(backup and (tostring(backup.fromVersion).." #"..backup.id) or "none"),w-16,p.muted,p.panel)
+    local state=tostring(control.phase or "idle")
+    if control.busy then state=state..(control.committed and " | transaction engaged" or " | preparing") end
+    if type(control.done)=="number" and type(control.total)=="number" then state=state.." | "..control.done.."/"..control.total end
+    local top=y+47
+    ui.label(s,8,top,state,w-16,p.accent,p.panel)
+    local area=rect(8,top+17,w-28,math.max(9,h-top-23)) self.detailArea=area
+    local detail=tostring(control.message or "").."\n"..tostring(self.message or "").."\n"..tostring(status.message or "")
+    detail=detail:sub(1,8192)
+    if not self.detailLayout or self.detailLayout.text~=detail or self.detailLayout.width~=area.w then
+      self.detailLayout={text=detail,width=area.w,lines=fonts.layout(detail,area.w,65536,{wrap=true,lineSpacing=2}).lines}
+    end
+    local lines=self.detailLayout.lines
+    local visible=math.max(1,math.floor(area.h/11))
+    self.detailScroll=math.max(1,math.min(self.detailScroll or 1,math.max(1,#lines-visible+1)))
+    for i=self.detailScroll,math.min(#lines,self.detailScroll+visible-1) do
+      ui.label(s,area.x,area.y+(i-self.detailScroll)*11,lines[i].text,area.w,p.text,p.panel)
+    end
+    if #lines>visible then ui.scrollbar(s,rect(w-15,area.y,7,area.h),#lines,visible,self.detailScroll,p) end
+    if self.confirm then
+      self.pixelHits={} self.detailArea=nil
+      local c=self.confirm local r=rect(5,32,w-10,h-37)
+      s:rect(r.x,r.y,r.w,r.h,p.desktop)
+      ui.label(s,r.x+7,r.y+8,"Confirm "..c.action,r.w-14,p.accent,p.desktop)
+      local text=tostring(c.localVersion).." -> "..tostring(c.version).."\n"..(c.source and (c.source.repo.."\n"..c.source.sha) or ("Checkpoint "..tostring(c.backupId)))
+      ui.paragraph(s,rect(r.x+7,r.y+26,r.w-14,r.h-68),text,p.text,p.desktop,{wrap=true})
+      button("confirm","Confirm",rect(r.x+7,r.y+r.h-32,78,24))
+      button("cancel","Cancel",rect(r.x+91,r.y+r.h-32,72,24))
+    end
+  end
+  function app:handlePixels(event)
+    if event.name=="key" then
+      local key=event.args[1]
+      if key==keys.escape then self.confirm=nil return true end
+      if key==keys.tab then
+        local hits=self.pixelHits or {} local index=0
+        for i,hit in ipairs(hits) do if hit.id==self.focus then index=i break end end
+        for i=1,#hits do local hit=hits[(index+i-1)%#hits+1] if not hit.disabled then self.focus=hit.id break end end
+        return true
+      end
+      if key==keys.enter then for _,hit in ipairs(self.pixelHits or {}) do if hit.id==self.focus and not hit.disabled then self:activate(hit.id) return true end end end
+      if key==keys.down then self.detailScroll=(self.detailScroll or 1)+1 return true end
+      if key==keys.up then self.detailScroll=math.max(1,(self.detailScroll or 1)-1) return true end
+    elseif event.name=="mouse_scroll" then
+      if not self.confirm then self.detailScroll=math.max(1,(self.detailScroll or 1)+event.args[1]*3) end return true
+    elseif event.name=="mouse_click" then
+      for _,hit in ipairs(self.pixelHits or {}) do if ui.hit(hit.rect,event.args[2],event.args[3]) then
+        if not hit.disabled then self:activate(hit.id) end return true
+      end end
     end
     return false
   end
-
-  local sw, sh = term.getSize()
-  app.lastH = math.min(12, sh - 3)
-  local win = ctx.windowManager:create({ title = "Update", w = math.min(44, sw - 4), h = app.lastH, x = 7, y = 4, app = app })
-  worker=appWorker.new(ctx,"Update operations",function(request)
-    if request.action=="check" then return updated.check() end
-    if request.action=="apply" then return updated.apply() end
-    return updated.rollback()
-  end,function(request,ok,result,message)
-    app.busy=false
-    if not ok then app.message="Update failed: "..tostring(result)
-    elseif request.action=="check" then app.status=result app.message=result.message
-    else app.message=tostring(message or result) end
-    if ctx.notifications and (not ok or request.action~="check") then
-      ctx.notifications:push(ok and result~=false and "success" or "error","Update",app.message,6)
-    end
-  end)
-  while not win.closed do ctx.pullEvent() end
 end
-
 return M
 ]=],
   ["boot.lua"] = [=[
@@ -6566,7 +6680,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.38",
+    version = "0.18.39",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -6948,7 +7062,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.38",
+  version = "0.18.39",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -9953,22 +10067,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.38", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.38", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.38", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.38", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.39", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.39", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.39", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.39", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.38", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.38", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.38", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.38", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.38", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.38", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.38", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.38", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.38", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.38", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.38", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.39", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.39", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.39", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.39", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.39", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.39", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.39", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.39", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.39", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.39", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.39", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -10762,7 +10876,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.38",
+    version = meta.version or "0.18.39",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -10992,6 +11106,9 @@ local function identical(path,content)
 end
 
 function M.install(files,options)
+  local function progress(phase,path,done,total)
+    if options and type(options.onProgress)=="function" then pcall(options.onProgress,phase,path,done,total) end
+  end
   -- A retained transaction may contain the only backup after an interrupted write.
   if fs.exists(root) then error("Unfinished installation: recover " .. root .. " before retrying") end
   local paths = {}
@@ -11016,7 +11133,8 @@ function M.install(files,options)
   local changed, touched = {}, {}
   local ok, err = pcall(function()
     fs.makeDir(root)
-    for _, path in ipairs(plan.changed) do
+    for index, path in ipairs(plan.changed) do
+        progress("stage",path,index-1,#plan.changed)
         write(root .. "/stage/" .. path, files[path])
         if path:match("%.lua$") then
           local fn, problem = loadfile(root .. "/stage/" .. path)
@@ -11025,7 +11143,8 @@ function M.install(files,options)
         table.insert(changed, path)
     end
     local entries = {}
-    for _, path in ipairs(changed) do
+    for index, path in ipairs(changed) do
+      progress("backup",path,index-1,#changed)
       local exists = fs.exists("/" .. path)
       assert(not exists or not fs.isDir("/" .. path), "Destination is a directory: " .. path)
       if exists then
@@ -11036,7 +11155,8 @@ function M.install(files,options)
       table.insert(entries, { path = path, existed = exists })
     end
     write(root .. "/journal.cfg", textutils.serialize(entries))
-    for _, entry in ipairs(entries) do
+    for index, entry in ipairs(entries) do
+      progress("install",entry.path,index-1,#entries)
       table.insert(touched, entry)
       write("/" .. entry.path, files[entry.path])
       -- The durable journal/backup, not the validated staging copy, drives undo.
@@ -11067,6 +11187,8 @@ function M.install(files,options)
     end
     error(err)
   end
+  progress("install","Files committed",#plan.changed,#plan.changed)
+  if options and type(options.onCommitted)=="function" then pcall(options.onCommitted,plan.version) end
   pcall(fs.delete, root)
   return true
 end
@@ -12772,12 +12894,13 @@ return M
 local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local observe=require("system.nexus.observe")
+local radar=require("system.nexus.radar")
 local M={}
 local function safeCount(value) return type(value)=="number" and value%1==0 and value>=0 and value<=10000 end
 function M.new(cfg,options)
   options=options or {}
   assert(cfg.role=="agent" and cfg.id==os.getComputerID() and wire.validKey(cfg.key),"Invalid agent association")
-  local self={cfg=cfg,seen={},sequence=0,nextHeartbeat=os.clock()+(cfg.id%8)*0.05,boot=tostring(os.epoch("utc")),inventory={},lastScan=-math.huge,work={},pending={}}
+  local self={cfg=cfg,seen={},sequence=0,nextHeartbeat=os.clock()+(cfg.id%8)*0.05,boot=tostring(os.epoch("utc")),inventory={},lastScan=-math.huge,work={},pending={},radars={},radarIndex=0,nextRadar=0}
   store.recover("/nexus/receipts.cfg")
   self.receipts=store.load("/nexus/receipts.cfg",{})
   store.recover("/nexus/receipt-expiry.cfg")
@@ -12789,13 +12912,22 @@ function M.new(cfg,options)
     return ok and sent==true
   end
   function self:tick()
-    if os.clock()-self.lastScan>=10 then self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock() end
+    if os.clock()-self.lastScan>=10 then
+      self.modems=wire.openModems() self.inventory=wire.inventory() self.lastScan=os.clock()
+      self.radars={}
+      for _,device in ipairs(self.inventory) do if device.kind=='radar' and #self.radars<8 then self.radars[#self.radars+1]=device.name end end
+    end
+    if self.modems>0 and #self.radars>0 and os.clock()>=self.nextRadar then
+      self.radarDue=true self.nextRadar=os.clock()+0.5
+      if options.wake then options.wake() end
+    end
     if self.modems>0 and os.clock()>=self.nextHeartbeat then
       local _,free=pcall(fs.getFreeSpace,'/') local _,capacity=pcall(fs.getCapacity,'/')
       local diskFree=type(free)=='number' and free==free and free>=0 and free<1e15 and free or nil
       local diskCapacity=type(capacity)=='number' and capacity==capacity and capacity>=0 and capacity<1e15 and capacity or nil
       self:send("heartbeat",{version=wire.version,release=cfg.active,provisionToken=cfg.provisionToken,label=tostring(os.getComputerLabel() or "Agent "..cfg.id):sub(1,64),
-        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe"},queueDepth=#self.work+(self.working and 1 or 0),diskFree=diskFree,diskCapacity=diskCapacity})
+        group=cfg.group,peripherals=self.inventory,capabilities={"ping","inventory","storage","sum","observe","radar.read"},queueDepth=#self.work+(self.working and 1 or 0),diskFree=diskFree,diskCapacity=diskCapacity,
+        radarCount=#self.radars,radarError=self.radarError})
       self.nextHeartbeat=os.clock()+5
     end
   end
@@ -12844,6 +12976,23 @@ function M.new(cfg,options)
     return self:perform(task)
   end
   function self:workStep()
+    if self.radarDue then
+      self.radarDue=false
+      self.radarIndex=self.radarIndex%math.max(1,#self.radars)+1
+      local name=self.radars[self.radarIndex]
+      if name then
+        self.working=true
+        local ok,result=pcall(radar.read,name)
+        if ok and result then
+          result.group=cfg.group
+          local ran,sent=pcall(self.send,self,'radar',result)
+          self.radarError=(not ran or not sent) and 'Radar transmission failed' or nil
+        else self.radarError=tostring(result):sub(1,120) end
+        self.working=false
+      end
+      -- A continuous scan stream must not starve authorized read-only missions.
+      if #self.work==0 then return true end
+    end
     local task=table.remove(self.work,1) if not task then return false end
     self.working=true
     local ok,err=pcall(self.perform,self,task)
@@ -12909,14 +13058,14 @@ return M
 local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local M={marker="-- MintCraft NEXUS bootstrap v1"}
-M.files={"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}
+M.files={"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/nexus/radar.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}
 M.launcher=M.marker.."\n"..[=[
 if not fs.exists('/nexus/config.cfg') and fs.exists('/nexus/config.cfg.backup') then fs.move('/nexus/config.cfg.backup','/nexus/config.cfg') end
 local h=assert(fs.open('/nexus/config.cfg','r')) local cfg=textutils.unserialize(h.readAll()) h.close()
 assert(type(cfg)=='table' and type(cfg.active)=='string' and cfg.active:match('^[%w_-]+$'),'Invalid NEXUS slot')
 local function run(slot)
   package.path='/nexus/versions/'..slot..'/?.lua;'..package.path
-  for _,name in ipairs({'system.nexus.protocol','system.nexus.agent','system.nexus.storage','system.nexus.observe','system.libraries.password_crypto'}) do package.loaded[name]=nil end
+  for _,name in ipairs({'system.nexus.protocol','system.nexus.agent','system.nexus.storage','system.nexus.observe','system.nexus.radar','system.libraries.password_crypto'}) do package.loaded[name]=nil end
   return require('system.nexus.agent').run()
 end
 local ok,err=pcall(run,cfg.active)
@@ -13276,7 +13425,7 @@ function M.inventory()
   for i=1,math.min(128,#names) do
     local name=names[i]
     local ok,kind=pcall(peripheral.getType,name)
-    local category=observe.kind(name)
+    local category=observe.kind(name) or (require('system.nexus.radar').kind(name) and 'radar')
     local target=category and priority or rows
     target[#target+1]={name=tostring(name):sub(1,64),type=ok and tostring(kind):sub(1,64) or "unavailable",kind=category}
   end
@@ -13293,6 +13442,162 @@ function M.openModems()
     end
   end
   return count
+end
+return M
+]=],
+  ["system/nexus/radar.lua"] = [=[
+-- Standalone agent adapter. Only these advertised read methods may be called.
+local M={}
+local types={['create_radar:radar']=true,['create_radar:radar_bearing']=true,['create_radar:plane_radar']=true}
+local reads={'getTracks','getScanGeometry','getPosition','getRange','getRotation','getDishCount'}
+function M.finite(value) return type(value)=='number' and value==value and math.abs(value)<1e15 end
+function M.vector(value)
+  if type(value)=='table' and M.finite(value.x) and M.finite(value.y) and M.finite(value.z) then return {x=value.x,y=value.y,z=value.z} end
+end
+local function text(value,length) return type(value)=='string' and value:gsub('[%c]',' '):sub(1,length) or nil end
+local function identifier(value)
+  if type(value)=='number' and M.finite(value) then value=tostring(value) end
+  return type(value)=='string' and #value>0 and #value<=100 and not value:find('[%c]') and value or nil
+end
+function M.kind(name)
+  for kind in pairs(types) do local ok,yes=pcall(peripheral.hasType,name,kind) if ok and yes then return kind end end
+end
+function M.read(name)
+  local kind=M.kind(name) if not kind then return nil,'Unsupported radar type' end
+  local ok,methods=pcall(peripheral.getMethods,name)
+  if not ok or type(methods)~='table' then return nil,'Radar methods unavailable' end
+  local available={} for i=1,math.min(#methods,128) do available[methods[i]]=true end
+  local values,errors={},{}
+  local measuredAt=os.epoch('utc')/1000
+  for _,method in ipairs(reads) do
+    if available[method] then
+      local good,value=pcall(peripheral.call,name,method)
+      if good then values[method]=value else errors[method]=tostring(value):sub(1,120) end
+    end
+  end
+  local scan=type(values.getScanGeometry)=='table' and values.getScanGeometry.version==1 and values.getScanGeometry or nil
+  local result={name=name,kind=kind,measuredAt=measuredAt,errors=errors,targets={},frame='unknown'}
+  if scan then
+    if scan.positionFrame=='world' then result.position=M.vector(scan.position) result.frame=result.position and 'world' or 'unknown' end
+    if scan.headingFrame=='world' and M.finite(scan.heading) then result.heading=scan.heading%360 end
+    if M.finite(scan.fov) and scan.fov>0 and scan.fov<=360 then result.fov=scan.fov end
+    result.range=M.finite(scan.range) and scan.range>0 and scan.range or nil
+    if type(scan.running)=='boolean' then result.running=scan.running end
+  else
+    -- A stock bearing can expose plot/block coordinates or fail getPosition.
+    -- Do not guess world placement, heading or cone geometry for it.
+    result.rawPosition=M.vector(values.getPosition)
+    result.range=M.finite(values.getRange) and values.getRange>0 and values.getRange or nil
+    result.rawRotation=M.finite(values.getRotation) and values.getRotation or nil
+  end
+  local tracks=type(values.getTracks)=='table' and values.getTracks or {}
+  result.total=#tracks result.partial=#tracks>12
+  for i=1,math.min(512,#tracks) do
+    if #result.targets>=12 then break end
+    local row=tracks[i]
+    if type(row)=='table' and identifier(row.id) and M.vector(row.position) then
+      result.targets[#result.targets+1]={id=identifier(row.id),position=M.vector(row.position),velocity=M.vector(row.velocity),
+        name=text(row.name or row.displayName,64),category=text(row.category,24),entityType=text(row.entityType,64),
+        scannedTime=M.finite(row.scannedTime) and row.scannedTime or nil,
+        friendly=type(row.friendly)=='boolean' and row.friendly or nil,synthetic=type(row.synthetic)=='boolean' and row.synthetic or nil}
+    end
+  end
+  return result
+end
+return M
+]=],
+  ["system/nexus/radar_hub.lua"] = [=[
+-- Called only after NEXUS membership, HMAC and replay checks. Never an actuator.
+local adapter=require('system.nexus.radar')
+local M={}
+local stations={}
+local function copy(value)
+  if type(value)~='table' then return value end
+  local result={} for key,v in pairs(value) do result[key]=copy(v) end return result
+end
+local function short(value,max) return type(value)=='string' and #value>0 and #value<=max and not value:find('[%c]') and value or nil end
+function M.clear() stations={} end
+function M.restrict(members,group)
+  for id,node in pairs(stations) do
+    local member=members[tostring(id)]
+    if not member or group and (type(member)~='table' or member.group~=group) then stations[id]=nil
+    elseif group then for name,entry in pairs(node) do if entry.group~=group then node[name]=nil end end end
+  end
+end
+function M.accept(id,body,now,utc)
+  if type(body)~='table' or not short(body.name,64) or type(body.targets)~='table' or #body.targets>12
+    or not adapter.finite(body.measuredAt) or body.measuredAt>utc+1 or utc-body.measuredAt>5 then return false end
+  local node=stations[id]
+  if not node then local count=0 for _ in pairs(stations) do count=count+1 end if count>=64 then return false end node={} stations[id]=node end
+  local previous=node[body.name]
+  if not previous then
+    local count=0 for _,station in pairs(stations) do for _ in pairs(station) do count=count+1 end end
+    if count>=128 then return false end
+  end
+  if previous and body.measuredAt<=previous.measuredAt then return false end
+  local count=0 for _ in pairs(node) do count=count+1 end
+  if not previous and count>=8 then return false end
+  local observed=now-math.max(0,utc-body.measuredAt)
+  local source='nexus:'..id..':'..body.name
+  local radar={id=source,name='Agent '..id..' / '..body.name,remote=true,authenticated=true,station=id,frame='unknown',
+    timestamp=observed,readErrors={},positionIssue='World geometry unavailable; source radar needs geometry API',
+    range=adapter.finite(body.range) and body.range>0 and body.range or nil,
+    rawTrackCount=adapter.finite(body.total) and math.max(0,math.floor(body.total)) or nil,partial=body.partial==true,
+    positionSource='source API; operator deployment group (dimension not detected)'}
+  if body.frame=='world' then radar.position=adapter.vector(body.position) radar.frame=radar.position and 'world' or 'unknown' end
+  if radar.position then radar.positionIssue=nil end
+  if adapter.finite(body.heading) then radar.heading=body.heading%360 end
+  if adapter.finite(body.fov) and body.fov>0 and body.fov<=360 then radar.fov=body.fov radar.fovSource='source radar API' end
+  if type(body.running)=='boolean' then radar.running=body.running end
+  for _,method in ipairs({'getTracks','getScanGeometry','getPosition','getRange','getRotation','getDishCount'}) do
+    if type(body.errors)=='table' and type(body.errors[method])=='string' then radar.readErrors[method]=body.errors[method]:sub(1,120) end
+  end
+  local entry={radar=radar,targets={},measuredAt=body.measuredAt,received=now,history={},group=body.group}
+  for _,row in ipairs(body.targets) do
+    local key=type(row)=='table' and short(row.id,100)
+    local position=key and adapter.vector(row.position)
+    if position then
+      local old=previous and previous.history[key]
+      local progressed=old and adapter.finite(row.scannedTime) and adapter.finite(old.scannedTime) and row.scannedTime>old.scannedTime
+        and observed-old.received>=0 and observed-old.received<=5
+      local same=old and adapter.finite(row.scannedTime) and row.scannedTime==old.scannedTime
+      local verified=progressed or same and old.verified or false
+      local time=same and old.timestamp or observed
+      if same and old.position then position=copy(old.position) end
+      local target={id=key,position=position,velocity=adapter.vector(row.velocity),renderName=short(row.name,64),category=short(row.category,24),
+        entityType=short(row.entityType,64),radarId=source,station=id,remote=true,authenticated=true,frame='world',
+        timestamp=time,freshnessKnown=verified,stale=not verified or now-time>5,
+        friendly=row.friendly==true or old and old.friendly==true or nil,synthetic=row.synthetic==true or old and old.synthetic==true or nil}
+      entry.targets[#entry.targets+1]=target
+      local scannedTime=adapter.finite(row.scannedTime) and row.scannedTime or nil
+      if old and adapter.finite(old.scannedTime) and (not scannedTime or scannedTime<old.scannedTime) then scannedTime=old.scannedTime end
+      entry.history[key]={scannedTime=scannedTime,timestamp=time,received=observed,position=copy(position),verified=verified,friendly=target.friendly,synthetic=target.synthetic}
+    end
+  end
+  node[body.name]=entry return true
+end
+function M.snapshot(now)
+  local result={radars={},targets={}}
+  local ids={} for id in pairs(stations) do ids[#ids+1]=id end table.sort(ids)
+  for _,id in ipairs(ids) do
+    local node=stations[id] local names={} for name in pairs(node) do names[#names+1]=name end table.sort(names)
+    for _,name in ipairs(names) do
+      local entry=node[name]
+      if now-entry.received>10 then node[name]=nil
+      else
+        if #result.radars<128 then
+          local radar=copy(entry.radar) radar.stale=now-radar.timestamp>5
+          result.radars[#result.radars+1]=radar
+          for _,row in ipairs(entry.targets) do if #result.targets<128 then
+            local target=copy(row) target.stale=row.stale or now-row.timestamp>5
+            result.targets[#result.targets+1]=target
+          end end
+        end
+      end
+    end
+    if not next(node) then stations[id]=nil end
+  end
+  return result
 end
 return M
 ]=],
@@ -14716,6 +15021,9 @@ function M.acquire(rescan)
     if now - target.timestamp > 10 then tracks[id] = nil else snap.targets[#snap.targets + 1] = addon.copy(target) end
   end
   local mesh=radarNet.snapshot()
+  local agents=require("system.nexus.radar_hub").snapshot(now)
+  for _,radar in ipairs(agents.radars) do mesh.radars[#mesh.radars+1]=radar end
+  for _,target in ipairs(agents.targets) do mesh.targets[#mesh.targets+1]=target end
   snap.network=mesh
   snap.zone=radarNet.configuration()
   local byId={} for _,target in ipairs(snap.targets) do byId[target.id]=target end
@@ -14725,7 +15033,7 @@ function M.acquire(rescan)
     if not existing and #snap.targets<settings.radar.maxTargets then
       target.label=settings.aliases[target.id] or target.renderName or ("ID "..target.id:sub(1,8))
       target.labelSource=settings.aliases[target.id] and "alias" or target.renderName and "api" or "id"
-      target.stale=now-target.timestamp>5
+      target.stale=target.stale or now-target.timestamp>5
       snap.targets[#snap.targets+1]=target byId[target.id]=target
     elseif existing then
       existing.sources=existing.sources or {[existing.radarId]=existing.timestamp}
@@ -14735,7 +15043,7 @@ function M.acquire(rescan)
         local sources=existing.sources
         for key in pairs(existing) do existing[key]=nil end
         for key,value in pairs(target) do existing[key]=addon.copy(value) end
-        existing.sources=sources existing.remote=true existing.stale=false
+        existing.sources=sources existing.remote=true existing.stale=target.stale or now-target.timestamp>5
         existing.label=settings.aliases[existing.id] or existing.renderName or ("ID "..existing.id:sub(1,8))
         existing.labelSource=settings.aliases[existing.id] and "alias" or existing.renderName and "api" or "id"
       end
@@ -16140,6 +16448,7 @@ local fleet=require("system.nexus.fleet")
 local observe=require("system.nexus.observe")
 local monitor=require("system.nexus.monitor")
 local keygen=require("system.nexus.keygen")
+local radarHub=require("system.nexus.radar_hub")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
 local M={version=wire.version}
@@ -16220,8 +16529,9 @@ local function actorAllowed(actor)
 end
 local function saveConfig(value)
   store.save("/system/config/nexus.cfg",value)
-  if config.key~=value.key then nodeKeys={} end
+  if config.key~=value.key then nodeKeys={} radarHub.clear() end
   config=value
+  radarHub.restrict(config.members or {},config.group)
 end
 local function publish(message)
   notice=tostring(message):sub(1,300) revision=revision+1
@@ -16618,11 +16928,16 @@ local function receive(item)
     row.provisionToken=type(body.provisionToken)=="string" and body.provisionToken:sub(1,100) or nil
     row.label=type(body.label)=="string" and body.label:sub(1,64) or row.label
     row.peripherals=body.peripherals row.capabilities=body.capabilities
+    row.radarCount=type(body.radarCount)=='number' and body.radarCount>=0 and body.radarCount<=8 and math.floor(body.radarCount) or 0
+    row.radarError=type(body.radarError)=='string' and body.radarError:sub(1,120) or nil
     row.queueDepth=type(body.queueDepth)=='number' and math.max(0,math.min(9,body.queueDepth)) or 0
     row.diskFree=type(body.diskFree)=='number' and body.diskFree==body.diskFree and body.diskFree>=0 and body.diskFree<1e15 and body.diskFree or nil
     row.diskCapacity=type(body.diskCapacity)=='number' and body.diskCapacity==body.diskCapacity and body.diskCapacity>0 and body.diskCapacity<1e15 and body.diskCapacity or nil
     rows[id]=row revision=revision+1
     send(id,"ack",{heartbeat=message.id})
+  elseif message.kind=="radar" then
+    if body.group~=config.members[tostring(id)].group or body.group~=config.group then return end
+    if radarHub.accept(id,body,os.clock(),os.epoch('utc')/1000) then revision=revision+1 end
   elseif message.kind=="result" then
     for _,job in ipairs(jobs) do if job.id==body.id and job.node==id and job.state~="completed" and job.state~="failed" then
       if type(body.result)~="table" then return end
@@ -16744,6 +17059,7 @@ function M.snapshot()
 end
 function M.start(ctx)
   M.stop() context=ctx
+  radarHub.clear()
   M.release=nil M.autoAt=nil M.coordinationAt=nil M.monitorAt=nil bundle=nil nodeKeys={} autoMessage="Automatic deployment disabled"
   M.startedAt=os.clock() alertsDirty=false
   rows,drives,seen={}, {},{} lastScan=-math.huge
@@ -16806,6 +17122,7 @@ function M.start(ctx)
   runner=addon.periodic(ctx,"nexusd",0.25,M.tick)
 end
 function M.stop()
+  radarHub.clear()
   if runner then runner:stop() runner=nil end
   if listener and context.eventBus then context.eventBus:off(listener) end
   listener=nil actions={} incoming={}
@@ -17576,6 +17893,7 @@ return M
 local config = require("system.libraries.config")
 local log = require("system.libraries.log")
 local users = require("system.security.users")
+local sessionRevision=0
 
 local M = {
   cfgPath = "/system/config/security.cfg",
@@ -17614,15 +17932,18 @@ end
 function M.isLocked()
   return users.isLocked()
 end
+function M.sessionRevision() return sessionRevision end
 
 function M.login(name, password, options)
   local ok, msg = users.login(name, password, options)
+  if ok then sessionRevision=sessionRevision+1 end
   log.info("securityd", ok and msg or ("login failed " .. tostring(name)))
   return ok, msg
 end
 
 function M.unlock(password, options)
   local ok, msg = users.unlock(password, options)
+  if ok then sessionRevision=sessionRevision+1 end
   log.info("securityd", ok and "session unlocked" or "unlock failed")
   return ok, msg
 end
@@ -17630,6 +17951,7 @@ end
 function M.lock()
   local ok, err = users.lock()
   if not ok then return false, err end
+  sessionRevision=sessionRevision+1
   log.info("securityd", "session locked")
   return true
 end
@@ -17637,6 +17959,7 @@ end
 function M.logout()
   local ok, err = users.logout()
   if not ok then return false, err end
+  sessionRevision=sessionRevision+1
   log.info("securityd", "logged out to guest")
   return true
 end
@@ -17650,6 +17973,7 @@ function M.setPassword(name, password, oldPassword, actor, options)
   end
   if not allowed then return false, reason end
   local ok, msg = users.setPassword(name, password, oldPassword, options)
+  if ok then sessionRevision=sessionRevision+1 end
   log.info("securityd", ok and ("password changed for " .. tostring(name)) or tostring(msg))
   return ok, msg
 end
@@ -17939,6 +18263,146 @@ end
 
 return ServiceManager
 ]=],
+  ["system/services/update_control.lua"] = [=[
+local permissions=require("system.security.permissions")
+local security=require("system.services.securityd")
+local log=require("system.libraries.log")
+local M={}
+local function copy(value)
+  if type(value)~="table" then return value end
+  local result={} for k,v in pairs(value) do result[k]=copy(v) end return result
+end
+function M.new(ctx,service)
+  local scheduler=assert(ctx.scheduler,"Update requires scheduler")
+  local self={serial=0,busy=false,phase="idle",message="Ready"}
+  local pending,pid
+  local tokens,tokenSerial={},0
+  local function identity(owner)
+    local process=scheduler.processes[owner]
+    if not process or process.state~="ready" then return nil,"UPD-OWNER: caller stopped" end
+    local attached,open=false,false
+    for _,win in ipairs(process.windows or {}) do attached=true if not win.closed then open=true end end
+    if attached and not open then return nil,"UPD-OWNER: window closed" end
+    return process
+  end
+  local function authorize(request)
+    if request.committed then return true end
+    local process,err=identity(request.owner)
+    if not process then return false,err end
+    if request.process and request.process~=process then return false,"UPD-OWNER: caller replaced" end
+    if request.session~=security.sessionRevision() then return false,"UPD-AUTH: session changed" end
+    local user=security.currentUser()
+    if not user or user.name~=request.user then return false,"UPD-AUTH: user changed" end
+    return permissions.require({pid=process.pid,appId=process.meta and process.meta.appId,permissions=process.permissions},
+      request.action=="check" and "network.http" or "system.update")
+  end
+  local function capture(actor,action)
+    local process,err=identity(actor and actor.pid)
+    if not process then return nil,err end
+    local user=security.currentUser()
+    local request={owner=process.pid,process=process,user=user and user.name,session=security.sessionRevision(),action=action}
+    local ok,why=authorize(request)
+    if not ok then return nil,why end
+    return request
+  end
+  function self:prepare(actor,action)
+    if action~="apply" and action~="rollback" then return false,"UPD-ACTION: invalid confirmation" end
+    if self.busy then return false,"UPD-BUSY: operation running" end
+    local request,err=capture(actor,action) if not request then return false,err end
+    request.localVersion=service.localVersion()
+    if action=="apply" then
+      local status,cfg=service.status,service.loadConfig()
+      if not status.ok or not status.updateAvailable or not status.source then return false,"UPD-SOURCE: run Check first" end
+      if status.source.repo~=cfg.repo or status.source.ref~=cfg.branch then return false,"UPD-STALE: source changed; check again" end
+      request.source=copy(status.source) request.version=status.remoteVersion
+    else
+      local backup=service.rollbackInfo()
+      if not backup then return false,"UPD-BACKUP: no checkpoint" end
+      request.backupId=backup.id request.version=backup.fromVersion
+    end
+    for id,token in pairs(tokens) do if token.expires<os.clock() or token.owner==request.owner then tokens[id]=nil end end
+    local count=0 for _ in pairs(tokens) do count=count+1 end
+    if count>=8 then return false,"UPD-BUSY: confirmation limit" end
+    tokenSerial=tokenSerial+1 request.token=tokenSerial request.expires=os.clock()+30
+    tokens[tokenSerial]=request
+    return true,{token=tokenSerial,action=action,version=request.version,localVersion=request.localVersion,
+      source=copy(request.source),backupId=request.backupId,expires=request.expires}
+  end
+  local function ensureWorker()
+    if pid and scheduler.processes[pid] and scheduler.processes[pid].state=="ready" then return end
+    pid=scheduler:spawn("Update transaction",function()
+      while true do
+        if pending then
+          local request=pending pending=nil self.phase="running"
+          local ran,ok,message=pcall(function()
+            local allowed,err=authorize(request) if not allowed then return false,err end
+            local options=copy({source=request.source,version=request.version,localVersion=request.localVersion,backupId=request.backupId})
+            options.authorize=function() return authorize(request) end
+            options.commit=function() request.committed=true self.committed=true end
+            options.progress=function(phase,message,done,total)
+              self.phase=phase self.message=tostring(message or ""):sub(1,8192) self.done=done self.total=total
+            end
+            if request.action=="check" then
+              local result=service.check(options) return result.ok,result.message
+            end
+            return service[request.action](options)
+          end)
+          if not ran then message="UPD-FAILED: "..tostring(ok) ok=false end
+          self.busy=false self.phase="finished" self.ok=ok==true
+          self.message=tostring(message or (ok and "Completed" or "Refused")):sub(1,8192)
+          pcall(ok and log.info or log.error,"update",request.action.." #"..request.id..": "..self.message)
+          if ctx.notifications then pcall(ctx.notifications.push,ctx.notifications,ok and "success" or "error","Update",self.message,6) end
+          os.queueEvent("mintcraft_update_result",request.owner,request.id,self.ok,self.message)
+        end
+        os.pullEvent("mintcraft_update_action")
+      end
+    end,{eventMode="raw",appId="update-control",permissions={},protected=true})
+    assert(scheduler:start(pid))
+  end
+  function self:request(actor,action,tokenId)
+    if action~="check" and action~="apply" and action~="rollback" then return false,"UPD-ACTION: invalid action" end
+    if self.busy then return false,"UPD-BUSY: operation running" end
+    local request,err
+    if action=="check" then request,err=capture(actor,action)
+    else
+      request=tokenId and tokens[tokenId] if tokenId then tokens[tokenId]=nil end
+      if not request or request.owner~=(actor and actor.pid) or request.action~=action or request.expires<os.clock() then
+        return false,"UPD-STALE: confirmation missing or expired"
+      end
+      local ok,why=authorize(request) if not ok then return false,why end
+      if service.localVersion()~=request.localVersion then return false,"UPD-STALE: installed version changed" end
+      if action=="apply" then
+        local cfg=service.loadConfig()
+        if cfg.repo~=request.source.repo or cfg.branch~=request.source.ref then return false,"UPD-STALE: source changed" end
+      else
+        local info=service.rollbackInfo()
+        if not info or info.id~=request.backupId then return false,"UPD-STALE: checkpoint changed" end
+      end
+    end
+    if not request then return false,err end
+    ensureWorker() self.serial=self.serial+1 request.id=self.serial pending=request
+    self.busy=true self.phase="queued" self.action=action self.owner=request.owner self.message="Queued"
+    self.ok=nil self.done=nil self.total=nil self.committed=false
+    os.queueEvent("mintcraft_update_action",pid)
+    return true,self.serial
+  end
+  function self:status()
+    local worker=pid and scheduler.processes[pid]
+    local lost=self.busy and (not worker or worker.state~="ready")
+    return {id=self.serial,busy=self.busy,phase=lost and "uncertain" or self.phase,action=self.action,owner=self.owner,
+      ok=lost and false or self.ok,message=lost and "UPD-RECOVERY: worker stopped; inspect recovery journals before reboot" or self.message,
+      committed=self.committed,done=self.done,total=self.total,pid=pid}
+  end
+  function self:stop()
+    if self.busy then return false,"Update transaction running" end
+    tokens={} pending=nil
+    if pid and scheduler.processes[pid] and scheduler.processes[pid].state=="ready" then scheduler:kill(pid,true) end
+    pid=nil return true
+  end
+  return self
+end
+return M
+]=],
   ["system/services/updated.lua"] = [=[
 local config = require("system.libraries.config")
 local version = require("system.libraries.version")
@@ -17946,8 +18410,10 @@ local source = require("system.libraries.update_source")
 local safeWrite = require("system.libraries.safe_write")
 local httpClient = require("system.network.http_client")
 local operation
+local rootContext,controller
 
 local M = {
+  maxInstallerBytes = 4194304,
   cfgPath = "/system/config/update.cfg",
   rollbackRoot = "/var/backups/update",
   status = {
@@ -17957,6 +18423,17 @@ local M = {
     message = "never checked",
   },
 }
+
+local function phase(options,name,message,done,total)
+  if options and type(options.progress)=="function" then pcall(options.progress,name,message,done,total) end
+end
+local function authorize(options)
+  if options and options.authorize then local ok,err=options.authorize() if not ok then error("UPD-AUTH: "..tostring(err),0) end end
+end
+local function commit(options)
+  authorize(options)
+  if options and options.commit then options.commit() end
+end
 
 local function trim(value)
   return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -18086,10 +18563,18 @@ function M.remoteVersion()
   return trim(data)
 end
 
-function M.check()
+function M.check(options)
+  authorize(options)
   local cfg = M.loadConfig()
   local localVersion = M.localVersion()
-  local remoteVersion, err = M.remoteVersion()
+  phase(options,"resolve","Resolving GitHub commit")
+  local pinned,err=source.resolve(cfg,getCommit)
+  local remoteVersion
+  if pinned then
+    phase(options,"version","Reading pinned VERSION")
+    remoteVersion,err=httpGet(source.url(pinned,"VERSION"))
+    if remoteVersion then remoteVersion=trim(remoteVersion) end
+  end
 
   if not remoteVersion then
     M.status = {
@@ -18097,6 +18582,7 @@ function M.check()
       remoteVersion = "unknown",
       updateAvailable = false,
       message = err or "check failed",
+      ok = false,
     }
   else
     local comparison, problem = version.compare(remoteVersion, localVersion)
@@ -18105,9 +18591,13 @@ function M.check()
       remoteVersion = remoteVersion,
       updateAvailable = comparison == 1,
       message = problem or (comparison == 1 and "update available" or (comparison == -1 and "local version is newer" or "up to date")),
+      ok = comparison~=nil,
+      source = {repo=pinned.repo,sha=pinned.sha,ref=cfg.branch},
     }
   end
 
+  authorize(options)
+  cfg=M.loadConfig()
   cfg.lastStatus = M.status.message
   cfg.lastLocalVersion = M.status.localVersion
   cfg.lastRemoteVersion = M.status.remoteVersion
@@ -18123,7 +18613,7 @@ function M.downloadInstaller(pinned)
     if not pinned then return nil, err end
   end
   local url = source.url(pinned, "install.lua")
-  local data, err = httpGet(url, 1048576)
+  local data, err = httpGet(url, M.maxInstallerBytes)
   if not data then return nil, err end
 
   local path = "/var/tmp/mintcraft_update.lua"
@@ -18211,10 +18701,16 @@ function M.createRollback(reason,changes)
   return result, detail
 end
 
-local function rollback()
+local function rollback(options)
+  authorize(options)
+  if options and options.localVersion and M.localVersion()~=options.localVersion then return false,"UPD-STALE: installed version changed" end
+  local selected=M.rollbackInfo()
+  if options and options.backupId and (not selected or selected.id~=options.backupId) then return false,"UPD-STALE: rollback checkpoint changed" end
   if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") then
     return false, "Recover pending installation before rollback"
   end
+  commit(options)
+  phase(options,"recovery","Checking pending restore")
   local recovered, recoveryErr = safeWrite.recoverRestore()
   if not recovered then return false, recoveryErr end
   local info = M.rollbackInfo()
@@ -18248,7 +18744,8 @@ local function rollback()
 
   assert(config.save("/var/tmp/mintcraft-rollback.cfg", {id=info.id}))
 
-  for _, path in ipairs(manifest.paths) do
+  for index, path in ipairs(manifest.paths) do
+    phase(options,"rollback",path,index-1,#manifest.paths)
     local ok,err
     if path == "/packages" then
       ok = true -- Package databases and user-installed packages are not system rollback data.
@@ -18258,6 +18755,8 @@ local function rollback()
     if not ok then return false, err end
   end
   fs.delete("/var/tmp/mintcraft-rollback.cfg")
+  phase(options,"rollback","Checkpoint restored",#manifest.paths,#manifest.paths)
+  M.status.localVersion=M.localVersion() M.status.source=nil M.status.updateAvailable=false
   return true, "rollback restored " .. tostring(manifest.fromVersion or "previous") .. ", reboot required"
 end
 
@@ -18268,46 +18767,60 @@ local function exclusive(name, fn)
   local ok, result, detail = pcall(fn)
   operation = nil
   _G.mintcraftStorageOperation = nil
-  if not ok then return false, name .. " failed: " .. tostring(result) .. "; backup retained" end
+  if not ok then return false, name .. " failed: " .. tostring(result) end
   return result, detail
 end
 
-function M.rollback() return exclusive("Rollback", rollback) end
+function M.rollback(options) return exclusive("Rollback",function() return rollback(options) end) end
 
-local function apply()
+local function apply(options)
+  authorize(options)
+  if options and options.localVersion and M.localVersion()~=options.localVersion then return false,"UPD-STALE: installed version changed" end
   if fs.exists("/var/tmp/mintcraft-package") or fs.exists("/var/tmp/mintcraft-install") or fs.exists("/var/tmp/mintcraft-rollback.cfg")
     or fs.exists("/var/tmp/mintcraft-restore") then return false, "Recover pending update before applying" end
-  local pinned, err = source.resolve(M.loadConfig(), getCommit)
+  phase(options,"resolve","Resolving release source")
+  local pinned, err
+  if options and options.source then pinned={repo=options.source.repo,sha=options.source.sha}
+  else pinned,err=source.resolve(M.loadConfig(),getCommit) end
   if not pinned then return false, err end
+  phase(options,"version","Reading pinned VERSION")
   local remote, problem = httpGet(source.url(pinned, "VERSION"))
   if not remote then return false, problem end
+  if options and options.version and trim(remote)~=options.version then return false,"UPD-STALE: confirmed release version changed" end
   local comparison, invalid = version.compare(trim(remote), M.localVersion())
   if comparison ~= 1 then return false, invalid or "Pinned release is not newer than installed version" end
-  local data,downloadErr=httpGet(source.url(pinned,"install.lua"),1048576)
+  phase(options,"download","Downloading pinned installer")
+  local data,downloadErr=httpGet(source.url(pinned,"install.lua"),M.maxInstallerBytes)
   if not data then return false,downloadErr end
   if not data:find("-- MintCraft installer protocol: 2",1,true) then return false,"Unsupported installer; use a pinned manual installation" end
   local environment=setmetatable({print=function() end},{__index=_ENV})
-  local backedUp=false
+  local backedUp,committed=false,false
   environment.mintcraftInstallOptions={beforeInstall=function(plan)
+    authorize(options)
     assert(version.compare(trim(plan.version),trim(remote))==0,"Pinned installer/version mismatch")
     assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed; check again")
     local free=fs.getFreeSpace and fs.getFreeSpace("/")
     local required=plan.stageBytes+plan.backupBytes*2+math.max(32768,#plan.changed*256)
     if type(free)=="number" and free<required then error("UPD-DISK: need "..required.." free bytes; available "..free..". Backups retained.") end
+    commit(options)
+    phase(options,"checkpoint","Creating rollback checkpoint")
     local ok,backup=M.createRollback("before update",plan.changed)
     assert(ok,tostring(backup)) backedUp=true
     assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed during checkpoint")
-  end}
+    phase(options,"install","Running transactional installer")
+  end,onProgress=function(name,path,done,total) phase(options,name,path,done,total) end,
+    onCommitted=function(installed) committed=trim(installed)==trim(remote) end}
   local fn,loadErr=load(data,"@github-update-"..pinned.sha,"t",environment)
   if not fn then return false,loadErr end
   local ok, runErr = pcall(fn)
   if not ok then return false, tostring(runErr) end
   if not backedUp then return false,"Installer did not create a rollback checkpoint" end
+  if not committed or M.localVersion()~=trim(remote) then return false,"UPD-STATE: installer commit/version not verified; inspect rollback checkpoint" end
   M.status.localVersion=M.localVersion() M.status.updateAvailable=false M.status.message="Installed; reboot required"
   return true, "installer finished, reboot required"
 end
 
-function M.apply() return exclusive("Apply", apply) end
+function M.apply(options) return exclusive("Apply",function() return apply(options) end) end
 
 function M.storageBytes(path)
   if not fs.exists(path) then return 0 end
@@ -18418,8 +18931,36 @@ function M.cleanup(kind, options)
   return M.pruneBackups(options.confirm == true)
 end
 
+local function stopAutomatic()
+  if M.ctx and M.ctx.eventBus then
+    for _, id in ipairs(M.listeners or {}) do M.ctx.eventBus:off(id) end
+  end
+  if M.timer and os.cancelTimer then os.cancelTimer(M.timer) end
+  M.ctx, M.listeners, M.timer = nil, {}, nil
+end
+
+local function control()
+  if not rootContext or not rootContext.scheduler then return nil,"UPD-SERVICE: scheduler unavailable" end
+  if not controller then controller=require("system.services.update_control").new(rootContext,M) end
+  return controller
+end
+function M.prepareAction(actor,action)
+  local worker,err=control() if not worker then return false,err end
+  return worker:prepare(actor,action)
+end
+function M.requestAction(actor,action,token)
+  local worker,err=control() if not worker then return false,err end
+  local ok,result=worker:request(actor,action,token)
+  if ok then stopAutomatic() end
+  return ok,result
+end
+function M.controlStatus() return controller and controller:status() or {busy=false,phase="idle",message="Ready"} end
+
 function M.start(ctx)
-  M.stop()
+  if controller and controller:status().busy then return false,"Update transaction running" end
+  if controller then controller:stop() controller=nil end
+  stopAutomatic()
+  rootContext=ctx
   M.status.localVersion=M.localVersion()
   local cfg = M.loadConfig()
   if not cfg.autoCheck then return end
@@ -18440,7 +18981,7 @@ function M.start(ctx)
     if M.status.updateAvailable and ctx.notifications then
       ctx.notifications:push("info", "Update", "Version " .. remote .. " available; open Update to install", 6)
     end
-    M.stop()
+    stopAutomatic()
   end
   table.insert(M.listeners, ctx.eventBus:on("http_success", function(address, handle)
     if address ~= url then return end
@@ -18461,11 +19002,11 @@ function M.start(ctx)
 end
 
 function M.stop()
-  if M.ctx and M.ctx.eventBus then
-    for _, id in ipairs(M.listeners or {}) do M.ctx.eventBus:off(id) end
-  end
-  if M.timer and os.cancelTimer then os.cancelTimer(M.timer) end
-  M.ctx, M.listeners, M.timer = nil, {}, nil
+  if operation or controller and controller:status().busy then return false,"Update transaction running; cannot stop" end
+  stopAutomatic()
+  if controller then controller:stop() controller=nil end
+  rootContext=nil
+  return true
 end
 
 return M
@@ -19284,7 +19825,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.38
+0.18.39
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

@@ -188,3 +188,18 @@ combat.start({scheduler=scheduler}) combat.acquire(true)
 for _,radar in ipairs(combat.snapshot().radars) do if radar.id=="radar_1" then assert(radar.heading==nil and radar.running==false,"unconverted body angle treated as world") end end
 assert(combat.stop())
 print("forty radar automatic scanner setup and unknown body heading protection passed")
+local hub=require('system.nexus.radar_hub')
+hub.clear()
+local sample={name='right',frame='world',measuredAt=now,position={x=30,y=64,z=40},range=1000,heading=90,fov=60,
+  targets={{id='nexus-contact',name='Radar pilot',position={x=31,y=65,z=41},scannedTime=1}}}
+assert(hub.accept(7,sample,now,now))
+now=now+0.5 sample.measuredAt=now sample.targets[1].scannedTime=2 assert(hub.accept(7,sample,now,now))
+devices={mount={getInfo=function() return {x=0,y=0,z=0,assembled=true,yaw=0,pitch=0} end,setTargetAngles=function() error('remote aim executed') end}}
+peripheral.getType=function() return 'cannon_mount' end
+combat.start({scheduler=scheduler}) combat.acquire(true)
+local snapshot=combat.snapshot()
+assert(#snapshot.radars==1 and snapshot.radars[1].id=='nexus:7:right','NEXUS radar not visible in Combat')
+assert(#snapshot.targets==1 and snapshot.targets[1].renderName=='Radar pilot' and snapshot.targets[1].freshnessKnown)
+local _,reason=combat.solution('mount','nexus-contact') assert(reason:find('remote',1,true),'NEXUS report enabled aiming')
+assert(combat.stop()) hub.clear()
+print('associated NEXUS radar -> Combat integration and remote actuation prohibition passed')

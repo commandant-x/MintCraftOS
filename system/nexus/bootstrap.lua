@@ -1,14 +1,14 @@
 local wire=require("system.nexus.protocol")
 local store=require("system.nexus.storage")
 local M={marker="-- MintCraft NEXUS bootstrap v1"}
-M.files={"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}
+M.files={"system/nexus/protocol.lua","system/nexus/storage.lua","system/nexus/agent.lua","system/nexus/observe.lua","system/nexus/radar.lua","system/libraries/password_crypto.lua","system/nexus/uninstall.lua"}
 M.launcher=M.marker.."\n"..[=[
 if not fs.exists('/nexus/config.cfg') and fs.exists('/nexus/config.cfg.backup') then fs.move('/nexus/config.cfg.backup','/nexus/config.cfg') end
 local h=assert(fs.open('/nexus/config.cfg','r')) local cfg=textutils.unserialize(h.readAll()) h.close()
 assert(type(cfg)=='table' and type(cfg.active)=='string' and cfg.active:match('^[%w_-]+$'),'Invalid NEXUS slot')
 local function run(slot)
   package.path='/nexus/versions/'..slot..'/?.lua;'..package.path
-  for _,name in ipairs({'system.nexus.protocol','system.nexus.agent','system.nexus.storage','system.nexus.observe','system.libraries.password_crypto'}) do package.loaded[name]=nil end
+  for _,name in ipairs({'system.nexus.protocol','system.nexus.agent','system.nexus.storage','system.nexus.observe','system.nexus.radar','system.libraries.password_crypto'}) do package.loaded[name]=nil end
   return require('system.nexus.agent').run()
 end
 local ok,err=pcall(run,cfg.active)

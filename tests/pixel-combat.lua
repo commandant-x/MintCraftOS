@@ -57,4 +57,14 @@ draw(600,360) app:handlePixels({name="key",args={keys.tab}}) assert(app.nativeFo
 app.snapshot.radars={} app.snapshot.targets={} app.snapshot.revision=3 draw(600,360)
 assert(#app.nativeGraph.hits==0,"missing world origin fabricated contacts")
 draw(156,120) assert(#app.nativeHits==0,"undersized diagnostic left overlapping controls")
+app.page="three" draw(240,240) click("actions") draw(240,240)
+assert(#app.nativeContacts==0,"action popup left contact hitboxes active")
+click("action:down") assert(actions[#actions]=="down" and not app.nativeActionMenu,"overflow action inaccessible")
+draw(240,240) click("actions") draw(240,240)
+local before=#actions
+app:handlePixels({name="mouse_click",args={1,300,100}})
+assert(not app.nativeActionMenu and #actions==before,"popup dismissal leaked to map")
+draw(240,240) click("actions") draw(156,120)
+assert(#app.nativeHits==0 and app.nativeMap==nil,"resize retained map hitboxes")
+app.nativeActionMenu=false
 print("native Combat: pixel radar 2D/3D, filters, selection, cached projection, modal confirmation and bounded layouts passed")

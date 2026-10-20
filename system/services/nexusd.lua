@@ -8,6 +8,7 @@ local fleet=require("system.nexus.fleet")
 local observe=require("system.nexus.observe")
 local monitor=require("system.nexus.monitor")
 local keygen=require("system.nexus.keygen")
+local radarHub=require("system.nexus.radar_hub")
 local permissions=require("system.security.permissions")
 local log=require("system.libraries.log")
 local M={version=wire.version}
@@ -88,8 +89,9 @@ local function actorAllowed(actor)
 end
 local function saveConfig(value)
   store.save("/system/config/nexus.cfg",value)
-  if config.key~=value.key then nodeKeys={} end
+  if config.key~=value.key then nodeKeys={} radarHub.clear() end
   config=value
+  radarHub.restrict(config.members or {},config.group)
 end
 local function publish(message)
   notice=tostring(message):sub(1,300) revision=revision+1
@@ -486,11 +488,16 @@ local function receive(item)
     row.provisionToken=type(body.provisionToken)=="string" and body.provisionToken:sub(1,100) or nil
     row.label=type(body.label)=="string" and body.label:sub(1,64) or row.label
     row.peripherals=body.peripherals row.capabilities=body.capabilities
+    row.radarCount=type(body.radarCount)=='number' and body.radarCount>=0 and body.radarCount<=8 and math.floor(body.radarCount) or 0
+    row.radarError=type(body.radarError)=='string' and body.radarError:sub(1,120) or nil
     row.queueDepth=type(body.queueDepth)=='number' and math.max(0,math.min(9,body.queueDepth)) or 0
     row.diskFree=type(body.diskFree)=='number' and body.diskFree==body.diskFree and body.diskFree>=0 and body.diskFree<1e15 and body.diskFree or nil
     row.diskCapacity=type(body.diskCapacity)=='number' and body.diskCapacity==body.diskCapacity and body.diskCapacity>0 and body.diskCapacity<1e15 and body.diskCapacity or nil
     rows[id]=row revision=revision+1
     send(id,"ack",{heartbeat=message.id})
+  elseif message.kind=="radar" then
+    if body.group~=config.members[tostring(id)].group or body.group~=config.group then return end
+    if radarHub.accept(id,body,os.clock(),os.epoch('utc')/1000) then revision=revision+1 end
   elseif message.kind=="result" then
     for _,job in ipairs(jobs) do if job.id==body.id and job.node==id and job.state~="completed" and job.state~="failed" then
       if type(body.result)~="table" then return end
@@ -612,6 +619,7 @@ function M.snapshot()
 end
 function M.start(ctx)
   M.stop() context=ctx
+  radarHub.clear()
   M.release=nil M.autoAt=nil M.coordinationAt=nil M.monitorAt=nil bundle=nil nodeKeys={} autoMessage="Automatic deployment disabled"
   M.startedAt=os.clock() alertsDirty=false
   rows,drives,seen={}, {},{} lastScan=-math.huge
@@ -674,6 +682,7 @@ function M.start(ctx)
   runner=addon.periodic(ctx,"nexusd",0.25,M.tick)
 end
 function M.stop()
+  radarHub.clear()
   if runner then runner:stop() runner=nil end
   if listener and context.eventBus then context.eventBus:off(listener) end
   listener=nil actions={} incoming={}
