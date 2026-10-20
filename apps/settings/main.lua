@@ -10,6 +10,9 @@ local ui = require("system.gui.components")
 local keyboard = require("system.gui.keyboard")
 local profile = require("system.libraries.profile")
 local menu = require("system.gui.action_menu")
+local workers=require('system.libraries.app_worker')
+local settingsd=require('system.services.settingsd')
+local pixel=require('apps.settings.pixel')
 local M = {}
 local pages = {}
 for _, entry in ipairs({{"system","System"},{"display","Display"},{"desktop","Desktop"},{"network","Network"},
@@ -30,7 +33,8 @@ function M.run(ctx)
   local initial="system"
   for _,page in ipairs(pages) do if ctx.args and ctx.args.page==page.id then initial=page.id break end end
   local app={page=initial,scroll=1,input="",keyboard={},
-    appMessage="",views=menu.new(),actions=menu.new()}
+    appMessage="",views=menu.new(),actions=menu.new(),model={items={},lines={},apps={}},control={busy=false}}
+  local reader,win,timer
   local function notify(ok,title,message)
     if ctx.notifications then ctx.notifications:push(ok and "success" or "warn",title,tostring(message or (ok and "Saved" or "Failed")),3) end
   end
@@ -87,13 +91,16 @@ function M.run(ctx)
     if self.page=="system" then add("label","Set label")
     elseif self.page=="display" then
       add("refresh","Refresh")
-      add("graphics:auto","Retry pixel desktop")
+      local cfg=config.load('/system/config/system.cfg',{})
+      add("graphics:auto","Automatic pixels",not cfg.safeMode and cfg.graphicsMode~='pixel16')
+      add('graphics:pixel16','16-color pixels',not cfg.safeMode and cfg.graphicsMode=='pixel16')
+      add('graphics:text','Text rescue',cfg.safeMode==true)
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
         if device.type=="monitor" or device.type=="terminal" then add("display:"..device.name,device.name,selected==device.name) end
       end
-      if deviced.getDisplay().target~="terminal" then
+      if deviced.getDisplay().target=="monitor" then
         for _,v in ipairs({0.5,1,1.5,2,2.5,3,3.5,4,4.5,5}) do add("scale:"..v,"Scale "..v,deviced.getDisplay().scale==v) end
       end
     elseif self.page=="desktop" then add("theme:mint","Mint",theme.currentId=="mint") add("theme:dark","Dark",theme.currentId=="dark")
@@ -114,6 +121,12 @@ function M.run(ctx)
     end
     return result
   end
+  function app:getItems()
+    if self.authBusy then return {{id='cancelAuth',label='Cancel authentication'}} end
+    if self.rescuePending then return {{id='rescueConfirm',label='Confirm text rescue'},{id='rescueCancel',label='Cancel'}} end
+    if self.cleanupPending then return {{id='cleanupConfirm',label='Confirm prune'},{id='cleanupCancel',label='Cancel'}} end
+    return self.model.page==self.page and self.model.items or {}
+  end
   function app:lines()
     local rows={}
     local function line(value) rows[#rows+1]=tostring(value) end
@@ -124,21 +137,21 @@ function M.run(ctx)
       line("MintCraft: "..version.current()) line("Pseudo IP: "..ip) line("CraftOS over CC:Tweaked")
     elseif self.page=="display" then
       local d=deviced.getDisplay() local cells=(d.width or 0)*(d.height or 0)
-      line("Target: "..tostring(d.target)) line("Resolution: "..tostring(d.width).."x"..tostring(d.height))
+      line("Target: "..tostring(d.target)) line("Text cells: "..tostring(d.width).."x"..tostring(d.height))
       line("Monitor side: "..tostring(d.monitorSide or "-")) line("Scale: "..tostring(d.scale or "-"))
       if d.target=="terminal" then
         line("Terminal: "..tostring(d.terminalSide)) line("Input: "..(d.mouse and "keyboard + mouse" or "keyboard"))
       end
       line("Preference: "..tostring(deviced.getPreference and deviced.getPreference() or "auto"))
       line("Monitor grade: "..(d.target~="monitor" and "computer" or cells>=4500 and "A" or cells>=2500 and "B" or cells>=1200 and "C" or "D"))
-      line("Graphics: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
+      line("Text fallback mosaic: "..((d.width or 0)*2).."x"..((d.height or 0)*3).." subpixels")
       local g=ctx.system and ctx.system.renderStats and ctx.system.renderStats()
       if g then
         line("Backend: "..tostring(g.backend or "TEXT"))
         if g.pixelWidth then line("Pixels: "..g.pixelWidth.."x"..g.pixelHeight) end
         if g.lastError then line("Graphics error: "..g.lastError) end
       end
-    elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Icons: NFP 7x6 with text fallback") line("Keyboard: AZERTY")
+    elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Keyboard: AZERTY")
     elseif self.page=="network" then
       local st=networkd.getStatus() local tube=config.load("/system/config/crafttube.cfg",{})
       line("HTTP: "..(st.http and "available" or "missing")) line("WebSocket: "..(st.websocket and "available" or "missing"))
@@ -195,21 +208,21 @@ function M.run(ctx)
     self.width,self.height=w,h
     local label="Settings" for _,page in ipairs(pages) do if page.id==self.page then label=page.label break end end
     menu.bar(self.views,1,1,w,pages,{selector=true,label=label,selected=self.page,title="Settings"})
-    menu.bar(self.actions,1,2,w,self:items(),{title=label.." actions"})
+    menu.bar(self.actions,1,2,w,self:getItems(),{title=label.." actions"})
     local fg,bg=theme.get("windowFg"),theme.get("windowBg")
     local function text(y,value) if y>=3 and y<=h-2 then renderer.writeAt(1,y,renderer.crop(tostring(value),w),fg,bg) end end
     self.appRows={}
     if self.page=="apps" then
-      text(3,"Profile: "..profile.mode()) text(4,"Activation only; files kept") text(5,"Services: restart required")
-      local rows=ctx.apps.list(true,true) local count=math.max(0,h-7)
+      text(3,"Profile: "..tostring(self.model.profileMode or 'pending')) text(4,"Activation only; files kept") text(5,"Services: restart required")
+      local rows=self.model.apps or {} local count=math.max(0,h-7)
       self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-count+1)))
       for i=1,count do local item=rows[self.scroll+i-1] if not item then break end
-        text(i+5,(profile.appEnabled(item.id) and "[x] " or "[ ] ")..item.name..(profile.isCore(item.id) and " *" or ""))
+        text(i+5,(item.enabled and "[x] " or "[ ] ")..item.name..(item.core and " *" or ""))
         self.appRows[#self.appRows+1]={id=item.id,x=1,y=i+5,w=w,h=1}
       end
     else
       local wrapped={}
-      for _,line in ipairs(self:lines()) do
+      for _,line in ipairs(self.model.page==self.page and self.model.lines or {'Reading settings...'}) do
         if #line==0 then wrapped[#wrapped+1]="" end
         for first=1,#line,math.max(1,w) do wrapped[#wrapped+1]=line:sub(first,first+w-1) end
       end
@@ -226,13 +239,30 @@ function M.run(ctx)
       keyboard.draw(1,self.keyboard.y,w,self.keyboard)
     else menu.overlay(self.views,w,h) menu.overlay(self.actions,w,h) end
   end
-  function app:configure(value)
-    if not allowed("system.config") then return end
-    local ok,err=profile.configure(value) self.appMessage=ok and "Saved; restart services" or tostring(err)
+  function app:submit(id,value)
+    local ok,result=settingsd.request({pid=ctx.pid},id,value)
+    self.appMessage=ok and ('Queued #'..result) or tostring(result)
+    if ok then self.operation=result end
+    self.control=settingsd.status()
+    return ok,result
+  end
+  function app:toggleApp(id)
+    for _,row in ipairs(self.model.apps or {}) do if row.id==id then
+      if row.core then self.appMessage='Essential app' else self:submit('app:'..id,not row.enabled) end return
+    end end
+  end
+  function app:setPage(id)
+    for _,page in ipairs(pages) do if page.id==id then
+      self.page=id self.scroll=1 self.bodyScroll=0 self.cleanupPending=false self.rescuePending=false
+      self:cancelInput() menu.dismiss(self.views,self.actions) self:requestRead() return true
+    end end
   end
   function app:action(id)
-    if id=="cancelAuth" then self.authCancel=true self.appMessage="Cancelling authentication" return end
+    if id=="cancelAuth" then if self.authBusy then self.authCancel=true self.appMessage="Cancelling authentication" end return end
     if self.authBusy then notify(false,"Security","Authentication already in progress") return end
+    if id=='graphics:text' then if allowed('system.config') then self.rescuePending=true end return end
+    if id=='rescueCancel' then self.rescuePending=false return end
+    if id=='rescueConfirm' then if self.rescuePending then self.rescuePending=false self:submit('graphics:text') end return end
     if id=="cleanup" then
       if allowed("system.storage.manage") then self.cleanupPending=true end return
     elseif id=="cleanupCancel" then self.cleanupPending=false return
@@ -240,38 +270,26 @@ function M.run(ctx)
       if not self.cleanupPending then return end
       self.cleanupPending=false
       if not allowed("system.storage.manage") then return end
-      local updated=require("system.services.updated")
-      local ok,err=updated.cleanup("updates",{confirm=true})
-      self.appMessage=tostring(err or (ok and "Backups pruned" or "Cleanup failed")) notify(ok,"Storage",err) return
+      self:submit('cleanupConfirm',true) return
     end
     if id:sub(1,7)=="launch:" then ctx.apps.launch(id:sub(8)) return end
     if id=="unlock" or id=="adminLogin" then self:beginInput(id) return end
     if id=="passwordOld" then if allowed("system.security.admin") then self:beginInput(id) end return end
     if id=="lock" or id=="guest" then
       if not allowed("system.auth") then return end
-      local ok,err if id=="lock" then ok,err=securityd.lock() else ok,err=securityd.logout() end
-      notify(ok,"Security",err or (id=="lock" and "Session locked" or "Guest session")) return
+      self:submit(id) return
     end
-    if id:sub(1,8)=="profile:" then local value=profile.configuration() value.mode=id:sub(9) value.apps={} self:configure(value) return end
+    if id:sub(1,8)=="profile:" then self:submit(id) return end
     if id=="audio" or id=="test" or id:sub(1,7)=="volume:" or id:sub(1,8)=="speaker:" then
       if not allowed("audio.control") then return end
-      local ok,err
-      if id=="audio" then ok,err=audiod.setEnabled(not audiod.status().enabled)
-      elseif id=="test" then ok,err=audiod.test()
-      elseif id:sub(1,7)=="volume:" then ok,err=audiod.setVolume(tonumber(id:sub(8))) else ok,err=audiod.use(id:sub(9)) end
-      notify(ok,"Audio",err) return
+      if id=='audio' then
+        if not self.model.audio then self.appMessage='Read audio state first' return end
+        self:submit(id,not self.model.audio.enabled)
+      else self:submit(id) end return
     end
     if not allowed("system.config") then return end
     if id=="label" then self:beginInput(id)
-    elseif id=="refresh" then deviced.refreshDisplay()
-    elseif id:sub(1,9)=="graphics:" then
-      local value=config.load("/system/config/system.cfg",{}) value.graphicsMode=id:sub(10)
-      local ok,err=config.save("/system/config/system.cfg",value)
-      if ok and ctx.system and ctx.system.setGraphicsMode then ctx.system.setGraphicsMode(value.graphicsMode) end
-      notify(ok,"Graphics",err or "Renderer preference saved")
-    elseif id:sub(1,8)=="display:" then local ok,err=deviced.setTarget(id:sub(9)) notify(ok,"Display",err)
-    elseif id:sub(1,6)=="scale:" then local ok,err=deviced.setScale(tonumber(id:sub(7))) notify(ok,"Display",err)
-    elseif id:sub(1,6)=="theme:" then local ok,err=theme.set(id:sub(7)) notify(ok~=false,"Theme",err or "Theme applied") end
+    else self:submit(id) end
   end
   app.keyboard.onText=function(ch) app.input=(app.input..ch):sub(1,1024) end
   app.keyboard.onBackspace=function() app.input=app.input:sub(1,-2) end
@@ -283,10 +301,11 @@ function M.run(ctx)
       if input~=app.newPassword then notify(false,"Security","Passwords do not match")
       elseif allowed("system.security.admin") then authenticate("setPassword",input,app.oldPassword) end
     elseif mode=="unlock" or mode=="adminLogin" then authenticate(mode,input)
-    elseif mode=="label" and allowed("system.config") and os.setComputerLabel then os.setComputerLabel(input) end
+    elseif mode=="label" and allowed("system.config") and os.setComputerLabel then app:submit('label',input) end
     app:cancelInput()
   end
   function app:handle(event)
+    if self.graphicsActive and not event.name:match('^mouse_') then return self:handlePixels(event) end
     if self.mode then
       if event.name=="char" or event.name=="paste" then self.keyboard.onText(event.args[1])
       elseif event.name=="key" then
@@ -298,7 +317,7 @@ function M.run(ctx)
     end
     local source,id,handled=menu.route({{name="views",state=self.views},{name="actions",state=self.actions}},event)
     if handled then
-      if id and source=="views" then self.page=id self.scroll=1 self.appMessage="" self.cleanupPending=false menu.dismiss(self.actions)
+      if id and source=="views" then self:setPage(id)
       elseif id then self:action(id) end return true
     end
     if event.name=="mouse_scroll" then self.scroll=math.max(1,self.scroll+event.args[1]) return true end
@@ -306,13 +325,62 @@ function M.run(ctx)
     local _,x,y=table.unpack(event.args) local direction=ui.toolbarHit(self.pager,x,y)
     if direction then self.scroll=math.max(1,self.scroll+(direction=="down" and 1 or -1)) return true end
     if self.page=="apps" then for _,box in ipairs(self.appRows) do if ui.hit(box,x,y) then
-      if profile.isCore(box.id) then self.appMessage="Essential app" return true end
-      local value=profile.configuration() value.apps[box.id]=not profile.appEnabled(box.id) self:configure(value) return true
+      self:toggleApp(box.id) return true
     end end end
     return false
   end
+  function app:requestRead()
+    if self.reading then return end
+    self.reading=true
+    local ok,err=reader:submit({page=self.page,authBusy=self.authBusy==true,cleanupPending=self.cleanupPending==true})
+    if not ok then self.reading=false self.appMessage=tostring(err) end
+  end
+  reader=workers.new(ctx,'Settings metadata',function(request)
+    local snapshot=setmetatable({page=request.page,authBusy=false,cleanupPending=false},{__index=app})
+    local result={page=request.page,items={},lines={},apps={}}
+    for i,item in ipairs(snapshot:items()) do if i>256 then break end
+      if type(item.id)=='string' and #item.id<=128 then result.items[#result.items+1]={id=item.id,label=tostring(item.label):sub(1,256),active=item.active==true} end
+    end
+    local bytes=0
+    for i,line in ipairs(snapshot:lines()) do
+      line=line:sub(1,4096) bytes=bytes+#line
+      if i>256 or bytes>65536 then result.lines[#result.lines+1]='[settings detail limit reached]' break end result.lines[#result.lines+1]=line
+    end
+    result.control=settingsd.status()
+    if request.page=='apps' then
+      result.profileMode=profile.mode()
+      result.profileRequested=profile.configuration().mode
+      result.lines[#result.lines+1]='Requested profile: '..result.profileRequested
+      result.lines[#result.lines+1]='Effective profile: '..result.profileMode
+      for _,item in ipairs(result.items) do if item.id:sub(1,8)=='profile:' then item.active=item.id:sub(9)==result.profileRequested end end
+      for i,row in ipairs(ctx.apps.list(true,true)) do if i>256 then break end result.apps[#result.apps+1]={id=row.id,name=row.name,enabled=profile.appEnabled(row.id),core=profile.isCore(row.id)} end
+    elseif request.page=='sound' then result.audio=audiod.status()
+    elseif request.page=='display' then
+      result.capabilities=ctx.system.graphicsCapabilities and ctx.system.graphicsCapabilities() or {}
+      result.lines[#result.lines+1]='UI scale: 1x (fixed)'
+      result.lines[#result.lines+1]='Frame policy: retained/event-driven'
+      for _,key in ipairs({'graphics','palette','freeze','color','probed'}) do result.lines[#result.lines+1]=key..': '..tostring(result.capabilities[key]) end
+    end
+    return result
+  end,function(_,ok,result)
+    app.reading=false
+    if not ok then app.appMessage='Settings read failed: '..tostring(result):sub(1,2048)
+    elseif result.page==app.page then app.model=result app.control=result.control
+    else app:requestRead() end
+  end)
+  pixel.attach(app,pages)
   local sw,sh=term.getSize()
-  local win=ctx.windowManager:create({title="Settings",w=math.min(72,sw),h=math.min(22,sh-1),x=1,y=1,app=app})
-  while not win.closed do ctx.pullEvent() end
+  win=ctx.windowManager:create({title="Settings",w=math.min(96,sw),h=math.min(32,sh-1),x=1,y=1,app=app})
+  ctx.onCleanup(function() if timer then ctx.cancelTimer(timer) end end)
+  app:requestRead() timer=ctx.startTimer(1)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=='timer' and event.args[1]==timer then
+      app.control=settingsd.status()
+      if not win.minimized then app:requestRead() end timer=ctx.startTimer(1)
+    elseif event and event.name=='mintcraft_settings_result' and event.args[1]==ctx.pid and event.args[2]==app.operation then
+      app.operation=nil app.appMessage=tostring(event.args[4]) notify(event.args[3],'Settings',app.appMessage) app:requestRead()
+    elseif event and (event.name=='peripheral' or event.name=='peripheral_detach' or event.name=='mintcraft_display_resize') then app:requestRead() end
+  end
 end
 return M

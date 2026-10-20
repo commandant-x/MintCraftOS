@@ -13,8 +13,8 @@ for path,content in pairs(captured) do
   assert(source==content,'Stale installer payload: '..path..'; regenerate tools/build-installer.ps1')
   count=count+1
 end
-for _,path in ipairs({'VERSION','boot.lua','startup.lua','system/libraries/installer.lua','apps/devices/main.lua','apps/devices/model.lua','apps/devices/pixel.lua'}) do
+for _,path in ipairs({'VERSION','boot.lua','startup.lua','system/libraries/installer.lua','apps/devices/main.lua','apps/devices/model.lua','apps/devices/pixel.lua','apps/settings/pixel.lua','system/services/settingsd.lua'}) do
   assert(captured[path],'Required release file omitted: '..path)
 end
 assert(count>100,'Unexpectedly incomplete installer')
-print('installer bundle: every embedded source matches the release tree; required Devices modules present')
+print('installer bundle: every embedded source matches the release tree; required Devices/Settings modules present')

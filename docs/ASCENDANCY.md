@@ -9,9 +9,9 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.40 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.41 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
-Files, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
+Files, Settings, Devices, Update, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
 explicit migration. Combat's 0.18.35 increment is documented separately.
 
@@ -127,7 +127,7 @@ or finished ASCENDANCY.
 | Navigation | Native Flight horizon/metrics, cache-only drawing, stale expiry and hybrid routing; existing calibration/control retained | Remaining panels and in-game sensor/render checks; safety gates unchanged |
 | Combat | Native 2D/3D radar, filters/details/lists/network/probe/fire; 20 Hz acquisition target with measured Hz and serial workers; existing fire tokens retained | Native configuration/setup forms, richer keyboard/accessibility, actual in-game acquisition/render validation |
 | Files | Native navigation/search/create/rename/trash/restore/copy/cut/paste/properties; descendant permission preflight and no draw acquisition tested | Cross-window clipboard, richer editing/accessibility and Unicode editing coverage |
-| Settings | Legacy configuration center retained, terminal selector added | Native controls, detected capabilities/UI scale/performance/recovery panels |
+| Settings | Twelve native sections, cached diagnostics, keyboard/touch controls, renderer/capabilities/dimensions/target/theme and text rescue; serialized service-owned mutations and asynchronous authentication | UI scale remains fixed, performance policy read-only; configurable scaling/performance and real in-game validation remain |
 | Task Manager | Native process/metric/renderer/acquisition views, bounded measured charts, backend generations, no draw acquisition and PID-bound delegated kill | In-game validation, richer sorting/search/accessibility; CPU/physical RAM/aggregate network counters remain unavailable rather than invented |
 | Logs | Native list/filter/details, live tail, draggable scrollbar and keyboard; reads/parse outside draw; read errors and compact inspector tested | In-game validation, search/copy/export and broader accessibility polish |
 | Services | Native cached state/list/details/errors, protected controls and confirmation; serialized manager-owned actions with live permissions and per-service locks | Runtime/performance presentation expansion and actual in-game lifecycle validation |
@@ -153,10 +153,11 @@ opens six legacy apps, checks the physical framebuffer remains visible,
 exports indexed bytes for visual inspection, then switches back to text.
 Real CC Graphics / CC Terminals in-game behavior remains unverified.
 
-No user config is overwritten to enable graphics. After updating, choose
-Settings -> Display -> Pixel desktop. Text renderer disables it live;
-editing graphicsMode="text" in system.cfg also disables it. A reboot starts
-boot/recovery in text regardless of the previous physical display state.
+No user config is overwritten to enable graphics. Normal boot now selects the
+pixel desktop unless safeMode=true. Settings -> Display -> Requested renderer
+offers Automatic pixels, 16-color pixels and confirmed Text rescue. Text rescue
+sets safeMode=true; stale graphicsMode="text" alone no longer disables pixels.
+Bootloader/recovery always start in text regardless of physical display state.
 No external GPU, server changes, browser expansion or flight safety changes.
 
 ## Next Gates
@@ -191,6 +192,13 @@ dispatch remain unconditional. Release flushes the final position. Measurement
 expiry and flight safety thresholds are unchanged. Fast suites: 94 passed;
 visible isolated CraftOS-PC with the installed CC Graphics ROM: passed.
 Actual Minecraft telemetry under sustained dragging remains to be validated.
+
+V0.18.41: all twelve Settings sections now use native controls and cached
+diagnostics. Configuration changes use a serialized service-owned worker with
+live caller/session/permission checks; authentication retains its cancellable
+worker. 110 fast suites and isolated native/text/update workflows pass. See
+GRAPHICS-0.18.41.md. UI scale and performance policy are still fixed/read-only;
+their configurable final-scope controls and other application migrations remain.
 
 Continue B: complete reusable controls, UI scale, typography, cursor behavior,
 native WM polish and real CC Terminals validation.

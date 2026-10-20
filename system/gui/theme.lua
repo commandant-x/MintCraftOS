@@ -47,11 +47,13 @@ function M.load()
 end
 
 function M.set(id)
-  M.currentId = themes[id] and id or "mint"
-  M.current = themes[M.currentId]
+  id=themes[id] and id or "mint"
   local cfg = config.load("/system/config/system.cfg", {})
-  cfg.theme = M.currentId
-  config.save("/system/config/system.cfg", cfg)
+  cfg.theme = id
+  local ok,err=config.save("/system/config/system.cfg", cfg)
+  if not ok then return false,err end
+  M.currentId=id M.current=themes[id]
+  return true
 end
 
 function M.get(name)

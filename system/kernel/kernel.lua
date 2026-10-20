@@ -17,22 +17,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.40", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.40", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.40", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.40", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.41", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.41", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.41", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.41", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.40", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.40", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.40", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.40", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.40", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.40", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.40", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.40", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.40", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.40", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.40", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.41", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.41", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.41", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.41", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.41", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.41", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.41", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.41", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.41", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.41", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.41", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -73,6 +73,7 @@ function M.start()
   ctx.services:register("radarnetd", "system.services.radarnetd", true)
   ctx.services:register("notifd", "system.services.notifd", true)
   ctx.services:register("updated", "system.services.updated", true)
+  ctx.services:register("settingsd", "system.services.settingsd", true)
   ctx.services:startAutostart()
   bootApps(ctx)
 
@@ -80,7 +81,7 @@ function M.start()
   local workspace=require("system.graphics.workspace").new(ctx)
   ctx.pixelWorkspace=workspace
   local screen = compositor.new(devices.getTarget, devices.outputFailed,{
-    mode=graphicsConfig.safeMode and "text" or "auto",
+    mode=graphicsConfig.safeMode and "text" or graphicsConfig.graphicsMode=='pixel16' and 'pixel16' or "auto",
     beforeRender=function(backend) workspace:prepare(backend) end,
     pixelRender=function(backend) workspace:draw(backend) end,
     onGraphicsFailure=function(err) workspace:deactivate() log.error("graphics",tostring(err)) end,

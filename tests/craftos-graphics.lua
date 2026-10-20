@@ -54,7 +54,28 @@ local ok,err=pcall(function()
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
       assert(proc.state=="ready" and proc.window and not proc.window.closed,id..": "..tostring(proc.error))
-      if id=="navigation" then
+        if id=="settings" then
+          local win=proc.window local app=win.app
+          assert(win.pixelNative,'Settings is still a legacy client')
+          win:toggleMaximize() os.queueEvent('mintcraft_test') sleep(0.2)
+          for _,page in ipairs({'system','display','desktop','apps','network','sound','storage','security','packages','nav','combat','dev'}) do
+            app:setPage(page)
+            for _=1,40 do if app.model.page==page and not app.reading then break end sleep(0.05) end
+            assert(app.model.page==page,'Settings page did not load: '..page)
+            win.dirty=true os.queueEvent('mintcraft_test') sleep(0.05)
+            assert(not win.closed and win.pixelNative,'Settings page crashed: '..page)
+          end
+          app:setPage('display') sleep(0.2) win.dirty=true os.queueEvent('mintcraft_test') sleep(0.1)
+          capture('pixel-settings-display')
+          app:setPage('security') sleep(0.2) win.dirty=true os.queueEvent('mintcraft_test') sleep(0.1)
+          capture('pixel-settings-security')
+          app:setPage('system') sleep(0.2)
+          local allowed,operation=app:submit('label','Isolated native Settings')
+          assert(allowed,tostring(operation))
+          for _=1,40 do if os.getComputerLabel()=='Isolated native Settings' then break end sleep(0.05) end
+          assert(os.getComputerLabel()=='Isolated native Settings','Settings service label write failed')
+        end
+        if id=="navigation" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
         assert(win.pixelNative and win.app.page=="flight","Flight is not a native client")
         capture("pixel-navigation-unavailable")
@@ -350,7 +371,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, eleven apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Settings twelve pages/service-owned label write, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, eleven apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

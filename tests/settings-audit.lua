@@ -42,25 +42,39 @@ fs={getFreeSpace=function() return "unlimited" end,getCapacity=function() return
 term={getSize=function() return 120,40 end} os.setComputerLabel=function(value) changes.label=value end
 os.queueEvent=function() end
 local permitted=false
+package.loaded['system.services.settingsd']={status=function() return {busy=false} end,request=function(_,id,value)
+  if not permitted then return false,'denied' end
+  if id=='cleanupConfirm' then assert(value==true) cleanupCalls=cleanupCalls+1
+  elseif id=='theme:mint' then changes.theme='mint'
+  elseif id=='scale:0.5' then changes.scale=0.5
+  elseif id=='audio' then changes.audio=true
+  elseif id=='display:monitor_0' then changes.display='monitor_0'
+  elseif id=='profile:pocket' then configured={mode='pocket'} end
+  return true,1
+end}
+package.loaded['system.libraries.app_worker']={new=function(_,_,read,done)
+  return {submit=function(_,request) local ok,result=pcall(read,request) done(request,ok,result) return true end}
+end}
 local app,worker,cleanup,invalidations,launched=nil,nil,nil,0,nil
 local ctx={pid=7,appId="settings",permissions={"system.security.admin"},security={require=function() return permitted,"denied" end},
   notifications={push=function() end},apps={list=function() return {{id="browser",name="Browser"},{id="settings",name="Settings"}} end,launch=function(id) launched=id end},
   system={packages={installed=function() return {} end},scheduler={spawn=function(_,_,callback,meta) assert(meta.eventMode=="raw" and meta.protected) worker=callback return 99 end,start=function() return true end}},
   onCleanup=function(callback) cleanup=callback end,invalidate=function() invalidations=invalidations+1 end,
+  startTimer=function() return 1 end,cancelTimer=function() end,
   windowManager={create=function(_,opts) app=opts.app return {closed=true} end}}
 require("apps.settings.main").run(ctx)
 local function click(x,y) return app:handle({name="mouse_click",args={1,x,y}}) end
 for _,size in ipairs({{12,9},{24,17},{70,22}}) do
   w,h=table.unpack(size)
   for _,page in ipairs({"system","display","desktop","network","storage","sound","security","apps","packages","dev","nav","combat"}) do
-    app.page=page app.scroll=1 pixels={} app:draw(w,h)
+    app.page=page app:requestRead() app.scroll=1 pixels={} app:draw(w,h)
     app.actions.open=true app:draw(w,h) app.actions.open=false
     app.views.open=true app:draw(w,h) app.views.open=false
   end
 end
 w,h=24,17
 for _,page in ipairs({"nav","combat"}) do
-  app.page=page app:draw(w,h)
+  app.page=page app:requestRead() app:draw(w,h)
   local box=app.actions.boxes[1]
   assert(box and click(box.x,box.y))
   assert(launched==(page=="nav" and "navigation" or "combat"),"local launch hitbox used global term size")
@@ -73,6 +87,7 @@ permitted=true
 app:action("cleanupConfirm") assert(cleanupCalls==0,"cleanup skipped confirmation")
 app:action("cleanup") assert(app.cleanupPending and cleanupCalls==0)
 app:action("cleanupConfirm") assert(cleanupCalls==1)
+app.page='sound' app:requestRead()
 app:action("theme:mint") app:action("scale:0.5") app:action("audio")
 assert(changes.theme=="mint" and changes.scale==0.5 and changes.audio)
 app:action("display:monitor_0") assert(changes.display=="monitor_0")

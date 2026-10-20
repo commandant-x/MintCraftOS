@@ -40,6 +40,7 @@ function M.serviceEnabled(id)
   return true
 end
 function M.dependencies(id)
+  if id=="settings" then return {"settingsd"} end
   if id=="nexus" then return {"nexusd"} end
   if id=="navigation" then return {"sabled","avionicsd","vehiclebridged","flightd"} end
   if id=="combat" then return {"sabled","avionicsd","combatd","radarnetd"} end
