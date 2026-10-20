@@ -311,7 +311,11 @@ end
 function M.list()
   local rows = {}
   for _, device in pairs(M.devices) do
-    table.insert(rows, { name = device.name, type = device.type })
+    local types,seen={},{}
+    for kind,present in pairs(device.types or {}) do if present and type(kind)=='string' then types[#types+1]=kind seen[kind]=true end end
+    if not seen[device.type] then types[#types+1]=device.type end
+    table.sort(types)
+    table.insert(rows, { name = device.name, type = device.type, types=types })
   end
   table.sort(rows, function(a, b) return a.name < b.name end)
   return rows

@@ -62,7 +62,8 @@ scheduler:dispatch({name="timer",args={timers}}) flush()
 assert(writes[#writes][2]==false,"fire output not released")
 assert(not combat.status().uncertain.mount,"false release mistaken for failure")
 assert(not combat.requestFire(actor,"mount","player-uuid",token),"confirmation reused")
-assert(combat.requestProbe(actor,"mount")) flush()
+local queuedProbe,probeId=combat.requestProbe(actor,"mount") assert(queuedProbe) flush()
+assert(combat.snapshot().probe.operationId==probeId and combat.snapshot().probe.ownerPid==actor.pid,'Probe result lost owner/operation identity')
 assert(writes[#writes][1]=="fire" and writes[#writes][2]==false,"Probe called actuator")
 local originalFire=devices.mount.fire
 local uncertainShots=0

@@ -96,8 +96,10 @@ wrapped diagnostics. The twelve-app offline text smoke test passes. The network
 workflow passes HTTP read failure/recovery, Update check, disk-full refusal,
 apply and granular rollback. Native CC crypto also passes the eight-computer
 NEXUS simulation including signed radar transport and revoked/wrong-key refusal.
-The actual released 0.18.38 updater installs this bundle on a disposable default
-1 MB CraftOS-PC disk and rolls back, retaining the test user's file/config.
+The actual released 0.18.38 updater installs this bundle on disposable CraftOS-PC
+storage and rolls back, retaining the test user's file/config. Correction in
+0.18.40: that native filesystem reports host-volume capacity; this test did not
+establish acceptance on a quota-enforced 1 MB CC computer filesystem.
 
 No user files/configs are erased by the OS migration. NEXUS provisioning retains
 its existing explicitly scoped reset policy; it does not authorize new machines.

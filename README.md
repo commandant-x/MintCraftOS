@@ -2,7 +2,12 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.39:
+This repository currently contains V0.18.40:
+
+V0.18.40 migrates Devices to native pixel inventory/search/filter/inspector views.
+Metadata acquisition is asynchronous and outside drawing; Probe results are
+bound to their request and inventory generation. The Display shortcut opens the
+existing authorized Settings page. See [Devices graphics notes](docs/GRAPHICS-0.18.40.md).
 
 V0.18.39 adds a native pixel Update client, service-owned confirmed update and
 rollback transactions, and signed read-only radar telemetry from associated

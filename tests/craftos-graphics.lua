@@ -49,7 +49,7 @@ local ok,err=pcall(function()
     assert(stats.backend=="PIXEL256","pixel backend inactive: "..tostring(stats.lastError))
     assert(stats.pixelWidth>100 and stats.bytes>0,"no pixel framebuffer")
     capture("pixel-desktop")
-    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","taskmanager","update","nexus"}) do
+    for _,id in ipairs({"files","terminal","settings","navigation","combat","logs","services","devices","taskmanager","update","nexus"}) do
       local launched,pid=apps.launch(id,id=="navigation" and {page="flight"} or nil) assert(launched,tostring(pid))
       os.queueEvent("mintcraft_test") sleep(0.5)
       local proc=apps.ctx.scheduler.processes[pid]
@@ -162,6 +162,38 @@ local ok,err=pcall(function()
         apps.ctx.scheduler:kill(pid)
         for _=1,30 do if stopped and not manager:controlStatus().busy then break end sleep(0.05) end
         assert(stopped and manager:controlStatus().ok and not manager.services.viewer_fixture.started,"closing Services abandoned in-flight transition")
+      end
+      if id=="devices" then
+        local win=proc.window local app=win.app local workspace=apps.ctx.pixelWorkspace
+        assert(win.pixelNative,"Devices is still a legacy client")
+        local deviced=require('system.services.deviced') local originalList,originalMethods=deviced.list,peripheral.getMethods
+        deviced.list=function()
+          local rows={} for i=1,64 do rows[#rows+1]={name='fixture_'..i,type='create_radar:radar_bearing',types={'create_radar:radar_bearing'}} end return rows
+        end
+        peripheral.getMethods=function(name) if name:match('^fixture_') then return {'getTracks','getPosition','fire','setTargetAngles'} end return originalMethods(name) end
+        win.title='Devices - SIMULATED METADATA FIXTURE'
+        win:toggleMaximize() app:requestRead(false) os.queueEvent('mintcraft_test') sleep(0.25)
+        assert(#app.rows==64,'Devices async inventory failed: '..tostring(app.message))
+        local client for _,hit in ipairs(workspace.windowHits) do if hit.win==win then client=hit.client end end
+        queueInput('mouse_click',1,client.x+app.searchArea.x+10,client.y+app.searchArea.y+10)
+        queueInput('paste','fixture_2') sleep(0.15)
+        assert(#app:filteredRows()==11,'Devices search input failed')
+        local row=assert(app.rowHits[1]) queueInput('mouse_click',1,client.x+row.rect.x+2,client.y+row.rect.y+2) sleep(0.25)
+        assert(app.selected=='fixture_2' and app.methods.fixture_2,'Devices selection metadata failed')
+        capture('pixel-devices-inspector')
+        local function click(id)
+          for _,hit in ipairs(app.pixelHits) do if hit.id==id then queueInput('mouse_click',1,client.x+hit.rect.x+2,client.y+hit.rect.y+2) return end end error('missing Devices control '..id)
+        end
+        click('probe') sleep(0.3)
+        assert(not app.probePending and app.message:find('unknown device',1,true),'Devices Probe error not retained: '..tostring(app.message))
+        capture('pixel-devices-probe-error')
+        click('display') sleep(0.25)
+        local settingsPid
+        for otherId,other in pairs(apps.ctx.scheduler.processes) do if otherId~=pid and other.state=='ready' and other.meta.appId=='settings' then
+          assert(other.window.app.page=='display','Display shortcut opened wrong Settings page') settingsPid=otherId break
+        end end
+        assert(settingsPid,'Display settings shortcut failed') apps.ctx.scheduler:kill(settingsPid)
+        deviced.list,peripheral.getMethods=originalList,originalMethods
       end
       if id=="taskmanager" then
         local win=proc.window local workspace=apps.ctx.pixelWorkspace
@@ -318,7 +350,7 @@ local ok,err=pcall(function()
     assert(not native.getFrozen(),"16-color display remained frozen")
     apps.ctx.setGraphicsMode("text") os.queueEvent("mintcraft_test") sleep(0.3)
     assert(native.getGraphicsMode()==false or native.getGraphicsMode()==0,"text mode not restored")
-    result("PASS: native desktop, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, ten apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
+    result("PASS: native desktop, Devices/search/inspector/Probe error/Display shortcut, Files/Combat/Logs/Services/Update, measured Task Manager/confirmed fixture kill, eleven apps, 256/16/text and "..(_G.mintcraftTerminalFixture and "source-isolated terminal transport simulation" or "computer input"))
   end)
 end)
 if not ok then result("FAIL: "..tostring(err)) end

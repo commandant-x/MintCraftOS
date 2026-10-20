@@ -1,4 +1,5 @@
 -- Real previous updater -> current pinned protocol-2 bundle, isolated disk only.
+local storage={}
 local ok,err=pcall(function()
   shell.setDir('/') assert(shell.run('/old/install.lua'))
   local updated=require('system.services.updated')
@@ -16,6 +17,7 @@ local ok,err=pcall(function()
       getResponseCode=function() return 200 end,close=function() end}
   end}
   local before=fs.getFreeSpace('/')
+  storage.free=before storage.capacity=fs.getCapacity and fs.getCapacity('/') or 'unavailable'
   local installed,message=updated.apply()
   assert(installed,'Migration failed with '..tostring(before)..' free bytes: '..tostring(message))
   assert(updated.localVersion()==wanted and read('/home/user/migration-note.txt')=='preserve me')
@@ -23,5 +25,5 @@ local ok,err=pcall(function()
   assert(updated.rollback()) assert(updated.localVersion()==oldVersion,'Previous updater rollback failed')
   assert(read('/home/user/migration-note.txt')=='preserve me')
 end)
-local h=assert(fs.open('/migration-result.txt','w')) h.write(ok and 'PASS: previous released updater installs current bundle and rolls back while retaining user files/config' or 'FAIL: '..tostring(err)) h.close()
+local h=assert(fs.open('/migration-result.txt','w')) h.write(ok and ('PASS: previous released updater installs current bundle and rolls back while retaining user files/config; capacity='..tostring(storage.capacity)..' free-before='..tostring(storage.free)) or 'FAIL: '..tostring(err)) h.close()
 os.shutdown()

@@ -9,7 +9,7 @@ Authoritative baseline checked against origin/main: eb37cdcf0e41d042f8f881c8b0ec
 
 ## Architecture Inspection
 
-The paragraphs below describe the inspected baseline. As of 0.18.39 the normal
+The paragraphs below describe the inspected baseline. As of 0.18.40 the normal
 boot path is the native pixel desktop (256 -> 16 -> diagnostic text fallback).
 Files, Logs, Services, Task Manager, Navigation Flight and the main Combat views have native clients; other
 clients/views continue to use isolated text compatibility buffers pending their
@@ -109,7 +109,7 @@ or finished ASCENDANCY.
 | 21 | BLACKBOX bounded historical observations/statistics/resource trends/availability/decisions | Existing logs/alerts only; historical module pending |
 | 22 | Graphical WARROOM overview/atlas/oracle/synapse/dominion/swarm/tactical/aegis/blackbox | Existing NEXUS UI preserved; integrated pixel views pending |
 | 23 | First-run nonblank admin setup, existing permissions, explicit fleet authorization, truthful auth/confidentiality | Blank default admin confirmed in users.lua; first-run migration pending, not silently changed in graphics release |
-| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 104 fast suites, native Files/Flight/Combat/Update and raw-pointer tests, installed CC Graphics ROM-window emulation, terminal-transport simulation, signed radar agents and prior-updater migration; full final gate not met |
+| 24 | Graphics 20-case suite, full integration and ASCENDANCY failure/authorization tests | 107 fast suites, native Files/Flight/Combat/Update/Devices and raw-pointer tests, installed CC Graphics ROM-window emulation, terminal-transport simulation, signed radar agents, verified installer bundle and prior-updater migration; full final gate not met |
 | 25 | A-J incremental working releases, graphical completion before strategic expansion | A native workspace usable in emulation, B partial; C-J not complete |
 | 26 | Versioned source/tests/docs/changelog/installer/compatibility/migration/limitations | Required per increment; no blanket completion claim |
 | 27 | All 18 invariants (no fake APIs/data/performance, bounded work, safety, optional addons, fallback) | Preserve as release gates; real in-game validation still required |
@@ -132,7 +132,7 @@ or finished ASCENDANCY.
 | Logs | Native list/filter/details, live tail, draggable scrollbar and keyboard; reads/parse outside draw; read errors and compact inspector tested | In-game validation, search/copy/export and broader accessibility polish |
 | Services | Native cached state/list/details/errors, protected controls and confirmation; serialized manager-owned actions with live permissions and per-service locks | Runtime/performance presentation expansion and actual in-game lifecycle validation |
 | Store | Hidden legacy package UI retained | Native package states without inventing a populated catalog |
-| Devices | Legacy peripheral list retained, terminal role added | Native inventory/probe/display workflows |
+| Devices | Native cached inventory/search/category/inspector, keyboard and scrollbar, asynchronous metadata, identity-bound Probe results, hotplug invalidation and authorized Display-settings shortcut | In-game peripheral/hotplug validation, richer sorting and independent diagnostic-service lifecycle when Combat is disabled |
 | Editor | Hidden integrated editor retained | Native mono text, selection/caret/scroll/search/save/errors without whole-document redraw per key |
 | Update | Native cached versions/source/checkpoint, wrapped diagnostic inspector, keyboard, disabled states; service-owned yielding transaction with single-use source/version-bound confirmations and live caller/session checks | In-game lifecycle validation and broader recovery/fault UX; trusted installer is not a Lua sandbox |
 

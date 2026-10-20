@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1467,7 +1467,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1866,93 +1866,355 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
 ]=],
   ["apps/devices/main.lua"] = [=[
-local renderer = require("system.gui.renderer")
-local deviced = require("system.services.deviced")
-local combat = require("system.services.combatd")
-local avionics = require("system.services.avionicsd")
-local sable = require("system.services.sabled")
-
-local M = {}
-
+local renderer=require('system.gui.renderer')
+local theme=require('system.gui.theme')
+local ui=require('system.gui.components')
+local deviced=require('system.services.deviced')
+local combat=require('system.services.combatd')
+local avionics=require('system.services.avionicsd')
+local sable=require('system.services.sabled')
+local workers=require('system.libraries.app_worker')
+local model=require('apps.devices.model')
+local pixel=require('apps.devices.pixel')
+local M={}
 function M.run(ctx)
-  local app = {selected=nil}
-
-  function app:draw(w, h)
-    renderer.writeAt(1, 1, renderer.crop("[Rescan] [Use monitor] [Probe]", w), colors.white, colors.gray)
-    local display = deviced.getDisplay()
-    renderer.writeAt(1, 2, renderer.crop("Target: " .. tostring(display.target) .. " " .. tostring(display.width) .. "x" .. tostring(display.height), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 3, renderer.crop("Monitor: " .. tostring(display.monitorSide or "none") .. " scale " .. tostring(display.scale or "-"), w), colors.black, colors.lightGray)
-    renderer.writeAt(1, 4, renderer.crop("Sable: "..tostring(sable.status().inSublevel).." Avionics: "..tostring(avionics.status().available),w))
-    renderer.writeAt(1, 5, renderer.crop("Selected: "..tostring(self.selected or "tap a device"),w))
-    renderer.writeAt(1, 9, renderer.crop("DEVICE          TYPE          ROLE", w), colors.black, colors.lightGray)
-    local rows = deviced.list()
-    if #rows == 0 then
-      renderer.writeAt(1, 11, renderer.crop("No peripheral detected", w), colors.gray, colors.lightGray)
+  local app={rows={},scroll=1,detailScroll=0,query='',category='all',message='Reading inventory',methods={},probes={},header={},inventoryGeneration=0}
+  local win,timer,worker
+  local function dirty() if win then win.dirty=true end end
+  function app:filteredRows() return model.filter(self.rows,self.query,self.category) end
+  function app:selectedRow() for _,row in ipairs(self.rows) do if row.name==self.selected then return row end end end
+  function app:requestRead(scan)
+    self.wantScan=self.wantScan or scan
+    if self.busy then return end
+    self.busy=true
+    local request={scan=self.wantScan==true,selected=self.selected} self.wantScan=false
+    if request.scan then self.inventoryGeneration=self.inventoryGeneration+1 self.probes={} self.methods={} end
+    local ok,err=worker:submit(request)
+    if not ok then self.busy=false self.message=tostring(err) end
+    dirty()
+  end
+  function app:select(index)
+    local rows=self:filteredRows() local row=rows[math.max(1,math.min(#rows,index))]
+    local selected=row and row.name or nil
+    if selected~=self.selected then self.methods={} self.probes={} self.methodError=nil self.methodOwner=nil end
+    self.selected=selected self.detailScroll=0 self.focus='list'
+    if row then
+      index=math.max(1,math.min(#rows,index))
+      if index<self.scroll then self.scroll=index elseif index>=self.scroll+(self.visible or 1) then self.scroll=index-(self.visible or 1)+1 end
     end
-    for i = 1, math.min(#rows, h - 9) do
-      local d = rows[i]
-      local lowerType = tostring(d.type):lower()
-      local role = tostring(d.type) == "modem" and "rednet"
-        or (tostring(d.type) == "monitor" or tostring(d.type)=="terminal") and "display"
-        or lowerType:find("altitude", 1, true) and "avionics"
-        or lowerType:find("gimbal", 1, true) and "avionics"
-        or lowerType:find("propeller", 1, true) and "avionics"
-        or lowerType:find("throttle", 1, true) and "avionics"
-        or lowerType:find("radar", 1, true) and "radar"
-        or lowerType:find("cannon", 1, true) and "cbc"
-        or lowerType:find("mount", 1, true) and "cbc"
-        or lowerType:find("controller", 1, true) and "fire-control"
-        or lowerType:find("redstone", 1, true) and "assist"
-        or "-"
-      renderer.writeAt(1, i + 9, renderer.crop(d.name .. "          " .. tostring(d.type) .. "          " .. role, w), colors.black, colors.lightGray)
+    self:requestRead(false)
+  end
+  function app:filterChanged()
+    self.scroll=1 self.detailScroll=0
+    local found=false for _,row in ipairs(self:filteredRows()) do if row.name==self.selected then found=true end end
+    if not found then self.selected=nil self.inspect=false end
+  end
+  function app:detailText()
+    local text=model.details(self:selectedRow(),self.selected and self.methods[self.selected],self.selected and self.probes[self.selected])
+    if self.methodError and self.methodOwner==self.selected then text=text..'\nMetadata error: '..self.methodError end
+    return text..'\n\nDisplay: '..tostring(self.header.summary or 'pending')..'\n'..tostring(self.header.addons or '')..
+      '\nRead state: '..tostring(self.readMessage or 'pending')..'\nStatus: '..tostring(self.message)
+  end
+  function app:activate(id)
+    if id=='rescan' then self:requestRead(true)
+    elseif id=='display' then
+      local ok,err=ctx.apps.launch('settings',{page='display'}) self.message=ok and 'Display settings opened' or tostring(err)
+    elseif id=='probe' then
+      if not self:selectedRow() or self.probePending then return end
+      local ok,result=combat.requestProbe({pid=ctx.pid},self.selected)
+      self.message=ok and ('Probe #'..result..' queued') or tostring(result)
+      if ok then self.probePending={id=result,name=self.selected,generation=self.inventoryGeneration,since=os.clock()} end
+    elseif id=='details' then self.inspect=not self.inspect self.focus=self.inspect and 'details' or 'list' end
+    dirty()
+  end
+  function app:draw(w,h)
+    renderer.fill(1,1,w,h,theme.get('windowBg')) self.lastH=h
+    self.buttons=ui.toolbar(1,1,w,{{id='rescan',label='Rescan'},{id='display',label='Display'},{id='probe',label='Probe'}})
+    renderer.writeAt(1,2,renderer.crop(self.header.summary or 'Reading display',w),theme.get('windowFg'))
+    local rows=self:filteredRows() self.visible=math.max(1,h-5)
+    self.scroll=math.max(1,math.min(self.scroll,math.max(1,#rows-self.visible+1)))
+    for i=self.scroll,math.min(#rows,self.scroll+self.visible-1) do
+      local row=rows[i] local bg=row.name==self.selected and theme.get('accent') or theme.get('windowBg')
+      renderer.writeAt(1,3+i-self.scroll,renderer.crop(row.name..' | '..row.type..' | '..row.role,w),theme.get('windowFg'),bg)
+    end
+    if h>=4 then renderer.writeAt(1,h,renderer.crop(self.message,w),theme.get('windowFg')) end
+  end
+  function app:handle(event)
+    if self.graphicsActive and not event.name:match('^mouse_') then return self:handlePixels(event) end
+    if event.name=='mouse_scroll' then self.scroll=math.max(1,self.scroll+event.args[1]) return true end
+    if event.name~='mouse_click' then return false end
+    local x,y=event.args[2],event.args[3] local action=ui.toolbarHit(self.buttons,x,y)
+    if action then self:activate(action) return true end
+    if y>=3 and y<(self.lastH or 3) then self:select(self.scroll+y-3) return true end
+    return false
+  end
+  pixel.attach(app)
+  worker=workers.new(ctx,'Device metadata',function(request)
+    local allowed,denied=ctx.security.require('devices.list','inventory') if not allowed then error(denied,0) end
+    if request.scan then deviced.scan() combat.rescan() avionics.rescan() sable.rescan() end
+    local source=deviced.list() local result={rows={},partial=#source>512,error=deviced.scanError}
+    for i=1,math.min(512,#source) do local row=source[i] row.role=model.role(row) result.rows[#result.rows+1]=row end
+    local good,display=pcall(deviced.getDisplay)
+    local stats=ctx.system.renderStats and ctx.system.renderStats() or {}
+    result.header={summary=good and (tostring(display.monitorSide or display.terminalSide or display.target)..' '..display.width..'x'..display.height..' cells | '..tostring(stats.backend or 'TEXT')) or 'Display read failed: '..tostring(display)}
+    if stats.pixelWidth and stats.pixelHeight then result.header.summary=result.header.summary..' | '..stats.pixelWidth..'x'..stats.pixelHeight..' pixels' end
+    local flight,air=sable.status(),avionics.status()
+    result.header.addons='Sable available: '..tostring(flight.available)..' | sublevel: '..tostring(flight.inSublevel)..' | Avionics: '..tostring(air.available)
+    if request.selected then
+      local ok,methods=pcall(peripheral.getMethods,request.selected)
+      result.methodOwner=request.selected result.methods={}
+      if ok and type(methods)=='table' then
+        for i=1,math.min(#methods,128) do if type(methods[i])=='string' then result.methods[#result.methods+1]=methods[i]:sub(1,100) end end table.sort(result.methods)
+        if #methods>128 then result.methods[#result.methods+1]='[metadata truncated at 128 methods]' end
+      else result.methodError=tostring(methods):sub(1,1024) end
+    end
+    return result
+  end,function(request,ok,result)
+    app.busy=false
+    if not ok then app.message='Inventory read failed: '..tostring(result):sub(1,2048) dirty() return end
+    app.rows=result.rows app.header=result.header app.partial=result.partial
+    app.readMessage=result.error and ('Last retained scan: '..result.error) or result.partial and 'Inventory capped at 512 devices' or 'Inventory ready'
+    if request.scan or app.message=='Reading inventory' then app.message=app.readMessage end
+    local present={} for _,row in ipairs(app.rows) do present[row.name]=true end
+    for name in pairs(app.methods) do if not present[name] then app.methods[name]=nil app.probes[name]=nil end end
+    if app.selected and not present[app.selected] then app.selected=nil app.inspect=false end
+    if result.methodOwner and result.methodOwner==app.selected and present[result.methodOwner] then app.methods[result.methodOwner]=result.methods end
+    app.methodOwner=result.methodOwner app.methodError=result.methodError
+    dirty()
+  end)
+  local w,h=term.getSize()
+  win=ctx.windowManager:create({title='Devices',w=math.min(96,w-4),h=math.min(30,h-3),x=4,y=3,app=app})
+  ctx.onCleanup(function() if timer then ctx.cancelTimer(timer) end combat.release(ctx.pid) end)
+  app:requestRead(false) timer=ctx.startTimer(1)
+  while not win.closed do
+    local event=ctx.pullEvent()
+    if event and event.name=='timer' and event.args[1]==timer then
+      if app.probePending and os.clock()-app.probePending.since>8 then app.probePending=nil app.message='Probe timed out; no automatic retry. Inspect service/Logs.' dirty() end
+      if not win.minimized then app:requestRead(false) end timer=ctx.startTimer(1)
+    elseif event and (event.name=='peripheral' or event.name=='peripheral_detach' or event.name=='mintcraft_display_resize') then app:requestRead(true)
+    elseif event and event.name=='mintcraft_combat_result' and event.args[1]==ctx.pid and app.probePending and event.args[2]==app.probePending.id then
+      local pending=app.probePending app.probePending=nil app.message=tostring(event.args[4])
+      local result=combat.snapshot().probe
+      if pending.generation~=app.inventoryGeneration then app.message='Inventory changed; run Probe again'
+      elseif event.args[3] and result and result.name==pending.name and result.operationId==pending.id and result.ownerPid==ctx.pid and app.selected==pending.name then app.probes={[pending.name]=result} app.detailScroll=0 end
+      dirty()
     end
   end
-
-  function app:handle(event)
-    if event.name == "mouse_click" then
-      local _, x, y = table.unpack(event.args)
-      if y == 1 and x <= 8 then
-        deviced.refreshDisplay()
-        combat.rescan() avionics.rescan() sable.rescan()
-        ctx.notifications:push("success", "Devices", "Rescan complete", 3)
-        return true
-      elseif y==1 and x>=24 and x<=30 then
-        local ok,err=combat.requestProbe({pid=ctx.pid},self.selected)
-        ctx.notifications:push(ok and "info" or "warn","Probe",ok and "Queued; result in Logs" or tostring(err),3)
-        return true
-      elseif y>=10 then
-        local row=deviced.list()[y-9]
-        if row then self.selected=row.name return true end
-      elseif y == 1 and x >= 10 and x <= 22 then
-        if deviced.refreshDisplay() then
-          ctx.notifications:push("success", "Devices", "Monitor selected", 3)
-        else
-          ctx.notifications:push("warn", "Devices", "No monitor found", 3)
-        end
-        return true
+end
+return M
+]=],
+  ["apps/devices/model.lua"] = [=[
+local M={}
+local function short(value,limit) return tostring(value):sub(1,limit or 256):gsub('[%c]',' ') end
+function M.role(row)
+  for _,kind in ipairs(row.types or {row.type}) do
+    if kind=='monitor' or kind=='terminal' then return 'display' end
+    if kind=='modem' then return 'network' end
+  end
+  local kinds=table.concat(row.types or {row.type},' '):lower()
+  for _,pair in ipairs({{'radar','radar'},{'cannon','cbc'},{'mount','cbc'},{'controller','control'},
+    {'gimbal','avionics'},{'altitude','avionics'},{'propeller','avionics'},{'navigation_table','avionics'},
+    {'throttle','avionics'},{'redstone','redstone'},{'inventory','storage'},{'energy','storage'},{'fluid','storage'}}) do
+    if kinds:find(pair[1],1,true) then return pair[2] end
+  end
+  return 'other'
+end
+function M.filter(rows,query,category)
+  local result={} query=(query or ''):lower()
+  for _,row in ipairs(rows) do
+    local text=(row.name..' '..table.concat(row.types or {row.type},' ')..' '..row.role):lower()
+    if (category=='all' or row.role==category) and text:find(query,1,true) then result[#result+1]=row end
+  end
+  return result
+end
+function M.value(value,depth)
+  if type(value)~='table' then return short(value) end
+  if (depth or 0)>=2 then return '[table]' end
+  local parts={} local count,bytes=0,0
+  for key,item in pairs(value) do
+    count=count+1 if count>12 then parts[#parts+1]='...' break end
+    local part=short(key,48)..'='..M.value(item,(depth or 0)+1)
+    bytes=bytes+#part
+    if bytes>2000 then parts[#parts+1]='...' break end
+    parts[#parts+1]=part
+  end
+  table.sort(parts) return '{'..table.concat(parts,', ')..'}'
+end
+function M.details(row,methods,probe)
+  if not row then return 'No device selected' end
+  local lines={row.name,'Role: '..row.role,'Types: '..table.concat(row.types or {row.type},', '),'',
+    'Advertised methods (not executed):',methods and table.concat(methods,', ') or 'Not acquired',''}
+  local bytes=0 for _,line in ipairs(lines) do bytes=bytes+#line+1 end
+  if probe then
+    lines[#lines+1]='Read-only Probe #'..tostring(probe.operationId or '?')
+    lines[#lines+1]='Completed uptime: '..tostring(probe.completedAt or 'unavailable')
+    for _,section in ipairs({'values','errors'}) do
+      local keys={} for key in pairs(probe[section] or {}) do if #keys<64 then keys[#keys+1]=key end end table.sort(keys,function(a,b) return tostring(a)<tostring(b) end)
+      for _,key in ipairs(keys) do
+        local line=short(key,64)..(section=='errors' and ' ERROR: ' or ': ')..M.value(probe[section][key])
+        bytes=bytes+#line+1
+        if bytes>16000 then lines[#lines+1]='[diagnostic truncated]' return table.concat(lines,'\n'):sub(1,16384) end
+        lines[#lines+1]=line
       end
+    end
+  else lines[#lines+1]='No Probe result acquired for this device' end
+  return table.concat(lines,'\n'):sub(1,16384)
+end
+return M
+]=],
+  ["apps/devices/pixel.lua"] = [=[
+local ui=require('system.graphics.widgets')
+local fonts=require('system.graphics.fonts')
+local View=require('system.graphics.view')
+local primitives=require('system.graphics.primitives')
+local M={}
+local categories={'all','display','network','radar','cbc','control','avionics','redstone','storage','other'}
+local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
+local function clamp(value,a,b) return math.max(a,math.min(b,value)) end
+function M.attach(app)
+  function app:drawPixels(s,w,h,p)
+    s:rect(0,0,w,h,p.panel) self.pixelHits={} self.rowHits={} self.scrollbar=nil self.detailArea=nil self.searchArea=nil
+    if w<200 or h<170 then self.inspect=false self.categoryMenu=false self.dragging=false ui.label(s,5,6,'Devices: enlarge window',w-10,p.text,p.panel) return end
+    local function button(id,label,r,disabled,kind)
+      if kind then ui.symbol(s,r,kind,p) else ui.button(s,r,label,disabled and {button=p.panel,text=p.muted} or p) end
+      if self.focus==id then primitives.rect(s,r.x,r.y,r.w,r.h,p.accent) end
+      self.pixelHits[#self.pixelHits+1]={id=id,rect=r,disabled=disabled}
+    end
+    button('rescan','',rect(5,4,24,23),self.busy,'refresh')
+    button('display','Display',rect(34,4,62,23))
+    button('probe','Probe',rect(101,4,54,23),not self:selectedRow() or self.probePending~=nil)
+    button('details',w>=280 and (self.inspect and 'Back' or 'Details') or '',rect(w>=280 and 160 or w-29,4,w>=280 and 66 or 24,23),false,w<280 and 'more' or nil)
+    self.searchArea=rect(5,34,w-10,23)
+    ui.input(s,self.searchArea,self.query,p,self.focus=='search','Search name / type / role')
+    button('category',self.category,rect(5,62,90,22))
+    local rows=self:filteredRows()
+    ui.label(s,101,69,#rows..' / '..#self.rows..(self.busy and ' reading' or '')..(w>=450 and (' | '..tostring(self.header.summary or 'pending')) or ''),w-107,p.muted,p.panel)
+    local wide=w>=640
+    local listWidth=wide and math.floor(w*0.48) or w-10
+    local area=rect(5,105,listWidth,math.max(20,h-129))
+    self.visible=math.max(1,math.floor(area.h/22)) self.scroll=clamp(self.scroll,1,math.max(1,#rows-self.visible+1))
+    s:rect(area.x,89,area.w,14,p.desktop)
+    ui.label(s,area.x+4,92,'DEVICE',area.w-82,p.muted,p.desktop)
+    ui.label(s,area.x+area.w-78,92,'ROLE',65,p.muted,p.desktop)
+    for i=self.scroll,math.min(#rows,self.scroll+self.visible-1) do
+      local row=rows[i] local y=area.y+(i-self.scroll)*22 local active=row.name==self.selected
+      local bg=active and p.accent or p.panel local fg=active and p.ink or p.text
+      s:rect(area.x,y,area.w-10,22,bg)
+      ui.label(s,area.x+4,y+6,row.name,area.w-88,fg,bg)
+      ui.label(s,area.x+area.w-78,y+6,row.role,65,fg,bg)
+      self.rowHits[#self.rowHits+1]={index=i,rect=rect(area.x,y,area.w-10,22)}
+    end
+    if #rows==0 then ui.label(s,area.x+4,area.y+6,'No matching devices',area.w-14,p.muted,p.panel) end
+    self.scrollbar=rect(area.x+area.w-8,area.y,8,area.h)
+    self.thumb=ui.scrollbar(s,self.scrollbar,#rows,self.visible,self.scroll,p)
+    self.detailArea=self.inspect and rect(5,89,w-10,h-113) or wide and rect(area.x+area.w+8,89,w-area.w-18,h-113) or nil
+    if self.detailArea then
+      local r=self.detailArea
+      if self.inspect then self.rowHits={} self.scrollbar=nil s:rect(r.x,r.y,r.w,r.h,p.panel) end
+      local text=self:detailText()
+      if not self.detailLayout or self.detailLayout.text~=text or self.detailLayout.width~=r.w then
+        self.detailLayout={text=text,width=r.w,lines=fonts.layout(text,r.w-12,65536,{wrap=true,lineSpacing=2}).lines}
+      end
+      ui.label(s,r.x+5,r.y+3,'DEVICE INSPECTOR',r.w-10,p.accent,p.panel)
+      local canvas=View.new(s,r.x+5,r.y+19,r.w-10,r.h-22)
+      self.detailVisible=math.max(1,math.floor((r.h-22)/11))
+      self.detailMaximum=math.max(0,#self.detailLayout.lines-self.detailVisible)
+      self.detailScroll=clamp(self.detailScroll or 0,0,self.detailMaximum)
+      for i=self.detailScroll+1,math.min(#self.detailLayout.lines,self.detailScroll+self.detailVisible) do
+        fonts.draw(canvas,0,(i-self.detailScroll-1)*11,self.detailLayout.lines[i].text,p.text,p.panel)
+      end
+    end
+    ui.label(s,6,h-16,self.message or '',w-12,p.muted,p.panel)
+    if self.categoryMenu then
+      self.pixelHits={} self.rowHits={} self.scrollbar=nil self.detailArea=nil self.searchArea=nil
+      local capacity=math.max(1,math.floor((h-92)/22))
+      self.categoryFirst=clamp(self.categoryFirst or 1,1,math.max(1,#categories-capacity+1))
+      s:rect(4,86,math.min(180,w-8),math.min(capacity,#categories)*22+2,p.desktop)
+      for i=self.categoryFirst,math.min(#categories,self.categoryFirst+capacity-1) do
+        button('role:'..categories[i],categories[i],rect(6,88+(i-self.categoryFirst)*22,math.min(176,w-12),21))
+      end
+    end
+  end
+  function app:handlePixels(event)
+    local name,x,y=event.name,event.args[2],event.args[3]
+    if name=='key' then
+      local key=event.args[1]
+      if key==keys.escape then
+        if self.categoryMenu then self.categoryMenu=false elseif self.inspect then self.inspect=false else self.focus='list' end return true
+      end
+      if self.categoryMenu then
+        if key==keys.down then self.categoryFirst=(self.categoryFirst or 1)+1
+        elseif key==keys.up then self.categoryFirst=math.max(1,(self.categoryFirst or 1)-1)
+        elseif key==keys.enter then self.category=categories[self.categoryFirst or 1] self.categoryMenu=false self:filterChanged() end return true
+      end
+      if key==keys.tab then
+        local focus={'rescan','display','probe','details','search','category','list'} local index=0
+        for i,id in ipairs(focus) do if id==self.focus then index=i break end end self.focus=focus[index%#focus+1] return true
+      end
+      if self.focus=='search' and key==keys.backspace then
+        local last=#self.query
+        while last>1 and self.query:byte(last)>=128 and self.query:byte(last)<=191 do last=last-1 end
+        self.query=self.query:sub(1,last-1) self:filterChanged() return true
+      end
+      if self.focus=='search' and key==keys.enter then self.focus='list' if #self:filteredRows()>0 then self:select(1) end return true end
+      if self.focus=='details' or self.inspect then
+        if key==keys.down then self.detailScroll=(self.detailScroll or 0)+1 return true end
+        if key==keys.up then self.detailScroll=math.max(0,(self.detailScroll or 0)-1) return true end
+      end
+      if self.focus=='list' then
+        local rows=self:filteredRows() local index=0 for i,row in ipairs(rows) do if row.name==self.selected then index=i break end end
+        if key==keys.down then self:select(index+1) return true elseif key==keys.up then self:select(index-1) return true
+        elseif key==keys.home then self:select(1) return true elseif key==keys['end'] then self:select(#rows) return true
+        elseif key==keys.enter and self.selected then self.inspect=true self.focus='details' return true end
+      end
+      if key==keys.enter then
+        if self.focus=='category' then self.categoryMenu=true self.categoryFirst=1 return true end
+        for _,hit in ipairs(self.pixelHits or {}) do if hit.id==self.focus and not hit.disabled then self:activate(hit.id) return true end end
+      end
+    elseif (name=='char' or name=='paste') and self.focus=='search' and not self.categoryMenu then
+      self.query=(self.query..tostring(event.args[1]):sub(1,96):gsub('[%c]',' ')):sub(1,96) self:filterChanged() return true
+    elseif name=='mouse_scroll' then
+      if self.categoryMenu then self.categoryFirst=math.max(1,(self.categoryFirst or 1)+event.args[1])
+      elseif ui.hit(self.detailArea,x,y) then self.detailScroll=clamp((self.detailScroll or 0)+event.args[1]*3,0,self.detailMaximum or 0)
+      else self.scroll=math.max(1,self.scroll+event.args[1]*3) end return true
+    elseif name=='mouse_up' then self.dragging=false self.grab=nil return true
+    elseif name=='mouse_drag' and self.dragging and self.scrollbar then
+      self.scroll=ui.scrollbarValue(self.scrollbar,#self:filteredRows(),self.visible,y+(self.thumb and self.thumb.h/2 or 0)-(self.grab or 0)) return true
+    elseif name=='mouse_click' then
+      for i=#(self.pixelHits or {}),1,-1 do local hit=self.pixelHits[i] if ui.hit(hit.rect,x,y) then
+        if hit.id:sub(1,5)=='role:' then self.category=hit.id:sub(6) self.categoryMenu=false self:filterChanged()
+        elseif hit.id=='category' then self.categoryMenu=not self.categoryMenu self.categoryFirst=1
+        elseif not hit.disabled then self.focus=hit.id self:activate(hit.id) end return true
+      end end
+      if self.categoryMenu then self.categoryMenu=false return true end
+      if ui.hit(self.searchArea,x,y) then self.focus='search' return true end
+      if ui.hit(self.detailArea,x,y) then self.focus='details' return true end
+      if ui.hit(self.scrollbar,x,y) then
+        self.grab=ui.hit(self.thumb,x,y) and y-self.thumb.y or self.thumb.h/2
+        if not ui.hit(self.thumb,x,y) then self.scroll=ui.scrollbarValue(self.scrollbar,#self:filteredRows(),self.visible,y) end
+        self.dragging=true return true
+      end
+      for _,hit in ipairs(self.rowHits or {}) do if ui.hit(hit.rect,x,y) then
+        self:select(hit.index) if not self.detailArea then self.inspect=true self.focus='details' end return true
+      end end
+      return true
     end
     return false
   end
-
-  local sw, sh = term.getSize()
-  local win = ctx.windowManager:create({ title = "Devices", w = math.min(60, sw - 4), h = math.min(18, sh - 3), x = 4, y = 3, app = app })
-  while not win.closed do ctx.pullEvent() end
 end
-
 return M
 ]=],
   ["apps/editor/app.cfg"] = [=[
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2348,7 +2610,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -3171,7 +3433,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -3470,7 +3732,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -3589,7 +3851,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -4480,7 +4742,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -4719,7 +4981,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -4754,7 +5016,9 @@ local function sizeLabel(value)
 end
 
 function M.run(ctx)
-  local app={page=ctx.args and ctx.args.page=="apps" and "apps" or "system",scroll=1,input="",keyboard={},
+  local initial="system"
+  for _,page in ipairs(pages) do if ctx.args and ctx.args.page==page.id then initial=page.id break end end
+  local app={page=initial,scroll=1,input="",keyboard={},
     appMessage="",views=menu.new(),actions=menu.new()}
   local function notify(ok,title,message)
     if ctx.notifications then ctx.notifications:push(ok and "success" or "warn",title,tostring(message or (ok and "Saved" or "Failed")),3) end
@@ -5046,7 +5310,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -5161,7 +5425,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -5580,7 +5844,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.39",
+  version = "0.18.40",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -6050,7 +6314,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.39",
+  version = "0.18.40",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -6680,7 +6944,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.39",
+    version = "0.18.40",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -7062,7 +7326,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.39",
+  version = "0.18.40",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -10067,22 +10331,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.39", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.39", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.39", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.39", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.40", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.40", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.40", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.40", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.39", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.39", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.39", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.39", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.39", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.39", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.39", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.39", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.39", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.39", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.39", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.40", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.40", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.40", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.40", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.40", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.40", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.40", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.40", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.40", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.40", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.40", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -10876,7 +11140,7 @@ function M.register(id, name, module, meta)
     icon = meta.icon or "[]",
     iconPath = meta.iconPath,
     category = meta.category or "System",
-    version = meta.version or "0.18.39",
+    version = meta.version or "0.18.40",
     permissions = meta.permissions or {},
     hidden = meta.hidden == true,
     builtin = meta.builtin == true,
@@ -15280,6 +15544,7 @@ local function processCommand(command)
   if command.kind == "probe" then
     local data, err = M.probe({pid=command.pid},command.name)
     if data then
+      data.operationId=command.id data.ownerPid=command.pid data.completedAt=os.clock()
       probeResult=addon.copy(data)
       local saved,why=safeWrite.write("/var/logs/peripheral_probe.log",textutils.serialize(data))
       return saved,saved and "Probe exported /var/logs/peripheral_probe.log" or why
@@ -15689,7 +15954,11 @@ end
 function M.list()
   local rows = {}
   for _, device in pairs(M.devices) do
-    table.insert(rows, { name = device.name, type = device.type })
+    local types,seen={},{}
+    for kind,present in pairs(device.types or {}) do if present and type(kind)=='string' then types[#types+1]=kind seen[kind]=true end end
+    if not seen[device.type] then types[#types+1]=device.type end
+    table.sort(types)
+    table.insert(rows, { name = device.name, type = device.type, types=types })
   end
   table.sort(rows, function(a, b) return a.name < b.name end)
   return rows
@@ -19825,7 +20094,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.39
+0.18.40
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

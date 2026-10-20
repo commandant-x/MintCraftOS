@@ -27,7 +27,9 @@ local function sizeLabel(value)
 end
 
 function M.run(ctx)
-  local app={page=ctx.args and ctx.args.page=="apps" and "apps" or "system",scroll=1,input="",keyboard={},
+  local initial="system"
+  for _,page in ipairs(pages) do if ctx.args and ctx.args.page==page.id then initial=page.id break end end
+  local app={page=initial,scroll=1,input="",keyboard={},
     appMessage="",views=menu.new(),actions=menu.new()}
   local function notify(ok,title,message)
     if ctx.notifications then ctx.notifications:push(ok and "success" or "warn",title,tostring(message or (ok and "Saved" or "Failed")),3) end

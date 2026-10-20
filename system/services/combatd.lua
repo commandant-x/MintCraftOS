@@ -615,6 +615,7 @@ local function processCommand(command)
   if command.kind == "probe" then
     local data, err = M.probe({pid=command.pid},command.name)
     if data then
+      data.operationId=command.id data.ownerPid=command.pid data.completedAt=os.clock()
       probeResult=addon.copy(data)
       local saved,why=safeWrite.write("/var/logs/peripheral_probe.log",textutils.serialize(data))
       return saved,saved and "Probe exported /var/logs/peripheral_probe.log" or why
