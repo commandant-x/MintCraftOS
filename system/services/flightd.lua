@@ -509,7 +509,12 @@ function M.startSweep(actor,options,confirmed,expectedControl)
   local channel=c.channels[1]
   local valid,why=channelValid(channel) if not valid then return false,why end
   if not channel.actuator or channel.actuator.role~="buoyancy" or math.abs(channel.mix.altitude or 0)~=1 then return false,"Verified burner channel with unit altitude mix required" end
-  if not channel.validated or not c.manualValidated or not c.rescueValidated or not burnerInitialization then return false,"Initialize and physically verify direction, manual takeover and rescue before sweep" end
+  local missing={}
+  if not burnerInitialization then missing[#missing+1]="Initialize (2s): fresh feedback from both/all selected burners" end
+  if not channel.validated then missing[#missing+1]="Verify direction (after Initialize completes)" end
+  if not c.manualValidated then missing[#missing+1]="Manual OK" end
+  if not c.rescueValidated then missing[#missing+1]=rescueTested and "Rescue OK (Test rescue completed; confirmation still missing)" or "Test rescue, then Rescue OK" end
+  if #missing>0 then return false,"Sweep blocked: "..table.concat(missing,"; ") end
   local ready,problem=balloonStatus() if not ready then return false,problem end
   local plan,planErr=Sweep.validate(options) if not plan then return false,planErr end
   local inverted=channel.mix.altitude<0

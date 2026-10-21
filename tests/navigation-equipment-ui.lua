@@ -18,6 +18,7 @@ package.loaded["apps.navigation.route"]={new=function() return {refresh=function
 local snapshot={ok=true,available=true,complete=false,inventoryComplete=true,frame="body_plot",vehicleId="ship-a",status="Partial vehicle inventory",
  burnerDiscoveryAvailable=true,actuators={},links={},burners={{id="heater",position={x=1,y=2,z=3},signal=3,gasOutput=4,hasBalloon=true,gasActive=false}}}
 local rescans,saved,started,stopped=0,0,0,0
+local rejectSweep=false
 local sweepState
 package.loaded["system.services.vehiclebridged"]={snapshot=function() return snapshot end,rescan=function() rescans=rescans+1 end}
 package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
@@ -26,6 +27,7 @@ package.loaded["system.services.flightd"]={configuration=function() return {chan
  status=function() return {calibration={initializationConfirmed=true,tested={}},sweep=sweepState} end,telemetry=function() return {} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
  configure=function() saved=saved+1 return true end,
  startSweep=function(_,p,confirmed,control)
+  if rejectSweep then return false,"Sweep blocked: Rescue OK (Test rescue completed; confirmation still missing)" end
   assert(confirmed and p.first==7 and p.last==15 and control.balloonSetup.vehicleId=="ship-a")
   started=started+1 sweepState={state="running",reason="test",signal=7,count=0,options=p,levels={}} return true
  end,
@@ -46,6 +48,13 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   assert(app.sweepRead,"small-window sweep warning could not be read")
   command("sweepConfirm") assert(started==1 and saved==0)
   app:handle({name="key",args={keys.f10}}) assert(stopped==1,"F10 did not stop sweep")
+  rejectSweep=true
+  command("sweepOptions") command("sweepStart")
+  for _=1,100 do app:draw(width,height) if app.sweepRead then break end command("sweepRead") end
+  command("sweepConfirm")
+  assert(app.sweepStartError and app.sweepStartError:find("Rescue OK",1,true))
+  width,height=80,28 writes={} app:draw(width,height)
+  assert(table.concat(writes,"\n"):find("START REFUSED:",1,true),"refusal hidden in footer")
   command("sweepOptions") app:draw(width,height)
   app.page="calibration" width,height=80,28 app:draw(width,height)
   assert(table.concat(writes,"\n"):find("Initialization this run: confirmed (retained while off)",1,true),"retained initialization not shown")

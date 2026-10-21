@@ -63,6 +63,12 @@ local function prepare()
 end
 local options=require("system.navigation.altitude_sweep").defaults()
 prepare()
+local verified=flight.configuration()
+local unverified=addon.copy(verified) unverified.manualValidated=false
+assert(flight.configure(actor,unverified))
+local refused,detail=flight.startSweep(actor,options,true)
+assert(not refused and detail:find("Manual OK",1,true) and detail:find("Test rescue, then Rescue OK",1,true) and detail:find("Verify direction",1,true) and detail:find("Initialize (2s)",1,true),"missing sweep prerequisites not identified")
+prepare()
 assert(not flight.startSweep(actor,options,false)) assert(command==0)
 local frozen=flight.configuration() frozen.channels[1].neutral=1
 assert(not flight.startSweep(actor,options,true,frozen))

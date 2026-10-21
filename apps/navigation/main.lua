@@ -228,6 +228,7 @@ function M.run(ctx)
     elseif self.page=="sweepResults" then
       local s=self.flight.sweep
       local rows={"F10 / STOP stops a running sweep; data stays in RAM until Save report."}
+      if self.sweepStartError then rows[#rows+1]="START REFUSED: "..self.sweepStartError end
       if not s then rows[#rows+1]="No measurement sweep yet" else
         rows[#rows+1]=s.state..": "..s.reason
         rows[#rows+1]="Heat "..s.signal.." | samples "..s.count
@@ -451,7 +452,10 @@ function M.run(ctx)
       elseif id=="sweepConfirm" then
         if not self.sweepRead or not self.sweepPending then report(false,"Read all sweep limits first") return true end
         local plan=addon.copy(self.sweepPending) self.sweepPending=nil
-        self.page="sweepResults" self.scroll=1 report(flight.startSweep(actor,plan,true,self.sweepPendingControl)) refresh() return true
+        self.page="sweepResults" self.scroll=1
+        local ok,err=flight.startSweep(actor,plan,true,self.sweepPendingControl)
+        self.sweepStartError=not ok and tostring(err or "Refused") or nil
+        report(ok,err) refresh() return true
       elseif id=="sweepExport" then report(flight.exportSweep(actor)) return true
       elseif id=="sweepApply" then
         if self.dirty then report(false,"Save changes before applying candidate") return true end
