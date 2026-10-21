@@ -11,6 +11,8 @@ local mode = require("system.navigation.control_mode")
 local linkOutput = require("system.navigation.link_output")
 local vehicleBridge = require("system.services.vehiclebridged")
 local Autopilot = require("system.navigation.autopilot")
+local Sweep=require("system.navigation.altitude_sweep")
+local sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport,sweepOrigin
 local autopilot=Autopilot.new()
 local routeForward,routeRight=0,0
 local M = {}
@@ -67,7 +69,7 @@ function M.telemetry()
     t.inSublevel=sub.inSublevel==true and addon.finite(observed) and os.clock()-observed<=0.5
     if not addon.finite(t.heading) and not (c.sensors.nav and c.sensors.nav~="") and sable.pose then
       local pose=sable.pose()
-      if t.inSublevel and pose.inSublevel and pose.frame=="world" and addon.finite(pose.timestamp) and os.clock()-pose.timestamp<=0.5 then
+      if t.inSublevel and pose and pose.inSublevel and pose.frame=="world" and addon.finite(pose.timestamp) and os.clock()-pose.timestamp<=0.5 then
         local heading=geometry.heading(pose.logicalPose and pose.logicalPose.orientation)
         if heading then
           t.heading=heading t.headingSource="Sable orientation (+Z)"
@@ -251,6 +253,7 @@ function M.configure(actor, value)
 end
 
 function M.fail(message)
+  if sweep and sweep.state=="running" then sweep:abort(message) end
   burnerInitialization,burnerDemand,burnerHeatSince=nil,false,nil
   autopilot:cancel(message,true)
   if state=="armed" or state=="calibration" then
@@ -480,6 +483,99 @@ function M.testOutput(actor,id,value,confirmed,duration)
   return false,"unknown output"
 end
 
+local function sweepPose(now,vehicleId)
+  local pose=sable.pose and sable.pose()
+  if not pose or pose.vehicleId~=vehicleId or not pose.inSublevel or pose.frame~="world" or not addon.finite(pose.timestamp)
+    or not addon.finite(pose.identityAt) or now<pose.timestamp or now<pose.identityAt or now-pose.timestamp>0.5 or now-pose.identityAt>0.5 then return nil,"Fresh containing-vehicle world pose/identity required" end
+  local logical=pose.logicalPose or {}
+  local position=addon.vec(logical.position or logical.pos)
+  local q=logical.orientation
+  if not position or type(q)~="table" then return nil,"World position/orientation unavailable" end
+  local x,y,z,w=q.x or q[1],q.y or q[2],q.z or q[3],q.w or q[4]
+  if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil,"Invalid sweep orientation" end
+  local norm=x*x+y*y+z*z+w*w
+  if not addon.finite(norm) or norm<1e-8 then return nil,"Invalid sweep orientation" end
+  local tilt=math.deg(math.acos(math.max(-1,math.min(1,1-2*(x*x+z*z)/norm))))
+  if tilt>10 then return nil,"Sweep tilt limit (10 degrees) reached" end
+  return position
+end
+function M.startSweep(actor,options,confirmed,expectedControl)
+  local ok,err=authorize(actor,"navigation.calibrate") if not ok then return false,err end
+  ok,err=authorize(actor,"navigation.control") if not ok then return false,err end
+  if confirmed~=true or state~="disarmed" or rescuePending then return false,"Sweep needs idle state and explicit confirmation" end
+  local c=cfg.control
+  if expectedControl and not same(c,expectedControl) then return false,"Control changed while reviewing sweep; review again" end
+  if c.mode~="altitude" or not c.balloonSetup or #c.channels~=1 then return false,"One collective burner altitude channel required" end
+  local channel=c.channels[1]
+  local valid,why=channelValid(channel) if not valid then return false,why end
+  if not channel.actuator or channel.actuator.role~="buoyancy" or math.abs(channel.mix.altitude or 0)~=1 then return false,"Verified burner channel with unit altitude mix required" end
+  if not channel.validated or not c.manualValidated or not c.rescueValidated or not burnerInitialization then return false,"Initialize and physically verify direction, manual takeover and rescue before sweep" end
+  local ready,problem=balloonStatus() if not ready then return false,problem end
+  local plan,planErr=Sweep.validate(options) if not plan then return false,planErr end
+  local inverted=channel.mix.altitude<0
+  for _,heat in ipairs({plan.first,plan.last}) do
+    local value=inverted and 15-heat or heat
+    if value<channel.min or value>channel.max then return false,"Sweep outside calibrated channel limits" end
+  end
+  local origin,poseErr=sweepPose(os.clock(),c.balloonSetup.vehicleId)
+  if not origin then return false,poseErr end
+  local telemetry=M.telemetry()
+  local probe,probeErr=Sweep.new(plan,telemetry.altitude,os.clock()) if not probe then return false,probeErr end
+  local signal,guardErr=probe:step(telemetry,os.clock(),false) if not signal then return false,guardErr end
+  local original=addon.copy(c)
+  owner,state,reason=actor.pid,"calibration","Preparing altitude sweep"
+  c.sessionActive=true
+  local saved,saveErr=persist()
+  if not saved then c.sessionActive=original.sessionActive state,owner="disarmed",nil return false,saveErr end
+  if state~="calibration" or owner~=actor.pid or ctx.scheduler.processes[actor.pid].state~="ready" then return false,"Sweep cancelled while preparing" end
+  sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport=probe,channel.id,nil,original,nil
+  sweepOrigin=origin
+  M.test=nil
+  reason="Automatic altitude sweep"
+  return true
+end
+function M.stopSweep(actor)
+  local ok,err=authorize(actor,"navigation.control") if not ok then return false,err end
+  if not sweep or sweep.state~="running" then return false,"No running sweep" end
+  M.fail("Sweep stopped by operator") return true
+end
+function M.sweepReport(actor)
+  local ok,err=authorize(actor,"navigation.calibrate") if not ok then return nil,err end
+  if not sweep then return nil,"No sweep report" end
+  return sweep:status(true)
+end
+function M.exportSweep(actor)
+  local ok,err=authorize(actor,"navigation.calibrate") if not ok then return false,err end
+  if not sweep or sweep.state=="running" or rescuePending or state=="calibration" or cfg.control.sessionActive then return false,"Finish/stop sweep and confirm rescue before saving report" end
+  local report=sweep:status(true)
+  report.worldOrigin=addon.copy(sweepOrigin)
+  report.vehicleId=sweepSource.balloonSetup.vehicleId report.burnerIds=addon.copy(sweepSource.balloonSetup.burnerIds)
+  local content=textutils.serialize(report)
+  if #content>100000 or fs.getFreeSpace("/")<2*#content+2048 then return false,"Not enough space for durable sweep report; measurements remain in RAM" end
+  local stamp=tostring(math.floor(os.epoch and os.epoch("utc") or os.clock()*1000))
+  for i=1,99 do
+    local path="/home/user/documents/altitude-sweep-"..stamp.."-"..i..".cfg"
+    if not fs.exists(path) then
+      local saved,problem=safeWrite.write(path,content)
+      return saved,saved and path or problem
+    end
+  end
+  return false,"Too many reports with this timestamp"
+end
+function M.applySweep(actor,confirmed)
+  local ok,err=authorize(actor,"navigation.calibrate") if not ok then return false,err end
+  if confirmed~=true or state~="disarmed" or rescuePending then return false,"Acknowledge idle state and confirm proposal first" end
+  if not sweep or sweep.state~="complete" or not sweep.proposal then return false,"No validated response proposal" end
+  if not sweepReport then return false,"Rescue/persistence not confirmed after sweep" end
+  local current,original=addon.copy(cfg.control),addon.copy(sweepSource)
+  current.sessionActive=nil original.sessionActive=nil
+  if not same(current,original) then return false,"Control configuration changed; repeat sweep" end
+  local nextValue=addon.copy(cfg.control)
+  nextValue.channels[1].neutral=nextValue.channels[1].mix.altitude<0 and 15-sweep.proposal.neutral or sweep.proposal.neutral
+  nextValue.gains.altitude=addon.copy(sweep.proposal.gains)
+  -- No physical confirmation is forged by a model fit. Generic configure resets them.
+  return M.configure(actor,nextValue)
+end
 function M.step(rescan)
   if rescan or inventoryDirty then inventory=addon.inventory() inventoryDirty=false end
   local now,t=os.clock(),M.telemetry()
@@ -513,6 +609,52 @@ function M.step(rescan)
       end
     end
     M.test=nil
+    if sweep and sweep.state~="running" and cfg.control.sessionActive then
+      if ok then
+        cfg.control.sessionActive=false
+        local saved,problem=persist()
+        if saved then
+          sweepReport=sweep:status(true)
+          if sweep.state=="complete" then state,reason,owner="disarmed","Sweep complete; inspect measurements and candidate",nil end
+        else cfg.control.sessionActive=true state,reason="failsafe","Sweep rescue applied but session save failed: "..tostring(problem) end
+      end
+    end
+    return
+  end
+  if sweep and sweep.state=="running" then
+    local process=ctx and ctx.scheduler.processes[owner]
+    if not process or process.state~="ready" then M.fail("Sweep owner stopped") return M.step(false) end
+    for _,binding in ipairs(cfg.control.manualInputs or {}) do
+      if sides[binding.side] and redstone.getInput(binding.side) then M.fail("Physical manual input stopped sweep") return M.step(false) end
+    end
+    local permitted,denial=authorize({pid=owner},"navigation.control")
+    if not permitted then M.fail(denial) return M.step(false) end
+    local position,poseErr=sweepPose(now,cfg.control.balloonSetup.vehicleId)
+    if not position then M.fail(poseErr) return M.step(false) end
+    local distance=math.sqrt((position.x-sweepOrigin.x)^2+(position.y-sweepOrigin.y)^2+(position.z-sweepOrigin.z)^2)
+    if distance>sweep.options.maxTravel then M.fail("Sweep world travel limit reached") return M.step(false) end
+    local channel=cfg.control.channels[1]
+    local valid,problem=channelValid(channel)
+    if not valid then M.fail(problem) return M.step(false) end
+    local current=vehicleBridge.snapshot()
+    if not current.ok or not current.inventoryComplete or current.vehicleId~=cfg.control.balloonSetup.vehicleId then M.fail("Sweep inventory lost/changed/stale") return M.step(false) end
+    local ack,why=false,"Waiting for heater feedback"
+    if sweepAppliedAt then ack,why=vehicleBridge.burnerFeedback(cfg.control.balloonSetup,sweep.signal,sweepAppliedAt) end
+    if sweepAppliedAt and now-sweepAppliedAt>=2 and not ack then M.fail("Sweep: "..tostring(why)) return M.step(false) end
+    ack=ack and t.timestamp>sweepAppliedAt
+    local previous=sweep.signal
+    local heat,guardErr=sweep:step(t,now,ack)
+    if not heat then
+      if sweep.state=="complete" then reason,rescuePending="Sweep returning to rescue",true
+      else M.fail(guardErr) end
+      return M.step(false)
+    end
+    local value=channel.mix.altitude<0 and 15-heat or heat
+    local ok,err=writeOutputs({[sweepChannel]=value})
+    if not ok then M.fail("Sweep actuator error: "..err) return M.step(false) end
+    if state~="calibration" or sweep.state~="running" then return M.step(false) end
+    if not sweepAppliedAt or heat~=previous then sweepAppliedAt=os.clock() end
+    reason="Sweep heat "..heat.." | "..#sweep.samples.." samples"
     return
   end
   if state=="calibration" and M.test then
@@ -607,6 +749,7 @@ function M.status()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
     autopilot=autopilot:status(),
+    sweep=sweep and sweep:status(false) or nil,
     calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test),initializationConfirmed=burnerInitialization~=nil},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
 end
@@ -620,6 +763,7 @@ function M.start(context)
   if runner then runner:stop() end
   ctx=context
   autopilot=Autopilot.new()
+  sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport,sweepOrigin=nil,nil,nil,nil,nil,nil
   routeForward,routeRight=0,0
   migrate()
   state,owner,rescuePending="disarmed",nil,false

@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.54:
+This repository currently contains V0.18.55:
+
+V0.18.55 adds a confirmed, bounded altitude characterization sweep, default heat
+levels 7–15, recording altitude and vertical speed with per-heater acknowledgment.
+A validated first-order velocity response can produce an interpolated hover and
+conservative PI candidate (D=0); noisy/unbracketed results never invent gains.
+No automatic arming or physical validation occurs. Stop/F10, owner/permission
+loss, world/altitude excursion, tilt, speed and telemetry guards apply rescue.
+See [workflow, model assumptions and rollback](docs/AUTO-ALTITUDE-0.18.55.md).
+
+V0.18.54:
 
 V0.18.54 retains a successful positive burner initialization for the exact group
 in the current flight-service run. Returning to rescue signal 0 no longer
