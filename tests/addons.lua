@@ -45,3 +45,19 @@ sublevel.isInPlotGrid=function() return false end
 sable.acquire(false)
 assert(not sable.status().inSublevel)
 print("addon cache, cadence, explicit sublevel and coordinate transform tests passed")
+-- CC:Sable 1.3.4 containing-sublevel getters are distinct from isInPlotGrid.
+sublevel.getUniqueId=function() return "ship-uuid" end
+sable.acquire(false)
+assert(sable.status().inSublevel and sable.snapshot().sublevel.membershipSource=="getUniqueId/getLogicalPose",
+ "fresh native identity/pose ignored because grid predicate was false")
+sublevel.isInPlotGrid=function() error("grid probe failed") end
+sable.acquire(false)
+assert(sable.status().inSublevel,"optional grid failure suppressed containing-sublevel getters")
+sublevel.getUniqueId=function() error("This computer is not on a Sub-Level!") end
+sable.acquire(false)
+assert(not sable.status().inSublevel,"unproven identity accepted with grid unavailable")
+sublevel.getUniqueId=function() return "ship-uuid" end
+sublevel.getLogicalPose=function() return {position={x=0/0,y=1,z=2}} end
+sable.acquire(false)
+assert(not sable.status().inSublevel,"invalid pose accepted as membership evidence")
+print("Sable membership: grid false/unavailable with native identity+pose, lost identity and malformed pose passed")

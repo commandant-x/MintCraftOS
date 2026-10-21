@@ -39,3 +39,21 @@ local b={link={first="minecraft:white_wool",second="minecraft:white_wool"},name=
 assert(link.key(a)==link.key(b),"same frequency on different transmitters must collide")
 b.link.firstColor=5 assert(link.key(a)~=link.key(b))
 print("balloon wizard: passive discovery, frequency proposal/reuse, replacement consent, altitude-only defaults and uncalibrated gains passed")
+-- Screenshot regression: one active/associated heater and one inactive,
+-- unrelated/uninitialized heater must be selectable without hiding either.
+snapshot.ok=true snapshot.complete=true snapshot.inventoryComplete=true
+snapshot.burners={{id="ship:-1:-2:2",hasBalloon=false,signal=0,position={x=-1,y=-2,z=2}},
+ {id="ship:-1:-2:3",hasBalloon=true,signal=15,position={x=-1,y=-2,z=3}}}
+snapshot.links={}
+local all=assert(setup.plan(snapshot,control,endpoints))
+assert(all.burnerCount==2 and all.connected==1 and all.baseline==nil)
+local group=assert(setup.plan(snapshot,control,endpoints,{["ship:-1:-2:2"]=false,["ship:-1:-2:3"]=true}))
+assert(group.burnerCount==1 and group.connected==1 and group.baseline==15)
+assert(#group.detectedBurners==2 and group.ignoredBurnerIds[1]=="ship:-1:-2:2")
+local selectedConfig=assert(setup.create(control,group,{transmitter="bridge0",neutral=5,rescue=0,wiringConfirmed=true}))
+assert(#selectedConfig.balloonSetup.burnerIds==1 and selectedConfig.balloonSetup.burnerIds[1]=="ship:-1:-2:3")
+assert(not selectedConfig.enabled and not selectedConfig.hoverValidated)
+assert(not setup.plan(snapshot,control,endpoints,{}))
+assert(not setup.plan(snapshot,control,endpoints,{unknown=true}))
+assert(not setup.plan(snapshot,control,endpoints,{["ship:-1:-2:3"]="yes"}))
+print("burner selection: mixed screenshot group, explicit exclusion, baseline/group recompute and empty/stale selections passed")

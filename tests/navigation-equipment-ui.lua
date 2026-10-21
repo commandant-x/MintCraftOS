@@ -9,7 +9,7 @@ package.loaded["system.gui.renderer"]={crop=function(s,w) return tostring(s):sub
  color=function(c) for i=0,15 do if c==2^i then return string.format("%x",i) end end end,fill=function() end}
 package.loaded["system.gui.components"]={toolbar=function() return {} end,toolbarHit=function() return "confirm" end}
 package.loaded["system.gui.action_menu"]={new=function() return {} end,bar=function() return {} end,overlay=function() end}
-package.loaded["system.gui.form"]={new=function() return {draw=function() end} end}
+package.loaded["system.gui.form"]={new=function() return {draw=function() end} end,field=function(object,key) return {set=function(v) object[key]=v end} end}
 package.loaded["system.libraries.config"]={load=function() return {} end}
 package.loaded["apps.navigation.pixel"]={sample=function() return {} end,attach=function(app)
  app.pixelPages={} app.drawPixels=function() end app.handlePixels=function() end app.handleNativeKey=function() return false end
@@ -43,6 +43,17 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   snapshot.inventoryComplete=false
   app:handle({name="mouse_click",args={1,1,1}})
   assert(saved==0,"guide saved after inventory became incomplete")
+  snapshot.inventoryComplete=true
+  snapshot.burners[2]={id="inactive",position={x=1,y=2,z=4},signal=0,gasOutput=0,hasBalloon=false}
+  command("guide") assert(app.setup.burnerCount==2)
+  command("chooseGroup") assert(app.page=="burnerGroup") app:draw(width,height)
+  app.setupSelection.inactive=false
+  command("applyGroup") assert(app.confirm and saved==0)
+  app:handle({name="mouse_click",args={1,1,1}})
+  assert(app.setup.burnerCount==1 and app.setup.burnerIds[1]=="heater")
+  assert(app.setup.ignoredBurnerIds[1]=="inactive" and saved==0,"group selection wrote control outputs")
+  command("chooseGroup") app.setupSelection.heater=false command("applyGroup")
+  assert(not app.confirm and app.message:find("au moins",1,true),"empty burner selection accepted")
   snapshot={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing"}
   command("guide") assert(not app.setup and app.message:find("0.2.1",1,true))
   app:draw(width,height)

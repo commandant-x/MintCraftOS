@@ -453,6 +453,7 @@ function M.testOutput(actor,id,value,confirmed,duration)
     if channel.id==id then
       local valid,why=channelValid(channel)
       if not valid or not addon.finite(value) or value<channel.min or value>channel.max then return false,why or "test outside calibrated limits" end
+      if cfg.control.balloonSetup and channel.actuator and channel.actuator.role=="buoyancy" and duration<2 then return false,"Burner feedback requires Initialize (2s)" end
       if channel.validated then
         channel.validated=false
         local saved,problem=persist()
@@ -460,7 +461,10 @@ function M.testOutput(actor,id,value,confirmed,duration)
       end
       tested[id]=nil
       owner,state,reason=actor.pid,"calibration","output test"
-      M.test={id=id,value=math.floor(value+0.5),expires=os.clock()+duration}
+      local burnerTest=cfg.control.balloonSetup and channel.actuator and channel.actuator.role=="buoyancy"
+      local inverted=burnerTest and type(channel.mix)=="table" and addon.finite(channel.mix.altitude) and channel.mix.altitude<0
+      M.test={id=id,value=math.floor(value+0.5),expires=os.clock()+duration,burnerTest=burnerTest==true,
+        expectedBurnerSignal=inverted and 15-math.floor(value+0.5) or math.floor(value+0.5)}
       return true
     end
   end
@@ -489,15 +493,23 @@ function M.step(rescan)
     if not ok then state,reason="failsafe","rescue incomplete: "..err
     elseif state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
     if ok and M.test and M.test.applied and M.test.completed then
-      tested[M.test.id]=true
+      if not M.test.burnerTest or M.test.burnerFeedback then tested[M.test.id]=true end
       if state=="calibration" and reason=="output test returning to rescue" then
-        state,reason,owner="disarmed","Output test complete; verify physical direction",nil
+        state,reason,owner="disarmed",M.test.burnerTest and not M.test.burnerFeedback and
+          ("Burner test NOT confirmed: "..tostring(M.test.feedbackError)) or "Output test complete; verify physical direction",nil
       end
     end
     M.test=nil
     return
   end
   if state=="calibration" and M.test then
+    if M.test.burnerTest and M.test.appliedAt then
+      local confirmed,problem=vehicleBridge.burnerFeedback(cfg.control.balloonSetup,M.test.expectedBurnerSignal,M.test.appliedAt)
+      -- Latest fresh feedback wins; do not retain an earlier successful sample
+      -- after a heater stops responding or the bridge becomes stale.
+      M.test.burnerFeedback=confirmed
+      M.test.feedbackError=problem
+    end
     if now>=M.test.expires then
       if not M.test.applied then M.fail("output test expired before application; test again") return end
       M.test.completed=true
@@ -506,6 +518,7 @@ function M.step(rescan)
     end
     local ok,err=writeOutputs({[M.test.id]=M.test.value})
     if not ok then M.fail("actuator error: "..err) return end
+    if not M.test.applied then M.test.appliedAt=os.clock() end
     M.test.applied=true
     return
   end

@@ -50,10 +50,12 @@ function M.run(ctx)
     stop=function() return flight.stopMission(actor) end,
     disarm=function() return flight.disarm(actor) end,
   })
-  local function guide()
-    local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints())
+  local function guide(selection)
+    local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints(),selection)
     app.page="setup" app.setup=plan app.setupStep=1 app.scroll=1
     if not plan then app.message=err return end
+    app.setupSelection={}
+    for _,id in ipairs(plan.burnerIds) do app.setupSelection[id]=true end
     app.setupOptions={transmitter=plan.transmitter,neutral=plan.baseline or 0,rescue=0,
       inverted=false,wiringConfirmed=false,replaceExisting=false}
     app.message="Detection passive; aucun signal emis"
@@ -133,11 +135,16 @@ function M.run(ctx)
         field(binding,"side","Digital input side",nil,sides)
         field(binding,"value","Override -1..1","number")
       end
+    elseif app.page=="burnerGroup" and app.setup then
+      for _,burner in ipairs(app.setup.detectedBurners) do
+        local label=burner.id:match("(-?%d+:-?%d+:-?%d+)$") or burner.id
+        field(app.setupSelection,burner.id,label.." | "..burner.signal.."/15 | "..(burner.hasBalloon and "associated" or "unconfirmed"),"boolean")
+      end
     elseif app.page=="setup" and app.setup and app.setupStep==3 then
       local options=app.setupOptions
       if #app.setup.endpoints>0 then field(options,"transmitter","Frequency transmitter",nil,app.setup.endpoints) end
       field(options,"neutral","Hover baseline signal (verify)","number")
-      field(options,"rescue","Rescue signal (0 cuts gas)","number")
+      field(options,"rescue","Rescue transmitted signal (verify)","number")
       field(options,"inverted","Wiring inverts burner signal","boolean")
       field(options,"wiringConfirmed","Receivers/wiring physically checked","boolean")
       if #draft.channels>0 then field(options,"replaceExisting","Replace existing control mapping","boolean") end
@@ -154,10 +161,11 @@ function M.run(ctx)
     if app.page=="autopilot" or app.page=="sublevel" then return app.routePanel:actions() end
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
     elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="guide",label="Guide"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="burnerGroup" then return {{id="applyGroup",label="Use group"},{id="guide",label="Reset / Detect"}}
     elseif app.page=="setup" then
       if not app.setup then return {{id="guide",label="Detect"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"},{id="devices",label="Devices"}} end
-      if app.setupStep==5 then return {{id="calibrationPage",label="Calibration"},{id="pidPage",label="PID"},{id="controlPage",label="Control"}} end
-      return {{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"},{id="devices",label="Devices"}}
+      if app.setupStep==5 then return {{id="chooseGroup",label="Group"},{id="calibrationPage",label="Calibration"},{id="pidPage",label="PID"},{id="controlPage",label="Control"}} end
+      return {{id="chooseGroup",label="Group"},{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"},{id="devices",label="Devices"}}
     elseif app.page=="context" then return {{id="guide",label="Setup guide"},{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
     elseif app.page=="diagram" then return {{id="top",label="Top"},{id="side",label="Side"},{id="front",label="Front"},{id="iso",label="3D"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="inspect",label="Details"},{id="rescan",label="Rescan"}}
     elseif app.page=="component" then return {{id="diagram",label="Diagram"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="rescan",label="Rescan"}}
@@ -192,12 +200,19 @@ function M.run(ctx)
       else
         local p=self.setup
         local paragraphs=not p and {self.message} or {
-          [1]={"Nous avons detecte "..p.burnerCount.." bruleur(s).","Un seul canal collectif commandera leur chauffe. Maintien d'altitude uniquement : pas de stabilisation du roulis, tangage ou cap.","Aucun signal n'est emis par cet assistant."},
+          [1]={"Groupe : "..p.burnerCount.." bruleur(s) choisis sur "..#p.detectedBurners.." detectes. Group permet de modifier la selection.","Un seul canal collectif commandera leur chauffe. Maintien d'altitude uniquement : pas de stabilisation du roulis, tangage ou cap.","Aucun signal n'est emis par cet assistant."},
           [2]={"Frequence collective :",tostring(p.frequency.first),tostring(p.frequency.second),"Configurer cette paire sur chaque recepteur Create relie aux bruleurs. Relier un Redstone Link Bridge au PC.","La paire est proposee selon les liens visibles sur ce vehicule, pas reservee globalement. Verifier les machines voisines et le cablage."},
           [4]={"Verifier la frequence et le transmetteur avant Apply + Save.","Transmetteur : "..tostring(self.setupOptions.transmitter),"Stationnaire : "..tostring(self.setupOptions.neutral).." / secours : "..tostring(self.setupOptions.rescue),"Cette operation remplace le mapping seulement avec votre accord. Elle enregistre la configuration sans emettre de signal.","Les gains PID restent nuls : armement bloque avant calibration."},
           [5]={"Configuration enregistree, controle desarme.","Calibration : tester le sens, verifier le signal stationnaire et le secours physiquement. Puis regler les gains d'altitude dans PID.","Au bruleur, 0 coupe l'apport et 15 chauffe au maximum. Un cablage externe peut inverser ce sens.","Couper la chauffe ne vide pas instantanement le ballon. Le delai thermique interdit de supposer que 0 garantit une descente sure."}
         }
-        if p then paragraphs=paragraphs[self.setupStep] or {} end
+        if p then
+          paragraphs=paragraphs[self.setupStep] or {}
+          if self.setupStep==1 or self.setupStep==4 then
+            for _,id in ipairs(p.burnerIds) do paragraphs[#paragraphs+1]="CHOISI : "..id end
+            for _,id in ipairs(p.ignoredBurnerIds) do paragraphs[#paragraphs+1]="NON CHOISI : "..id end
+            paragraphs[#paragraphs+1]="La frequence peut aussi atteindre des recepteurs non choisis : verifier le cablage et les machines voisines."
+          end
+        end
         for _,row in ipairs(balloonSetup.diagnostics(self.bridge or {})) do paragraphs[#paragraphs+1]=row end
         local rows={}
         for _,paragraph in ipairs(paragraphs) do
@@ -211,6 +226,9 @@ function M.run(ctx)
         end
         lines(w,h,rows)
       end
+    elseif self.page=="burnerGroup" then
+      self.form:draw(w,h,fields())
+      if not self.form.edit then renderer.writeAt(1,3,renderer.crop("Choose group | local XYZ / signal / association",w),colors.cyan) end
     elseif self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
@@ -275,7 +293,9 @@ function M.run(ctx)
       local rows={"Output: "..tostring(channel and channel.id or "none - add outputs in Outputs"),step,"Neutral "..tostring(channel and channel.neutral).." / rescue "..tostring(channel and channel.rescue),"Hover: "..tostring(draft.hoverValidated==true).." Manual: "..tostring(draft.manualValidated==true),"Rescue tested: "..tostring(progress.rescueTested==true).." Verified: "..tostring(draft.rescueValidated==true),tostring(self.flight.state)..": "..tostring(self.flight.reason),"Arming prerequisites:"}
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
       if draft.balloonSetup then
-        rows[#rows+1]="Initialize (2s): confirmed heater test for Aeronautics discovery"
+        rows[#rows+1]="Initialize (2s): requires fresh signal feedback from EVERY chosen burner"
+        local test=progress.test
+        if test and test.burnerTest then rows[#rows+1]="Burner feedback: "..(test.burnerFeedback and "confirmed" or tostring(test.feedbackError or "waiting")) end
         for _,burner in ipairs((self.bridge or {}).burners or {}) do
           local label=burner.id:match("^[^:]+:(.*)$") or burner.id
           rows[#rows+1]="Burner "..label.." signal="..tostring(burner.signal).." balloon="..tostring(burner.hasBalloon)
@@ -341,7 +361,7 @@ function M.run(ctx)
     end
     if command and command:match("^route:") then self.routePanel:action(command) refresh() return true end
     if routePage then return self.routePanel:handleText(event) end
-    if event.name=="mouse_scroll" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_scroll" and self.page~="burnerGroup" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
     if event.name=="mouse_click" or command then
       local _,x,y=table.unpack(event.args)
       local id=command
@@ -357,6 +377,16 @@ function M.run(ctx)
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
       elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
       elseif id=="guide" then guide() return true
+      elseif id=="chooseGroup" then self.page="burnerGroup" self.form.scroll=1 return true
+      elseif id=="applyGroup" then
+        local selection=addon.copy(self.setupSelection)
+        local expectedId=self.setup.vehicleId
+        local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints(),selection)
+        if not plan then report(false,err) return true end
+        confirm("Use "..plan.burnerCount.." selected burners, exclude "..#plan.ignoredBurnerIds.."? Check shared frequency wiring.",function()
+          if vehicleBridge.snapshot().vehicleId~=expectedId then report(false,"Vehicle changed; Detect again") return end
+          guide(selection)
+        end) return true
       elseif id=="guideBack" then self.setupStep=math.max(1,self.setupStep-1) self.form.scroll=1 self.scroll=1 return true
       elseif id=="guideNext" then
         if self.setupStep==3 then local candidate,err=balloonSetup.create(draft,self.setup,self.setupOptions) if not candidate then report(false,err) return true end end
@@ -419,7 +449,8 @@ function M.run(ctx)
         local value=self.testValue and self.testValue.value or channel and channel.neutral
         if not draft.balloonSetup or not channel or channel.backend~="frequency" or not channel.actuator or channel.actuator.role~="buoyancy" then report(false,"Select the collective burner frequency output") return true end
         if not addon.finite(value) or value%1~=0 or value<=0 or value>15 then report(false,"Set Test signal to a physically checked nonzero value (1..15)") return true end
-        confirm("Heat signal "..value.." for 2s, then rescue "..channel.rescue.."?",function()
+        local expected=(channel.mix.altitude or 0)<0 and 15-value or value
+        confirm("Transmit "..value.." for 2s; expect burners "..expected..", then rescue "..channel.rescue.."?",function()
           report(flight.testOutput(actor,channel.id,value,true,2))
         end) return true
       elseif id=="test" then
@@ -460,7 +491,7 @@ function M.run(ctx)
         self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
-    if self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
+    if self.page=="burnerGroup" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
   pixel.attach(app,{

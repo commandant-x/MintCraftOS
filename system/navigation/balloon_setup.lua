@@ -5,7 +5,7 @@ local function spec(row)
   return {first=row.first.item,second=row.second.item,firstColor=row.first.dyedColor,secondColor=row.second.dyedColor}
 end
 local function key(value) return link.key({link=value}) end
-function M.plan(snapshot,control,endpoints)
+function M.plan(snapshot,control,endpoints,selection)
   if snapshot.available==false then return nil,"Vehicle Bridge absent : installer le JAR 0.2.1 dans mods serveur et clients, puis redemarrer" end
   if not snapshot.ok then return nil,"Pont indisponible ou perime : "..tostring(snapshot.error or snapshot.status or "Rescan requis") end
   local complete=snapshot.inventoryComplete
@@ -13,12 +13,27 @@ function M.plan(snapshot,control,endpoints)
   if not complete then return nil,"Inventaire incomplet : corriger les erreurs/limites du pont avant Detect" end
   if not snapshot.burnerDiscoveryAvailable then return nil,"Installer le pont 0.2.1 pour detecter les bruleurs" end
   if #(snapshot.burners or {})==0 then return nil,"Aucun bruleur detecte sur ce sublevel" end
-  local p={vehicleId=snapshot.vehicleId,burnerIds={},endpoints={},connected=0,baseline=nil}
+  local all,selected={},{}
+  for _,burner in ipairs(snapshot.burners) do all[burner.id]=true end
+  if selection~=nil then
+    if type(selection)~="table" then return nil,"Selection des bruleurs invalide" end
+    for id,included in pairs(selection) do
+      if not all[id] or type(included)~="boolean" then return nil,"Selection perimee : Detect requis" end
+    end
+  end
+  local ignored={}
+  for _,burner in ipairs(snapshot.burners) do
+    if selection==nil or selection[burner.id]==true then selected[#selected+1]=burner
+    else ignored[#ignored+1]=burner.id end
+  end
+  if #selected==0 then return nil,"Choisir au moins un bruleur" end
+  local p={vehicleId=snapshot.vehicleId,burnerIds={},endpoints={},connected=0,baseline=nil,
+    detectedBurners=addon.copy(snapshot.burners),ignoredBurnerIds=ignored}
   local baseline,uniform,shared,consistent=nil,true,nil,true
   local occupied={}
   for _,r in ipairs(snapshot.links) do occupied[key(spec(r))]=true end
   for _,c in ipairs(control.channels or {}) do local k=c.backend=="frequency" and key(c.link) if k then occupied[k]=true end end
-  for _,burner in ipairs(snapshot.burners) do
+  for _,burner in ipairs(selected) do
     p.burnerIds[#p.burnerIds+1]=burner.id
     if burner.hasBalloon then p.connected=p.connected+1 end
     if baseline==nil then baseline=burner.signal elseif baseline~=burner.signal then uniform=false end
@@ -63,9 +78,13 @@ function M.diagnostics(snapshot)
     rows[#rows+1]=b.id
     rows[#rows+1]="  signal "..tostring(b.signal).."/15 / gaz "..tostring(b.gasOutput)
     rows[#rows+1]="  ballon "..(b.hasBalloon and "associe" or "non confirme").." / gaz actif "..(b.gasActive and "oui" or "non")
-    if not b.hasBalloon then rows[#rows+1]="  Calibration > Initialize (2s), puis Rescan ; verifier enveloppe et degagement." end
+    if not b.hasBalloon then
+      rows[#rows+1]=b.signal==0 and "  Signal nul : verifier recepteur RX, paire d'items/couleurs, autres emetteurs et cablage ; Initialize ne force pas la liaison." or
+        "  Signal present : verifier enveloppe/degagement et association Aeronautics, puis Rescan."
+    end
   end
   if #(snapshot.burners or {})==0 then rows[#rows+1]="Aucun bruleur visible : verifier le Computer sur le vaisseau assemble." end
+  rows[#rows+1]="Group : choisir explicitement les bruleurs du canal. Un bruleur non choisi reste visible au diagnostic."
   rows[#rows+1]="Signal/gaz ne prouvent pas le vol stationnaire : calibration physique requise."
   return rows
 end

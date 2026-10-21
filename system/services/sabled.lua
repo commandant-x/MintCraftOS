@@ -65,7 +65,6 @@ local function readSublevel(sub)
   out.receivedAt=gridTiming.receivedAt or os.clock()
   out.plotGrid = grid
   if gridErr then out.errors.isInPlotGrid = gridErr end
-  if grid ~= true then out.inSublevel = false return out end
 
   local fast={uuid="getUniqueId",logicalPose="getLogicalPose",lastPose="getLastPose",velocity="getVelocity",linearVelocity="getLinearVelocity",angularVelocity="getAngularVelocity"}
   local methods={}
@@ -83,7 +82,17 @@ local function readSublevel(sub)
   out.diagnosticsAt=diagnosticsAt
   out.diagnosticsReceivedAt=diagnosticsReceivedAt
 
-  out.inSublevel = grid == true
+  local pose=out.logicalPose
+  local position=type(pose)=="table" and addon.vec(pose.position or pose.pos)
+  local identity=type(out.uuid)=="string" and #out.uuid>0 and #out.uuid<=128
+  local measured=identity and position~=nil
+  out.inSublevel = measured or grid==true
+  out.membershipSource=measured and "getUniqueId/getLogicalPose" or grid==true and "isInPlotGrid" or "unconfirmed"
+  if measured then
+    local a,b=out.timings.uuid,out.timings.logicalPose
+    out.observedAt=math.min(a.startedAt,b.startedAt)
+    out.receivedAt=math.max(a.receivedAt,b.receivedAt)
+  end
   return out
 end
 
@@ -123,7 +132,7 @@ readAero=function(aero, subData)
   out.raw = addon.copy(values.getRaw)
   out.default = addon.copy(values.getDefault)
   local position = subData and subData.logicalPose and (subData.logicalPose.position or subData.logicalPose.pos)
-  if position then
+  if position and type(aero.getAirPressure)=="function" then
     position=addon.vec(position)
     local pressureStarted=os.clock()
     local data,problems,timing=addon.read({getAirPressure=function()

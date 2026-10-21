@@ -128,10 +128,27 @@ function M.balloonStatus(setup)
     if not burner then return false,"Burner missing: "..label end
     if not burner.hasBalloon then
       if burner.associationSource=="legacy_gas_validity" then return false,"Update Vehicle Bridge to 0.2.1: old bridge confuses empty balloon with missing association" end
-      return false,"Burner "..label..(burner.signal==0 and ": off; balloon association not confirmed (Initialize in Calibration)" or ": Aeronautics balloon association unavailable; check burner clearance/envelope")
+      return false,"Burner "..label..(burner.signal==0 and ": off; balloon association not confirmed (check RX frequency/wiring, then Initialize in Calibration)" or ": Aeronautics balloon association unavailable; check burner clearance/envelope")
     end
   end
   return true
+end
+-- A transmitter API acknowledgement is not a heater-side acknowledgement.
+function M.burnerFeedback(setup,expected,after)
+  local s=M.snapshot()
+  if not s.ok or not s.inventoryComplete or not s.observedAt or s.observedAt<=after then return false,"No fresh burner feedback after command" end
+  if s.vehicleId~=setup.vehicleId then return false,"Balloon vehicle changed" end
+  if type(setup.burnerIds)~="table" or #setup.burnerIds==0 then return false,"Balloon burner group missing" end
+  local found={} for _,b in ipairs(s.burners or {}) do found[b.id]=b end
+  local errors={}
+  for _,id in ipairs(setup.burnerIds) do
+    local b=found[id]
+    local label=id:match("(-?%d+:-?%d+:-?%d+)$") or id
+    if not b then errors[#errors+1]="Burner "..label.." missing"
+    elseif b.signal~=expected then errors[#errors+1]="Burner "..label..": received "..b.signal.."/15, expected "..expected.."; check RX frequency/wiring/other transmitters"
+    elseif not b.hasBalloon then errors[#errors+1]="Burner "..label..": signal received; balloon association unavailable; check envelope/clearance" end
+  end
+  return #errors==0,table.concat(errors,"; ")
 end
 function M.rescan() if runner then runner:rescan() end end
 function M.start(ctx)

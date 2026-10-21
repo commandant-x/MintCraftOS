@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.51:
+This repository currently contains V0.18.52:
+
+V0.18.52 checks fresh heater-side feedback for every burner in a collective
+calibration pulse, reports frequency/wiring vs balloon-association failures,
+and keeps a transmitter acknowledgment from falsely validating heaters.
+The guide exposes explicit burner group selection (all selected by default).
+CC:Sable membership can be proved by fresh native containing-sublevel identity
+and pose even if the separate plot-grid probe returns false or fails.
+See [burner feedback, setup and limits](docs/BURNER-FEEDBACK-0.18.52.md).
+
+V0.18.51:
 
 V0.18.51 adds persistent escalating password retry delays with a visible console
 countdown. After one successful migration, logins use 15,000 PBKDF2 iterations
