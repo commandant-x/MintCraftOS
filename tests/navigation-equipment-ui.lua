@@ -21,14 +21,16 @@ local rescans,saved,started,stopped=0,0,0,0
 local preflightConfig
 local progress={initializationConfirmed=true,tested={}}
 local initializeCalls,calibrationCalls=0,{}
+local targetCalls=0
 local rejectSweep=false
 local sweepState
 package.loaded["system.services.vehiclebridged"]={snapshot=function() return snapshot end,rescan=function() rescans=rescans+1 end}
 package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
 package.loaded["system.services.avionicsd"]={snapshot=function() return {} end,rescan=function() end}
 package.loaded["system.services.flightd"]={configuration=function() if preflightConfig then return preflightConfig end return {channels={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
- status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
+ status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {altitude=67.5,altitudeRate=0} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
  configure=function() saved=saved+1 return true end,
+ setSetpoint=function(actor,axis,value) assert(actor.pid==7 and axis=="altitude" and value==68) targetCalls=targetCalls+1 return true end,
  testOutput=function() initializeCalls=initializeCalls+1 progress.initializationConfirmed=true return true end,
  calibrate=function(_,kind)
   calibrationCalls[#calibrationCalls+1]=kind
@@ -84,6 +86,12 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   command("sweepNext") assert(not app.confirm and initializeCalls==1,"ready preflight restarted initialization")
   assert(app.page=="sweepConfirm" and app.sweepPending,"completed preflight did not open sweep review")
   preflightConfig=nil
+  command("sweepResults") command("altitudeEdit") assert(app.form.edit and app.altitudeEditing)
+  app:draw(width,height)
+  app.form.edit.set(68) app.form.edit=nil
+  command("altitudeApply") assert(app.confirm and targetCalls==0)
+  app:handle({name="mouse_click",args={1,1,1}})
+  assert(targetCalls==1 and app.page=="sweep")
   command("guide") assert(app.setup and app.setup.burnerCount==1,"intact burner guide blocked by missing COM")
   for i=1,60 do app.scroll=i app:draw(width,height) end
   assert(table.concat(writes,"\n"):find("signal 3/15",1,true),"live burner feedback missing from guide")

@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.60:
+This repository currently contains V0.18.61:
+
+V0.18.61 removes the imposed vertical-speed cutoff from altitude measurements.
+The qualified response model estimates speeds between measured heat levels.
+Auto altitude adds Arm hold, Target altitude (whole world metres) and Set altitude,
+with live measured altitude, speed, target and error. Setting a target requires
+an explicitly armed hold owned by the same Navigation process. Model interpolation
+is an estimate, not a fractional redstone signal or a guaranteed metre-precision
+flight result. See [response measurements and target control](docs/AUTO-ALTITUDE-0.18.61.md).
+
+Previous unified workflow:
 
 V0.18.60 consolidates burner preflight, measurements, reports and proposed gains
 in **Navigation → Auto altitude**. Its next-check action follows live validation

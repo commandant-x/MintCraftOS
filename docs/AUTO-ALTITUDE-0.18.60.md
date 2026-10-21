@@ -1,5 +1,7 @@
 # Auto altitude: unified workflow and measured settling — 0.18.60
 
+Update: [0.18.61](AUTO-ALTITUDE-0.18.61.md) removes the speed cutoff and adds world-altitude target controls. Other settling criteria below remain applicable.
+
 Open Navigation → Auto altitude. Configure the burner group/frequency once using
 the existing Setup guide if it has not been configured. The Auto altitude tab
 then contains preflight status, the next required check, options, live results,

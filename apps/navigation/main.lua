@@ -140,7 +140,7 @@ function M.run(ctx)
       -- Options are a test draft, not edits to the saved flight configuration.
       for _,entry in ipairs({{"first","First heat level (1..15)"},{"last","Last heat level (1..15)"},
         {"dwell","Safety timeout per level (4..60s)"},{"maxTravel","Max altitude/world travel (1..32 blocks)"},
-        {"maxSpeed","Max vertical speed (0.1..2 blocks/s)"},{"timeout","Total time limit (10..180s)"}}) do
+        {"timeout","Total time limit (10..180s)"}}) do
         rows[#rows+1]=forms.field(app.sweepOptions,entry[1],entry[2],"number")
       end
     elseif app.page=="burnerGroup" and app.setup then
@@ -187,7 +187,7 @@ function M.run(ctx)
     elseif app.page=="sweep" or app.page=="sweepResults" then
       local nextCommand,nextLabel=sweepNext()
       if not nextCommand then nextLabel=nextLabel=="Preflight complete; Start sweep" and "Start sweep" or "Check status" end
-      return {{id="sweepStop",label="STOP / rescue"},{id="sweepNext",label=nextLabel},{id=app.sweepEditing and "sweepDashboard" or "sweepOptions",label=app.sweepEditing and "Back" or "Options"},{id="sweepStart",label="Start sweep"},{id="sweepResults",label="Results"},{id="sweepApply",label="Apply candidate"},{id="sweepExport",label="Save report"}}
+      return {{id="sweepStop",label="STOP / rescue"},{id="sweepNext",label=nextLabel},{id=app.sweepEditing and "sweepDashboard" or "sweepOptions",label=app.sweepEditing and "Back" or "Options"},{id="sweepStart",label="Start sweep"},{id="sweepResults",label="Results"},{id="sweepApply",label="Apply candidate"},{id="sweepExport",label="Save report"},{id="arm",label="Arm hold"},{id="altitudeEdit",label="Target altitude"},{id="altitudeApply",label="Set altitude"}}
     elseif app.page=="sweepConfirm" then return {{id="sweepStop",label="STOP / rescue"},{id=app.sweepRead and "sweepConfirm" or "sweepRead",label=app.sweepRead and "CONFIRM" or "Read next"},{id="sweepOptions",label="Cancel"}}
     elseif app.page=="burnerGroup" then return {{id="applyGroup",label="Use group"},{id="guide",label="Reset / Detect"}}
     elseif app.page=="setup" then
@@ -231,7 +231,7 @@ function M.run(ctx)
       local plan=self.sweepPending
       local channel=(self.sweepPendingControl.channels or {})[1] or {}
       local paragraphs={"MEASUREMENT FLIGHT: vessel will move.","Vehicle: "..tostring((self.sweepPendingControl.balloonSetup or {}).vehicleId),"First heat level: "..plan.first,"Last heat level: "..plan.last,
-        "Per-level safety timeout: "..plan.dwell,"Altitude/world travel limit: "..plan.maxTravel,"Vertical speed limit: "..plan.maxSpeed,
+        "Per-level safety timeout: "..plan.dwell,"Altitude/world travel limit: "..plan.maxTravel,"Vertical speed is measured; no imposed speed cutoff.",
         "Advance only on measured steady vertical speed; altitude may still change.","Total seconds limit: "..plan.timeout,"Rescue transmitted signal: "..tostring(channel.rescue),
         "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
         "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","No automatic arming or physical confirmations."}
@@ -250,7 +250,12 @@ function M.run(ctx)
       local progress=self.flight.calibration or {}
       local channel=(c.channels or {})[1] or {}
       local _,nextLabel=sweepNext()
-      local rows={"AUTO ALTITUDE | setup checks, measurements and PI candidate", "Next: "..nextLabel,
+      local telemetry=flight.telemetry()
+      local target=self.flight.targets and self.flight.targets.altitude
+      local rows={"AUTO ALTITUDE | setup checks, measurements and PI candidate",
+        "Altitude "..fmt(telemetry.altitude,"m").." | vertical speed "..fmt(telemetry.altitudeRate,"m/s").." | target "..fmt(target,"m"),
+        "Requested target: "..fmt(self.altitudeTarget and self.altitudeTarget.value,"m").." | measured error "..fmt(target and telemetry.altitude and target-telemetry.altitude,"m"),
+        "No imposed speed cutoff; measured response determines the model.", "Next: "..nextLabel,
         "Initialize: "..tostring(progress.initializationConfirmed==true).." | direction: "..tostring(channel.validated==true),
         "Manual: "..tostring(c.manualValidated==true).." | rescue applied: "..tostring(progress.rescueTested==true).." | rescue OK: "..tostring(c.rescueValidated==true),
         "Service: "..tostring(self.flight.state).." | "..tostring(self.flight.reason),
@@ -270,6 +275,13 @@ function M.run(ctx)
           local p=s.proposal
           rows[#rows+1]=string.format("Candidate hover heat %.3f (rounded %d), tau %.2fs, fit R2 %.3f",p.hover,p.neutral,p.tau,p.r2)
           rows[#rows+1]=string.format("P %.6f | I %.6f | D 0",p.gains.kp,p.gains.ki)
+          if p.measuredRange then
+            rows[#rows+1]=string.format("Measured V/S range %.3f..%.3f m/s",p.measuredRange.minSpeed,p.measuredRange.maxSpeed)
+            for heat=p.measuredRange.first,p.measuredRange.last,0.5 do
+              local speed=altitudeSweep.speedAt(p,heat)
+              if speed then rows[#rows+1]=string.format("Model heat %.1f -> estimated steady V/S %.3f m/s",heat,speed) end
+            end
+          end
           rows[#rows+1]=p.note
         else rows[#rows+1]=s.fitError or "No model/candidate yet" end
         rows[#rows+1]="Apply candidate saves neutral/PI only; physical calibration is reset, no arming."
@@ -412,6 +424,10 @@ function M.run(ctx)
       for _,command in ipairs((original.aircraft or {}).commands or {}) do rows[#rows+1]=command.name.." : "..command.frequency end
       lines(w,h,rows)
     end
+    if self.altitudeEditing and self.form.edit then
+      renderer.fill(1,3,w,h-3,colors.black)
+      self.form:draw(w,h,{self.form.edit})
+    else self.altitudeEditing=nil end
     local message=(self.page=="autopilot" or self.page=="sublevel") and self.routePanel.message or self.message
     renderer.writeAt(1,h,renderer.crop((self.dirty and "Unsaved | " or "")..message,w),colors.white,colors.gray)
     if self.confirm then
@@ -472,6 +488,19 @@ function M.run(ctx)
       elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
       elseif id=="sweepOptions" then self.page="sweep" self.sweepEditing=true self.form.scroll=1 self.sweepPending=nil return true
       elseif id=="sweepDashboard" or id=="sweepResults" then self.page="sweep" self.sweepEditing=false self.form.edit=nil self.scroll=1 return true
+      elseif id=="altitudeEdit" then
+        local t=flight.telemetry()
+        local current=self.flight.targets and self.flight.targets.altitude or t.altitude
+        if not addon.finite(current) then report(false,"Fresh altitude unavailable") return true end
+        self.altitudeTarget=self.altitudeTarget or {value=math.floor(current+0.5)}
+        self.altitudeEditing=true
+        self.form.edit=forms.field(self.altitudeTarget,"value","Target world altitude (metres)","number") self.form.text=tostring(self.altitudeTarget.value)
+        return true
+      elseif id=="altitudeApply" then
+        local value=self.altitudeTarget and self.altitudeTarget.value
+        if not addon.finite(value) or value%1~=0 then report(false,"Enter target altitude as whole metres") return true end
+        confirm("Set armed altitude hold target to "..value.." m world altitude?",function() report(flight.setSetpoint(actor,"altitude",value)) refresh() end)
+        return true
       elseif id=="sweepNext" then
         if self.dirty then report(false,"Save control changes before preflight") return true end
         refresh()

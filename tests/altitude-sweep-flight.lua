@@ -125,11 +125,16 @@ for _,format in ipairs({"missing","zero","nan","string","bad-vector"}) do
  assert(not ok and err:find("Invalid sweep orientation",1,true) and command==0,format.." quaternion accepted")
 end
 orientationFormat="sable"
+-- High measured speed is data, not a configured sweep cutoff.
+prepare() v=3
+assert(flight.startSweep(actor,options,true),"measured speed blocked sweep start")
+flight.step() assert(flight.status().sweep.state=="running")
+assert(flight.stopSweep(actor)) flight.step() v=0 assert(flight.disarm(actor))
 -- Repeated independent failures must rescue without applying candidate gains.
-for _,fault in ipairs({"travel","world","tilt","pose","identity","speed","sensor","receiver","owner","permission","manual","stop"}) do
+for _,fault in ipairs({"travel","world","tilt","pose","identity","sensor","receiver","owner","permission","manual","stop"}) do
  prepare()
  assert(flight.startSweep(actor,options,true)) flight.step()
- if fault=="travel" then z=109 elseif fault=="world" then worldX=9 elseif fault=="tilt" then tilt=11 elseif fault=="pose" then poseLost=true elseif fault=="identity" then foreignPose=true elseif fault=="speed" then v=2
+ if fault=="travel" then z=109 elseif fault=="world" then worldX=9 elseif fault=="tilt" then tilt=11 elseif fault=="pose" then poseLost=true elseif fault=="identity" then foreignPose=true
  elseif fault=="sensor" then stale=true elseif fault=="receiver" then badReceiver=true now=now+2.1
  elseif fault=="owner" then process.state="killed" elseif fault=="permission" then allowed=false
  elseif fault=="manual" then pressed=true elseif fault=="stop" then assert(flight.stopSweep(actor)) end

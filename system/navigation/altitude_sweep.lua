@@ -1,11 +1,11 @@
 -- Bounded open-loop identification. No peripheral writes or calibration flags.
 local addon=require("system.libraries.addon")
 local M={}
-function M.defaults() return {first=7,last=15,dwell=15,maxTravel=8,maxSpeed=1,timeout=180} end
+function M.defaults() return {first=7,last=15,dwell=15,maxTravel=8,timeout=180} end
 function M.validate(value)
   if type(value)~="table" then return nil,"Sweep options missing" end
   local p={}
-  for key,range in pairs({first={1,15},last={1,15},dwell={4,60},maxTravel={1,32},maxSpeed={0.1,2},timeout={10,180}}) do
+  for key,range in pairs({first={1,15},last={1,15},dwell={4,60},maxTravel={1,32},timeout={10,180}}) do
     local v=value[key]
     if not addon.finite(v) or v<range[1] or v>range[2] then return nil,"Sweep "..key.." outside "..range[1]..".."..range[2] end
     p[key]=v
@@ -69,8 +69,17 @@ function M.analyze(samples,options)
   if not addon.finite(kp) or kp<0.001 or kp>2 then return nil,"Identified sensitivity outside supported PI range" end
   local ki=kp/(8*tau)
   return {hover=hover,neutral=neutral,tau=tau,sensitivity=k,r2=r2,
+    measuredRange={first=options.first,last=options.last,minSpeed=low,maxSpeed=high},
     gains={kp=kp,ki=ki,kd=0,limit=limit,slew=0.25,integralLimit=math.min(100,limit/ki),deadband=0.1},
     note="PI candidate for measured first-order speed model; D=0. Physical hold/manual/rescue verification still required."}
+end
+-- Estimated steady vertical speed between measured heat levels only.
+function M.speedAt(proposal,heat)
+  local range=type(proposal)=="table" and proposal.measuredRange
+  if type(range)~="table" or not addon.finite(range.first) or not addon.finite(range.last)
+    or not addon.finite(heat) or heat<range.first or heat>range.last
+    or not addon.finite(proposal.sensitivity) or not addon.finite(proposal.hover) then return nil,"Outside measured response range" end
+  return proposal.sensitivity*(heat-proposal.hover)
 end
 function M.new(options,start,now)
   local p,err=M.validate(options) if not p then return nil,err end
@@ -85,7 +94,6 @@ function M.new(options,start,now)
     if not t.inSublevel or not addon.finite(t.timestamp) or clock<t.timestamp or clock-t.timestamp>0.5 or
       not addon.finite(t.altitude) or not addon.finite(t.altitudeRate) then return self:abort("Fresh altitude/rate/sublevel telemetry lost") end
     if math.abs(t.altitude-self.startAltitude)>self.options.maxTravel then return self:abort("Sweep altitude travel limit reached") end
-    if math.abs(t.altitudeRate)>self.options.maxSpeed then return self:abort("Sweep vertical-speed limit reached") end
     if ack and t.timestamp>=self.stageAt and (not self.lastObserved or t.timestamp-self.lastObserved>=0.5) then
       if #self.samples>=360 then return self:abort("Sweep sample limit reached") end
       local sample={time=t.timestamp-self.startedAt,signal=self.signal,altitude=t.altitude,rate=t.altitudeRate}
