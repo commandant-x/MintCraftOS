@@ -294,15 +294,22 @@ function M.run(ctx)
       for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
       if draft.balloonSetup then
         rows[#rows+1]="Initialize (2s): requires fresh signal feedback from EVERY chosen burner"
+        rows[#rows+1]="Initialization this run: "..(progress.initializationConfirmed and "confirmed (retained while off)" or "not confirmed")
+        if progress.initializationConfirmed then rows[#rows+1]="At signal 0, no_balloon_reference is not a new initialization failure." end
         local test=progress.test
         if test and test.burnerTest then rows[#rows+1]="Burner feedback: "..(test.burnerFeedback and "confirmed" or tostring(test.feedbackError or "waiting")) end
         for _,burner in ipairs((self.bridge or {}).burners or {}) do
           local label=burner.id:match("^[^:]+:(.*)$") or burner.id
-          rows[#rows+1]="Burner "..label.." signal="..tostring(burner.signal).." balloon="..tostring(burner.hasBalloon)
+          rows[#rows+1]="Burner "..label.." signal="..tostring(burner.signal).." association_now="..tostring(burner.hasBalloon)
           if burner.associationState then rows[#rows+1]="  "..burner.associationState.." | gas active="..tostring(burner.gasActive==true) end
         end
       end
-      lines(w,h,rows,6)
+      local wrapped={}
+      for _,row in ipairs(rows) do
+        while #row>w do wrapped[#wrapped+1]=row:sub(1,w) row=row:sub(w+1) end
+        wrapped[#wrapped+1]=row
+      end
+      lines(w,h,wrapped,6)
       self.testValue=self.testValue or {value=channel and channel.neutral or 0}
       ui.input(1,4,w,"Test signal",self.testValue.value,false)
       if self.form.edit then self.form:draw(w,h,{forms.field(self.testValue,"value","Test signal","number")}) end
@@ -450,6 +457,7 @@ function M.run(ctx)
         if not draft.balloonSetup or not channel or channel.backend~="frequency" or not channel.actuator or channel.actuator.role~="buoyancy" then report(false,"Select the collective burner frequency output") return true end
         if not addon.finite(value) or value%1~=0 or value<=0 or value>15 then report(false,"Set Test signal to a physically checked nonzero value (1..15)") return true end
         local expected=(channel.mix.altitude or 0)<0 and 15-value or value
+        if expected<=0 then report(false,"Choose a signal that actually heats the burner; check inversion") return true end
         confirm("Transmit "..value.." for 2s; expect burners "..expected..", then rescue "..channel.rescue.."?",function()
           report(flight.testOutput(actor,channel.id,value,true,2))
         end) return true

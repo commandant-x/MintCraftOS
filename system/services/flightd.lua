@@ -21,6 +21,7 @@ local ctx, runner, cfg, inventory, last, controllers, manual = nil,nil,{}, {},{}
 local state, reason, owner, targets, timestamp = "disarmed","not calibrated",nil,{},0
 local rescuePending, lastTick, inventoryDirty = false, nil, true
 local tested, rescueTested, session = {}, false, false
+local burnerInitialization,burnerDemand,burnerHeatSince=nil,false,nil
 local outputResults, rescueResults = {}, {}
 local rankConfig, mixerRank
 
@@ -149,12 +150,16 @@ local function rank(matrix,columns)
   return pivot-1
 end
 
+local function balloonStatus()
+  local demand=state=="armed" and {active=burnerDemand,since=burnerHeatSince} or nil
+  return vehicleBridge.balloonStatus(cfg.control.balloonSetup,burnerInitialization,demand)
+end
 function M.validate()
   local c, errors, used, matrix = cfg.control,{}, {},{}
   if not c then return false,{"configuration missing"} end
   if type(c.channels)~="table" or type(c.gains)~="table" then return false,{"configuration malformed"} end
   local active=mode.axes(c)
-  if c.balloonSetup then local valid,why=vehicleBridge.balloonStatus(c.balloonSetup) if not valid then errors[#errors+1]=why end end
+  if c.balloonSetup then local valid,why=balloonStatus() if not valid then errors[#errors+1]=why end end
   if c.mode~=nil and c.mode~="full" and c.mode~="altitude" then errors[#errors+1]="unknown control mode" end
   if #c.channels<#active then errors[#errors+1]="at least "..#active.." independent mapped outputs required" end
   local ids={}
@@ -241,10 +246,12 @@ function M.configure(actor, value)
   local saved,why=persist()
   if not saved then cfg.control=previous return false,why end
   tested,rescueTested={},false
+  burnerInitialization,burnerDemand,burnerHeatSince=nil,false,nil
   return true
 end
 
 function M.fail(message)
+  burnerInitialization,burnerDemand,burnerHeatSince=nil,false,nil
   autopilot:cancel(message,true)
   if state=="armed" or state=="calibration" then
     state,reason,rescuePending="failsafe",message,true
@@ -265,6 +272,7 @@ function M.arm(actor)
   local saved,why=persist()
   if not saved then cfg.control.sessionActive=false return false,why end
   session=true
+  burnerDemand,burnerHeatSince=false,nil
   targets={pitch=0,roll=0,altitude=t.altitude,heading=t.heading}
   controllers,manual={},{}
   owner,state,reason,lastTick=actor.pid,"armed","stabilisation armed",os.clock()
@@ -460,6 +468,7 @@ function M.testOutput(actor,id,value,confirmed,duration)
         if not saved then channel.validated=true return false,problem end
       end
       tested[id]=nil
+      if cfg.control.balloonSetup then burnerInitialization,burnerDemand,burnerHeatSince=nil,false,nil end
       owner,state,reason=actor.pid,"calibration","output test"
       local burnerTest=cfg.control.balloonSetup and channel.actuator and channel.actuator.role=="buoyancy"
       local inverted=burnerTest and type(channel.mix)=="table" and addon.finite(channel.mix.altitude) and channel.mix.altitude<0
@@ -483,7 +492,7 @@ function M.step(rescan)
     else
       for _,axis in ipairs(mode.axes(cfg.control)) do if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then M.fail(axis.." sensor invalid") break end end
       for _,channel in ipairs(cfg.control.channels) do local valid,why=channelValid(channel) if not valid then M.fail(why) break end end
-      if cfg.control.balloonSetup then local valid,why=vehicleBridge.balloonStatus(cfg.control.balloonSetup) if not valid then M.fail(why) end end
+      if cfg.control.balloonSetup then local valid,why=balloonStatus() if not valid then M.fail(why) end end
     end
   end
   if rescuePending then
@@ -494,6 +503,10 @@ function M.step(rescan)
     elseif state=="calibration" and reason=="rescue test queued" then rescueTested=true state,reason="disarmed","rescue applied; confirm physical behaviour" end
     if ok and M.test and M.test.applied and M.test.completed then
       if not M.test.burnerTest or M.test.burnerFeedback then tested[M.test.id]=true end
+      if M.test.burnerTest and M.test.burnerFeedback and M.test.expectedBurnerSignal>0 then
+        burnerInitialization={vehicleId=cfg.control.balloonSetup.vehicleId,
+          burnerIds=addon.copy(cfg.control.balloonSetup.burnerIds),channelId=M.test.id,confirmedAt=now}
+      end
       if state=="calibration" and reason=="output test returning to rescue" then
         state,reason,owner="disarmed",M.test.burnerTest and not M.test.burnerFeedback and
           ("Burner test NOT confirmed: "..tostring(M.test.feedbackError)) or "Output test complete; verify physical direction",nil
@@ -574,6 +587,18 @@ function M.step(rescan)
     values[channel.id]=math.floor(math.max(channel.min,math.min(channel.max,value))+0.5)
   end
   local ok,err=writeOutputs(values)
+  if ok and burnerInitialization then
+    for _,channel in ipairs(cfg.control.channels) do
+      if channel.id==burnerInitialization.channelId then
+        local signal=values[channel.id]
+        if (channel.mix.altitude or 0)<0 then signal=15-signal end
+        local active=signal>0
+        if active and not burnerDemand then burnerHeatSince=os.clock() end
+        if not active then burnerHeatSince=nil end
+        burnerDemand=active
+      end
+    end
+  end
   if not ok then M.fail("actuator error: "..err) end
 end
 
@@ -582,7 +607,7 @@ function M.status()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
     autopilot=autopilot:status(),
-    calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test)},
+    calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test),initializationConfirmed=burnerInitialization~=nil},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
 end
 
@@ -602,6 +627,8 @@ function M.start(context)
   controllers,manual,last,tested={}, {}, {}, {}
   outputResults,rescueResults={},{}
   rescueTested=false
+  burnerInitialization,burnerDemand,burnerHeatSince=nil,false,nil
+  M.test=nil
   if cfg.control.sessionActive then state,reason,rescuePending="failsafe","previous session interrupted; rescue required",true end
   runner=addon.periodic(ctx,"flightd",0.1,M.step)
   runner.onError=function(err)

@@ -116,19 +116,33 @@ function M.status()
     actuatorCount=#(s.actuators or {}),linkCount=#(s.links or {}),complete=s.complete}
 end
 function M.health() return M.status() end
-function M.balloonStatus(setup)
+local function initializedGroup(setup,proof)
+  if type(proof)~="table" or proof.vehicleId~=setup.vehicleId or type(proof.burnerIds)~="table" or type(setup.burnerIds)~="table" or #proof.burnerIds~=#setup.burnerIds then return false end
+  local ids={} for _,id in ipairs(proof.burnerIds) do if ids[id] then return false end ids[id]=true end
+  for _,id in ipairs(setup.burnerIds) do if not ids[id] then return false end ids[id]=nil end
+  return true
+end
+function M.balloonStatus(setup,proof,demand)
   if not cached.ok or not cached.validUntil or os.clock()>cached.validUntil or not cached.inventoryComplete then return false,"Balloon discovery stale/incomplete" end
   if not cached.burnerDiscoveryAvailable or cached.vehicleId~=setup.vehicleId then return false,"Balloon vehicle changed" end
   local found={}
   for _,burner in ipairs(cached.burners) do found[burner.id]=burner end
   if type(setup.burnerIds)~="table" or #setup.burnerIds==0 then return false,"Balloon burner group missing" end
+  local initialized=initializedGroup(setup,proof)
+  local heating=demand and demand.active==true
+  local warming=initialized and heating and addon.finite(demand.since) and os.clock()>=demand.since and os.clock()-demand.since<2
   for _,id in ipairs(setup.burnerIds) do
     local burner=found[id]
     local label=id:match("^[^:]+:(.*)$") or id
     if not burner then return false,"Burner missing: "..label end
+    if heating and burner.signal==0 and not warming then return false,"Burner "..label..": no heat signal after restart window; check RX/wiring" end
     if not burner.hasBalloon then
+      local unobservable=burner.associationSource=="heater_membership" and burner.associationState=="no_balloon_reference"
+      local idle=burner.signal==0 and burner.gasOutput==0 and unobservable
+      if not (initialized and ((idle and not heating) or (unobservable and warming))) then
       if burner.associationSource=="legacy_gas_validity" then return false,"Update Vehicle Bridge to 0.2.1: old bridge confuses empty balloon with missing association" end
       return false,"Burner "..label..(burner.signal==0 and ": off; balloon association not confirmed (check RX frequency/wiring, then Initialize in Calibration)" or ": Aeronautics balloon association unavailable; check burner clearance/envelope")
+      end
     end
   end
   return true

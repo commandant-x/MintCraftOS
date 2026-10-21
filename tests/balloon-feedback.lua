@@ -48,10 +48,18 @@ now=14 for _,b in ipairs(raw.burners) do b.signal=5 b.hasBalloon=true end sample
 assert(flight.status().calibration.test.burnerFeedback)
 now=15.1 flight.step() flight.step()
 assert(flight.status().calibration.tested["balloon-burners"] and sent[#sent]==0)
+assert(flight.status().calibration.initializationConfirmed)
+for _,b in ipairs(raw.burners) do
+ b.signal=0 b.gasOutput=0 b.hasBalloon=false b.associationSource="heater_membership" b.associationState="no_balloon_reference"
+end
+now=15.2 sample()
+local errors=table.concat(flight.status().errors,";")
+assert(not errors:find("association",1,true),"successful initialization lost after rescue to zero")
 assert(flight.calibrate(actor,"channel","balloon-burners",true))
 assert(not flight.arm(actor),"heater feedback bypassed flight calibration")
 now=16 assert(flight.testOutput(actor,"balloon-burners",5,true,2)) flight.step()
 now=18.1 flight.step() flight.step()
 assert(not flight.status().calibration.tested["balloon-burners"],"stale repeated test reused old confirmation")
+assert(not flight.status().calibration.initializationConfirmed,"failed repeat retained idle proof")
 assert(not bridge.burnerFeedback({vehicleId="different",burnerIds=cfg.balloonSetup.burnerIds},5,0))
 print("balloon feedback: mixed screenshot signals, fresh per-heater acknowledgment, stale/wrong vehicle rejection, rescue, no false calibration and re-test invalidation passed")

@@ -2,7 +2,16 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.53:
+This repository currently contains V0.18.54:
+
+V0.18.54 retains a successful positive burner initialization for the exact group
+in the current flight-service run. Returning to rescue signal 0 no longer
+mistakes Aeronautics' missing idle reference for a new initialization failure.
+Raw association remains visible separately. Active heat still requires live
+feedback, with a bounded 2-second association-restart window. See
+[idle burner handling, safeguards and rollback](docs/BURNER-IDLE-0.18.54.md).
+
+V0.18.53:
 
 V0.18.53 adds a private RAM-only verifier for repeated password unlocks during
 one boot, avoiding repeated PBKDF2 work after a successful sign-in. It retains

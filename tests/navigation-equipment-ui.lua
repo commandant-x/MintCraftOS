@@ -7,7 +7,7 @@ package.loaded["system.gui.renderer"]={crop=function(s,w) return tostring(s):sub
  writeAt=function(x,y,s) assert(x>=1 and y>=1 and x+#s-1<=width and y<=height,"text outside viewport") writes[#writes+1]=s end,
  blitAt=function(x,y,s) assert(x>=1 and y>=1 and x+#s-1<=width and y<=height) end,
  color=function(c) for i=0,15 do if c==2^i then return string.format("%x",i) end end end,fill=function() end}
-package.loaded["system.gui.components"]={toolbar=function() return {} end,toolbarHit=function() return "confirm" end}
+package.loaded["system.gui.components"]={input=function() end,toolbar=function() return {} end,toolbarHit=function() return "confirm" end}
 package.loaded["system.gui.action_menu"]={new=function() return {} end,bar=function() return {} end,overlay=function() end}
 package.loaded["system.gui.form"]={new=function() return {draw=function() end} end,field=function(object,key) return {set=function(v) object[key]=v end} end}
 package.loaded["system.libraries.config"]={load=function() return {} end}
@@ -21,8 +21,8 @@ local rescans,saved=0,0
 package.loaded["system.services.vehiclebridged"]={snapshot=function() return snapshot end,rescan=function() rescans=rescans+1 end}
 package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
 package.loaded["system.services.avionicsd"]={snapshot=function() return {} end,rescan=function() end}
-package.loaded["system.services.flightd"]={configuration=function() return {channels={},vehicle={},manualInputs={}} end,
- status=function() return {} end,telemetry=function() return {} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
+package.loaded["system.services.flightd"]={configuration=function() return {channels={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
+ status=function() return {calibration={initializationConfirmed=true,tested={}}} end,telemetry=function() return {} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
  configure=function() saved=saved+1 return true end}
 term={getSize=function() return width,height end}
 local app,win
@@ -30,6 +30,10 @@ local function command(id) assert(app:handle({name="action",args={},navigationCo
 require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=function() return 1 end,
  windowManager={create=function(_,opts) app=opts.app win={closed=false} return win end},
  pullEvent=function()
+  app.page="calibration" width,height=80,28 app:draw(width,height)
+  assert(table.concat(writes,"\n"):find("Initialization this run: confirmed (retained while off)",1,true),"retained initialization not shown")
+  width,height=12,9 app.scroll=100 app:draw(width,height)
+  width,height=26,17
   command("guide") assert(app.setup and app.setup.burnerCount==1,"intact burner guide blocked by missing COM")
   for i=1,60 do app.scroll=i app:draw(width,height) end
   assert(table.concat(writes,"\n"):find("signal 3/15",1,true),"live burner feedback missing from guide")
