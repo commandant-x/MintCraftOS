@@ -50,7 +50,12 @@ reset. No server/mod settings, sensor frequencies or graphical quality change.
   restoring system code and retaining the original checkpoint;
 - the strict 1,000,000-byte allocation test passes with 100,000 bytes of witness
   data: 752,180 installed bytes and 802,951 peak bytes across installation,
-  subsequent update and rollback (512-byte minimum per file/directory).
+  subsequent update and rollback (512-byte minimum per file/directory);
+- a separate test using the actual 0.18.46 distributable upgrades to 0.18.47 and
+  rolls back with the same 100,000-byte witness data: peak **952,210 bytes** under
+  the 1,000,000-byte ceiling. This is distinct from the smaller synthetic next-update
+  fixture above. Reproduce with `git show e33ef47:install.lua > /tmp/mintcraft-0.18.46.lua`
+  then `lua5.2 tests/compact-disk.lua /tmp/mintcraft-0.18.46.lua`.
 
 The production-cost password-crypto test remains excluded from the fast suite.
 Minecraft/NeoForge and CraftOS-PC runtime tests were not executed here.

@@ -75,5 +75,19 @@ local before=used()
 local ok,reason=pcall(installer.install,damaged)
 assert(not ok and tostring(reason):find('integrity mismatch',1,true))
 assert(used()==before and not fs.exists('/var/tmp/mintcraft-install'),'corrupt source touched disk before validation')
+if arg[1] then
+ local previousFiles
+ assert(nativeLoadfile(arg[1],'t',{assert=assert,print=function() end,load=function()
+  return function() return {install=function(bundle) previousFiles=bundle end} end
+ end}))()
+ state,installer,used,peak=setup()
+ assert(installer.install(previousFiles))
+ assert(installer.install(files))
+ assert(require('system.services.updated').rollback())
+ assert(state.nodes['/VERSION']==previousFiles.VERSION)
+ assert(state.nodes['/apps/terminal/main.lua']==previousFiles['apps/terminal/main.lua'])
+ assert(state.nodes['/home/user/documents/witness']==string.rep('user data\n',10000))
+ print(string.format('actual release upgrade/rollback: %s -> %s; peak %d of 1000000 bytes with 100000-byte witness',previousFiles.VERSION:gsub('%s+',''),files.VERSION:gsub('%s+',''),peak()))
+end
 loadfile=nativeLoadfile
 print('compact disk: interrupted staging and live installation recover on pinned-installer retry')
