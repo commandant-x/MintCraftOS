@@ -13,7 +13,12 @@ function M.protected(path)
   path = M.absolute(path)
   return path == "/" or path == "/system" or path == "/apps"
     or path == "/boot.lua" or path == "/startup.lua" or path == "/VERSION" or path == "/install.lua"
-    or path == "/home" or path == "/home/user"
+    or path == "/home" or path == "/home/user" or path=="/var" or path=="/var/tmp"
+    or path=="/var/backups" or path:match("^/var/backups/")~=nil
+    or path=="/var/tmp/mintcraft-install" or path:match("^/var/tmp/mintcraft%-install/")~=nil
+    or path=="/var/tmp/mintcraft-package" or path:match("^/var/tmp/mintcraft%-package/")~=nil
+    or path=="/var/tmp/mintcraft-restore" or path:match("^/var/tmp/mintcraft%-restore/")~=nil
+    or path=="/var/tmp/mintcraft-rollback.cfg"
     or path == "/rom" or path:match("^/rom/") ~= nil
     or path == "/packages" or path:match("^/packages/") ~= nil
     or path:match("^/system/") ~= nil or path:match("^/apps/") ~= nil

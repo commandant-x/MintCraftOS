@@ -73,6 +73,10 @@ local readPermissions={ls='filesystem.read',cd='filesystem.read',cat='filesystem
 
 local function runCommand(app, ctx, input)
   append(app, "> " .. displayInput(input))
+  local function writeAccess(path)
+    if fileNames.protected(path) then return false,"Protected path" end
+    return ctx.security.require("filesystem.write",path)
+  end
   if app.pending then
     if input == "yes" then
       local pending = app.pending
@@ -92,6 +96,11 @@ local function runCommand(app, ctx, input)
     if not ok then append(app,err,'error') return end
   end
 
+  if cmd=='ls' or cmd=='cd' or cmd=='cat' or cmd=='type' then
+    local target=fileNames.absolute(rest~='' and fs.combine(app.cwd,rest) or app.cwd)
+    local ok,err=ctx.security.require('filesystem.read',target)
+    if not ok then append(app,err,'error') return end
+  end
   if cmd == "clear" then
     app:clearOutput()
   elseif cmd == "ls" then
@@ -109,7 +118,7 @@ local function runCommand(app, ctx, input)
   elseif cmd == "mkdir" then
     if rest == "" then append(app, "Usage: mkdir <dir>") else
       local path = fs.combine(app.cwd, rest)
-      local ok, err = ctx.security.require("filesystem.write", path)
+      local ok, err = writeAccess(path)
       if ok then fs.makeDir(path) ctx.security.audit("mkdir", path) else append(app, err) end
     end
   elseif cmd == "cp" then
@@ -118,9 +127,25 @@ local function runCommand(app, ctx, input)
       append(app, "Usage: cp <src> <dst>")
     else
       local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
-      local ok, err = ctx.security.require("filesystem.write", to)
+      local readable,readError=ctx.security.require("filesystem.read",fileNames.absolute(from))
+      if not readable then append(app,readError,'error') return end
+      local ok, err = writeAccess(to)
       if not ok then append(app, err)
-      elseif fs.exists(from) and not fs.exists(to) then fs.copy(from, to) ctx.security.audit("copy", from .. " -> " .. to) else append(app, "Cannot copy") end
+      elseif fs.exists(from) and not fs.exists(to) then
+        local pending={fileNames.absolute(from)} local index=1
+        while index<=#pending do
+          local path=pending[index] index=index+1
+          local permitted,problem=ctx.security.require('filesystem.read',path)
+          if not permitted then append(app,problem,'error') return end
+          if fs.isDir(path) then
+            for _,name in ipairs(fs.list(path)) do
+              if #pending>=4096 then append(app,'Copy tree exceeds safe preflight limit','error') return end
+              pending[#pending+1]=fileNames.absolute(fs.combine(path,name))
+            end
+          end
+        end
+        fs.copy(from,to) ctx.security.audit("copy",from.." -> "..to)
+      else append(app,"Cannot copy") end
     end
   elseif cmd == "mv" then
     local src, dst = rest:match("^(%S+)%s+(.+)$")
@@ -128,13 +153,13 @@ local function runCommand(app, ctx, input)
       append(app, "Usage: mv <src> <dst>")
     else
       local from, to = fs.combine(app.cwd, src), fs.combine(app.cwd, dst)
-      local ok, err = ctx.security.require("filesystem.write", to)
+      local ok, err = writeAccess(to)
       if not ok then append(app, err)
       elseif fileNames.protected(from) then append(app, "Protected path")
       elseif fs.exists(from) and not fs.exists(to) then
         app.pending = function()
-          local sourceAllowed, sourceError = ctx.security.require("filesystem.write", from)
-          local targetAllowed, targetError = ctx.security.require("filesystem.write", to)
+          local sourceAllowed, sourceError = writeAccess(from)
+          local targetAllowed, targetError = writeAccess(to)
           if not sourceAllowed or not targetAllowed then append(app, sourceError or targetError) return end
           fs.move(from, to)
           ctx.security.audit("move", from .. " -> " .. to)
@@ -149,7 +174,7 @@ local function runCommand(app, ctx, input)
         append(app, "Protected path")
       elseif fs.exists(path) then
         app.pending = function()
-          local ok, err = ctx.security.require("filesystem.write", path)
+          local ok, err = writeAccess(path)
           if ok then fs.delete(path) ctx.security.audit("delete", path) append(app, "deleted") else append(app, err) end
         end
         append(app, "Type yes to delete " .. path)
@@ -173,7 +198,7 @@ local function runCommand(app, ctx, input)
     else
       local from = trashPath(rest)
       local to = fs.combine(app.cwd, rest)
-      local ok, err = ctx.security.require("filesystem.write", to)
+      local ok, err = writeAccess(to)
       if not ok then append(app, err)
       elseif fs.exists(from) and not fs.exists(to) then fs.move(from, to) ctx.security.audit("restore", to) append(app, "restored") else append(app, "Cannot restore") end
     end

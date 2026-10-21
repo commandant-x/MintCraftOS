@@ -82,6 +82,11 @@ local function restoreTree(from, to)
     if fs.exists(nextPath .. "/config") then fs.delete(nextPath .. "/config") end
     fs.copy("/system/config", nextPath .. "/config")
   end
+  if to=="/system" and fs.exists("/system/security/users.db") then
+    local path=nextPath.."/security/users.db"
+    if fs.exists(path) then fs.delete(path) end
+    fs.makeDir(fs.getDir(path)) fs.copy("/system/security/users.db",path)
+  end
   if to == "/apps" and fs.exists("/apps") then
     local core = {browser=true,combat=true,crafttube=true,devices=true,editor=true,files=true,logs=true,
       messenger=true,navigation=true,services=true,settings=true,store=true,taskmanager=true,terminal=true,update=true}

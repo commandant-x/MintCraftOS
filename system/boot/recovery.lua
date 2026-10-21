@@ -127,6 +127,11 @@ local function restoreRaw(resumeOnly)
             if fs.exists(stage .. "/next/config") then fs.delete(stage .. "/next/config") end
             fs.copy("/system/config", stage .. "/next/config")
           end
+          if path=="/system" and fs.exists("/system/security/users.db") then
+            local target=stage.."/next/security/users.db"
+            if fs.exists(target) then fs.delete(target) end
+            fs.makeDir(fs.getDir(target)) fs.copy("/system/security/users.db",target)
+          end
           if path == "/apps" and fs.exists("/apps") then
             local core = {browser=true,combat=true,crafttube=true,devices=true,editor=true,files=true,logs=true,
               messenger=true,navigation=true,services=true,settings=true,store=true,taskmanager=true,terminal=true,update=true}
