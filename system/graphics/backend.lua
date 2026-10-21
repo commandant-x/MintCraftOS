@@ -16,14 +16,21 @@ function M.detect(t)
   if type(t.isColor)=="function" then local ok,value=pcall(t.isColor) if ok then caps.color=value==true end end
   return caps
 end
-function M.new(t,preference)
+function M.new(t,preference,options)
+  options=options or {}
   serial=serial+1
   local caps=M.detect(t)
-  local b={target=t,caps=caps,mode=0,generation=serial,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
+  local b={target=t,caps=caps,mode=0,generation=serial,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={},requests=0,skippedPresents=0,lines=0,drawCalls=0,maxDrawSeconds=0,
+    optimized=options.optimized~=false,batchRows=options.batchRows or 8,palettePending=false}
+  assert(b.batchRows==1 or b.batchRows==4 or b.batchRows==8 or b.batchRows==16 or b.batchRows==32,"Invalid batch size")
+  local function submit(x,y,rows)
+    b.drawCalls=b.drawCalls+1
+    return t.drawPixels(x,y,rows)
+  end
   function b:palette(index,rgb)
     assert(self.mode==2 and index>=16 and index<=255 and index%1==0,"Extended palette unavailable")
     if not self.paletteBackup[index] then self.paletteBackup[index]={t.getPaletteColor(index)} end
-    t.setPaletteColor(index,rgb)
+    t.setPaletteColor(index,rgb) self.palettePending=true
   end
   function b:close()
     if type(t.setFrozen)=="function" then pcall(t.setFrozen,false) end
@@ -35,25 +42,67 @@ function M.new(t,preference)
     self.mode=0 self.caps.backend="TEXT"
   end
   function b:present()
+    self.requests=self.requests+1
     if self.mode==0 then return false,self.lastError end
+    if self.optimized and not next(self.surface.dirty) and not self.palettePending then
+      self.skippedPresents=self.skippedPresents+1
+      return true
+    end
     local started=os.clock()
-    local frozen=false
+    local frozen,freezeRead=false,false
     local ok,err=pcall(function()
-      if caps.freeze then frozen=t.getFrozen() t.setFrozen(true) end
-      for y=1,self.surface.height do
+      if caps.freeze then frozen=t.getFrozen() freezeRead=true t.setFrozen(true) end
+      local y=1
+      while y<=self.surface.height do
         local d=self.surface.dirty[y]
-        if d then
-          t.drawPixels(d[1],y-1,{self.surface.rows[y]:sub(d[1]+1,d[2])})
-          self.bytes=self.bytes+d[2]-d[1] self.regions=self.regions+1
+        if not d then y=y+1
+        else
+          local spans=self.optimized and d.spans or nil
+          spans=spans or {{d[1],d[2]}}
+          local count=1
+          if self.optimized then
+            while count<self.batchRows and y+count<=self.surface.height do
+              local n=self.surface.dirty[y+count]
+              if not n or n[1]~=d[1] or n[2]~=d[2] then break end
+              local other=n.spans or {{n[1],n[2]}}
+              local compatible=#other==#spans
+              if compatible then
+                for i,v in ipairs(spans) do if v[1]~=other[i][1] or v[2]~=other[i][2] then compatible=false break end end
+              end
+              if not compatible then break end
+              count=count+1
+            end
+          end
+          for _,span in ipairs(spans) do
+            local rows={}
+            for i=0,count-1 do rows[i+1]=self.surface.rows[y+i]:sub(span[1]+1,span[2]) end
+            if count>1 then
+              local accepted=pcall(submit,span[1],y-1,rows)
+              if not accepted then
+                -- Older targets may support byte rows but reject multi-row calls.
+                self.batchRows=1
+                for i,row in ipairs(rows) do
+                  submit(span[1],y+i-2,{row})
+                end
+              end
+            else submit(span[1],y-1,rows) end
+            self.bytes=self.bytes+(span[2]-span[1])*count
+            self.regions=self.regions+1
+          end
+          self.lines=self.lines+count y=y+count
         end
       end
     end)
-    if caps.freeze then
+    if caps.freeze and freezeRead then
       local restored,problem=pcall(t.setFrozen,frozen)
       if not restored then ok,err=false,problem end
     end
-    if not ok then self.lastError=tostring(err) self:close() return false,self.lastError end
-    self.surface.dirty={} self.frames=self.frames+1 self.lastDrawSeconds=os.clock()-started
+    if not ok then
+      self.surface.dirty={} self.palettePending=false
+      self.lastError=tostring(err) self:close() return false,self.lastError
+    end
+    self.surface.dirty={} self.palettePending=false self.frames=self.frames+1
+    self.lastDrawSeconds=os.clock()-started self.maxDrawSeconds=math.max(self.maxDrawSeconds,self.lastDrawSeconds)
     return true
   end
   if preference=="text" or not caps.graphics then return b end
@@ -66,7 +115,7 @@ function M.new(t,preference)
       assert(w and h,"Invalid pixel dimensions")
       local surface=Surface.new(w,h,15)
       -- Probe the actual byte-row overload, not just the presence of the method.
-      t.drawPixels(0,0,{string.char(15)})
+      submit(0,0,{string.char(15)})
       b.surface=surface b.mode=mode caps.pixelWidth,caps.pixelHeight=w,h
       caps.backend=mode==2 and "PIXEL256" or "PIXEL16"
     end)

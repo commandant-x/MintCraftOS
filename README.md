@@ -2,7 +2,18 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.44:
+This repository currently contains V0.18.45:
+
+V0.18.45 suppresses empty graphical presentations, batches compatible pixel rows,
+retains bounded sparse damage and coalesces visible invalidations without gating
+service/event dispatch. Display settings expose Stable/Balanced/Performance and
+an optimization off switch. Manual upgrades now retain differential rollback
+checkpoints and refuse insufficient space; Recovery verifies new checkpoint
+checksums and restores text mode while retaining personal data. An incomplete
+graphical boot selects text rescue on the next boot. See
+[performance measurements, recovery and Minecraft commissioning](docs/GRAPHICS-PERFORMANCE-ROLLBACK.md).
+
+V0.18.44:
 
 V0.18.44 adds a native pixel Terminal with wrapped/colored output, cursor editing,
 command history, scrolling, record selection/local copy and a tactile keyboard.

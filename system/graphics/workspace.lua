@@ -19,7 +19,21 @@ local function clockText()
 end
 function M.new(ctx)
   local self={scene=Scene.new(),ctx=ctx,icons={},content={},page=1,taskPage=1,
-    menu=false,query="",menuScroll=1,menuSelected=1,revision=0,hits={},context=nil,cacheBytes=0,cacheLimit=2097152}
+    menu=false,query="",menuScroll=1,menuSelected=1,revision=0,hits={},context=nil,cacheBytes=0,cacheLimit=2097152,cacheSerial=0,stats={cacheHits=0,cacheMisses=0,cacheEvictions=0}}
+  function self:reserve(bytes,keep)
+    local reserve=keep~=self.activeId and (self.reservedActive or 0) or 0
+    if bytes+reserve>self.cacheLimit then return false end
+    while self.cacheBytes+bytes+reserve>self.cacheLimit do
+      local victim,oldest
+      for id,cache in pairs(self.content) do
+        if id~=keep and cache.frame~=self.drawSerial and cache.bytes>0 and (not oldest or (cache.used or 0)<oldest) then victim,oldest=id,cache.used or 0 end
+      end
+      if not victim then return false end
+      self.cacheBytes=self.cacheBytes-self.content[victim].bytes self.content[victim]=nil
+      self.stats.cacheEvictions=self.stats.cacheEvictions+1
+    end
+    return true
+  end
   local function changed() self.revision=self.revision+1 end
   local function launch(id,args)
     self.menu=false self.context=nil self.typing=false self.query="" changed()
@@ -106,7 +120,7 @@ function M.new(ctx)
     local live={}
     for _,win in ipairs(ctx.wm.windows) do
       if not win.closed then
-        live[win.id]=true
+        live[win.id]=not win.minimized
         local b=win.pixelBounds or box((win.x-1)*6,(win.y-1)*9,(win.w-2)*6+2,(win.h-2)*9+TITLE+2)
         if win.maximized then
           if not win.pixelPrevious then win.pixelPrevious=copy(b) end
@@ -120,8 +134,20 @@ function M.new(ctx)
         fit(win,b)
       end
     end
+    local occluded={}
+    for i,win in ipairs(ctx.wm.windows) do
+      local a=win.pixelBounds
+      if a and not win.closed and not win.minimized then
+        for j=i+1,#ctx.wm.windows do
+          local upper=ctx.wm.windows[j] local b=upper.pixelBounds
+          if b and not upper.closed and not upper.minimized and b.x<=a.x and b.y<=a.y and b.x+b.w>=a.x+a.w and b.y+b.h>=a.y+a.h then occluded[win.id]=true break end
+        end
+      end
+    end
+    self.occluded=occluded
+    for id in pairs(occluded) do live[id]=false end
     for id,cached in pairs(self.content) do if not live[id] then
-      self.cacheBytes=self.cacheBytes-(cached.bytes or 0) self.content[id]=nil
+      self.cacheBytes=self.cacheBytes-(cached.bytes or 0) self.content[id]=nil self.stats.cacheEvictions=self.stats.cacheEvictions+1
     end end
     if self.drag and (not live[self.drag.win.id] or self.drag.win.minimized) then self.drag=nil end
     if self.clientCapture and (not live[self.clientCapture.win.id] or self.clientCapture.win.minimized) then self.clientCapture=nil end
@@ -137,6 +163,7 @@ function M.new(ctx)
     layers[#layers+1]={id=id,x=b.x,y=b.y,w=b.w,h=b.h,revision=revision,draw=draw}
   end
   function self:draw(backend)
+    self.drawSerial=(self.drawSerial or 0)+1
     local s,p=backend.surface,self.palette
     local w,h=self.width,self.height
     local layers={} self.hits={} self.taskHits={} self.windowHits={} self.notificationHits={}
@@ -170,8 +197,15 @@ function M.new(ctx)
       end
     end)
     local active=ctx.wm:active()
+    self.activeId=active and active.id self.reservedActive=0
+    if active and active.pixelBounds and not active.minimized then
+      local bounds=active.pixelBounds
+      local needed=active.pixelNative and (bounds.w-2)*(bounds.h-TITLE-1) or (active.w-2)*(active.h-2)*54
+      local cached=self.content[active.id]
+      if needed<=self.cacheLimit then self.reservedActive=math.max(0,needed-(cached and cached.bytes or 0)) end
+    end
     for _,win in ipairs(ctx.wm.windows) do
-      if not win.closed and not win.minimized and win.pixelBounds then
+      if not win.closed and not win.minimized and win.pixelBounds and not self.occluded[win.id] then
         local b=win.pixelBounds
         local client=box(b.x+1,b.y+TITLE,b.w-2,b.h-TITLE-1)
         local cw,ch=win.w-2,win.h-2
@@ -180,25 +214,34 @@ function M.new(ctx)
           self.cacheBytes=self.cacheBytes-cache.bytes self.content[win.id]=nil cache=nil
         end
         if win.pixelNative and (not cache or cache.width~=client.w or cache.height~=client.h or cache.revision~=win.surfaceRevision or cache.palette~=p) then
+          self.stats.cacheMisses=self.stats.cacheMisses+1
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
           cache={native=true,width=client.w,height=client.h,revision=win.surfaceRevision,palette=p,bytes=0}
           local bytes=client.w*client.h
-          if self.cacheBytes+bytes<=self.cacheLimit then
+          if self:reserve(bytes,win.id) then
             cache.surface=Surface.new(client.w,client.h,p.panel) cache.bytes=bytes
             win:drawPixels(View.new(cache.surface,0,0,client.w,client.h),client.w,client.h,p)
+            cache.surface.dirty={}
           end
           self.cacheBytes=self.cacheBytes+cache.bytes self.content[win.id]=cache
         end
         if not win.pixelNative and win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
+          self.stats.cacheMisses=self.stats.cacheMisses+1
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
           cache={native=false,width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
           local bytes=cw*ch*54
-          if self.cacheBytes+bytes<=self.cacheLimit then
+          if self:reserve(bytes,win.id) then
             cache.surface=Surface.new(cw*6,ch*9,15) cache.bytes=bytes
             for y=1,ch do local text,fg,bg=win.surface.getLine(y) Legacy.row(cache.surface,y,text,fg,bg,cw,ch) end
+            cache.surface.dirty={}
           end
           self.cacheBytes=self.cacheBytes+cache.bytes
           self.content[win.id]=cache
+        end
+        if cache then
+          self.cacheSerial=self.cacheSerial+1 cache.used=self.cacheSerial cache.frame=self.drawSerial
+          if cache.lastRevision==win.surfaceRevision then self.stats.cacheHits=self.stats.cacheHits+1 end
+          cache.lastRevision=win.surfaceRevision
         end
         local controls={close=box(b.x+b.w-19,b.y+1,18,18),maximize=box(b.x+b.w-38,b.y+1,18,18),minimize=box(b.x+b.w-57,b.y+1,18,18)}
         self.windowHits[#self.windowHits+1]={win=win,rect=b,client=client,controls=controls}

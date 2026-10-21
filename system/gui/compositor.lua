@@ -8,6 +8,7 @@ function M.new(resolveTarget, onOutputFailure, options)
   local frame = {}
   local failedTarget, fallbackTarget
   local function outputFailure(target, problem)
+    if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,problem) end
     if pixel then pixel:close() pixel=nil end
     previous = {}
     local native = term.native and term.native() or target
@@ -27,6 +28,10 @@ function M.new(resolveTarget, onOutputFailure, options)
       if pixel then pixel:close() end
       pixel, parent, preference, previous=nil,nil,mode,{}
     end,
+    setBackendOptions=function(_,value)
+      options=options or {} options.backendOptions=value
+      if pixel then pixel.optimized=value.optimized pixel.batchRows=value.batchRows end
+    end,
     close = function() if pixel then pixel:close() end end,
     capabilities=function()
       local result={backend="TEXT",textWidth=width,textHeight=height,probed=false}
@@ -42,7 +47,12 @@ function M.new(resolveTarget, onOutputFailure, options)
         backend=pixel and pixel.caps.backend or "TEXT",pixelWidth=pixelWidth,pixelHeight=pixelHeight,
         generation=pixel and pixel.generation,
         bytes=pixel and pixel.bytes or 0,regions=pixel and pixel.regions or 0,
-        lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError }
+        lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError,
+        presentRequests=pixel and pixel.requests or 0,skippedPresents=pixel and pixel.skippedPresents or 0,
+        presentedFrames=pixel and pixel.frames or 0,drawCalls=pixel and pixel.drawCalls or 0,
+        dirtyLines=pixel and pixel.lines or 0,maxDrawSeconds=pixel and pixel.maxDrawSeconds or 0,
+        compositionSeconds=stats.compositionSeconds,prepareSeconds=stats.prepareSeconds,
+        maxCompositionSeconds=stats.maxCompositionSeconds,maxPrepareSeconds=stats.maxPrepareSeconds }
     end,
     draw = function(_, render)
       local target = resolveTarget and resolveTarget() or term.current()
@@ -56,7 +66,7 @@ function M.new(resolveTarget, onOutputFailure, options)
         if pixel then pixel:close() end
         pixel=nil pixelWidth,pixelHeight=nil,nil
         if preference~="text" then
-          pixel=require("system.graphics.backend").new(target,preference)
+          pixel=require("system.graphics.backend").new(target,preference,options and options.backendOptions)
           pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
           if pixel.mode==0 and pixel.lastError and options and options.onGraphicsFailure then
             pcall(options.onGraphicsFailure,pixel.lastError)
@@ -86,7 +96,7 @@ function M.new(resolveTarget, onOutputFailure, options)
       elseif width ~= w or height ~= h then
         if pixel then
           pixel:close()
-          pixel=require("system.graphics.backend").new(target,preference)
+          pixel=require("system.graphics.backend").new(target,preference,options and options.backendOptions)
           pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
         end
         surface.reposition(1, 1, w, h)
@@ -99,13 +109,16 @@ function M.new(resolveTarget, onOutputFailure, options)
           pixel.lastError=tostring(pw) pixel:close() previous={}
           if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,pw) end
         elseif pw~=pixelWidth or ph~=pixelHeight then
-          pixel:close() pixel=require("system.graphics.backend").new(target,preference)
+          pixel:close() pixel=require("system.graphics.backend").new(target,preference,options and options.backendOptions)
           pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
           previous={}
         end
       end
       if pixel and pixel.mode~=0 and options and options.beforeRender then
+        local started=os.clock()
         local ok,err=pcall(options.beforeRender,pixel)
+        stats.prepareSeconds=os.clock()-started
+        stats.maxPrepareSeconds=math.max(stats.maxPrepareSeconds or 0,stats.prepareSeconds)
         if not ok then
           pixel.lastError=tostring(err) pixel:close() previous={}
           if options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
@@ -113,11 +126,17 @@ function M.new(resolveTarget, onOutputFailure, options)
       end
       surface.setVisible(false)
       term.redirect(surface)
+      local renderStarted=os.clock()
       local ok, err = pcall(render)
+      stats.renderSeconds=os.clock()-renderStarted
       term.redirect(target)
-      if not ok then error(err, 0) end
+      if not ok then
+        if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
+        error(err, 0)
+      end
       -- Read the local surface outside the output guard: these are renderer faults.
-      for y = 1, h do
+      local nativeShell=pixel and pixel.mode~=0 and options and options.nativeShell and options.backendOptions and options.backendOptions.optimized
+      for y = 1, nativeShell and 0 or h do
         local row = frame[y] or {}
         row[1], row[2], row[3] = surface.getLine(y)
         frame[y] = row
@@ -127,7 +146,7 @@ function M.new(resolveTarget, onOutputFailure, options)
         cx, cy = target.getCursorPos()
         blink = target.getCursorBlink()
         target.setCursorBlink(false)
-        for y = 1, h do
+        for y = 1, nativeShell and 0 or h do
           local text, fg, bg = frame[y][1], frame[y][2], frame[y][3]
           local old = previous[y]
           if not old or old[1] ~= text or old[2] ~= fg or old[3] ~= bg then
@@ -146,12 +165,25 @@ function M.new(resolveTarget, onOutputFailure, options)
         target.setCursorBlink(blink)
         if pixel and pixel.mode~=0 then
           local drawn,problem=true,nil
-          if options and options.pixelRender then drawn,problem=pcall(options.pixelRender,pixel) end
+          if options and options.pixelRender then
+            local started=os.clock()
+            drawn,problem=pcall(options.pixelRender,pixel)
+            stats.compositionSeconds=(stats.renderSeconds or 0)+os.clock()-started
+            stats.maxCompositionSeconds=math.max(stats.maxCompositionSeconds or 0,stats.compositionSeconds)
+          end
           local ok,err
           if drawn then ok,err=pixel:present()
           else pixel.lastError=tostring(problem) pixel:close() ok,err=false,problem end
           if not ok then
-            -- Publish the complete text frame immediately on the same display.
+            -- Rebuild complete rescue UI lazily; successful native frames need no
+            -- text desktop, taskbar or physical-buffer row comparison.
+            if nativeShell then
+              term.redirect(surface)
+              local rendered,reason=pcall(render,true)
+              term.redirect(target)
+              if not rendered then error(reason,0) end
+              for y=1,h do frame[y]={surface.getLine(y)} end
+            end
             previous={}
             for y=1,h do target.setCursorPos(1,y) target.blit(table.unpack(frame[y])) end
             target.setCursorPos(cx,cy) target.setCursorBlink(blink)

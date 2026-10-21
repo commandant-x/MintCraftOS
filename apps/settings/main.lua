@@ -95,6 +95,12 @@ function M.run(ctx)
       add("graphics:auto","Automatic pixels",not cfg.safeMode and cfg.graphicsMode~='pixel16')
       add('graphics:pixel16','16-color pixels',not cfg.safeMode and cfg.graphicsMode=='pixel16')
       add('graphics:text','Text rescue',cfg.safeMode==true)
+      for _,name in ipairs({'stable','balanced','performance'}) do
+        add('gfxprofile:'..name,'Performance: '..name,(cfg.graphicsProfile or 'balanced')==name)
+      end
+      add('gfxopt:off','Disable new graphics optimizations',cfg.graphicsOptimizations==false)
+      add('gfxopt:on','Enable graphics optimizations',cfg.graphicsOptimizations~=false)
+      for _,hz in ipairs({10,15,20}) do add('gfxhz:'..hz,'Presentation max '..hz..' Hz',(cfg.graphicsMaxHz or 20)==hz) end
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
@@ -150,6 +156,16 @@ function M.run(ctx)
         line("Backend: "..tostring(g.backend or "TEXT"))
         if g.pixelWidth then line("Pixels: "..g.pixelWidth.."x"..g.pixelHeight) end
         if g.lastError then line("Graphics error: "..g.lastError) end
+        line('Performance: '..tostring(g.profile or 'unavailable'))
+        line('Optimizations: '..tostring(g.optimized))
+        line('Boot Guard: '..tostring(g.bootGuard or 'unavailable'))
+        line('Skipped presents: '..tostring(g.skippedPresents or 0))
+        line('drawPixels calls: '..tostring(g.drawCalls or 0))
+        if g.bootGuardReason then line('Boot reason: '..tostring(g.bootGuardReason)) end
+        local ok,checkpoint=pcall(function() return require('system.services.updated').rollbackInfo() end)
+        line('Checkpoint: '..tostring(ok and checkpoint and checkpoint.id or 'unavailable'))
+        local measured,heap=pcall(collectgarbage,'count')
+        if measured then line(string.format('Lua heap: %.1f KiB',heap)) end
       end
     elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Keyboard: AZERTY")
     elseif self.page=="network" then

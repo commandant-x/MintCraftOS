@@ -49,6 +49,11 @@ assert(service.request(first,'app:browser',false)) wake('mintcraft_settings_acti
 assert(service.request(first,'scale:17')) wake('mintcraft_settings_action') assert(not service.status().result)
 local before=#calls assert(service.request(first,'cleanupConfirm',false)) wake('mintcraft_settings_action') assert(#calls==before,'cleanup without confirmation executed')
 assert(service.request(first,'cleanupConfirm',true)) wake('mintcraft_settings_action') assert(calls[#calls]=='prune')
+assert(service.request(first,'gfxprofile:performance')) wake('mintcraft_settings_action') assert(cfg.graphicsProfile=='performance')
+failSave=true assert(service.request(first,'gfxprofile:stable')) wake('mintcraft_settings_action') assert(cfg.graphicsProfile=='performance' and not service.status().result) failSave=false
+assert(service.request(first,'gfxopt:off')) wake('mintcraft_settings_action') assert(cfg.graphicsOptimizations==false)
+assert(service.request(first,'gfxhz:10')) wake('mintcraft_settings_action') assert(cfg.graphicsMaxHz==10)
+assert(service.request(first,'gfxhz:1')) wake('mintcraft_settings_action') assert(cfg.graphicsMaxHz==10 and not service.status().result)
 suspend=true assert(service.request(first,'display:terminal_1')) wake('mintcraft_settings_action')
 assert(scheduler:kill(service.status().pid,true))
 assert(service.status().phase=='uncertain' and not service.request(first,'theme:dark') and not service.stop(),'uncertain worker automatically retried')

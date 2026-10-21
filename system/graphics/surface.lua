@@ -15,6 +15,28 @@ function M.new(w,h,color)
     assert(type(c)=="number" and c%1==0 and c>=0 and c<=255,"Invalid palette index")
     return string.char(c)
   end
+  -- Up to eight sorted intervals per row; fragmentation collapses to one span.
+  function s:markDirty(y,left,right)
+    local d=self.dirty[y]
+    if not d then self.dirty[y]={left,right} return end
+    if left>=d[1] and right<=d[2] and not d.spans then return end
+    if not d.spans and left<=d[2]+16 and right>=d[1]-16 then
+      self.dirty[y]={math.min(d[1],left),math.max(d[2],right)} return
+    end
+    local list=d.spans or {{d[1],d[2]}}
+    local merged={} local placed=false
+    for _,v in ipairs(list) do
+      if v[2]<left then merged[#merged+1]=v
+      elseif right<v[1] then
+        if not placed then merged[#merged+1]={left,right} placed=true end
+        merged[#merged+1]=v
+      else left,right=math.min(left,v[1]),math.max(right,v[2]) end
+    end
+    if not placed then merged[#merged+1]={left,right} end
+    local lo,hi=math.min(d[1],left),math.max(d[2],right)
+    if #merged>8 then merged={{lo,hi}} end
+    self.dirty[y]={lo,hi,spans=merged}
+  end
   function s:span(x,y,text)
     x,y=math.floor(x),math.floor(y)
     local c=self.clip
@@ -25,8 +47,7 @@ function M.new(w,h,color)
     local old=self.rows[y+1]
     if old:sub(x+1,x+#text)==text then return end
     self.rows[y+1]=old:sub(1,x)..text..old:sub(x+#text+1)
-    local d=self.dirty[y+1]
-    self.dirty[y+1]={math.min(d and d[1] or x,x),math.max(d and d[2] or x+#text,x+#text)}
+    self:markDirty(y+1,x,x+#text)
   end
   function s:rect(x,y,rw,rh,c)
     x,y,rw,rh=math.floor(x),math.floor(y),math.floor(rw),math.floor(rh)

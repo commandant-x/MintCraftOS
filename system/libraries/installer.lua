@@ -56,11 +56,25 @@ function M.install(files,options)
   -- Refuse before touching live files when space or the checkpoint is unavailable.
   local free=fs.getFreeSpace and fs.getFreeSpace("/")
   local upgrading=fs.exists("/VERSION") and #plan.changed>0
+  assert(not upgrading or type(free)=="number" or free=="unlimited","INSTALL-DISK: cannot verify free space for a reversible upgrade")
   local required=plan.stageBytes+plan.backupBytes*(upgrading and 2 or 1)+math.max(32768,#plan.changed*256)
   if type(free)=="number" then assert(free>=required,"INSTALL-DISK: insufficient space for staging and retained rollback; backups retained") end
   if options and options.beforeInstall then options.beforeInstall(plan)
   elseif upgrading then
-    local updated=require("system.services.updated")
+    -- Use the verified bundled checkpoint implementation even when upgrading
+    -- an older installed service. Keep its dependency cache private.
+    local loaded={}
+    local function bundled(name)
+      if loaded[name]~=nil then return loaded[name] end
+      local path=name:gsub("%.","/")..".lua"
+      if not files[path] then return require(name) end
+      local environment=setmetatable({require=bundled},{__index=_ENV})
+      loaded[name]=true
+      local value=assert(load(files[path],"@"..path,"t",environment))()
+      loaded[name]=value==nil and true or value
+      return loaded[name]
+    end
+    local updated=bundled("system.services.updated")
     local saved,problem=updated.createRollback("before manual installation",plan.changed)
     assert(saved,"INSTALL-BACKUP: "..tostring(problem))
   end

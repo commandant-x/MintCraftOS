@@ -13,13 +13,15 @@ function M.new()
     local function add(r)
       if not r or r.w<=0 or r.h<=0 then return end
       local n={x=r.x,y=r.y,w=r.w,h=r.h}
-      for _,old in ipairs(damage) do
+      local i=1
+      while i<=#damage do
+        local old=damage[i]
         if intersects(old,n) then
           local right,bottom=math.max(old.x+old.w,n.x+n.w),math.max(old.y+old.h,n.y+n.h)
-          old.x,old.y=math.min(old.x,n.x),math.min(old.y,n.y)
-          old.w,old.h=right-old.x,bottom-old.y
-          return
-        end
+          n.x,n.y=math.min(old.x,n.x),math.min(old.y,n.y)
+          n.w,n.h=right-n.x,bottom-n.y
+          table.remove(damage,i) i=1 -- Union can intersect an earlier rectangle.
+        else i=i+1 end
       end
       damage[#damage+1]=n
     end
@@ -65,12 +67,29 @@ function M.new()
     for y,old in pairs(before) do
       local row=surface.rows[y]
       if row==old then surface.dirty[y]=beforeDirty[y]
+      elseif beforeDirty[y] and beforeDirty[y][1]==0 and beforeDirty[y][2]==surface.width then
+        surface.dirty[y]=beforeDirty[y]
       else
         local left,right=0,surface.width
         while left<right and old:byte(left+1)==row:byte(left+1) do left=left+1 end
         while right>left and old:byte(right)==row:byte(right) do right=right-1 end
         local pending=beforeDirty[y]
-        surface.dirty[y]={math.min(left,pending and pending[1] or left),math.max(right,pending and pending[2] or right)}
+        surface.dirty[y]=nil
+        if surface.markDirty then
+          -- Detect two short edge changes with a large identical center using
+          -- C string comparison. Do not scan every changed pixel in Lua.
+          local a,b=left+1,right-1
+          while a<math.min(right,left+32) and old:byte(a+1)~=row:byte(a+1) do a=a+1 end
+          if a<math.min(right,left+32) then
+            while b>math.max(a,right-32) and old:byte(b)~=row:byte(b) do b=b-1 end
+          else b=a end
+          if b-a>=64 and old:sub(a+1,b)==row:sub(a+1,b) then
+            surface:markDirty(y,left,a) surface:markDirty(y,b,right)
+          else surface:markDirty(y,left,right) end
+          if pending then
+            for _,span in ipairs(pending.spans or {{pending[1],pending[2]}}) do surface:markDirty(y,span[1],span[2]) end
+          end
+        else surface.dirty[y]={math.min(left,pending and pending[1] or left),math.max(right,pending and pending[2] or right)} end
       end
     end
     self.previous,self.lastOrder=now,signature

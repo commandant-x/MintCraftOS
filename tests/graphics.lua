@@ -24,7 +24,7 @@ local count=#calls
 assert(b:present() and #calls==count,"static framebuffer rewritten")
 b.surface:rect(-4,-4,6,6,4)
 assert(b.surface.rows[1]:sub(1,3)==string.char(4,4,15))
-assert(b:present() and #calls==count+2,"dirty spans not isolated")
+assert(b:present() and #calls==count+1,"adjacent dirty spans were not batched")
 fonts.draw(b.surface,2,2,"MintCraft",0,15)
 assert(fonts.measure("a\nb")==6)
 assert(b:present())

@@ -103,8 +103,18 @@ function M.attach(app)
         local pixels=r.backend=="PIXEL16" or r.backend=="PIXEL256"
         lines={"Backend: "..tostring(r.backend or "unavailable"),"Pixel dimensions: "..tostring(r.pixelWidth or "?").." x "..tostring(r.pixelHeight or "?"),
           "Compositor draw calls: "..number(r.frames),"Compositor draws / s: "..number(snap.renderRate),"Pixel payload total B: "..(pixels and r.generation and number(r.bytes) or "unavailable"),
-          "Pixel payload B / s: "..number(snap.pixelRate),"Dirty row submissions: "..(pixels and number(r.regions) or "unavailable"),"Last successful present ms: "..(pixels and metrics.finite(r.lastDrawSeconds) and number(r.lastDrawSeconds*1000) or "unavailable"),
-          "Backend generation: "..tostring(r.generation or "unavailable"),"Physical display FPS: unavailable","Aggregate network bytes: unavailable","Last render error:\n"..tostring(r.lastError or "none")}
+          "Pixel payload B / s: "..number(snap.pixelRate),"Dirty region submissions: "..(pixels and number(r.regions) or "unavailable"),"Last successful present ms: "..(pixels and metrics.finite(r.lastDrawSeconds) and number(r.lastDrawSeconds*1000) or "unavailable"),
+          "Backend generation: "..tostring(r.generation or "unavailable"),"Present requests / skipped: "..number(r.presentRequests).." / "..number(r.skippedPresents),
+          "Presented images: "..number(r.presentedFrames),"drawPixels calls: "..number(r.drawCalls),
+          "Dirty lines: "..number(r.dirtyLines),"Damage rectangles: "..number(r.damageRectangles),
+          "Render requests / skipped: "..number(r.renderRequests).." / "..number(r.skippedRenders),
+          "Prepare ms / max: "..number(r.prepareSeconds and r.prepareSeconds*1000).." / "..number(r.maxPrepareSeconds and r.maxPrepareSeconds*1000),
+          "Compose ms / max: "..number(r.compositionSeconds and r.compositionSeconds*1000).." / "..number(r.maxCompositionSeconds and r.maxCompositionSeconds*1000),
+          "Present max ms: "..number(r.maxDrawSeconds and r.maxDrawSeconds*1000),
+          "Cache hits / misses / evictions: "..number(r.cacheHits).." / "..number(r.cacheMisses).." / "..number(r.cacheEvictions),
+          "Cache pixel bytes / limit: "..number(r.cacheBytes).." / "..number(r.cacheLimit),
+          "Graphics profile: "..tostring(r.profile or "unavailable"),"Boot Guard: "..tostring(r.bootGuard or "unavailable"),
+          "Physical display FPS: unavailable","Aggregate network bytes: unavailable","Last render error:\n"..tostring(r.lastError or "none")}
       else
         local io=snap.acquisition
         lines={"Instrumented peripheral acquisition","Read attempts: "..number(io.reads),"Read attempts / s: "..number(snap.readRate),"In flight: "..number(io.inFlight),"Queued: "..number(io.queue),

@@ -5,7 +5,7 @@ local files = {
 {
   id = "browser",
   name = "Browser",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.browser.main",
   permissions = { "network.http" },
 }
@@ -779,7 +779,7 @@ return M
 {
   id = "combat",
   name = "Combat",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.combat.main",
   permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" },
 }
@@ -1467,7 +1467,7 @@ return M
 {
   id = "crafttube",
   name = "CraftTube",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.crafttube.main",
   permissions = { "network.http", "filesystem.read", "filesystem.write" },
 }
@@ -1866,7 +1866,7 @@ return M
 {
   id = "devices",
   name = "Devices",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.devices.main",
   permissions = { "devices.list", "peripheral.probe" },
 }
@@ -2214,7 +2214,7 @@ return M
 {
   id = "editor",
   name = "Editor",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.editor.main",
   permissions = { "filesystem.read", "filesystem.write", "dev.compile" },
 }
@@ -2884,7 +2884,7 @@ return M
 {
   id = "files",
   name = "Files",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.files.main",
   permissions = { "filesystem.read", "filesystem.write" },
 }
@@ -3707,7 +3707,7 @@ return M
 {
   id = "logs",
   name = "Logs",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.logs.main",
   permissions = { "logs.read" },
 }
@@ -4006,7 +4006,7 @@ return M
 {
   id = "messenger",
   name = "Messenger",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.messenger.main",
   permissions = { "rednet.send", "rednet.receive" },
 }
@@ -4224,7 +4224,7 @@ return M
 {
   id = "navigation",
   name = "Navigation",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.navigation.main",
   permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" },
 }
@@ -5115,7 +5115,7 @@ return M
 {
   id = "services",
   name = "Services",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.services.main",
   permissions = { "services.list" },
 }
@@ -5354,7 +5354,7 @@ return M
 {
   id = "settings",
   name = "Settings",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.settings.main",
   permissions = { "system.config", "audio.control", "system.auth" },
 }
@@ -5457,6 +5457,12 @@ function M.run(ctx)
       add("graphics:auto","Automatic pixels",not cfg.safeMode and cfg.graphicsMode~='pixel16')
       add('graphics:pixel16','16-color pixels',not cfg.safeMode and cfg.graphicsMode=='pixel16')
       add('graphics:text','Text rescue',cfg.safeMode==true)
+      for _,name in ipairs({'stable','balanced','performance'}) do
+        add('gfxprofile:'..name,'Performance: '..name,(cfg.graphicsProfile or 'balanced')==name)
+      end
+      add('gfxopt:off','Disable new graphics optimizations',cfg.graphicsOptimizations==false)
+      add('gfxopt:on','Enable graphics optimizations',cfg.graphicsOptimizations~=false)
+      for _,hz in ipairs({10,15,20}) do add('gfxhz:'..hz,'Presentation max '..hz..' Hz',(cfg.graphicsMaxHz or 20)==hz) end
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
@@ -5512,6 +5518,16 @@ function M.run(ctx)
         line("Backend: "..tostring(g.backend or "TEXT"))
         if g.pixelWidth then line("Pixels: "..g.pixelWidth.."x"..g.pixelHeight) end
         if g.lastError then line("Graphics error: "..g.lastError) end
+        line('Performance: '..tostring(g.profile or 'unavailable'))
+        line('Optimizations: '..tostring(g.optimized))
+        line('Boot Guard: '..tostring(g.bootGuard or 'unavailable'))
+        line('Skipped presents: '..tostring(g.skippedPresents or 0))
+        line('drawPixels calls: '..tostring(g.drawCalls or 0))
+        if g.bootGuardReason then line('Boot reason: '..tostring(g.bootGuardReason)) end
+        local ok,checkpoint=pcall(function() return require('system.services.updated').rollbackInfo() end)
+        line('Checkpoint: '..tostring(ok and checkpoint and checkpoint.id or 'unavailable'))
+        local measured,heap=pcall(collectgarbage,'count')
+        if measured then line(string.format('Lua heap: %.1f KiB',heap)) end
       end
     elseif self.page=="desktop" then line("Theme: "..theme.currentId) line("Keyboard: AZERTY")
     elseif self.page=="network" then
@@ -5756,7 +5772,7 @@ local Keyboard=require('system.graphics.keyboard')
 local M={}
 local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
 local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
-local groups={{'graphics:','Requested renderer','select'},{'display:','Output','select'},{'scale:','Monitor text scale','step'},
+local groups={{'gfxprofile:','Performance profile','radio'},{'gfxopt:','Graphics optimizations','radio'},{'gfxhz:','Presentation ceiling (Hz)','step'},{'graphics:','Requested renderer','select'},{'display:','Output','select'},{'scale:','Monitor text scale','step'},
   {'theme:','Appearance','radio'},{'profile:','Application profile','radio'},{'volume:','Speaker volume','step'},{'speaker:','Default speaker','select'}}
 local hints={label='Computer label',unlock='Unlock password',adminLogin='Admin password',passwordOld='Current admin password',passwordNew='New password',passwordConfirm='Confirm password'}
 function M.attach(app,pages)
@@ -5978,7 +5994,7 @@ return M
 {
   id = "store",
   name = "Store",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.store.main",
   permissions = { "packages.install", "filesystem.write" },
 }
@@ -6093,7 +6109,7 @@ return M
 {
   id = "taskmanager",
   name = "Task Manager",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.taskmanager.main",
   permissions = { "process.list", "process.kill" },
 }
@@ -6387,8 +6403,18 @@ function M.attach(app)
         local pixels=r.backend=="PIXEL16" or r.backend=="PIXEL256"
         lines={"Backend: "..tostring(r.backend or "unavailable"),"Pixel dimensions: "..tostring(r.pixelWidth or "?").." x "..tostring(r.pixelHeight or "?"),
           "Compositor draw calls: "..number(r.frames),"Compositor draws / s: "..number(snap.renderRate),"Pixel payload total B: "..(pixels and r.generation and number(r.bytes) or "unavailable"),
-          "Pixel payload B / s: "..number(snap.pixelRate),"Dirty row submissions: "..(pixels and number(r.regions) or "unavailable"),"Last successful present ms: "..(pixels and metrics.finite(r.lastDrawSeconds) and number(r.lastDrawSeconds*1000) or "unavailable"),
-          "Backend generation: "..tostring(r.generation or "unavailable"),"Physical display FPS: unavailable","Aggregate network bytes: unavailable","Last render error:\n"..tostring(r.lastError or "none")}
+          "Pixel payload B / s: "..number(snap.pixelRate),"Dirty region submissions: "..(pixels and number(r.regions) or "unavailable"),"Last successful present ms: "..(pixels and metrics.finite(r.lastDrawSeconds) and number(r.lastDrawSeconds*1000) or "unavailable"),
+          "Backend generation: "..tostring(r.generation or "unavailable"),"Present requests / skipped: "..number(r.presentRequests).." / "..number(r.skippedPresents),
+          "Presented images: "..number(r.presentedFrames),"drawPixels calls: "..number(r.drawCalls),
+          "Dirty lines: "..number(r.dirtyLines),"Damage rectangles: "..number(r.damageRectangles),
+          "Render requests / skipped: "..number(r.renderRequests).." / "..number(r.skippedRenders),
+          "Prepare ms / max: "..number(r.prepareSeconds and r.prepareSeconds*1000).." / "..number(r.maxPrepareSeconds and r.maxPrepareSeconds*1000),
+          "Compose ms / max: "..number(r.compositionSeconds and r.compositionSeconds*1000).." / "..number(r.maxCompositionSeconds and r.maxCompositionSeconds*1000),
+          "Present max ms: "..number(r.maxDrawSeconds and r.maxDrawSeconds*1000),
+          "Cache hits / misses / evictions: "..number(r.cacheHits).." / "..number(r.cacheMisses).." / "..number(r.cacheEvictions),
+          "Cache pixel bytes / limit: "..number(r.cacheBytes).." / "..number(r.cacheLimit),
+          "Graphics profile: "..tostring(r.profile or "unavailable"),"Boot Guard: "..tostring(r.bootGuard or "unavailable"),
+          "Physical display FPS: unavailable","Aggregate network bytes: unavailable","Last render error:\n"..tostring(r.lastError or "none")}
       else
         local io=snap.acquisition
         lines={"Instrumented peripheral acquisition","Read attempts: "..number(io.reads),"Read attempts / s: "..number(snap.readRate),"In flight: "..number(io.inFlight),"Queued: "..number(io.queue),
@@ -6512,7 +6538,7 @@ return M
 {
   id = "terminal",
   name = "Terminal",
-  version = "0.18.44",
+  version = "0.18.45",
   main = "apps.terminal.main",
   permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "devices.list", "system.config" },
 }
@@ -7188,7 +7214,7 @@ return M
 {
   id = "update",
   name = "Update",
-  version = "0.18.44",
+  version = "0.18.45",
 }
 ]=],
   ["apps/update/main.lua"] = [=[
@@ -7365,10 +7391,19 @@ end
 return M
 ]=],
   ["boot.lua"] = [=[
+local bootOption=...
 if not table.unpack and unpack then table.unpack = unpack end
 -- A previous graphical session must never hide boot/recovery diagnostics.
 if term and term.setFrozen then pcall(term.setFrozen,false) end
 if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
+
+if bootOption=="--recovery" then
+  return assert(loadfile("/system/boot/recovery.lua"))("manual")
+end
+if bootOption=="--text" then
+  local ok,err=assert(loadfile("/system/boot/recovery.lua"))("--text-rescue")
+  assert(ok,err)
+end
 
 if not require then
   local loaded = {}
@@ -7818,7 +7853,7 @@ end
 
 local function ensureDefaults()
   config.ensure("/system/config/system.cfg", {
-    version = "0.18.44",
+    version = "0.18.45",
     theme = "mint",
     graphicsMode = "auto",
     displayTarget = "computer",
@@ -7860,10 +7895,79 @@ end
 
 return M
 ]=],
+  ["system/boot/graphics_guard.lua"] = [=[
+-- Boot health metadata is separate from user settings and is never rollback data.
+local config=require("system.libraries.config")
+local M={path="/var/graphics-boot.cfg"}
+function M.begin(requested)
+  local prior=config.load(M.path,nil)
+  local blocked=type(prior)=="table" and (prior.state=="pending" or prior.state=="failed")
+  if blocked or requested.safeMode or requested.graphicsMode=="text" then
+    return {state=blocked and "safe" or "text",reason=blocked and prior.reason or nil,started=os.clock(),frames=0}
+  end
+  local state={state="pending",started=os.clock(),frames=0}
+  local ok,err=config.save(M.path,{state="pending",reason="Graphical boot did not complete"})
+  if not ok then state.state="safe" state.reason="Cannot journal graphics boot: "..tostring(err) end
+  return state
+end
+function M.observe(state,stats)
+  if state.state~="pending" then return end
+  if stats.backend=="TEXT" then return M.fail(state,stats.lastError or "Graphics unavailable; text fallback active") end
+  state.frames=state.frames+1
+  if state.frames>=3 and os.clock()-state.started>=1 then
+    local ok,err=config.save(M.path,{state="healthy"})
+    if ok then state.state="healthy" else return M.fail(state,tostring(err)) end
+  end
+end
+function M.fail(state,reason)
+  state.state="safe" state.reason=tostring(reason)
+  return config.save(M.path,{state="failed",reason=state.reason})
+end
+function M.retry()
+  return config.save(M.path,{state="retry"})
+end
+return M
+]=],
   ["system/boot/recovery.lua"] = [=[
 local reason = ...
+local function checksum(data)
+  local a,b=1,0
+  for i=1,#data do a=(a+data:byte(i))%65521 b=(b+a)%65521 end
+  return string.format("%08x",b*65536+a)
+end
+
 if term and term.setFrozen then pcall(term.setFrozen,false) end
 if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
+
+-- Match safe_write's recognized save layout without importing the module tree.
+local function textRescue()
+  local path="/system/config/system.cfg"
+  local stage=path..".mintcraft-save"
+  local function readFile(p)
+    local h=assert(fs.open(p,"r"),"Cannot read "..p) local data=h.readAll() h.close() return data
+  end
+  local function writeFile(p,data)
+    fs.makeDir(fs.getDir(p)) local h=assert(fs.open(p,"w"))
+    local ok,err=pcall(h.write,data) local closed,problem=pcall(h.close)
+    assert(ok and closed,tostring(ok and problem or err))
+  end
+  if fs.exists(stage) then
+    assert(fs.exists(stage.."/marker") and readFile(stage.."/marker")=="MintCraft safe save 1","Unrecognized config save; retained")
+    if fs.exists(stage.."/previous") then
+      if not fs.exists(path) then fs.move(stage.."/previous",path)
+      else assert(not fs.exists(stage.."/next"),"Ambiguous config save; retained") end
+    end
+    fs.delete(stage)
+  end
+  local cfg=fs.exists(path) and textutils.unserialize(readFile(path)) or {}
+  assert(type(cfg)=="table","Invalid system config; retained for manual repair")
+  cfg.safeMode=true cfg.graphicsMode="text" cfg.graphicsOptimizations=false
+  fs.makeDir(stage) writeFile(stage.."/marker","MintCraft safe save 1")
+  writeFile(stage.."/next",textutils.serialize(cfg))
+  if fs.exists(path) then fs.move(path,stage.."/previous") end
+  fs.move(stage.."/next",path) fs.delete(stage)
+  return true,"Text rescue saved; reboot. Personal settings retained."
+end
 
 -- Kept dependency-free so a damaged module tree can still restore a checkpoint.
 local function restoreRaw(resumeOnly)
@@ -7923,6 +8027,16 @@ local function restoreRaw(resumeOnly)
       seen[path], count = true, count + 1
     end
     assert(count > 0 and count == #manifest.paths, "Incomplete rollback manifest")
+    if manifest.checksums then
+      assert(type(manifest.checksums)=="table" and manifest.kind=="files","Invalid checkpoint checksums")
+      for _,path in ipairs(manifest.paths) do
+        if manifest.existed[path] then
+          local h=assert(fs.open(backupDir..path,"r"))
+          local data=h.readAll() h.close()
+          assert(checksum(data)==manifest.checksums[path],"Corrupt checkpoint: "..path)
+        end
+      end
+    end
     if fs.exists(stage) then
       local target = readConfig(stage .. "/target.cfg")
       assert(type(target) == "string" and seen[target] and target ~= "/packages", "Invalid pending restore target")
@@ -7961,6 +8075,7 @@ local function restoreRaw(resumeOnly)
         end
       end
     end
+    textRescue()
     fs.delete(pending)
     return true, "Rollback restored; reboot required. Backups retained."
   end
@@ -7969,6 +8084,7 @@ local function restoreRaw(resumeOnly)
   return result, detail
 end
 
+if reason == "--text-rescue" then return pcall(textRescue) end
 if reason == "--raw-rollback" then return restoreRaw(false) end
 if reason == "--resume-rollback" then return restoreRaw(true) end
 
@@ -7984,7 +8100,10 @@ print("Commands:")
 print("  shell  - open CraftOS shell")
 print("  logs   - show last system log lines")
 print("  crash  - show last crash log")
-print("  rollback - restore last update backup")
+print("  version - show installed version")
+print("  checkpoint - show checkpoint metadata")
+print("  safe - save text mode and disable graphics optimizations")
+print("  rollback - confirm and restore last update backup")
 print("  reboot - reboot computer")
 print("  exit   - return to caller")
 print("")
@@ -8009,15 +8128,18 @@ while true do
     else
       print("No crash log found.")
     end
+  elseif cmd=="version" or cmd=="checkpoint" then
+    local path=cmd=="version" and "/VERSION" or "/var/backups/update/latest.cfg"
+    if not fs.exists(path) and cmd=="checkpoint" then path="/var/backups/update/previous.cfg" end
+    local h=fs.open(path,"r") if h then print(h.readAll()) h.close() else print("Unavailable") end
+  elseif cmd=="safe" then
+    local ok,message=pcall(textRescue) print(tostring(message))
   elseif cmd == "rollback" then
-    local ok, updated = pcall(require, "system.services.updated")
-    local success, message
-    if ok and updated and updated.rollback then
-      success, message = updated.rollback()
-    else
-      success, message = restoreRaw()
-    end
-    print(tostring(message))
+    print("Restore covered system files and reboot in text mode? Type RESTORE:")
+    if read()=="RESTORE" then
+      local success,message=restoreRaw(false)
+      print(tostring(message))
+    else print("Cancelled; checkpoint retained") end
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "exit" then
@@ -8200,7 +8322,7 @@ return M
 ]=],
   ["system/config/system.cfg"] = [=[
 {
-  version = "0.18.44",
+  version = "0.18.45",
   theme = "mint",
   graphicsMode = "auto",
   displayTarget = "computer",
@@ -8643,14 +8765,21 @@ function M.detect(t)
   if type(t.isColor)=="function" then local ok,value=pcall(t.isColor) if ok then caps.color=value==true end end
   return caps
 end
-function M.new(t,preference)
+function M.new(t,preference,options)
+  options=options or {}
   serial=serial+1
   local caps=M.detect(t)
-  local b={target=t,caps=caps,mode=0,generation=serial,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={}}
+  local b={target=t,caps=caps,mode=0,generation=serial,frames=0,bytes=0,regions=0,lastError=nil,paletteBackup={},requests=0,skippedPresents=0,lines=0,drawCalls=0,maxDrawSeconds=0,
+    optimized=options.optimized~=false,batchRows=options.batchRows or 8,palettePending=false}
+  assert(b.batchRows==1 or b.batchRows==4 or b.batchRows==8 or b.batchRows==16 or b.batchRows==32,"Invalid batch size")
+  local function submit(x,y,rows)
+    b.drawCalls=b.drawCalls+1
+    return t.drawPixels(x,y,rows)
+  end
   function b:palette(index,rgb)
     assert(self.mode==2 and index>=16 and index<=255 and index%1==0,"Extended palette unavailable")
     if not self.paletteBackup[index] then self.paletteBackup[index]={t.getPaletteColor(index)} end
-    t.setPaletteColor(index,rgb)
+    t.setPaletteColor(index,rgb) self.palettePending=true
   end
   function b:close()
     if type(t.setFrozen)=="function" then pcall(t.setFrozen,false) end
@@ -8662,25 +8791,67 @@ function M.new(t,preference)
     self.mode=0 self.caps.backend="TEXT"
   end
   function b:present()
+    self.requests=self.requests+1
     if self.mode==0 then return false,self.lastError end
+    if self.optimized and not next(self.surface.dirty) and not self.palettePending then
+      self.skippedPresents=self.skippedPresents+1
+      return true
+    end
     local started=os.clock()
-    local frozen=false
+    local frozen,freezeRead=false,false
     local ok,err=pcall(function()
-      if caps.freeze then frozen=t.getFrozen() t.setFrozen(true) end
-      for y=1,self.surface.height do
+      if caps.freeze then frozen=t.getFrozen() freezeRead=true t.setFrozen(true) end
+      local y=1
+      while y<=self.surface.height do
         local d=self.surface.dirty[y]
-        if d then
-          t.drawPixels(d[1],y-1,{self.surface.rows[y]:sub(d[1]+1,d[2])})
-          self.bytes=self.bytes+d[2]-d[1] self.regions=self.regions+1
+        if not d then y=y+1
+        else
+          local spans=self.optimized and d.spans or nil
+          spans=spans or {{d[1],d[2]}}
+          local count=1
+          if self.optimized then
+            while count<self.batchRows and y+count<=self.surface.height do
+              local n=self.surface.dirty[y+count]
+              if not n or n[1]~=d[1] or n[2]~=d[2] then break end
+              local other=n.spans or {{n[1],n[2]}}
+              local compatible=#other==#spans
+              if compatible then
+                for i,v in ipairs(spans) do if v[1]~=other[i][1] or v[2]~=other[i][2] then compatible=false break end end
+              end
+              if not compatible then break end
+              count=count+1
+            end
+          end
+          for _,span in ipairs(spans) do
+            local rows={}
+            for i=0,count-1 do rows[i+1]=self.surface.rows[y+i]:sub(span[1]+1,span[2]) end
+            if count>1 then
+              local accepted=pcall(submit,span[1],y-1,rows)
+              if not accepted then
+                -- Older targets may support byte rows but reject multi-row calls.
+                self.batchRows=1
+                for i,row in ipairs(rows) do
+                  submit(span[1],y+i-2,{row})
+                end
+              end
+            else submit(span[1],y-1,rows) end
+            self.bytes=self.bytes+(span[2]-span[1])*count
+            self.regions=self.regions+1
+          end
+          self.lines=self.lines+count y=y+count
         end
       end
     end)
-    if caps.freeze then
+    if caps.freeze and freezeRead then
       local restored,problem=pcall(t.setFrozen,frozen)
       if not restored then ok,err=false,problem end
     end
-    if not ok then self.lastError=tostring(err) self:close() return false,self.lastError end
-    self.surface.dirty={} self.frames=self.frames+1 self.lastDrawSeconds=os.clock()-started
+    if not ok then
+      self.surface.dirty={} self.palettePending=false
+      self.lastError=tostring(err) self:close() return false,self.lastError
+    end
+    self.surface.dirty={} self.palettePending=false self.frames=self.frames+1
+    self.lastDrawSeconds=os.clock()-started self.maxDrawSeconds=math.max(self.maxDrawSeconds,self.lastDrawSeconds)
     return true
   end
   if preference=="text" or not caps.graphics then return b end
@@ -8693,7 +8864,7 @@ function M.new(t,preference)
       assert(w and h,"Invalid pixel dimensions")
       local surface=Surface.new(w,h,15)
       -- Probe the actual byte-row overload, not just the presence of the method.
-      t.drawPixels(0,0,{string.char(15)})
+      submit(0,0,{string.char(15)})
       b.surface=surface b.mode=mode caps.pixelWidth,caps.pixelHeight=w,h
       caps.backend=mode==2 and "PIXEL256" or "PIXEL16"
     end)
@@ -8936,6 +9107,47 @@ function M.row(surface,y,text,fg,bg,columns,rows)
 end
 return M
 ]=],
+  ["system/graphics/policy.lua"] = [=[
+-- Presentation policy only. Never gates event dispatch or acquisition timers.
+local M={}
+function M.options(cfg)
+  cfg=cfg or {}
+  local profile=cfg.graphicsProfile or "balanced"
+  if profile~="stable" and profile~="balanced" and profile~="performance" then profile="balanced" end
+  local hz=tonumber(cfg.graphicsMaxHz)
+  if not hz or hz~=hz or hz<10 or hz>20 then hz=profile=="performance" and 10 or 20 end
+  local optimized=cfg.graphicsOptimizations~=false and profile~="stable"
+  return {profile=profile,optimized=optimized,maxHz=hz,batchRows=optimized and 8 or 1}
+end
+function M.new(options,clock)
+  clock=clock or os.clock
+  local self={options=options,pending=false,last=-math.huge,requests=0,skipped=0,frames=0}
+  function self:request(changed)
+    self.requests=self.requests+1
+    if changed then self.pending=true else self.skipped=self.skipped+1 end
+  end
+  function self:delay()
+    if not self.pending then return end
+    return math.max(0,1/self.options.maxHz-(clock()-self.last))
+  end
+  function self:presented() self.pending=false self.last=clock() self.frames=self.frames+1 end
+  return self
+end
+function M.visibleKey(ctx,workspace)
+  local parts={tostring(workspace.revision),tostring(require("system.gui.theme").currentId)}
+  for _,win in ipairs(ctx.wm.windows) do
+    local b=win.pixelBounds or {}
+    parts[#parts+1]=table.concat({win.id,tostring(win.closed),tostring(win.minimized),win.x,win.y,win.w,win.h,
+      b.x or 0,b.y or 0,b.w or 0,b.h or 0,tostring(win.maximized),tostring(win.movePending),win.title},":")
+    if not win.closed and not win.minimized then
+      parts[#parts+1]=tostring(win.dirty)..":"..tostring(win.surfaceRevision)
+    end
+  end
+  for _,item in ipairs(ctx.notifications.queue or {}) do parts[#parts+1]="notification:"..item.id end
+  return table.concat(parts,"|")
+end
+return M
+]=],
   ["system/graphics/primitives.lua"] = [=[
 local M={}
 function M.line(s,x1,y1,x2,y2,c)
@@ -9018,13 +9230,15 @@ function M.new()
     local function add(r)
       if not r or r.w<=0 or r.h<=0 then return end
       local n={x=r.x,y=r.y,w=r.w,h=r.h}
-      for _,old in ipairs(damage) do
+      local i=1
+      while i<=#damage do
+        local old=damage[i]
         if intersects(old,n) then
           local right,bottom=math.max(old.x+old.w,n.x+n.w),math.max(old.y+old.h,n.y+n.h)
-          old.x,old.y=math.min(old.x,n.x),math.min(old.y,n.y)
-          old.w,old.h=right-old.x,bottom-old.y
-          return
-        end
+          n.x,n.y=math.min(old.x,n.x),math.min(old.y,n.y)
+          n.w,n.h=right-n.x,bottom-n.y
+          table.remove(damage,i) i=1 -- Union can intersect an earlier rectangle.
+        else i=i+1 end
       end
       damage[#damage+1]=n
     end
@@ -9070,12 +9284,29 @@ function M.new()
     for y,old in pairs(before) do
       local row=surface.rows[y]
       if row==old then surface.dirty[y]=beforeDirty[y]
+      elseif beforeDirty[y] and beforeDirty[y][1]==0 and beforeDirty[y][2]==surface.width then
+        surface.dirty[y]=beforeDirty[y]
       else
         local left,right=0,surface.width
         while left<right and old:byte(left+1)==row:byte(left+1) do left=left+1 end
         while right>left and old:byte(right)==row:byte(right) do right=right-1 end
         local pending=beforeDirty[y]
-        surface.dirty[y]={math.min(left,pending and pending[1] or left),math.max(right,pending and pending[2] or right)}
+        surface.dirty[y]=nil
+        if surface.markDirty then
+          -- Detect two short edge changes with a large identical center using
+          -- C string comparison. Do not scan every changed pixel in Lua.
+          local a,b=left+1,right-1
+          while a<math.min(right,left+32) and old:byte(a+1)~=row:byte(a+1) do a=a+1 end
+          if a<math.min(right,left+32) then
+            while b>math.max(a,right-32) and old:byte(b)~=row:byte(b) do b=b-1 end
+          else b=a end
+          if b-a>=64 and old:sub(a+1,b)==row:sub(a+1,b) then
+            surface:markDirty(y,left,a) surface:markDirty(y,b,right)
+          else surface:markDirty(y,left,right) end
+          if pending then
+            for _,span in ipairs(pending.spans or {{pending[1],pending[2]}}) do surface:markDirty(y,span[1],span[2]) end
+          end
+        else surface.dirty[y]={math.min(left,pending and pending[1] or left),math.max(right,pending and pending[2] or right)} end
       end
     end
     self.previous,self.lastOrder=now,signature
@@ -9152,6 +9383,28 @@ function M.new(w,h,color)
     assert(type(c)=="number" and c%1==0 and c>=0 and c<=255,"Invalid palette index")
     return string.char(c)
   end
+  -- Up to eight sorted intervals per row; fragmentation collapses to one span.
+  function s:markDirty(y,left,right)
+    local d=self.dirty[y]
+    if not d then self.dirty[y]={left,right} return end
+    if left>=d[1] and right<=d[2] and not d.spans then return end
+    if not d.spans and left<=d[2]+16 and right>=d[1]-16 then
+      self.dirty[y]={math.min(d[1],left),math.max(d[2],right)} return
+    end
+    local list=d.spans or {{d[1],d[2]}}
+    local merged={} local placed=false
+    for _,v in ipairs(list) do
+      if v[2]<left then merged[#merged+1]=v
+      elseif right<v[1] then
+        if not placed then merged[#merged+1]={left,right} placed=true end
+        merged[#merged+1]=v
+      else left,right=math.min(left,v[1]),math.max(right,v[2]) end
+    end
+    if not placed then merged[#merged+1]={left,right} end
+    local lo,hi=math.min(d[1],left),math.max(d[2],right)
+    if #merged>8 then merged={{lo,hi}} end
+    self.dirty[y]={lo,hi,spans=merged}
+  end
   function s:span(x,y,text)
     x,y=math.floor(x),math.floor(y)
     local c=self.clip
@@ -9162,8 +9415,7 @@ function M.new(w,h,color)
     local old=self.rows[y+1]
     if old:sub(x+1,x+#text)==text then return end
     self.rows[y+1]=old:sub(1,x)..text..old:sub(x+#text+1)
-    local d=self.dirty[y+1]
-    self.dirty[y+1]={math.min(d and d[1] or x,x),math.max(d and d[2] or x+#text,x+#text)}
+    self:markDirty(y+1,x,x+#text)
   end
   function s:rect(x,y,rw,rh,c)
     x,y,rw,rh=math.floor(x),math.floor(y),math.floor(rw),math.floor(rh)
@@ -9384,7 +9636,21 @@ local function clockText()
 end
 function M.new(ctx)
   local self={scene=Scene.new(),ctx=ctx,icons={},content={},page=1,taskPage=1,
-    menu=false,query="",menuScroll=1,menuSelected=1,revision=0,hits={},context=nil,cacheBytes=0,cacheLimit=2097152}
+    menu=false,query="",menuScroll=1,menuSelected=1,revision=0,hits={},context=nil,cacheBytes=0,cacheLimit=2097152,cacheSerial=0,stats={cacheHits=0,cacheMisses=0,cacheEvictions=0}}
+  function self:reserve(bytes,keep)
+    local reserve=keep~=self.activeId and (self.reservedActive or 0) or 0
+    if bytes+reserve>self.cacheLimit then return false end
+    while self.cacheBytes+bytes+reserve>self.cacheLimit do
+      local victim,oldest
+      for id,cache in pairs(self.content) do
+        if id~=keep and cache.frame~=self.drawSerial and cache.bytes>0 and (not oldest or (cache.used or 0)<oldest) then victim,oldest=id,cache.used or 0 end
+      end
+      if not victim then return false end
+      self.cacheBytes=self.cacheBytes-self.content[victim].bytes self.content[victim]=nil
+      self.stats.cacheEvictions=self.stats.cacheEvictions+1
+    end
+    return true
+  end
   local function changed() self.revision=self.revision+1 end
   local function launch(id,args)
     self.menu=false self.context=nil self.typing=false self.query="" changed()
@@ -9471,7 +9737,7 @@ function M.new(ctx)
     local live={}
     for _,win in ipairs(ctx.wm.windows) do
       if not win.closed then
-        live[win.id]=true
+        live[win.id]=not win.minimized
         local b=win.pixelBounds or box((win.x-1)*6,(win.y-1)*9,(win.w-2)*6+2,(win.h-2)*9+TITLE+2)
         if win.maximized then
           if not win.pixelPrevious then win.pixelPrevious=copy(b) end
@@ -9485,8 +9751,20 @@ function M.new(ctx)
         fit(win,b)
       end
     end
+    local occluded={}
+    for i,win in ipairs(ctx.wm.windows) do
+      local a=win.pixelBounds
+      if a and not win.closed and not win.minimized then
+        for j=i+1,#ctx.wm.windows do
+          local upper=ctx.wm.windows[j] local b=upper.pixelBounds
+          if b and not upper.closed and not upper.minimized and b.x<=a.x and b.y<=a.y and b.x+b.w>=a.x+a.w and b.y+b.h>=a.y+a.h then occluded[win.id]=true break end
+        end
+      end
+    end
+    self.occluded=occluded
+    for id in pairs(occluded) do live[id]=false end
     for id,cached in pairs(self.content) do if not live[id] then
-      self.cacheBytes=self.cacheBytes-(cached.bytes or 0) self.content[id]=nil
+      self.cacheBytes=self.cacheBytes-(cached.bytes or 0) self.content[id]=nil self.stats.cacheEvictions=self.stats.cacheEvictions+1
     end end
     if self.drag and (not live[self.drag.win.id] or self.drag.win.minimized) then self.drag=nil end
     if self.clientCapture and (not live[self.clientCapture.win.id] or self.clientCapture.win.minimized) then self.clientCapture=nil end
@@ -9502,6 +9780,7 @@ function M.new(ctx)
     layers[#layers+1]={id=id,x=b.x,y=b.y,w=b.w,h=b.h,revision=revision,draw=draw}
   end
   function self:draw(backend)
+    self.drawSerial=(self.drawSerial or 0)+1
     local s,p=backend.surface,self.palette
     local w,h=self.width,self.height
     local layers={} self.hits={} self.taskHits={} self.windowHits={} self.notificationHits={}
@@ -9535,8 +9814,15 @@ function M.new(ctx)
       end
     end)
     local active=ctx.wm:active()
+    self.activeId=active and active.id self.reservedActive=0
+    if active and active.pixelBounds and not active.minimized then
+      local bounds=active.pixelBounds
+      local needed=active.pixelNative and (bounds.w-2)*(bounds.h-TITLE-1) or (active.w-2)*(active.h-2)*54
+      local cached=self.content[active.id]
+      if needed<=self.cacheLimit then self.reservedActive=math.max(0,needed-(cached and cached.bytes or 0)) end
+    end
     for _,win in ipairs(ctx.wm.windows) do
-      if not win.closed and not win.minimized and win.pixelBounds then
+      if not win.closed and not win.minimized and win.pixelBounds and not self.occluded[win.id] then
         local b=win.pixelBounds
         local client=box(b.x+1,b.y+TITLE,b.w-2,b.h-TITLE-1)
         local cw,ch=win.w-2,win.h-2
@@ -9545,25 +9831,34 @@ function M.new(ctx)
           self.cacheBytes=self.cacheBytes-cache.bytes self.content[win.id]=nil cache=nil
         end
         if win.pixelNative and (not cache or cache.width~=client.w or cache.height~=client.h or cache.revision~=win.surfaceRevision or cache.palette~=p) then
+          self.stats.cacheMisses=self.stats.cacheMisses+1
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
           cache={native=true,width=client.w,height=client.h,revision=win.surfaceRevision,palette=p,bytes=0}
           local bytes=client.w*client.h
-          if self.cacheBytes+bytes<=self.cacheLimit then
+          if self:reserve(bytes,win.id) then
             cache.surface=Surface.new(client.w,client.h,p.panel) cache.bytes=bytes
             win:drawPixels(View.new(cache.surface,0,0,client.w,client.h),client.w,client.h,p)
+            cache.surface.dirty={}
           end
           self.cacheBytes=self.cacheBytes+cache.bytes self.content[win.id]=cache
         end
         if not win.pixelNative and win.surface and (not cache or cache.width~=cw or cache.height~=ch or cache.revision~=win.surfaceRevision) then
+          self.stats.cacheMisses=self.stats.cacheMisses+1
           self.cacheBytes=self.cacheBytes-(cache and cache.bytes or 0)
           cache={native=false,width=cw,height=ch,revision=win.surfaceRevision,bytes=0}
           local bytes=cw*ch*54
-          if self.cacheBytes+bytes<=self.cacheLimit then
+          if self:reserve(bytes,win.id) then
             cache.surface=Surface.new(cw*6,ch*9,15) cache.bytes=bytes
             for y=1,ch do local text,fg,bg=win.surface.getLine(y) Legacy.row(cache.surface,y,text,fg,bg,cw,ch) end
+            cache.surface.dirty={}
           end
           self.cacheBytes=self.cacheBytes+cache.bytes
           self.content[win.id]=cache
+        end
+        if cache then
+          self.cacheSerial=self.cacheSerial+1 cache.used=self.cacheSerial cache.frame=self.drawSerial
+          if cache.lastRevision==win.surfaceRevision then self.stats.cacheHits=self.stats.cacheHits+1 end
+          cache.lastRevision=win.surfaceRevision
         end
         local controls={close=box(b.x+b.w-19,b.y+1,18,18),maximize=box(b.x+b.w-38,b.y+1,18,18),minimize=box(b.x+b.w-57,b.y+1,18,18)}
         self.windowHits[#self.windowHits+1]={win=win,rect=b,client=client,controls=controls}
@@ -10079,6 +10374,7 @@ function M.new(resolveTarget, onOutputFailure, options)
   local frame = {}
   local failedTarget, fallbackTarget
   local function outputFailure(target, problem)
+    if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,problem) end
     if pixel then pixel:close() pixel=nil end
     previous = {}
     local native = term.native and term.native() or target
@@ -10098,6 +10394,10 @@ function M.new(resolveTarget, onOutputFailure, options)
       if pixel then pixel:close() end
       pixel, parent, preference, previous=nil,nil,mode,{}
     end,
+    setBackendOptions=function(_,value)
+      options=options or {} options.backendOptions=value
+      if pixel then pixel.optimized=value.optimized pixel.batchRows=value.batchRows end
+    end,
     close = function() if pixel then pixel:close() end end,
     capabilities=function()
       local result={backend="TEXT",textWidth=width,textHeight=height,probed=false}
@@ -10113,7 +10413,12 @@ function M.new(resolveTarget, onOutputFailure, options)
         backend=pixel and pixel.caps.backend or "TEXT",pixelWidth=pixelWidth,pixelHeight=pixelHeight,
         generation=pixel and pixel.generation,
         bytes=pixel and pixel.bytes or 0,regions=pixel and pixel.regions or 0,
-        lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError }
+        lastDrawSeconds=pixel and pixel.lastDrawSeconds,lastError=pixel and pixel.lastError,
+        presentRequests=pixel and pixel.requests or 0,skippedPresents=pixel and pixel.skippedPresents or 0,
+        presentedFrames=pixel and pixel.frames or 0,drawCalls=pixel and pixel.drawCalls or 0,
+        dirtyLines=pixel and pixel.lines or 0,maxDrawSeconds=pixel and pixel.maxDrawSeconds or 0,
+        compositionSeconds=stats.compositionSeconds,prepareSeconds=stats.prepareSeconds,
+        maxCompositionSeconds=stats.maxCompositionSeconds,maxPrepareSeconds=stats.maxPrepareSeconds }
     end,
     draw = function(_, render)
       local target = resolveTarget and resolveTarget() or term.current()
@@ -10127,7 +10432,7 @@ function M.new(resolveTarget, onOutputFailure, options)
         if pixel then pixel:close() end
         pixel=nil pixelWidth,pixelHeight=nil,nil
         if preference~="text" then
-          pixel=require("system.graphics.backend").new(target,preference)
+          pixel=require("system.graphics.backend").new(target,preference,options and options.backendOptions)
           pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
           if pixel.mode==0 and pixel.lastError and options and options.onGraphicsFailure then
             pcall(options.onGraphicsFailure,pixel.lastError)
@@ -10157,7 +10462,7 @@ function M.new(resolveTarget, onOutputFailure, options)
       elseif width ~= w or height ~= h then
         if pixel then
           pixel:close()
-          pixel=require("system.graphics.backend").new(target,preference)
+          pixel=require("system.graphics.backend").new(target,preference,options and options.backendOptions)
           pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
         end
         surface.reposition(1, 1, w, h)
@@ -10170,13 +10475,16 @@ function M.new(resolveTarget, onOutputFailure, options)
           pixel.lastError=tostring(pw) pixel:close() previous={}
           if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,pw) end
         elseif pw~=pixelWidth or ph~=pixelHeight then
-          pixel:close() pixel=require("system.graphics.backend").new(target,preference)
+          pixel:close() pixel=require("system.graphics.backend").new(target,preference,options and options.backendOptions)
           pixelWidth,pixelHeight=pixel.caps.pixelWidth,pixel.caps.pixelHeight
           previous={}
         end
       end
       if pixel and pixel.mode~=0 and options and options.beforeRender then
+        local started=os.clock()
         local ok,err=pcall(options.beforeRender,pixel)
+        stats.prepareSeconds=os.clock()-started
+        stats.maxPrepareSeconds=math.max(stats.maxPrepareSeconds or 0,stats.prepareSeconds)
         if not ok then
           pixel.lastError=tostring(err) pixel:close() previous={}
           if options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
@@ -10184,11 +10492,17 @@ function M.new(resolveTarget, onOutputFailure, options)
       end
       surface.setVisible(false)
       term.redirect(surface)
+      local renderStarted=os.clock()
       local ok, err = pcall(render)
+      stats.renderSeconds=os.clock()-renderStarted
       term.redirect(target)
-      if not ok then error(err, 0) end
+      if not ok then
+        if options and options.onGraphicsFailure then pcall(options.onGraphicsFailure,err) end
+        error(err, 0)
+      end
       -- Read the local surface outside the output guard: these are renderer faults.
-      for y = 1, h do
+      local nativeShell=pixel and pixel.mode~=0 and options and options.nativeShell and options.backendOptions and options.backendOptions.optimized
+      for y = 1, nativeShell and 0 or h do
         local row = frame[y] or {}
         row[1], row[2], row[3] = surface.getLine(y)
         frame[y] = row
@@ -10198,7 +10512,7 @@ function M.new(resolveTarget, onOutputFailure, options)
         cx, cy = target.getCursorPos()
         blink = target.getCursorBlink()
         target.setCursorBlink(false)
-        for y = 1, h do
+        for y = 1, nativeShell and 0 or h do
           local text, fg, bg = frame[y][1], frame[y][2], frame[y][3]
           local old = previous[y]
           if not old or old[1] ~= text or old[2] ~= fg or old[3] ~= bg then
@@ -10217,12 +10531,25 @@ function M.new(resolveTarget, onOutputFailure, options)
         target.setCursorBlink(blink)
         if pixel and pixel.mode~=0 then
           local drawn,problem=true,nil
-          if options and options.pixelRender then drawn,problem=pcall(options.pixelRender,pixel) end
+          if options and options.pixelRender then
+            local started=os.clock()
+            drawn,problem=pcall(options.pixelRender,pixel)
+            stats.compositionSeconds=(stats.renderSeconds or 0)+os.clock()-started
+            stats.maxCompositionSeconds=math.max(stats.maxCompositionSeconds or 0,stats.compositionSeconds)
+          end
           local ok,err
           if drawn then ok,err=pixel:present()
           else pixel.lastError=tostring(problem) pixel:close() ok,err=false,problem end
           if not ok then
-            -- Publish the complete text frame immediately on the same display.
+            -- Rebuild complete rescue UI lazily; successful native frames need no
+            -- text desktop, taskbar or physical-buffer row comparison.
+            if nativeShell then
+              term.redirect(surface)
+              local rendered,reason=pcall(render,true)
+              term.redirect(target)
+              if not rendered then error(reason,0) end
+              for y=1,h do frame[y]={surface.getLine(y)} end
+            end
             previous={}
             for y=1,h do target.setCursorPos(1,y) target.blit(table.unpack(frame[y])) end
             target.setCursorPos(cx,cy) target.setCursorBlink(blink)
@@ -11207,22 +11534,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.44", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.44", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.44", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.45", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.45", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.45", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.45", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.44", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.44", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.44", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.44", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.44", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.44", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.44", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.44", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.44", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.45", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.45", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.45", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.45", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.45", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.45", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.45", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.45", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.45", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.45", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.45", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -11268,26 +11595,63 @@ function M.start()
   bootApps(ctx)
 
   local graphicsConfig=require("system.libraries.config").load("/system/config/system.cfg",{})
+  local Policy=require("system.graphics.policy")
+  local Guard=require("system.boot.graphics_guard")
+  local guard=Guard.begin(graphicsConfig)
+  local policyOptions=Policy.options(graphicsConfig)
+  if guard.state=="safe" then policyOptions.optimized=false policyOptions.batchRows=1 end
+  local renderPolicy=Policy.new(policyOptions)
   local workspace=require("system.graphics.workspace").new(ctx)
   ctx.pixelWorkspace=workspace
   local screen = compositor.new(devices.getTarget, devices.outputFailed,{
-    mode=graphicsConfig.safeMode and "text" or graphicsConfig.graphicsMode=='pixel16' and 'pixel16' or "auto",
+    backendOptions=policyOptions,nativeShell=true,
+    mode=(graphicsConfig.safeMode or guard.state=="safe") and "text" or graphicsConfig.graphicsMode=='pixel16' and 'pixel16' or "auto",
     beforeRender=function(backend) workspace:prepare(backend) end,
     pixelRender=function(backend) workspace:draw(backend) end,
-    onGraphicsFailure=function(err) workspace:deactivate() log.error("graphics",tostring(err)) end,
+    onGraphicsFailure=function(err) policyOptions.optimized=false policyOptions.batchRows=1 Guard.fail(guard,err) workspace:deactivate() log.error("graphics",tostring(err)) end,
   })
-  ctx.setGraphicsMode=function(mode) workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() end
-  ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() end
-  ctx.renderStats = function() return screen:stats() end
+  local forceRender=true
+  ctx.setGraphicsMode=function(mode)
+    if mode~="text" then
+      local ok,err=Guard.retry() assert(ok,err)
+      guard=Guard.begin({graphicsMode=mode})
+      if guard.state=="safe" then mode="text" end
+      policyOptions=Policy.options(require("system.libraries.config").load("/system/config/system.cfg",{}))
+      renderPolicy.options=policyOptions screen:setBackendOptions(policyOptions)
+    end
+    workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() forceRender=true
+  end
+  ctx.setGraphicsPolicy=function(cfg)
+    policyOptions=Policy.options(cfg) renderPolicy.options=policyOptions
+    screen:setBackendOptions(policyOptions) ctx.wm:invalidate() forceRender=true
+  end
+  ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() forceRender=true end
+  ctx.renderStats = function()
+    local stats=screen:stats()
+    stats.renderRequests=renderPolicy.requests stats.skippedRenders=renderPolicy.skipped
+    stats.profile=policyOptions.profile stats.optimized=policyOptions.optimized stats.maxHz=policyOptions.maxHz
+    stats.bootGuard=guard.state stats.bootGuardReason=guard.reason
+    for key,value in pairs(workspace.stats or {}) do stats[key]=value end
+    stats.cacheBytes=workspace.cacheBytes stats.cacheLimit=workspace.cacheLimit
+    stats.damageRectangles=workspace.scene.stats.rectangles
+    return stats
+  end
   ctx.graphicsCapabilities=function() return screen:capabilities() end
-  local lastClock
+  if guard.state=="safe" then
+    ctx.notifications:push("warn","Graphics safe mode",guard.reason or "Previous graphics initialization was incomplete; Settings > Display to retry",10)
+  end
+  local lastClock,lastVisualKey
   local function drawFrame()
-    screen:draw(function()
+    screen:draw(function(rescue)
+      if workspace.backend and policyOptions.optimized and not rescue then ctx.wm:draw(true) return end
       desktop.draw()
       ctx.wm:draw()
       desktop.drawOverlays()
       ctx.notifications:draw()
     end)
+    Guard.observe(guard,screen:stats())
+    lastVisualKey=Policy.visibleKey(ctx,workspace) forceRender=false
+    renderPolicy:presented()
     lastClock = desktop.displayedClock
   end
   ctx.notifications:push("success", "MintCraft OS", "System ready", 3)
@@ -11302,7 +11666,7 @@ function M.start()
       clockTimer = os.startTimer(0.5)
       local time = desktop.clockText()
       if time ~= lastClock then
-        screen:draw(function() desktop.drawClock(time) end)
+        drawFrame()
         lastClock = time
       end
     else
@@ -11318,7 +11682,7 @@ function M.start()
       if event then
         if event.name=="timer" and event.args[1]==diagnosticTimer then
           diagnosticTimer=os.startTimer(1)
-          for _,id in ipairs({"settings","devices","services","taskmanager","logs","messenger","nexus"}) do ctx.wm:invalidate(id) end
+          for _,id in ipairs({"settings","devices","services","taskmanager","messenger","nexus"}) do ctx.wm:invalidate(id) end
         elseif event.name=="peripheral" or event.name=="peripheral_detach" or event.name=="monitor_resize" or event.name=="term_resize" or event.name=="mintcraft_display_resize" then
           ctx.wm:invalidate()
         end
@@ -11344,16 +11708,19 @@ function M.start()
           ctx.notifications:handle(event)
         end
 
-        if event.name=="timer" and event.args[1]==dragFrameTimer then
-          dragFrameTimer=nil
-          drawFrame()
-        elseif workspace.drag and not workspace.drag.touch then
-          -- Coalesce visual work only: acquisition and scheduler dispatch above
-          -- still receive every event, including timers and peripheral replies.
-          if not dragFrameTimer then dragFrameTimer=os.startTimer(0.05) end
-        elseif not internal or ctx.notifications.nextId~=notificationVersion then
-          if dragFrameTimer then os.cancelTimer(dragFrameTimer) dragFrameTimer=nil end
-          drawFrame()
+        local due=event.name=="timer" and event.args[1]==dragFrameTimer
+        if due then dragFrameTimer=nil end
+        local changed=forceRender or lastVisualKey~=Policy.visibleKey(ctx,workspace)
+        -- Text desktop state is legacy; conservatively redraw for user input.
+        if screen:stats().backend=="TEXT" and (event.name=="char" or event.name=="paste" or event.name=="key" or event.name:match("^mouse_")) then changed=true end
+        if not policyOptions.optimized and not internal then changed=true end
+        renderPolicy:request(changed)
+        local delay=renderPolicy:delay()
+        if delay then
+          if delay==0 then
+            if dragFrameTimer then os.cancelTimer(dragFrameTimer) dragFrameTimer=nil end
+            drawFrame()
+          elseif not dragFrameTimer then dragFrameTimer=os.startTimer(delay) end
         end
       end
     end
@@ -12269,7 +12636,32 @@ function M.install(files,options)
       if fs.exists(target) and fs.getSize then plan.backupBytes=plan.backupBytes+fs.getSize(target) end
     end
   end
-  if options and options.beforeInstall then options.beforeInstall(plan) end
+  -- A manual wget upgrade must retain the same durable checkpoint as Update.
+  -- Refuse before touching live files when space or the checkpoint is unavailable.
+  local free=fs.getFreeSpace and fs.getFreeSpace("/")
+  local upgrading=fs.exists("/VERSION") and #plan.changed>0
+  assert(not upgrading or type(free)=="number" or free=="unlimited","INSTALL-DISK: cannot verify free space for a reversible upgrade")
+  local required=plan.stageBytes+plan.backupBytes*(upgrading and 2 or 1)+math.max(32768,#plan.changed*256)
+  if type(free)=="number" then assert(free>=required,"INSTALL-DISK: insufficient space for staging and retained rollback; backups retained") end
+  if options and options.beforeInstall then options.beforeInstall(plan)
+  elseif upgrading then
+    -- Use the verified bundled checkpoint implementation even when upgrading
+    -- an older installed service. Keep its dependency cache private.
+    local loaded={}
+    local function bundled(name)
+      if loaded[name]~=nil then return loaded[name] end
+      local path=name:gsub("%.","/")..".lua"
+      if not files[path] then return require(name) end
+      local environment=setmetatable({require=bundled},{__index=_ENV})
+      loaded[name]=true
+      local value=assert(load(files[path],"@"..path,"t",environment))()
+      loaded[name]=value==nil and true or value
+      return loaded[name]
+    end
+    local updated=bundled("system.services.updated")
+    local saved,problem=updated.createRollback("before manual installation",plan.changed)
+    assert(saved,"INSTALL-BACKUP: "..tostring(problem))
+  end
   assert(not fs.exists(root), "Installation started while preparing; recover before retrying")
   local changed, touched = {}, {}
   local ok, err = pcall(function()
@@ -19438,7 +19830,7 @@ local function classify(id)
   if id=='cleanupConfirm' then return 'system.storage.manage' end
   if id=='audio' or id=='test' or id:match('^volume:') or id:match('^speaker:') then return 'audio.control' end
   if id=='label' or id=='refresh' or id:match('^display:') or id:match('^scale:') or id:match('^theme:')
-    or id:match('^profile:') or id:match('^app:') or id=='graphics:auto' or id=='graphics:pixel16' or id=='graphics:text' then return 'system.config' end
+    or id:match('^gfxprofile:') or id:match('^gfxopt:') or id:match('^gfxhz:') or id:match('^profile:') or id:match('^app:') or id=='graphics:auto' or id=='graphics:pixel16' or id=='graphics:text' then return 'system.config' end
 end
 local function authorize(request)
   local process=ctx and ctx.scheduler.processes[request.owner]
@@ -19467,6 +19859,24 @@ local function perform(request)
     local ok,err=config.save('/system/config/system.cfg',cfg) if not ok then return false,err end
     ctx.setGraphicsMode(cfg.graphicsMode)
     return true,cfg.safeMode and 'Text rescue requested' or 'Pixel retry requested; unsupported outputs retain text fallback'
+  elseif id:match('^gfxprofile:') or id:match('^gfxopt:') or id:match('^gfxhz:') then
+    local cfg=config.load('/system/config/system.cfg',{})
+    local profile=id:match('^gfxprofile:(.+)$')
+    local opt=id:match('^gfxopt:(.+)$')
+    local hz=id:match('^gfxhz:(.+)$')
+    if profile then
+      if profile~='stable' and profile~='balanced' and profile~='performance' then return false,'Invalid graphics profile' end
+      cfg.graphicsProfile=profile
+    elseif opt then
+      if opt~='on' and opt~='off' then return false,'Invalid graphics option' end
+      cfg.graphicsOptimizations=opt=='on'
+    else
+      hz=tonumber(hz) if hz~=10 and hz~=15 and hz~=20 then return false,'Invalid presentation ceiling' end
+      cfg.graphicsMaxHz=hz
+    end
+    local ok,err=config.save('/system/config/system.cfg',cfg) if not ok then return false,err end
+    if ctx.setGraphicsPolicy then ctx.setGraphicsPolicy(cfg) end
+    return true,'Graphics presentation policy saved; acquisition unchanged'
   elseif id:sub(1,8)=='display:' then return require('system.services.deviced').setTarget(id:sub(9))
   elseif id:sub(1,6)=='scale:' then
     local scale=tonumber(id:sub(7))
@@ -19696,6 +20106,11 @@ local version = require("system.libraries.version")
 local source = require("system.libraries.update_source")
 local safeWrite = require("system.libraries.safe_write")
 local httpClient = require("system.network.http_client")
+local function checksum(data)
+  local a,b=1,0
+  for i=1,#data do a=(a+data:byte(i))%65521 b=(b+a)%65521 end
+  return string.format("%08x",b*65536+a)
+end
 local operation
 local rootContext,controller
 
@@ -19949,7 +20364,7 @@ local function createRollback(reason,changes)
     createdUptime = os.clock(),
     paths = {},
   }
-  if changes then manifest.kind="files" manifest.existed={} end
+  if changes then manifest.kind="files" manifest.existed={} manifest.checksums={} end
 
   for _,entry in ipairs(changes or ROLLBACK_PATHS) do
     local path=changes and ("/"..entry) or entry
@@ -19963,6 +20378,11 @@ local function createRollback(reason,changes)
     if fs.exists(path) then
       local target = backupDir .. path
       copyTree(path, target)
+      if changes then
+        local original=assert(readFile(path),"Cannot read checkpoint source")
+        assert(readFile(target)==original,"Checkpoint copy mismatch")
+        manifest.checksums[path]=checksum(original)
+      end
       table.insert(manifest.paths, path)
     elseif changes then table.insert(manifest.paths,path)
     end
@@ -20029,6 +20449,15 @@ local function rollback(options)
   end
   if count == 0 or count ~= #manifest.paths then return false, "empty or incomplete rollback manifest" end
 
+  if manifest.checksums then
+    if type(manifest.checksums)~="table" or manifest.kind~="files" then return false,"Invalid checkpoint checksums" end
+    for _,path in ipairs(manifest.paths) do
+      if manifest.existed[path] then
+        local data=readFile(backupDir..path)
+        if not data or checksum(data)~=manifest.checksums[path] then return false,"Corrupt checkpoint: "..path.."; backups retained" end
+      end
+    end
+  end
   assert(config.save("/var/tmp/mintcraft-rollback.cfg", {id=info.id}))
 
   for index, path in ipairs(manifest.paths) do
@@ -20041,6 +20470,10 @@ local function rollback(options)
     else ok,err=restoreTree(backupDir..path,path) end
     if not ok then return false, err end
   end
+  local cfg=config.load("/system/config/system.cfg",{})
+  assert(type(cfg)=="table","Invalid system config; rollback journal retained")
+  cfg.safeMode=true cfg.graphicsMode="text" cfg.graphicsOptimizations=false
+  assert(config.save("/system/config/system.cfg",cfg))
   fs.delete("/var/tmp/mintcraft-rollback.cfg")
   phase(options,"rollback","Checkpoint restored",#manifest.paths,#manifest.paths)
   M.status.localVersion=M.localVersion() M.status.source=nil M.status.updateAvailable=false
@@ -20154,6 +20587,10 @@ function M.storageInfo()
               if not fs.exists(path .. key) then valid = false break end
               local directory = manifest.kind ~= "files" and (key == "/system" or key == "/apps" or key == "/packages")
               if fs.isDir(path .. key) ~= (directory or false) then valid = false break end
+              if manifest.checksums then
+                local data=not directory and readFile(path..key)
+                if type(manifest.checksums)~="table" or not data or checksum(data)~=manifest.checksums[key] then valid=false break end
+              end
             end
           end
           valid = valid and count > 0 and count == #manifest.paths
@@ -20995,7 +21432,7 @@ function WindowManager:invalidate(appId)
   end
 end
 
-function WindowManager:draw()
+function WindowManager:draw(pixelShell)
   for i = #self.windows, 1, -1 do
     if self.windows[i].closed then table.remove(self.windows, i) end
   end
@@ -21015,6 +21452,7 @@ function WindowManager:draw()
     if not covered then win:draw() end
   end
 
+  if pixelShell then return end
   local w, h = term.getSize()
   local layout = taskbar.layout(w)
   local x, maxRight = layout.first, layout.last
@@ -21112,7 +21550,7 @@ end
 return WindowManager
 ]=],
   ["VERSION"] = [=[
-0.18.44
+0.18.45
 ]=],
 }
 local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))

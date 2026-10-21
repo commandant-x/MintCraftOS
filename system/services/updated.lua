@@ -367,6 +367,10 @@ local function rollback(options)
     else ok,err=restoreTree(backupDir..path,path) end
     if not ok then return false, err end
   end
+  local cfg=config.load("/system/config/system.cfg",{})
+  assert(type(cfg)=="table","Invalid system config; rollback journal retained")
+  cfg.safeMode=true cfg.graphicsMode="text" cfg.graphicsOptimizations=false
+  assert(config.save("/system/config/system.cfg",cfg))
   fs.delete("/var/tmp/mintcraft-rollback.cfg")
   phase(options,"rollback","Checkpoint restored",#manifest.paths,#manifest.paths)
   M.status.localVersion=M.localVersion() M.status.source=nil M.status.updateAvailable=false
@@ -480,6 +484,10 @@ function M.storageInfo()
               if not fs.exists(path .. key) then valid = false break end
               local directory = manifest.kind ~= "files" and (key == "/system" or key == "/apps" or key == "/packages")
               if fs.isDir(path .. key) ~= (directory or false) then valid = false break end
+              if manifest.checksums then
+                local data=not directory and readFile(path..key)
+                if type(manifest.checksums)~="table" or not data or checksum(data)~=manifest.checksums[key] then valid=false break end
+              end
             end
           end
           valid = valid and count > 0 and count == #manifest.paths

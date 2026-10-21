@@ -42,7 +42,7 @@ function WindowManager:invalidate(appId)
   end
 end
 
-function WindowManager:draw()
+function WindowManager:draw(pixelShell)
   for i = #self.windows, 1, -1 do
     if self.windows[i].closed then table.remove(self.windows, i) end
   end
@@ -62,6 +62,7 @@ function WindowManager:draw()
     if not covered then win:draw() end
   end
 
+  if pixelShell then return end
   local w, h = term.getSize()
   local layout = taskbar.layout(w)
   local x, maxRight = layout.first, layout.last

@@ -17,22 +17,22 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
-  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.44", permissions = { "network.http" } })
-  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.44", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
-  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.44", permissions = { "rednet.send", "rednet.receive" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.45", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.45", permissions = { "network.http" } })
+  register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.45", permissions = { "network.http", "filesystem.read", "filesystem.write" }, hidden = true })
+  register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.45", permissions = { "rednet.send", "rednet.receive" } })
   register("nexus", "NEXUS OVERMIND", "apps.nexus.main", { iconPath = "/system/themes/icons/nexus.nfp", category = "Network", version = "0.4.0", permissions = { "system.security.admin", "network.http" } })
-  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.44", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
-  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.44", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
-  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.44", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
-  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.44", permissions = { "process.list", "process.kill" } })
-  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.44", permissions = { "logs.read" } })
-  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.44", permissions = { "services.list", "services.control" } })
-  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.44", permissions = { "packages.install", "filesystem.write" }, hidden = true })
-  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.44", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.44", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
-  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.44", permissions = { "network.http", "system.update" } })
+  register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.45", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "peripheral.probe" } })
+  register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.45", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
+  register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.45", permissions = { "filesystem.read", "filesystem.write" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.45", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.45", permissions = { "process.list", "process.kill" } })
+  register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.45", permissions = { "logs.read" } })
+  register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.45", permissions = { "services.list", "services.control" } })
+  register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.45", permissions = { "packages.install", "filesystem.write" }, hidden = true })
+  register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.45", permissions = { "devices.list", "peripheral.probe" } })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.45", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.45", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
 
@@ -78,26 +78,63 @@ function M.start()
   bootApps(ctx)
 
   local graphicsConfig=require("system.libraries.config").load("/system/config/system.cfg",{})
+  local Policy=require("system.graphics.policy")
+  local Guard=require("system.boot.graphics_guard")
+  local guard=Guard.begin(graphicsConfig)
+  local policyOptions=Policy.options(graphicsConfig)
+  if guard.state=="safe" then policyOptions.optimized=false policyOptions.batchRows=1 end
+  local renderPolicy=Policy.new(policyOptions)
   local workspace=require("system.graphics.workspace").new(ctx)
   ctx.pixelWorkspace=workspace
   local screen = compositor.new(devices.getTarget, devices.outputFailed,{
-    mode=graphicsConfig.safeMode and "text" or graphicsConfig.graphicsMode=='pixel16' and 'pixel16' or "auto",
+    backendOptions=policyOptions,nativeShell=true,
+    mode=(graphicsConfig.safeMode or guard.state=="safe") and "text" or graphicsConfig.graphicsMode=='pixel16' and 'pixel16' or "auto",
     beforeRender=function(backend) workspace:prepare(backend) end,
     pixelRender=function(backend) workspace:draw(backend) end,
-    onGraphicsFailure=function(err) workspace:deactivate() log.error("graphics",tostring(err)) end,
+    onGraphicsFailure=function(err) policyOptions.optimized=false policyOptions.batchRows=1 Guard.fail(guard,err) workspace:deactivate() log.error("graphics",tostring(err)) end,
   })
-  ctx.setGraphicsMode=function(mode) workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() end
-  ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() end
-  ctx.renderStats = function() return screen:stats() end
+  local forceRender=true
+  ctx.setGraphicsMode=function(mode)
+    if mode~="text" then
+      local ok,err=Guard.retry() assert(ok,err)
+      guard=Guard.begin({graphicsMode=mode})
+      if guard.state=="safe" then mode="text" end
+      policyOptions=Policy.options(require("system.libraries.config").load("/system/config/system.cfg",{}))
+      renderPolicy.options=policyOptions screen:setBackendOptions(policyOptions)
+    end
+    workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() forceRender=true
+  end
+  ctx.setGraphicsPolicy=function(cfg)
+    policyOptions=Policy.options(cfg) renderPolicy.options=policyOptions
+    screen:setBackendOptions(policyOptions) ctx.wm:invalidate() forceRender=true
+  end
+  ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() forceRender=true end
+  ctx.renderStats = function()
+    local stats=screen:stats()
+    stats.renderRequests=renderPolicy.requests stats.skippedRenders=renderPolicy.skipped
+    stats.profile=policyOptions.profile stats.optimized=policyOptions.optimized stats.maxHz=policyOptions.maxHz
+    stats.bootGuard=guard.state stats.bootGuardReason=guard.reason
+    for key,value in pairs(workspace.stats or {}) do stats[key]=value end
+    stats.cacheBytes=workspace.cacheBytes stats.cacheLimit=workspace.cacheLimit
+    stats.damageRectangles=workspace.scene.stats.rectangles
+    return stats
+  end
   ctx.graphicsCapabilities=function() return screen:capabilities() end
-  local lastClock
+  if guard.state=="safe" then
+    ctx.notifications:push("warn","Graphics safe mode",guard.reason or "Previous graphics initialization was incomplete; Settings > Display to retry",10)
+  end
+  local lastClock,lastVisualKey
   local function drawFrame()
-    screen:draw(function()
+    screen:draw(function(rescue)
+      if workspace.backend and policyOptions.optimized and not rescue then ctx.wm:draw(true) return end
       desktop.draw()
       ctx.wm:draw()
       desktop.drawOverlays()
       ctx.notifications:draw()
     end)
+    Guard.observe(guard,screen:stats())
+    lastVisualKey=Policy.visibleKey(ctx,workspace) forceRender=false
+    renderPolicy:presented()
     lastClock = desktop.displayedClock
   end
   ctx.notifications:push("success", "MintCraft OS", "System ready", 3)
@@ -112,7 +149,7 @@ function M.start()
       clockTimer = os.startTimer(0.5)
       local time = desktop.clockText()
       if time ~= lastClock then
-        screen:draw(function() desktop.drawClock(time) end)
+        drawFrame()
         lastClock = time
       end
     else
@@ -128,7 +165,7 @@ function M.start()
       if event then
         if event.name=="timer" and event.args[1]==diagnosticTimer then
           diagnosticTimer=os.startTimer(1)
-          for _,id in ipairs({"settings","devices","services","taskmanager","logs","messenger","nexus"}) do ctx.wm:invalidate(id) end
+          for _,id in ipairs({"settings","devices","services","taskmanager","messenger","nexus"}) do ctx.wm:invalidate(id) end
         elseif event.name=="peripheral" or event.name=="peripheral_detach" or event.name=="monitor_resize" or event.name=="term_resize" or event.name=="mintcraft_display_resize" then
           ctx.wm:invalidate()
         end
@@ -154,16 +191,19 @@ function M.start()
           ctx.notifications:handle(event)
         end
 
-        if event.name=="timer" and event.args[1]==dragFrameTimer then
-          dragFrameTimer=nil
-          drawFrame()
-        elseif workspace.drag and not workspace.drag.touch then
-          -- Coalesce visual work only: acquisition and scheduler dispatch above
-          -- still receive every event, including timers and peripheral replies.
-          if not dragFrameTimer then dragFrameTimer=os.startTimer(0.05) end
-        elseif not internal or ctx.notifications.nextId~=notificationVersion then
-          if dragFrameTimer then os.cancelTimer(dragFrameTimer) dragFrameTimer=nil end
-          drawFrame()
+        local due=event.name=="timer" and event.args[1]==dragFrameTimer
+        if due then dragFrameTimer=nil end
+        local changed=forceRender or lastVisualKey~=Policy.visibleKey(ctx,workspace)
+        -- Text desktop state is legacy; conservatively redraw for user input.
+        if screen:stats().backend=="TEXT" and (event.name=="char" or event.name=="paste" or event.name=="key" or event.name:match("^mouse_")) then changed=true end
+        if not policyOptions.optimized and not internal then changed=true end
+        renderPolicy:request(changed)
+        local delay=renderPolicy:delay()
+        if delay then
+          if delay==0 then
+            if dragFrameTimer then os.cancelTimer(dragFrameTimer) dragFrameTimer=nil end
+            drawFrame()
+          elseif not dragFrameTimer then dragFrameTimer=os.startTimer(delay) end
         end
       end
     end

@@ -1,7 +1,16 @@
+local bootOption=...
 if not table.unpack and unpack then table.unpack = unpack end
 -- A previous graphical session must never hide boot/recovery diagnostics.
 if term and term.setFrozen then pcall(term.setFrozen,false) end
 if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
+
+if bootOption=="--recovery" then
+  return assert(loadfile("/system/boot/recovery.lua"))("manual")
+end
+if bootOption=="--text" then
+  local ok,err=assert(loadfile("/system/boot/recovery.lua"))("--text-rescue")
+  assert(ok,err)
+end
 
 if not require then
   local loaded = {}

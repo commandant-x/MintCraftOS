@@ -11,7 +11,7 @@ local function classify(id)
   if id=='cleanupConfirm' then return 'system.storage.manage' end
   if id=='audio' or id=='test' or id:match('^volume:') or id:match('^speaker:') then return 'audio.control' end
   if id=='label' or id=='refresh' or id:match('^display:') or id:match('^scale:') or id:match('^theme:')
-    or id:match('^profile:') or id:match('^app:') or id=='graphics:auto' or id=='graphics:pixel16' or id=='graphics:text' then return 'system.config' end
+    or id:match('^gfxprofile:') or id:match('^gfxopt:') or id:match('^gfxhz:') or id:match('^profile:') or id:match('^app:') or id=='graphics:auto' or id=='graphics:pixel16' or id=='graphics:text' then return 'system.config' end
 end
 local function authorize(request)
   local process=ctx and ctx.scheduler.processes[request.owner]
@@ -40,6 +40,24 @@ local function perform(request)
     local ok,err=config.save('/system/config/system.cfg',cfg) if not ok then return false,err end
     ctx.setGraphicsMode(cfg.graphicsMode)
     return true,cfg.safeMode and 'Text rescue requested' or 'Pixel retry requested; unsupported outputs retain text fallback'
+  elseif id:match('^gfxprofile:') or id:match('^gfxopt:') or id:match('^gfxhz:') then
+    local cfg=config.load('/system/config/system.cfg',{})
+    local profile=id:match('^gfxprofile:(.+)$')
+    local opt=id:match('^gfxopt:(.+)$')
+    local hz=id:match('^gfxhz:(.+)$')
+    if profile then
+      if profile~='stable' and profile~='balanced' and profile~='performance' then return false,'Invalid graphics profile' end
+      cfg.graphicsProfile=profile
+    elseif opt then
+      if opt~='on' and opt~='off' then return false,'Invalid graphics option' end
+      cfg.graphicsOptimizations=opt=='on'
+    else
+      hz=tonumber(hz) if hz~=10 and hz~=15 and hz~=20 then return false,'Invalid presentation ceiling' end
+      cfg.graphicsMaxHz=hz
+    end
+    local ok,err=config.save('/system/config/system.cfg',cfg) if not ok then return false,err end
+    if ctx.setGraphicsPolicy then ctx.setGraphicsPolicy(cfg) end
+    return true,'Graphics presentation policy saved; acquisition unchanged'
   elseif id:sub(1,8)=='display:' then return require('system.services.deviced').setTarget(id:sub(9))
   elseif id:sub(1,6)=='scale:' then
     local scale=tonumber(id:sub(7))

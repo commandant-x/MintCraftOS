@@ -8,6 +8,36 @@ end
 if term and term.setFrozen then pcall(term.setFrozen,false) end
 if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
 
+-- Match safe_write's recognized save layout without importing the module tree.
+local function textRescue()
+  local path="/system/config/system.cfg"
+  local stage=path..".mintcraft-save"
+  local function readFile(p)
+    local h=assert(fs.open(p,"r"),"Cannot read "..p) local data=h.readAll() h.close() return data
+  end
+  local function writeFile(p,data)
+    fs.makeDir(fs.getDir(p)) local h=assert(fs.open(p,"w"))
+    local ok,err=pcall(h.write,data) local closed,problem=pcall(h.close)
+    assert(ok and closed,tostring(ok and problem or err))
+  end
+  if fs.exists(stage) then
+    assert(fs.exists(stage.."/marker") and readFile(stage.."/marker")=="MintCraft safe save 1","Unrecognized config save; retained")
+    if fs.exists(stage.."/previous") then
+      if not fs.exists(path) then fs.move(stage.."/previous",path)
+      else assert(not fs.exists(stage.."/next"),"Ambiguous config save; retained") end
+    end
+    fs.delete(stage)
+  end
+  local cfg=fs.exists(path) and textutils.unserialize(readFile(path)) or {}
+  assert(type(cfg)=="table","Invalid system config; retained for manual repair")
+  cfg.safeMode=true cfg.graphicsMode="text" cfg.graphicsOptimizations=false
+  fs.makeDir(stage) writeFile(stage.."/marker","MintCraft safe save 1")
+  writeFile(stage.."/next",textutils.serialize(cfg))
+  if fs.exists(path) then fs.move(path,stage.."/previous") end
+  fs.move(stage.."/next",path) fs.delete(stage)
+  return true,"Text rescue saved; reboot. Personal settings retained."
+end
+
 -- Kept dependency-free so a damaged module tree can still restore a checkpoint.
 local function restoreRaw(resumeOnly)
   if _G.mintcraftStorageOperation then return false, "Storage operation in progress; backup retained" end
@@ -114,6 +144,7 @@ local function restoreRaw(resumeOnly)
         end
       end
     end
+    textRescue()
     fs.delete(pending)
     return true, "Rollback restored; reboot required. Backups retained."
   end
@@ -122,6 +153,7 @@ local function restoreRaw(resumeOnly)
   return result, detail
 end
 
+if reason == "--text-rescue" then return pcall(textRescue) end
 if reason == "--raw-rollback" then return restoreRaw(false) end
 if reason == "--resume-rollback" then return restoreRaw(true) end
 
@@ -137,7 +169,10 @@ print("Commands:")
 print("  shell  - open CraftOS shell")
 print("  logs   - show last system log lines")
 print("  crash  - show last crash log")
-print("  rollback - restore last update backup")
+print("  version - show installed version")
+print("  checkpoint - show checkpoint metadata")
+print("  safe - save text mode and disable graphics optimizations")
+print("  rollback - confirm and restore last update backup")
 print("  reboot - reboot computer")
 print("  exit   - return to caller")
 print("")
@@ -162,15 +197,18 @@ while true do
     else
       print("No crash log found.")
     end
+  elseif cmd=="version" or cmd=="checkpoint" then
+    local path=cmd=="version" and "/VERSION" or "/var/backups/update/latest.cfg"
+    if not fs.exists(path) and cmd=="checkpoint" then path="/var/backups/update/previous.cfg" end
+    local h=fs.open(path,"r") if h then print(h.readAll()) h.close() else print("Unavailable") end
+  elseif cmd=="safe" then
+    local ok,message=pcall(textRescue) print(tostring(message))
   elseif cmd == "rollback" then
-    local ok, updated = pcall(require, "system.services.updated")
-    local success, message
-    if ok and updated and updated.rollback then
-      success, message = updated.rollback()
-    else
-      success, message = restoreRaw()
-    end
-    print(tostring(message))
+    print("Restore covered system files and reboot in text mode? Type RESTORE:")
+    if read()=="RESTORE" then
+      local success,message=restoreRaw(false)
+      print(tostring(message))
+    else print("Cancelled; checkpoint retained") end
   elseif cmd == "reboot" then
     os.reboot()
   elseif cmd == "exit" then
