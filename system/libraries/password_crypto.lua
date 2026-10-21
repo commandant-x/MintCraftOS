@@ -213,6 +213,23 @@ function M.mac(key, payload)
   end
   return hex(digest(table.concat(outer)..digest(table.concat(inner)..payload)))
 end
+-- Volatile verifier for repeated unlocks in this boot. No plaintext password,
+-- cache key or fast verifier is written to users.db or returned to applications.
+function M.memoryVerifier(password)
+  assert(type(password)=="string" and #password<=1024,"Invalid password")
+  sequence=sequence+1
+  local seed="MintCraft volatile unlock\0"..tostring(os.epoch and os.epoch("utc") or os.clock())..":"..sequence
+  for _=1,32 do seed=seed..string.char(math.random(0,255)) end
+  local key=digest(seed)
+  local expected=M.mac(key,password)
+  return function(candidate)
+    if type(candidate)~="string" or #candidate>1024 then return false end
+    local actual=M.mac(key,candidate)
+    local difference=0
+    for i=1,64 do difference=bit32.bor(difference,bxor(actual:byte(i),expected:byte(i))) end
+    return difference==0
+  end
+end
 local function control(options, total)
   options = options or {}
   local function clock() return os.epoch and os.epoch("utc") / 1000 or os.clock() end

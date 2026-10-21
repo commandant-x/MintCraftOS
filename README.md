@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.52:
+This repository currently contains V0.18.53:
+
+V0.18.53 adds a private RAM-only verifier for repeated password unlocks during
+one boot, avoiding repeated PBKDF2 work after a successful sign-in. It retains
+persistent attempt delays, disk credentials and older-release compatibility.
+Authentication screens distinguish a slow first verification, migration and
+quick unlock. First sign-in after reboot still verifies the stored credential;
+no plaintext password or volatile verifier is saved to disk. See
+[behavior and limits](docs/QUICK-UNLOCK-0.18.53.md).
+
+V0.18.52:
 
 V0.18.52 checks fresh heater-side feedback for every burner in a collective
 calibration pulse, reports frequency/wiring vs balloon-association failures,

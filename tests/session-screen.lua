@@ -12,7 +12,7 @@ package.loaded["system.services.securityd"]={
   lock=function() locked=true return false,"disk full" end,
   login=function(name,password,opts)
     assert(name=="admin","guest password bypassed console")
-    login=login+1 opts.progress(1,2) coroutine.yield("timer")
+    login=login+1 opts.stage("Password check") opts.progress(1,2) coroutine.yield("timer")
     if password=="secret password" then locked=false return true end
     return false,"invalid credentials"
   end,
@@ -34,7 +34,7 @@ end
 screen.password=""
 assert(not event("timer",123) and not event("modem_message","left"),"background acquisition suspended")
 event("paste","wrong") event("key",keys.enter)
-assert(screen.busy and screen.password=="" and login==1)
+assert(screen.busy and screen.password=="" and login==1 and screen.message=="Password check 50%")
 event("paste","secret password") assert(screen.password=="","busy auth accepted duplicate credentials")
 assert(coroutine.resume(scheduled,"timer",1)) assert(not screen.busy and screen:blocked())
 event("paste","secret password") event("key",keys.enter)

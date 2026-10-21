@@ -66,8 +66,10 @@ function M.new(ctx)
     local password=self.password self.password="" self.confirmation=nil
     self.busy=true self.message="Verifying..."
     local pid=ctx.scheduler:spawn("Session authentication",function()
-      local options={progress=function(done,total)
-        self.message="Authentication "..math.floor(done/total*100).."%" invalidate()
+      self.authStage="Authentication"
+      local options={stage=function(label) self.authStage=label self.message=label invalidate() end,
+      progress=function(done,total)
+        self.message=self.authStage.." "..math.floor(done/total*100).."%" invalidate()
       end}
       local success,ok,err=pcall(function()
         if enrollment then return security.enroll(password,options) end

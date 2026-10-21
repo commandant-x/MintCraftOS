@@ -112,6 +112,22 @@ local function crypto()
   return nil, "Password changes unavailable: vetted password KDF provider is not installed"
 end
 
+local memoryCredential
+local function stage(options,label)
+  if options and options.stage then options.stage(label) end
+end
+local function remember(db,name,password)
+  memoryCredential=nil
+  local user=db.users[name]
+  if not user or type(user.passwordHash)~="table" then return end
+  local provider=crypto()
+  if not provider or type(provider.memoryVerifier)~="function" then return end
+  local ok,verifier=pcall(provider.memoryVerifier,password)
+  if ok and type(verifier)=="function" then
+    memoryCredential={name=name,passwordHash=copy(user.passwordHash),quickHash=copy(user.quickPasswordHash),
+      quickSource=copy(user.quickPasswordSource),verify=verifier}
+  end
+end
 local function authenticate(db, name, password, options)
   if options and options.cancelled and options.cancelled() then return false,"Authentication cancelled" end
   local reservation,err=throttle.reserve(db.authThrottle)
@@ -135,11 +151,19 @@ local function authenticate(db, name, password, options)
   if type(user.passwordHash)=="table" then
     local provider,problem=crypto()
     if not provider then return false,problem end
-    local value=user.passwordHash
-    -- The old high-cost record remains for older OS rollback. A quick record
-    -- is usable only while tied to that exact credential, including its salt.
-    if type(user.quickPasswordHash)=="table" and same(user.quickPasswordSource,value) then value=user.quickPasswordHash end
-    local ok,valid=pcall(provider.verify,password,copy(value),options)
+    local cached=memoryCredential
+    local ok,valid
+    if cached and cached.name==name and same(cached.passwordHash,user.passwordHash)
+      and same(cached.quickHash,user.quickPasswordHash) and same(cached.quickSource,user.quickPasswordSource) then
+      stage(options,"Quick unlock")
+      ok,valid=pcall(cached.verify,password)
+    else
+      memoryCredential=nil
+      local value=user.passwordHash
+      if type(user.quickPasswordHash)=="table" and same(user.quickPasswordSource,value) then value=user.quickPasswordHash end
+      stage(options,type(value.iterations)=="number" and value.iterations>15000 and "First verification (slow)" or "Password check")
+      ok,valid=pcall(provider.verify,password,copy(value),options)
+    end
     if not ok then return false,"Password verification unavailable" end
     if valid~=true then return failed() end
   elseif type(user.passwordHash)~="string" or user.passwordHash~=legacyHash(password) then
@@ -153,6 +177,7 @@ end
 local function credential(password, options)
   local provider, err = crypto()
   if not provider then return nil, err end
+  stage(options,"Password setup (slow)")
   local ok, value = pcall(provider.create, password, options)
   if not ok or type(value) ~= "table" then return nil, "Password KDF failed; password unchanged" end
   return value
@@ -162,6 +187,7 @@ local function prepareQuick(user,password,options)
   local provider=crypto()
   if not provider or type(provider.createQuick)~="function" then return true end
   if type(user.quickPasswordHash)=="table" and same(user.quickPasswordSource,user.passwordHash) then return true end
+  stage(options,"Preparing quick unlock")
   local ok,value=pcall(provider.createQuick,password,options)
   if not ok or type(value)~="table" then return false,"Password verification setup unavailable" end
   user.quickPasswordHash=value user.quickPasswordSource=copy(user.passwordHash)
@@ -239,6 +265,7 @@ local function login(name, password, options)
   if options and options.cancelled and options.cancelled() then return false, "Authentication cancelled" end
   local saved, saveErr = M.save(db, expected)
   if not saved then return false, saveErr end
+  remember(db,name,password)
   return true, "logged in as " .. tostring(name)
 end
 
@@ -254,6 +281,7 @@ function M.unlock(password, options)
 end
 
 function M.logout()
+  memoryCredential=nil
   local db = M.load()
   db.currentUser = "guest"
   db.locked = false
@@ -283,6 +311,10 @@ local function setPassword(name, password, oldPassword, options)
   if not ready then return false,problem end
   if options and options.cancelled and options.cancelled() then return false, "Authentication cancelled" end
   local saved, saveErr = M.save(db, expected)
+  if saved then
+    memoryCredential=nil
+    if name==db.currentUser then remember(db,name,password) end
+  end
   return saved, saveErr
 end
 
@@ -341,7 +373,9 @@ function M.enroll(password, options)
     if not ready then return false,problem end
     if options and options.cancelled and options.cancelled() then return false,"Authentication cancelled" end
     db.authThrottle=nil db.currentUser="admin" db.locked=false
-    return M.save(db,expected)
+    local saved,err=M.save(db,expected)
+    if saved then remember(db,"admin",password) end
+    return saved,err
   end)
 end
 function M.authBusy() return authBusy end

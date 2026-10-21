@@ -50,9 +50,11 @@ function M.run(ctx)
     local scheduler=ctx.system and ctx.system.scheduler
     if not scheduler then notify(false,"Security","Authentication worker unavailable") return end
     app.authBusy=true app.authCancel=false app.appMessage="Hashing password; 0%"
+    app.authStage="Authentication"
     local options={cancelled=function() return closed or app.authCancel end,
+      stage=function(label) app.authStage=label app.appMessage=label if ctx.invalidate and not closed then ctx.invalidate() end end,
       progress=function(done,total)
-        app.appMessage="Hashing password; "..math.floor(done/total*100).."%"
+        app.appMessage=app.authStage.." "..math.floor(done/total*100).."%"
         if ctx.invalidate and not closed then ctx.invalidate() end
       end}
     local pid=scheduler:spawn("Settings authentication",function()
