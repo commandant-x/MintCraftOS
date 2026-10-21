@@ -2,7 +2,11 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.61:
+This repository currently contains V0.18.62:
+
+V0.18.62 also removes the imposed world/altitude travel cutoff from the measurement sweep. World origin and altitude samples remain recorded; fresh pose/identity, tilt, time and manual stop checks remain.
+
+Previous response/target changes:
 
 V0.18.61 removes the imposed vertical-speed cutoff from altitude measurements.
 The qualified response model estimates speeds between measured heat levels.

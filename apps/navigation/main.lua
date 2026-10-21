@@ -139,7 +139,7 @@ function M.run(ctx)
     elseif app.page=="sweep" then
       -- Options are a test draft, not edits to the saved flight configuration.
       for _,entry in ipairs({{"first","First heat level (1..15)"},{"last","Last heat level (1..15)"},
-        {"dwell","Safety timeout per level (4..60s)"},{"maxTravel","Max altitude/world travel (1..32 blocks)"},
+        {"dwell","Safety timeout per level (4..60s)"},
         {"timeout","Total time limit (10..180s)"}}) do
         rows[#rows+1]=forms.field(app.sweepOptions,entry[1],entry[2],"number")
       end
@@ -231,7 +231,7 @@ function M.run(ctx)
       local plan=self.sweepPending
       local channel=(self.sweepPendingControl.channels or {})[1] or {}
       local paragraphs={"MEASUREMENT FLIGHT: vessel will move.","Vehicle: "..tostring((self.sweepPendingControl.balloonSetup or {}).vehicleId),"First heat level: "..plan.first,"Last heat level: "..plan.last,
-        "Per-level safety timeout: "..plan.dwell,"Altitude/world travel limit: "..plan.maxTravel,"Vertical speed is measured; no imposed speed cutoff.",
+        "Per-level safety timeout: "..plan.dwell,"No imposed world/altitude travel cutoff.","Vertical speed is measured; no imposed speed cutoff.",
         "Advance only on measured steady vertical speed; altitude may still change.","Total seconds limit: "..plan.timeout,"Rescue transmitted signal: "..tostring(channel.rescue),
         "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
         "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","No automatic arming or physical confirmations."}

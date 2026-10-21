@@ -1,5 +1,7 @@
 # Measured speeds and world-altitude targets — 0.18.61
 
+0.18.62 update: imposed world/altitude travel cutoffs are also removed from the sweep and its options. World origin and altitude samples remain available for reporting, and fresh pose/identity, tilt, deadlines and operator stop remain active. Tests accept large horizontal and vertical displacement without triggering rescue.
+
 The sweep no longer has a configured vertical-speed cutoff. Its measurement
 options and confirmation remove that field. Finite fresh vertical speed remains
 required data; world/altitude travel, tilt, receiver, ownership and time guards

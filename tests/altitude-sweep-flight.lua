@@ -129,12 +129,14 @@ orientationFormat="sable"
 prepare() v=3
 assert(flight.startSweep(actor,options,true),"measured speed blocked sweep start")
 flight.step() assert(flight.status().sweep.state=="running")
+worldX=10000 z=10000 now=now+0.1 sample() flight.step()
+assert(flight.status().sweep.state=="running","world/altitude displacement still stopped sweep")
 assert(flight.stopSweep(actor)) flight.step() v=0 assert(flight.disarm(actor))
 -- Repeated independent failures must rescue without applying candidate gains.
-for _,fault in ipairs({"travel","world","tilt","pose","identity","sensor","receiver","owner","permission","manual","stop"}) do
+for _,fault in ipairs({"tilt","pose","identity","sensor","receiver","owner","permission","manual","stop"}) do
  prepare()
  assert(flight.startSweep(actor,options,true)) flight.step()
- if fault=="travel" then z=109 elseif fault=="world" then worldX=9 elseif fault=="tilt" then tilt=11 elseif fault=="pose" then poseLost=true elseif fault=="identity" then foreignPose=true
+ if fault=="tilt" then tilt=11 elseif fault=="pose" then poseLost=true elseif fault=="identity" then foreignPose=true
  elseif fault=="sensor" then stale=true elseif fault=="receiver" then badReceiver=true now=now+2.1
  elseif fault=="owner" then process.state="killed" elseif fault=="permission" then allowed=false
  elseif fault=="manual" then pressed=true elseif fault=="stop" then assert(flight.stopSweep(actor)) end
