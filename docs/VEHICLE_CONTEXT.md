@@ -1,5 +1,9 @@
 # Vehicle context
 
+0.18.49 adds an opt-in waypoint pilot and a passive sublevel equipment view.
+See [aircraft autonomy, supported interactions and commissioning](AUTOPILOT-0.18.49.md).
+Control wiring, response tuning and loaded-parent scope remain explicit.
+
 Navigation has a vehicle profile, actuator descriptions, geometry analysis and
 top/side subpixel diagrams. Mono-, bi-, tri-, quadri-, hexa- and other layouts
 do not imply any hard-coded motor wiring. Rotor count is distinct from the

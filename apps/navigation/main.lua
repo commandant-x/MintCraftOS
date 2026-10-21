@@ -30,16 +30,26 @@ function M.run(ctx)
   local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil}
   if draft.vehicle.type=="unknown" then app.page="vehicle" end
   if ctx.args and ctx.args.page=="flight" then app.page="flight" end
-  local tabs={{id="flight",label="Flight"},{id="vehicle",label="Vehicle"},{id="setup",label="Setup guide"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  local tabs={{id="flight",label="Flight"},{id="autopilot",label="Autopilot"},{id="sublevel",label="Sublevel equipment"},{id="vehicle",label="Vehicle"},{id="setup",label="Setup guide"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
   local win,timer
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
     app.bridge=vehicleBridge.snapshot()
+    if app.routePanel then app.routePanel:refresh(app.flight,sable.pose(),app.bridge,flight.endpoints()) end
     app.nativeFlight,app.nativeLastAttitude=pixel.sample(app.av,app.sub,app.flight,flight.telemetry(),app.nativeLastAttitude,os.clock())
     if win then win.dirty=true end
   end
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
+  app.routePanel=require("apps.navigation.route").new({
+    pose=sable.pose,
+    page=function(id) app.page=id app.form.scroll=1 app.scroll=1 end,
+    devices=function() ctx.apps.launch("devices") end,
+    arm=function() if app.dirty then return false,"Save actuator changes first" end return flight.arm(actor) end,
+    start=function(plan) if app.dirty then return false,"Save actuator changes first" end return flight.startMission(actor,plan,true) end,
+    stop=function() return flight.stopMission(actor) end,
+    disarm=function() return flight.disarm(actor) end,
+  })
   local function guide()
     local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints())
     app.page="setup" app.setup=plan app.setupStep=1 app.scroll=1
@@ -83,6 +93,10 @@ function M.run(ctx)
       for _,key in ipairs({"min","max","neutral","rescue"}) do field(channel,key,key,"number") end
       channel.mix=channel.mix or {}
       for _,axis in ipairs(axes) do field(channel.mix,axis,"Mix "..axis,"number") end
+      for _,key in ipairs({"routeForward","routeReverse","routeRight","routeLeft"}) do
+        field(channel.mix,key,"Autopilot "..key.." (signal delta)","number")
+        rows[#rows].get=function() return channel.mix[key] or 0 end
+      end
       field(channel,"frequency","Create frequency (label)","string")
       if not channel.actuator then channel.actuator=vehicle.actuator() end
       if draft.vehicle.bridgeActuators and #draft.vehicle.bridgeActuators>0 then
@@ -137,6 +151,7 @@ function M.run(ctx)
     for i=app.scroll,math.min(#rows,app.scroll+count-1) do renderer.writeAt(1,y+i-app.scroll,renderer.crop(rows[i],w)) end
   end
   local function actions()
+    if app.page=="autopilot" or app.page=="sublevel" then return app.routePanel:actions() end
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
     elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="guide",label="Guide"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
     elseif app.page=="setup" then
@@ -169,7 +184,8 @@ function M.run(ctx)
       command.danger=command.id=="arm"
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
-    if self.page=="setup" then
+    if self.page=="autopilot" or self.page=="sublevel" then self.routePanel:drawText(w,h)
+    elseif self.page=="setup" then
       renderer.writeAt(1,3,renderer.crop("Ballon : etape "..tostring(self.setupStep or 1).."/5",w),colors.cyan)
       if self.setup and self.setupStep==3 then self.form:draw(w,h,fields())
       else
@@ -275,7 +291,8 @@ function M.run(ctx)
       for _,command in ipairs((original.aircraft or {}).commands or {}) do rows[#rows+1]=command.name.." : "..command.frequency end
       lines(w,h,rows)
     end
-    renderer.writeAt(1,h,renderer.crop((self.dirty and "Unsaved | " or "")..self.message,w),colors.white,colors.gray)
+    local message=(self.page=="autopilot" or self.page=="sublevel") and self.routePanel.message or self.message
+    renderer.writeAt(1,h,renderer.crop((self.dirty and "Unsaved | " or "")..message,w),colors.white,colors.gray)
     if self.confirm then
       renderer.fill(1,3,w,h-3,colors.gray)
       renderer.writeAt(1,4,renderer.crop(self.confirm.title,w),colors.white,colors.gray)
@@ -284,6 +301,13 @@ function M.run(ctx)
     if not self.confirm and not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
   function app:handle(event)
+    if event.name=="key" and keys.f10 and event.args[1]==keys.f10 then report(flight.stopMission(actor)) refresh() return true end
+    local routePage=self.page=="autopilot" or self.page=="sublevel"
+    if routePage and self.graphicsActive then
+      self.routePanel.graphicsActive=true
+      if self.routePanel:handlePixelKey(event) then return true end
+    end
+    if routePage and self.routePanel.form.edit then return self.routePanel:handleText(event) end
     if self:handleNativeKey(event) then return true end
     if self.confirm then
       if event.name=="mouse_click" then
@@ -299,11 +323,13 @@ function M.run(ctx)
     else section,command,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event) end
     if handled then
       if section=="pages" then
-        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil if command=="setup" then guide() end end
+        if command then self.page=command self.form.scroll=1 self.scroll=1 self.testValue=nil if command=="setup" then guide() end if command=="sublevel" then self.routePanel.view="sublevel" elseif command=="autopilot" then self.routePanel.view="route" end end
         return true
       end
       if not command then return true end
     end
+    if command and command:match("^route:") then self.routePanel:action(command) refresh() return true end
+    if routePage then return self.routePanel:handleText(event) end
     if event.name=="mouse_scroll" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
     if event.name=="mouse_click" or command then
       local _,x,y=table.unpack(event.args)
@@ -424,6 +450,7 @@ function M.run(ctx)
     page=function(id)
       for _,tab in ipairs(tabs) do if tab.id==id then
         app.page=id app.form.scroll=1 app.scroll=1 app.testValue=nil
+        if id=="sublevel" then app.routePanel.view="sublevel" elseif id=="autopilot" then app.routePanel.view="route" end
         if id=="setup" then guide() end
         if win then win.dirty=true end
         return
@@ -433,6 +460,16 @@ function M.run(ctx)
       if id=="rescan" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
     end,
   },tabs)
+  local nativeDraw,nativeHandle=app.drawPixels,app.handlePixels
+  app.pixelPages.autopilot=true app.pixelPages.sublevel=true
+  function app:drawPixels(s,w,h,p)
+    if self.page=="autopilot" or self.page=="sublevel" then self.routePanel:drawPixels(s,w,h,p)
+    else nativeDraw(self,s,w,h,p) end
+  end
+  function app:handlePixels(event)
+    if self.page=="autopilot" or self.page=="sublevel" then return self.routePanel:handlePixels(event) end
+    return nativeHandle(self,event)
+  end
   refresh()
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,

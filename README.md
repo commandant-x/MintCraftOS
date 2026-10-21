@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.48:
+This repository currently contains V0.18.49:
+
+V0.18.49 adds Navigation's opt-in autonomous waypoint pilot, with dedicated
+directional thrusters or verified tilt guidance, altitude-first travel and final
+position hold. Native/text controls expose route editing, explicit start,
+manual takeover and passive sublevel equipment discovery. Fresh world pose and
+vehicle identity, calibrated full flight control and a clear flight corridor
+are required; there is no automatic landing or obstacle avoidance. See
+[aircraft setup, supported APIs, limits and rollback](docs/AUTOPILOT-0.18.49.md).
+
+V0.18.48:
 
 V0.18.48 adds first-run password enrollment, authentication after reboot and a
 kernel-level session screen. Press **F12 before leaving the computer**; Settings

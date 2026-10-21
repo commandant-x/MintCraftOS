@@ -10,8 +10,12 @@ local log = require("system.libraries.log")
 local mode = require("system.navigation.control_mode")
 local linkOutput = require("system.navigation.link_output")
 local vehicleBridge = require("system.services.vehiclebridged")
+local Autopilot = require("system.navigation.autopilot")
+local autopilot=Autopilot.new()
+local routeForward,routeRight=0,0
 local M = {}
 local axes = {"pitch","roll","altitude","heading"}
+local routeMix={"routeForward","routeReverse","routeRight","routeLeft"}
 local sides = {top=true,bottom=true,left=true,right=true,front=true,back=true}
 local ctx, runner, cfg, inventory, last, controllers, manual = nil,nil,{}, {},{}, {},{}
 local state, reason, owner, targets, timestamp = "disarmed","not calibrated",nil,{},0
@@ -169,6 +173,10 @@ function M.validate()
       local weight=(channel.mix or {})[axis] or 0
       if not addon.finite(weight) or math.abs(weight)>10 then errors[#errors+1]="invalid mixer coefficient" weight=0 end
     end
+    for _,key in ipairs(routeMix) do
+      local weight=(channel.mix or {})[key]
+      if weight~=nil and (not addon.finite(weight) or math.abs(weight)>15) then errors[#errors+1]="invalid directional thrust mix" end
+    end
     for index,axis in ipairs(active) do row[index]=addon.finite((channel.mix or {})[axis]) and channel.mix[axis] or 0 end
     matrix[#matrix+1]=row
   end
@@ -237,6 +245,7 @@ function M.configure(actor, value)
 end
 
 function M.fail(message)
+  autopilot:cancel(message,true)
   if state=="armed" or state=="calibration" then
     state,reason,rescuePending="failsafe",message,true
     controllers,manual={},{}
@@ -278,12 +287,58 @@ end
 
 function M.release(pid, message) if owner==pid then M.fail(message or "Navigation closed") end end
 
+local function takeover(message,t)
+  if not autopilot:running() then return end
+  autopilot:cancel(message)
+  routeForward,routeRight=0,0
+  t=t or M.telemetry()
+  targets={pitch=0,roll=0,altitude=t.altitude,heading=t.heading}
+  controllers={}
+end
+
+function M.startMission(actor,plan,confirmed)
+  local ok,err=authorize(actor,"navigation.autopilot")
+  if not ok then return false,err end
+  ok,err=authorize(actor,"navigation.control") if not ok then return false,err end
+  if confirmed~=true then return false,"Confirm autonomous flight explicitly" end
+  if owner~=actor.pid or state~="armed" or cfg.control.mode=="altitude" then return false,"Arm calibrated full flight control with this Navigation window first" end
+  for _,value in pairs(manual) do if value.expires>os.clock() then return false,"Release manual controls first" end end
+  for _,binding in ipairs(cfg.control.manualInputs or {}) do if redstone.getInput(binding.side) then return false,"Release physical pilot controls first" end end
+  local valid,errors=M.validate() if not valid then return false,table.concat(errors,"; ") end
+  if type(plan)=="table" and plan.driveMode=="thrusters" then
+    local found,matrix={},{}
+    for _,channel in ipairs(cfg.control.channels) do
+      local translated=false
+      for _,key in ipairs(routeMix) do if (channel.mix[key] or 0)~=0 then found[key]=true translated=true end end
+      if translated then
+        for _,axis in ipairs(axes) do if (channel.mix[axis] or 0)~=0 then return false,"Use dedicated translation channels, separate from attitude/altitude mixing" end end
+        if ((channel.mix.routeForward or 0)~=0 or (channel.mix.routeReverse or 0)~=0) and ((channel.mix.routeRight or 0)~=0 or (channel.mix.routeLeft or 0)~=0) then return false,"Separate longitudinal and lateral translation endpoints" end
+        matrix[#matrix+1]={(channel.mix.routeForward or 0)-(channel.mix.routeReverse or 0),(channel.mix.routeRight or 0)-(channel.mix.routeLeft or 0)}
+      end
+    end
+    for _,key in ipairs(routeMix) do if not found[key] then return false,"Map and physically calibrate directional output: "..key end end
+    if rank(matrix,2)<2 then return false,"Directional thrusters need independent forward/reverse and lateral control" end
+  end
+  if sable.pose then autopilot:observe(sable.pose(),os.clock()) end
+  local vehicle=cfg.control.vehicle
+  if vehicle and vehicle.bridgeVehicleId and autopilot.sample and vehicle.bridgeVehicleId~=autopilot.sample.vehicleId then return false,"Imported vehicle geometry belongs to another sublevel; Discover and calibrate this vehicle" end
+  return autopilot:start(plan,M.telemetry(),os.clock())
+end
+
+function M.stopMission(actor)
+  local ok,err=authorize(actor,"navigation.control") if not ok then return false,err end
+  if owner~=actor.pid or state~="armed" then return false,"Flight owner mismatch" end
+  takeover("Pilot stopped mission; manual stabilization")
+  return true
+end
+
 function M.setSetpoint(actor,axis,value)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
   if owner~=actor.pid or state~="armed" then return false,"not armed by this owner" end
   if not addon.finite(value) or not mode.enabled(cfg.control,axis) then return false,"invalid or disabled setpoint" end
   if (axis=="pitch" or axis=="roll") and math.abs(value)>30 then return false,"attitude setpoint limited to 30 degrees" end
+  takeover("Pilot changed setpoint")
   targets[axis]=axis=="heading" and value%360 or value
   controllers[axis]={}
   return true
@@ -293,6 +348,7 @@ function M.manual(actor,axis,value)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
   if state~="armed" or owner~=actor.pid or not mode.enabled(cfg.control,axis) or not addon.finite(value) then return false,"manual override unavailable" end
+  takeover("Manual pilot override")
   manual[axis]={value=math.max(-1,math.min(1,value)),expires=os.clock()+0.3}
   return true
 end
@@ -414,6 +470,7 @@ end
 function M.step(rescan)
   if rescan or inventoryDirty then inventory=addon.inventory() inventoryDirty=false end
   local now,t=os.clock(),M.telemetry()
+  if sable.pose then autopilot:observe(sable.pose(),now) end
   timestamp=now
   if state=="armed" then
     local process=ctx and ctx.scheduler.processes[owner]
@@ -453,6 +510,17 @@ function M.step(rescan)
     return
   end
   if state~="armed" then return end
+  if autopilot:running() then
+    for _,binding in ipairs(cfg.control.manualInputs or {}) do
+      if sides[binding.side] and redstone.getInput(binding.side) then takeover("Physical pilot override",t) break end
+    end
+    for _,value in pairs(manual) do if value.expires>now then takeover("Manual pilot override",t) break end end
+    if autopilot:running() then
+      local nextTargets,problem=autopilot:step(t,now)
+      if not nextTargets then M.fail(problem or "Autopilot guidance unavailable") return M.step(false) end
+      targets=nextTargets
+    end
+  end
   local dt=lastTick and now-lastTick or 0.1
   lastTick=now
   local output={}
@@ -474,9 +542,22 @@ function M.step(rescan)
     end
   end
   local values={}
+  if autopilot:running() and targets.translation then
+    -- Clear the old direction for one complete control tick before requesting
+    -- its opposite; peripheral writes are not an atomic multi-device batch.
+    local demand=targets.translation
+    if routeForward*demand.forward<0 then demand.forward=0 end
+    if routeRight*demand.right<0 then demand.right=0 end
+    routeForward,routeRight=demand.forward,demand.right
+  else routeForward,routeRight=0,0 end
   for _,channel in ipairs(cfg.control.channels) do
     local value=channel.neutral
     for _,axis in ipairs(mode.axes(cfg.control)) do value=value+(channel.mix[axis] or 0)*output[axis] end
+    if autopilot:running() and targets.translation then
+      local forward,right=targets.translation.forward,targets.translation.right
+      value=value+(channel.mix.routeForward or 0)*math.max(0,forward)+(channel.mix.routeReverse or 0)*math.max(0,-forward)
+        +(channel.mix.routeRight or 0)*math.max(0,right)+(channel.mix.routeLeft or 0)*math.max(0,-right)
+    end
     values[channel.id]=math.floor(math.max(channel.min,math.min(channel.max,value))+0.5)
   end
   local ok,err=writeOutputs(values)
@@ -487,6 +568,7 @@ function M.status()
   local valid,errors=M.validate()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
+    autopilot=autopilot:status(),
     calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test)},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
 end
@@ -499,6 +581,8 @@ end
 function M.start(context)
   if runner then runner:stop() end
   ctx=context
+  autopilot=Autopilot.new()
+  routeForward,routeRight=0,0
   migrate()
   state,owner,rescuePending="disarmed",nil,false
   reason="not armed; calibration required"

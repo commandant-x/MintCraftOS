@@ -5,7 +5,7 @@ local diagnostics, diagnosticsAt, diagnosticsErrors = {}, -math.huge, {}
 local diagnosticsReceivedAt
 local diagnosticsTimings={}
 local diagnosticRunner,generation=nil,0
-local slowFields={uuid="getUniqueId",name="getName",centerOfMass="getCenterOfMass",mass="getMass",inverseMass="getInverseMass",inertiaTensor="getInertiaTensor",inverseInertiaTensor="getInverseInertiaTensor"}
+local slowFields={name="getName",centerOfMass="getCenterOfMass",mass="getMass",inverseMass="getInverseMass",inertiaTensor="getInertiaTensor",inverseInertiaTensor="getInverseInertiaTensor"}
 
 local M = {
   ctx = nil,
@@ -67,7 +67,7 @@ local function readSublevel(sub)
   if gridErr then out.errors.isInPlotGrid = gridErr end
   if grid ~= true then out.inSublevel = false return out end
 
-  local fast={logicalPose="getLogicalPose",lastPose="getLastPose",velocity="getVelocity",linearVelocity="getLinearVelocity",angularVelocity="getAngularVelocity"}
+  local fast={uuid="getUniqueId",logicalPose="getLogicalPose",lastPose="getLastPose",velocity="getVelocity",linearVelocity="getLinearVelocity",angularVelocity="getAngularVelocity"}
   local methods={}
   for _,method in pairs(fast) do methods[#methods+1]=method end
   local started=os.clock()
@@ -285,8 +285,11 @@ end
 function M.pose()
   local snap=M.lastSnapshot or {}
   local timing=snap.sublevel and snap.sublevel.timings and snap.sublevel.timings.logicalPose or {}
+  local physical=snap.sublevel or {}
+  local identity=physical.timings and physical.timings.uuid or {}
   return {logicalPose=addon.copy(snap.sublevel and snap.sublevel.logicalPose),timestamp=timing.startedAt or (snap.sublevel and snap.sublevel.observedAt) or 0,
-    frame="world",inSublevel=M.lastStatus.inSublevel==true,revision=revision}
+    frame="world",inSublevel=M.lastStatus.inSublevel==true,revision=revision,
+    vehicleId=type(physical.uuid)=="string" and physical.uuid or nil,identityAt=identity.startedAt}
 end
 
 function M.rescan() if runner then runner:rescan() end end

@@ -18,7 +18,7 @@ function M.attach(app,api)
   function app:drawPixels(s,w,h,p)
     s:rect(0,0,w,h,p.panel)
     local model=api.model(w,h) state.model=model state.hits={}
-    if w<140 or h<100 then ui.label(s,3,3,"Enlarge window",math.max(0,w-6),p.muted,p.panel) return end
+    if w<140 or h<80 then ui.label(s,3,3,"Enlarge window",math.max(0,w-6),p.muted,p.panel) return end
     if state.page~=model.page then state.first=1 state.field=nil state.page=model.page end
     local function hit(id,r,kind) state.hits[#state.hits+1]={id=id,rect=r,kind=kind} end
     local y=3 local x=4
@@ -64,12 +64,14 @@ function M.attach(app,api)
     local cy=y
     state.lastVisible=state.first-1
     for i=state.first,#rows do
-      if cy+12>bottom then break end
+      if cy+22>bottom then break end
       local row=rows[i]
       local title=tostring(row.title or "")
       local description=tostring(row.description or "")
       local layout=fonts.layout(description,math.max(1,w-34),32768,{wrap=true,lineSpacing=2})
-      local rh=math.max(22,14+math.min(layout.height,math.max(0,bottom-cy-16)))
+      local fullHeight=math.max(22,14+layout.height)
+      if cy>y and cy+fullHeight>bottom then break end
+      local rh=math.min(fullHeight,bottom-cy)
       local bg=row.selected and p.button or p.panel
       s:rect(3,cy,w-25,rh,bg)
       ui.label(s,7,cy+3,title,w-34,row.accent and p.accent or p.text,bg)
@@ -77,10 +79,12 @@ function M.attach(app,api)
       for _,line in ipairs(layout.lines) do if line.y<rh-14 then fonts.draw(s,7,cy+14+line.y,line.text,p.muted,bg) end end
       s:setClip(old.x,old.y,old.w,old.h)
       hit(row.id or i,{x=3,y=cy,w=w-25,h=rh},"row") cy=cy+rh+3
-      state.lastVisible=i
+      if rh>=fullHeight then state.lastVisible=i end
     end
-    local up={x=w-21,y=y,w=18,h=19} local down={x=w-21,y=math.max(y+21,bottom-20),w=18,h=19}
-    ui.symbol(s,up,"up",p) ui.symbol(s,down,"down",p) hit("up",up,"scroll") hit("down",down,"scroll")
+    if bottom-y>=40 then
+      local up={x=w-21,y=y,w=18,h=19} local down={x=w-21,y=bottom-20,w=18,h=19}
+      ui.symbol(s,up,"up",p) ui.symbol(s,down,"down",p) hit("up",up,"scroll") hit("down",down,"scroll")
+    end
     ui.label(s,4,h-13,model.footer or "",w-8,p.muted,p.panel)
     if kbH>=56 then keyboard.draw(s,3,h-19-kbH,w-6,kbH,kb,p) end
   end
