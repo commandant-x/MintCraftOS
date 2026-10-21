@@ -491,7 +491,12 @@ local function sweepPose(now,vehicleId)
   local position=addon.vec(logical.position or logical.pos)
   local q=logical.orientation
   if not position or type(q)~="table" then return nil,"World position/orientation unavailable" end
-  local x,y,z,w=q.x or q[1],q.y or q[2],q.z or q[3],q.w or q[4]
+  local x,y,z,w
+  if q.a~=nil or q.v~=nil then
+    -- Sable uses scalar a + vector v; retain support for flat CC-Sable poses.
+    if type(q.v)~="table" then return nil,"Invalid sweep orientation vector" end
+    x,y,z,w=q.v.x,q.v.y,q.v.z,q.a
+  else x,y,z,w=q.x or q[1],q.y or q[2],q.z or q[3],q.w or q[4] end
   if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil,"Invalid sweep orientation" end
   local norm=x*x+y*y+z*z+w*w
   if not addon.finite(norm) or norm<1e-8 then return nil,"Invalid sweep orientation" end

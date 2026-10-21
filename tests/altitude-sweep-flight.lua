@@ -4,6 +4,19 @@ addon.bounded=function(fn) return pcall(fn) end addon.configure({readsPerTick=10
 addon.periodic=function() return {stop=function() end} end
 parallel={waitForAll=function(...) for _,f in ipairs({...}) do f() end end}
 local worldX,tilt,poseLost,foreignPose=0,0,false,false
+local orientationFormat="sable"
+local function orientation()
+ local x,w=math.sin(math.rad(tilt)/2),math.cos(math.rad(tilt)/2)
+ if orientationFormat=="sable" then return {a=w,v={x=x,y=0,z=0}} end
+ if orientationFormat=="server" then return {a=0.61198675632476807,v={x=-4.7012736104079522e-7,y=0.79086810350418091,z=-1.1281101037273287e-6}} end
+ if orientationFormat=="flat" then return {x=x,y=0,z=0,w=w} end
+ if orientationFormat=="array" then return {x,0,0,w} end
+ if orientationFormat=="missing" then return {a=w,v={y=0,z=0}} end
+ if orientationFormat=="zero" then return {a=0,v={x=0,y=0,z=0}} end
+ if orientationFormat=="nan" then return {a=0/0,v={x=0,y=0,z=0}} end
+ if orientationFormat=="string" then return {a="1",v={x=0,y=0,z=0}} end
+ return {a=w,v=false}
+end
 local now,z,v,command,pressed,allowed,badReceiver,stale,failWrite=10,100,0,0,false,true,false,false,false
 os.clock=function() return now end os.epoch=function() return now*1000 end
 local stored,serialized,files={},nil,{}
@@ -21,7 +34,7 @@ package.loaded["system.libraries.log"]={warn=function() end,error=function() end
 package.loaded["system.security.permissions"]={require=function() return allowed,"denied" end}
 redstone={getInput=function() return pressed end}
 addon.inventory=function() return {{name="tx",types={"redstone_link_bridge"},set={sendLinkSignal=true},device={sendLinkSignal=function(_,_,value) command=value if onTransmit then local callback=onTransmit onTransmit=nil callback() end return true end}}} end
-package.loaded["system.services.sabled"]={snapshot=function() return {timestamp=now} end,status=function() return {inSublevel=true} end,pose=function() if poseLost then return nil end return {vehicleId=foreignPose and "other" or "ship",inSublevel=true,frame="world",timestamp=now,identityAt=now,logicalPose={position={x=worldX,y=z,z=0},orientation={x=math.sin(math.rad(tilt)/2),y=0,z=0,w=math.cos(math.rad(tilt)/2)}}} end}
+package.loaded["system.services.sabled"]={snapshot=function() return {timestamp=now} end,status=function() return {inSublevel=true} end,pose=function() if poseLost then return nil end return {vehicleId=foreignPose and "other" or "ship",inSublevel=true,frame="world",timestamp=now,identityAt=now,logicalPose={position={x=worldX,y=z,z=0},orientation=orientation()}} end}
 package.loaded["system.services.avionicsd"]={flightTelemetry=function()
  local stamp=stale and now-1 or now
  return {timestamp=stamp,measurements={altitude={value=z,valid=true,observedAt=stamp,validUntil=stamp+0.5},
@@ -94,6 +107,24 @@ assert(flight.applySweep(actor,true))
 assert(flight.configuration().channels[1].neutral==11 and flight.configuration().gains.altitude.ki>0)
 assert(not flight.configuration().manualValidated and not flight.configuration().hoverValidated and not flight.configuration().rescueValidated)
 assert(not flight.arm(actor),"model fit forged physical validation")
+-- Captured server rotation: large yaw is not a tilt failure.
+orientationFormat="server" prepare()
+assert(flight.startSweep(actor,options,true),"captured server quaternion rejected")
+assert(flight.stopSweep(actor)) flight.step() assert(flight.disarm(actor))
+-- Actual Sable a/v format must retain all tilt and validity guards.
+for _,format in ipairs({"sable","flat","array"}) do
+ orientationFormat=format prepare()
+ assert(flight.startSweep(actor,options,true),format.." quaternion rejected")
+ tilt=11 flight.step()
+ assert(command==0 and flight.status().sweep.state=="aborted",format.." bypassed tilt guard")
+ assert(flight.disarm(actor))
+end
+for _,format in ipairs({"missing","zero","nan","string","bad-vector"}) do
+ orientationFormat=format prepare()
+ local ok,err=flight.startSweep(actor,options,true)
+ assert(not ok and err:find("Invalid sweep orientation",1,true) and command==0,format.." quaternion accepted")
+end
+orientationFormat="sable"
 -- Repeated independent failures must rescue without applying candidate gains.
 for _,fault in ipairs({"travel","world","tilt","pose","identity","speed","sensor","receiver","owner","permission","manual","stop"}) do
  prepare()

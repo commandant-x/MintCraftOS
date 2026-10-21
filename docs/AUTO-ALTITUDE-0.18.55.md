@@ -119,3 +119,7 @@ a 100,000-byte user-data witness. Fresh installation with that witness uses
 **809,469 bytes**. Interrupted backup/live writes restore the prior release and
 retain its durable checkpoint. A stop arriving during a transmitter operation
 also returns to rescue rather than allowing that operation to resume the sweep.
+
+## Sable orientation compatibility (0.18.59)
+
+The sweep accepts Sable quaternions represented as `{a=scalar, v={x=..., y=..., z=...}}`, as observed on the deployed server, as well as flat `{x,y,z,w}` named components and numeric arrays. The scalar is mapped to `w`; the vector components retain their axes. No Euler-angle conversion or assumed upright orientation is used. Missing, nonnumeric, nonfinite and zero-norm rotations are refused. The 10-degree tilt guard remains active at start and during the sweep. Offline flight tests use the Sable representation for the complete simulated sweep and exercise all supported layouts against the tilt guard.
