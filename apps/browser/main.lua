@@ -699,6 +699,7 @@ function M.run(ctx)
   end
 
   function app:handle(event)
+    if self.handlePixelKey and self:handlePixelKey(event) then return true end
     local t = tab()
     if event.name == "mouse_scroll" then
       t.scroll = math.max(1, t.scroll + event.args[1])
@@ -742,6 +743,14 @@ function M.run(ctx)
     return false
   end
 
+  require("apps.browser.pixel").attach(app,{
+    tab=tab,home=homePage,settings=settings,enqueue=enqueue,bookmark=addBookmark,link=openLink,
+    crafttube=function() openCraftTube(youtubeQuery(tab().url)) end,
+    newTab=function()
+      if #app.tabs>=16 then app.status="Tab limit reached" return end
+      app.tabs[#app.tabs+1]=newTab(settings.home) app.active=#app.tabs enqueue("load",{url=settings.home,history=false})
+    end,submit=submitAddress,
+  })
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Browser", w = math.min(82, sw - 4), h = math.min(26, sh - 3), x = 5, y = 3, app = app })
   worker=appWorker.new(ctx,"Browser requests",function(request)

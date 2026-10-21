@@ -18,7 +18,7 @@ function M.run(ctx)
     { id = "refresh", label = "Refresh" },
   }
 
-  local function rows()
+  local function loadRows()
     local installed = {}
     for _, pkg in ipairs(packages.installed()) do installed[pkg.id] = true end
     local out = {}
@@ -28,6 +28,9 @@ function M.run(ctx)
     end
     return out
   end
+
+  local cachedRows=loadRows()
+  local function rows() return cachedRows end
 
   function app:draw(w, h)
     self.toolbar = ui.toolbar(1, 1, w, actions)
@@ -53,14 +56,7 @@ function M.run(ctx)
     renderer.writeAt(1, h, renderer.crop(self.message, w), colors.gray, colors.lightGray)
   end
 
-  function app:handle(event)
-    if event.name == "mouse_scroll" then
-      self.scroll = math.max(1, self.scroll + event.args[1])
-      return true
-    end
-    if event.name ~= "mouse_click" then return false end
-    local _, x, y = table.unpack(event.args)
-    local action = ui.toolbarHit(self.toolbar, x, y)
+  function app:action(action)
     if action == "install" and self.selected then
       local allowed, denied = ctx.security.require("packages.install", self.selected)
       local ok, msg
@@ -70,6 +66,7 @@ function M.run(ctx)
       else
         ok, msg = false, denied
       end
+      cachedRows=loadRows()
       self.message = tostring(msg)
       if ctx.notifications then ctx.notifications:push(ok and "success" or "error", "Store", tostring(msg), 4) end
       return true
@@ -82,13 +79,27 @@ function M.run(ctx)
       else
         ok, msg = false, denied
       end
+      cachedRows=loadRows()
       self.message = tostring(msg)
       if ctx.notifications then ctx.notifications:push(ok and "success" or "warn", "Store", tostring(msg), 4) end
       return true
     elseif action then
+      cachedRows=loadRows()
       self.message = "Refreshed"
       return true
     end
+    return false
+  end
+
+  function app:handle(event)
+    if event.name == "mouse_scroll" then
+      self.scroll = math.max(1, self.scroll + event.args[1])
+      return true
+    end
+    if event.name ~= "mouse_click" then return false end
+    local _, x, y = table.unpack(event.args)
+    local action = ui.toolbarHit(self.toolbar, x, y)
+    if action then return self:action(action) end
     if y >= 3 then
       local pkg = rows()[self.scroll + y - 3]
       if pkg then self.selected = pkg.id return true end
@@ -96,6 +107,7 @@ function M.run(ctx)
     return false
   end
 
+  require("apps.store.pixel").attach(app,rows,actions)
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "Store", w = math.min(70, sw - 4), h = math.min(18, sh - 3), x = 6, y = 4, app = app })
   while not win.closed do ctx.pullEvent() end

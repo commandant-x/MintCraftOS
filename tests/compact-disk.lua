@@ -36,7 +36,7 @@ for path,content in pairs(files) do
  end
 end
 local nextFiles={} for path,data in pairs(files) do nextFiles[path]=data end
-nextFiles.VERSION='0.18.48\n'
+nextFiles.VERSION='0.18.49\n'
 local source=codec.unpack(files['apps/terminal/main.lua'])..'\n-- next release witness\n'
 nextFiles['apps/terminal/main.lua']=codec.pack('apps/terminal/main.lua',source)
 assert(installer.install(nextFiles))
@@ -88,6 +88,28 @@ if arg[1] then
  assert(state.nodes['/apps/terminal/main.lua']==previousFiles['apps/terminal/main.lua'])
  assert(state.nodes['/home/user/documents/witness']==string.rep('user data\n',10000))
  print(string.format('actual release upgrade/rollback: %s -> %s; peak %d of 1000000 bytes with 100000-byte witness',previousFiles.VERSION:gsub('%s+',''),files.VERSION:gsub('%s+',''),peak()))
+ for _,phase in ipairs({'backup','live'}) do
+  state,installer,used,peak=setup()
+  assert(installer.install(previousFiles))
+  local quotaHook=state.hook local interrupted=false
+  state.hook=function(action,path)
+   quotaHook(action,path)
+   assert(action~='write' or not path:match('^/var/tmp/mintcraft%-install/stage/'),'upgrade redundantly staged RAM payload on disk')
+   if not interrupted and (phase=='backup' and action=='copy' and path:match('^/var/tmp/mintcraft%-install/backup/apps/') or phase=='live' and action=='write' and path:match('^/apps/')) then
+    interrupted=true coroutine.yield('power loss')
+   end
+  end
+  local pending=coroutine.create(function() installer.install(files) end)
+  local ok,err=coroutine.resume(pending) assert(ok,err)
+  assert(interrupted and coroutine.status(pending)=='suspended') state.hook=quotaHook
+  assert(installer.recover())
+  assert(state.nodes['/VERSION']==previousFiles.VERSION)
+  for path,content in pairs(previousFiles) do
+   if not path:match('^system/config/') and not path:match('^home/') and not path:match('^packages/') then assert(state.nodes['/'..path]==content,'power-loss recovery changed '..path) end
+  end
+  assert(state.nodes['/home/user/documents/witness']==string.rep('user data\n',10000))
+ end
+ print('actual upgrade power loss: partial backup and partial live writes recover the previous release with its durable checkpoint retained')
 end
 loadfile=nativeLoadfile
 print('compact disk: interrupted staging and live installation recover on pinned-installer retry')

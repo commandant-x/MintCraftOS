@@ -22,14 +22,18 @@ function M.run(ctx)
   local win,timer,trackTimer
   local function refresh()
     local status=combat.status()
-    if not app.snapshot.radars or app.snapshot.revision~=status.revision then app.snapshot=combat.snapshot() end
+    local changed=not app.snapshot.radars or app.snapshot.revision~=status.revision
+    if changed then app.snapshot=combat.displaySnapshot() end
     if app.page=="network" then app.networkSnapshot=radarNet.snapshot() end
     if app.setup then app.setup:update(app.snapshot) end
-    for _,target in ipairs(app.snapshot.targets or {}) do target.stale=target.pending or not target.freshnessKnown or os.clock()-target.timestamp>5 end
+    for _,target in ipairs(app.snapshot.targets or {}) do
+      local stale=target.pending or not target.freshnessKnown or os.clock()-target.timestamp>5
+      if target.stale~=stale then changed=true target.stale=stale end
+    end
     if not find(app.snapshot.radars,app.radarId) then app.radarId=app.snapshot.radars[1] and app.snapshot.radars[1].id app.canvas=nil end
     if app.targetId and not find(app.snapshot.targets,app.targetId) then app.targetId=nil app.tracking=false app.confirm=nil app.solution=nil end
     if not app.cannonId and app.snapshot.cannons[1] then app.cannonId=app.snapshot.cannons[1].id end
-    if win then win.dirty=true end
+    if win and (changed or app.page=="network" or app.setup) then win.dirty=true end
   end
   local function report(ok,message) app.message=ok and (type(message)=="number" and "Queued #"..message or message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end

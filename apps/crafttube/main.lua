@@ -333,7 +333,23 @@ function M.run(ctx)
     keyboard.draw(1, self.keyboard.y, w, self.keyboard)
   end
 
+  function app:action(action)
+    if action == "search" then self.mode = "search" enqueue("search") return true end
+    if action == "play" then enqueue("play") return true end
+    if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
+    if action == "audio" then self.mode = "audio" self.input = self.cfg.audioProxy or "" return true end
+    if action == "fav" then toggleFavorite() return true end
+    if action == "history" then showRows(self.data.history, "History") return true end
+    if action == "details" then
+        local video = selectedVideo()
+        if video then enqueue("details") end
+        return true
+    end
+    return false
+  end
+
   function app:handle(event)
+    if self.handlePixelKey and self:handlePixelKey(event) then return true end
     if event.name == "mouse_scroll" then
       self.scroll = math.max(1, self.scroll + event.args[1])
       return true
@@ -348,17 +364,7 @@ function M.run(ctx)
       local _, x, y = table.unpack(event.args)
       if event.monitorTouch and keyboard.handle(event, self.keyboard) then return true end
       local action = ui.toolbarHit(self.toolbar, x, y)
-      if action == "search" then self.mode = "search" enqueue("search") return true end
-      if action == "play" then enqueue("play") return true end
-      if action == "proxy" then self.mode = "proxy" self.input = self.cfg.proxy or "" return true end
-      if action == "audio" then self.mode = "audio" self.input = self.cfg.audioProxy or "" return true end
-      if action == "fav" then toggleFavorite() return true end
-      if action == "history" then showRows(self.data.history, "History") return true end
-      if action == "details" then
-        local video = selectedVideo()
-        if video then enqueue("details") end
-        return true
-      end
+      if action then return self:action(action) end
       if y >= 4 then
         local item = self.rows[self.scroll + math.floor((y - 4) / 3)]
         if item then self.selected = item.id enqueue("details") return true end
@@ -367,6 +373,7 @@ function M.run(ctx)
     return false
   end
 
+  require("apps.crafttube.pixel").attach(app,actions,enqueue)
   showRows(app.data.favorites, "Favorites")
   local sw, sh = term.getSize()
   local win = ctx.windowManager:create({ title = "CraftTube", w = math.min(78, sw - 4), h = math.min(24, sh - 3), x = 4, y = 3, app = app })

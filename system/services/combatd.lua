@@ -294,7 +294,9 @@ function M.acquire(rescan)
                 observation.synthetic=previous.synthetic==true or raw.synthetic==true or raw.synthetic
               end
             end
-            local sourceCount=0 for _ in pairs(target.observations) do sourceCount=sourceCount+1 end
+            -- Existing sources need neither a recount nor another slot.
+            local sourceCount=0
+            if not previous then for _ in pairs(target.observations) do sourceCount=sourceCount+1 end end
             if previous or sourceCount<128 then target.observations[item.name]=observation
             else target.classificationUncertain=true end
             local changed = not old or (verified and (not addon.finite(target.scannedTime) or raw.scannedTime>target.scannedTime))
@@ -313,10 +315,14 @@ function M.acquire(rescan)
             target.labelSource = settings.aliases[id] and "alias" or target.renderName and "api" or "id"
             target.sources=target.sources or {}
             if target.observations[item.name] then target.sources[item.name]=now end
-            target.friendly,target.synthetic=target.retiredFriendly or nil,target.retiredSynthetic or nil
-            for _,report in pairs(target.observations) do
-              if report.friendly==true then target.friendly=true elseif target.friendly==nil and report.friendly==false then target.friendly=false end
-              if report.synthetic==true then target.synthetic=true elseif target.synthetic==nil and report.synthetic==false then target.synthetic=false end
+            -- Most scans move contacts without changing classification. Reuse
+            -- the fused flags until a source's actual safety evidence changes.
+            if not previous or previous.friendly~=observation.friendly or previous.synthetic~=observation.synthetic then
+              target.friendly,target.synthetic=target.retiredFriendly or nil,target.retiredSynthetic or nil
+              for _,report in pairs(target.observations) do
+                if report.friendly==true then target.friendly=true elseif target.friendly==nil and report.friendly==false then target.friendly=false end
+                if report.synthetic==true then target.synthetic=true elseif target.synthetic==nil and report.synthetic==false then target.synthetic=false end
+              end
             end
             target.classificationSource="per-radar scan evidence; true wins conflicts"
             if type(raw.friendly)=="boolean" or type(raw.synthetic)=="boolean" then radar.classificationSource="API friendly/synthetic" end
@@ -406,6 +412,22 @@ function M.acquire(rescan)
 end
 
 function M.snapshot() local result=addon.copy(cached) result.probe=addon.copy(probeResult) return result end
+function M.displaySnapshot()
+  -- The UI needs trails and fused classifications, not every radar's private
+  -- freshness evidence. Keep the command snapshot unchanged.
+  local result={}
+  for key,value in pairs(cached) do
+    if key~="targets" then result[key]=addon.copy(value) end
+  end
+  result.targets={}
+  for i,target in ipairs(cached.targets or {}) do
+    local row={}
+    for key,value in pairs(target) do if key~="observations" then row[key]=addon.copy(value) end end
+    result.targets[i]=row
+  end
+  result.probe=addon.copy(probeResult)
+  return result
+end
 function M.status() return {ok=cached.ok,available=cached.available,status=cached.status,lastFault=lastFault,revision=cached.revision,timestamp=cached.timestamp,counts=addon.copy(cached.counts or {}),errors=addon.copy(cached.errors),uncertain=addon.copy(uncertain),acquisition=addon.copy(cached.acquisition)} end
 function M.health()
   local health=M.status()

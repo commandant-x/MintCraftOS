@@ -1,0 +1,36 @@
+{
+  "baseline": {
+    "runs": [
+      {
+        "cpuSeconds": 0.896166,
+        "output": "combat audit: old scans, bounded progression, regression, restart, flags, attitude, CBC state/error/no-retry and adapters passed\n24 wired radars, 15 players, 40 cycles: CPU 0.896166s, copy calls 517557; safety classifications preserved\n"
+      },
+      {
+        "cpuSeconds": 0.727943,
+        "output": "combat audit: old scans, bounded progression, regression, restart, flags, attitude, CBC state/error/no-retry and adapters passed\n24 wired radars, 15 players, 40 cycles: CPU 0.727943s, copy calls 517557; safety classifications preserved\n"
+      },
+      {
+        "cpuSeconds": 0.643239,
+        "output": "combat audit: old scans, bounded progression, regression, restart, flags, attitude, CBC state/error/no-retry and adapters passed\n24 wired radars, 15 players, 40 cycles: CPU 0.643239s, copy calls 517557; safety classifications preserved\n"
+      }
+    ],
+    "medianCPUSeconds": 0.727943
+  },
+  "current": {
+    "runs": [
+      {
+        "cpuSeconds": 0.491072,
+        "output": "combat audit: old scans, bounded progression, regression, restart, flags, attitude, CBC state/error/no-retry and adapters passed\ndisplay copy nodes: 5065 / full 7617\n24 wired radars, 15 players, 40 cycles: CPU 0.491072s, copy calls 415477; safety classifications preserved\n"
+      },
+      {
+        "cpuSeconds": 0.531337,
+        "output": "combat audit: old scans, bounded progression, regression, restart, flags, attitude, CBC state/error/no-retry and adapters passed\ndisplay copy nodes: 5065 / full 7617\n24 wired radars, 15 players, 40 cycles: CPU 0.531337s, copy calls 415477; safety classifications preserved\n"
+      },
+      {
+        "cpuSeconds": 0.482856,
+        "output": "combat audit: old scans, bounded progression, regression, restart, flags, attitude, CBC state/error/no-retry and adapters passed\ndisplay copy nodes: 5065 / full 7617\n24 wired radars, 15 players, 40 cycles: CPU 0.482856s, copy calls 415477; safety classifications preserved\n"
+      }
+    ],
+    "medianCPUSeconds": 0.491072
+  }
+}

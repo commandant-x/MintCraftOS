@@ -30,6 +30,58 @@ function M.run(ctx,args)
     if app.page=='monitoring' then return {{id='monitorConfig',label='Save thresholds'}} end
     return {{id="scan",label="Rescan"},{id="ping",label="Ping"},{id="inventory",label="Inventory"},{id="storage",label="Storage"}}
   end
+  function app:contentLines(w)
+    local s=self.snapshot
+    local lines={}
+    if self.page=='alerts' then
+      local state=s.monitoring or {active={},history={}}
+      local function alertLine(text)
+        text=tostring(text)
+        for offset=1,math.max(1,#text),w do lines[#lines+1]=text:sub(offset,offset+w-1) end
+      end
+      lines[#lines+1]='Monitoring: '..(state.running and 'running' or 'paused / disabled')
+      lines[#lines+1]='Active alerts: '..#state.active..(state.truncated and ' (limit reached)' or '')
+      for _,entry in ipairs(state.active) do
+        alertLine((entry.acknowledged and '[ack] ' or '[new] ')..entry.kind..' | '..entry.source)
+        alertLine(entry.message)
+      end
+      lines[#lines+1]='Recent transitions:'
+      for index=#state.history,1,-1 do local entry=state.history[index]
+        alertLine(tostring(entry.phase)..' | '..entry.source..' | '..entry.message)
+      end
+    elseif self.page=='fleet' then
+      lines[#lines+1]='Coordination: '..(s.automation and s.automation.enabled and 'running' or 'paused')
+      lines[#lines+1]='Endpoints: '..#(s.assets or {})
+      if s.resources then
+        lines[#lines+1]='Fresh totals: '..s.resources.items..' items | '..s.resources.energy..' energy | '..s.resources.fluid..' mB'..(s.resources.partial and ' (partial)' or '')
+      end
+      for _,asset in ipairs(s.assets or {}) do
+        local data=asset.result or {}
+        lines[#lines+1]=asset.endpoint..' | agent '..asset.owner..' | '..(asset.stale and 'STALE' or (data.ok==false and 'ERROR' or 'LIVE'))
+        local value=data.ok==false and (data.error or 'Measurement failed') or data.items and ('Items '..data.items..' / slots used '..(data.used or 0))
+          or (data.energy and ('Energy '..data.energy..' / '..(data.capacity or '?')))
+          or (data.amount and ('Fluid '..data.amount..' mB')) or data.error or 'Awaiting first measurement'
+        lines[#lines+1]=value..(data.partial and ' (partial)' or '')
+        lines[#lines+1]=asset.lastError or (asset.kind..' | age '..(asset.age and math.floor(asset.age)..'s' or '?'))
+      end
+    elseif self.page=="missions" then
+      lines[#lines+1]="Group: "..self.settings.group.." | newest first"
+      for index=#s.jobs,1,-1 do local job=s.jobs[index]
+        lines[#lines+1]=job.type.." -> "..job.node.." | "..job.state
+        if job.result then lines[#lines+1]=textutils.serialize(job.result,{compact=true}) end
+      end
+    else
+      lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
+        "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,"Monitored endpoints: "..#(s.assets or {}),'Alerts: '..#(s.monitoring and s.monitoring.active or {}),
+        "Automation: "..((s.automation and s.automation.enabled) and "ON" or "OFF"),
+        s.automation and s.automation.message or ""}
+      for _,row in ipairs(s.computers) do if row.authorized then
+        lines[#lines+1]=row.id.." "..row.label.." | "..row.state.." | agent "..tostring(row.version or "not registered")
+        if row.error then lines[#lines+1]=row.error end
+      end end
+    end
+    return lines
+  end
   function app:draw(w,h)
     if w<18 or h<9 then renderer.writeAt(1,1,renderer.crop("NEXUS: enlarge window",w)) return end
     local pageLabel=self.page for _,page in ipairs(pages) do if page.id==self.page then pageLabel=page.label end end
@@ -100,54 +152,7 @@ function M.run(ctx,args)
         renderer.writeAt(1,h-3,renderer.crop(selected and ("#"..selected.id.." "..selected.state.." / "..(selected.activeMissions or 0).." tasks") or "Select an agent",w))
       end
     else
-      local lines={}
-      if self.page=='alerts' then
-        local state=s.monitoring or {active={},history={}}
-        local function alertLine(text)
-          text=tostring(text)
-          for offset=1,math.max(1,#text),w do lines[#lines+1]=text:sub(offset,offset+w-1) end
-        end
-        lines[#lines+1]='Monitoring: '..(state.running and 'running' or 'paused / disabled')
-        lines[#lines+1]='Active alerts: '..#state.active..(state.truncated and ' (limit reached)' or '')
-        for _,entry in ipairs(state.active) do
-          alertLine((entry.acknowledged and '[ack] ' or '[new] ')..entry.kind..' | '..entry.source)
-          alertLine(entry.message)
-        end
-        lines[#lines+1]='Recent transitions:'
-        for index=#state.history,1,-1 do local entry=state.history[index]
-          alertLine(tostring(entry.phase)..' | '..entry.source..' | '..entry.message)
-        end
-      elseif self.page=='fleet' then
-        lines[#lines+1]='Coordination: '..(s.automation and s.automation.enabled and 'running' or 'paused')
-        lines[#lines+1]='Endpoints: '..#(s.assets or {})
-        if s.resources then
-          lines[#lines+1]='Fresh totals: '..s.resources.items..' items | '..s.resources.energy..' energy | '..s.resources.fluid..' mB'..(s.resources.partial and ' (partial)' or '')
-        end
-        for _,asset in ipairs(s.assets or {}) do
-          local data=asset.result or {}
-          lines[#lines+1]=asset.endpoint..' | agent '..asset.owner..' | '..(asset.stale and 'STALE' or (data.ok==false and 'ERROR' or 'LIVE'))
-          local value=data.ok==false and (data.error or 'Measurement failed') or data.items and ('Items '..data.items..' / slots used '..(data.used or 0))
-            or (data.energy and ('Energy '..data.energy..' / '..(data.capacity or '?')))
-            or (data.amount and ('Fluid '..data.amount..' mB')) or data.error or 'Awaiting first measurement'
-          lines[#lines+1]=value..(data.partial and ' (partial)' or '')
-          lines[#lines+1]=asset.lastError or (asset.kind..' | age '..(asset.age and math.floor(asset.age)..'s' or '?'))
-        end
-      elseif self.page=="missions" then
-        lines[#lines+1]="Group: "..self.settings.group.." | newest first"
-        for index=#s.jobs,1,-1 do local job=s.jobs[index]
-          lines[#lines+1]=job.type.." -> "..job.node.." | "..job.state
-          if job.result then lines[#lines+1]=textutils.serialize(job.result,{compact=true}) end
-        end
-      else
-        lines={"NEXUS OVERMIND "..nexus.version,"Group: "..tostring(s.group or "not configured"),
-          "Discovered: "..s.discovered,"Managed: "..s.managed,"Online: "..s.online,"Missions: "..#s.jobs,"Monitored endpoints: "..#(s.assets or {}),'Alerts: '..#(s.monitoring and s.monitoring.active or {}),
-          "Automation: "..((s.automation and s.automation.enabled) and "ON" or "OFF"),
-          s.automation and s.automation.message or ""}
-        for _,row in ipairs(s.computers) do if row.authorized then
-          lines[#lines+1]=row.id.." "..row.label.." | "..row.state.." | agent "..tostring(row.version or "not registered")
-          if row.error then lines[#lines+1]=row.error end
-        end end
-      end
+      local lines=self:contentLines(w)
       self.contentPageSize=math.max(1,h-7) self.contentMax=math.max(1,#lines-self.contentPageSize+1)
       self.scroll=math.max(1,math.min(self.scroll,self.contentMax))
       for index=self.scroll,math.min(#lines,self.scroll+self.contentPageSize-1) do renderer.writeAt(1,4+index-self.scroll,renderer.crop(tostring(lines[index]),w)) end
@@ -166,18 +171,7 @@ function M.run(ctx,args)
       self.confirmBar=ui.toolbar(1,h-2,w,{{id=text~="" and "more" or "yes",label=text~="" and "Read more" or "Confirm"},{id="no",label="Cancel"}})
     elseif not self.form.edit then menus.overlay(self.pages,w,h) menus.overlay(self.commands,w,h) end
   end
-  function app:handle(event)
-    if self.confirm then
-      if event.name=="mouse_click" then
-        local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
-        if id=="more" then self.confirm.offset=(self.confirm.offset or 0)+self.confirm.capacity
-        elseif id=="yes" then local fn=self.confirm.fn self.confirm=nil fn() elseif id=="no" then self.confirm=nil end
-      end return true
-    end
-    if self.form.edit then return self.form:handle(event) end
-    local section,id,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
-    if handled and section=="pages" then if id then self.page=id self.scroll=1 end return true end
-    if handled and id then
+  function app:command(id)
       local s=self.snapshot local drive=s.drives[self.driveIndex or 1]
       if id=="setup" then
         if self.settings.key=="" and s.role~="master" then request("setupAuto",{group=self.settings.group})
@@ -204,6 +198,21 @@ function M.run(ctx,args)
         end)
       else request("mission",{id=self.selected,type=id}) end
       return true
+  end
+  function app:handle(event)
+    if self.handlePixelKey and self:handlePixelKey(event) then return true end
+    if self.confirm then
+      if event.name=="mouse_click" then
+        local id=ui.toolbarHit(self.confirmBar,event.args[2],event.args[3])
+        if id=="more" then self.confirm.offset=(self.confirm.offset or 0)+self.confirm.capacity
+        elseif id=="yes" then local fn=self.confirm.fn self.confirm=nil fn() elseif id=="no" then self.confirm=nil end
+      end return true
+    end
+    if self.form.edit then return self.form:handle(event) end
+    local section,id,handled=menus.route({{name="pages",state=self.pages},{name="commands",state=self.commands}},event)
+    if handled and section=="pages" then if id then self.page=id self.scroll=1 end return true end
+    if handled and id then
+      return self:command(id)
     elseif handled then return true end
     if self.page=="setup" or self.page=='monitoring' then return self.form:handle(event) end
     if event.name=="mouse_scroll" then self.scroll=self.scroll+event.args[1]*(self.page=="map" and (self.networkPageSize or 1) or 1) return true end
@@ -227,6 +236,12 @@ function M.run(ctx,args)
     end
     return false
   end
+  require("apps.nexus.pixel").attach(app,pages,actions,{
+    select=function(row,toggle)
+      app.selected=row.id
+      if toggle then report(nexus.select(actor,row.id,not row.authorized,app.settings.group)) app.snapshot=nexus.snapshot() end
+    end,
+  })
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="NEXUS OVERMIND",w=math.max(18,math.min(92,w-2)),h=math.max(9,math.min(30,h-2)),x=2,y=2,app=app})
   request("scan") timer=ctx.startTimer(0.5)

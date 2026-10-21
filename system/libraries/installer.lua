@@ -67,6 +67,11 @@ function M.install(files,options)
   -- Refuse before touching live files when space or the checkpoint is unavailable.
   local free=fs.getFreeSpace and fs.getFreeSpace("/")
   local upgrading=fs.exists("/VERSION") and #plan.changed>0
+  -- The bundled payload is already retained and syntax/integrity checked in
+  -- memory. During an upgrade, two durable copies of the old files drive undo;
+  -- a third, staged copy of the new payload adds no recovery capability.
+  plan.payloadBytes=plan.stageBytes
+  if upgrading then plan.stageBytes=0 end
   assert(not upgrading or type(free)=="number" or free=="unlimited","INSTALL-DISK: cannot verify free space for a reversible upgrade")
   local required=plan.stageBytes+plan.backupBytes*(upgrading and 2 or 1)+math.max(32768,#plan.changed*256)
   if type(free)=="number" then assert(free>=required,"INSTALL-DISK: insufficient space for staging and retained rollback; backups retained") end
@@ -96,8 +101,8 @@ function M.install(files,options)
     if packedCodec then write(root.."/format","MintCraft install transaction 3") end
     for index, path in ipairs(plan.changed) do
         progress("stage",path,index-1,#plan.changed)
-        write(root .. "/stage/" .. path, files[path])
-        if path:match("%.lua$") then
+        if not upgrading then write(root .. "/stage/" .. path, files[path]) end
+        if not upgrading and path:match("%.lua$") then
           local fn, problem = loadfile(root .. "/stage/" .. path)
           assert(fn, tostring(problem))
         end

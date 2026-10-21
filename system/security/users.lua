@@ -276,6 +276,13 @@ function M.isLocked()
   return M.load().locked == true
 end
 
+-- Only the factory's empty legacy credential is eligible for enrollment.
+function M.needsEnrollment()
+  local db=M.load()
+  local admin=db.users.admin
+  return admin~=nil and admin.passwordHash==legacyHash("")
+end
+
 local authBusy = false
 local authOwner
 local function exclusive(fn, ...)
@@ -291,6 +298,19 @@ end
 function M.verify(...) return exclusive(verify, ...) end
 function M.login(...) return exclusive(login, ...) end
 function M.setPassword(...) return exclusive(setPassword, ...) end
+function M.enroll(password, options)
+  return exclusive(function()
+    local db=M.load()
+    local expected=copy(db)
+    if not db.users.admin or db.users.admin.passwordHash~=legacyHash("") then return false,"Enrollment unavailable" end
+    if type(password)~="string" or #password<8 or #password>1024 then return false,"Password must contain 8 to 1024 characters" end
+    local value,err=credential(password,options)
+    if not value then return false,err end
+    if options and options.cancelled and options.cancelled() then return false,"Authentication cancelled" end
+    db.users.admin.passwordHash=value db.currentUser="admin" db.locked=false
+    return M.save(db,expected)
+  end)
+end
 function M.authBusy() return authBusy end
 
 return M

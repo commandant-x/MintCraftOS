@@ -48,7 +48,7 @@ package.loaded["system.security.permissions"]={require=function(actor,permission
 local security=require("system.services.securityd")
 assert(not security.setPassword("admin","another password","new password",{allowed=false}))
 assert(security.setPassword("admin","another password","new password",{allowed=true}))
-fail=true assert(not security.lock()) assert(not security.logout())
+fail=true assert(not security.lock()) assert(security.isLocked(),"disk failure left console unlocked") assert(not security.logout())
 fail=false
 hook=function() coroutine.yield("kdf") end
 local pending=coroutine.create(function() return users.setPassword("admin","yet another password","another password") end)
@@ -67,4 +67,6 @@ assert(security.lock()) assert(security.sessionRevision()==revision+1)
 assert(security.unlock('another password')) assert(security.sessionRevision()==revision+2)
 assert(security.logout()) assert(security.sessionRevision()==revision+3)
 assert(security.login('admin','another password')) assert(security.sessionRevision()==revision+4,'Same-user login reused session identity')
+security.start() assert(security.isLocked(),"reboot retained unlocked session")
+assert(security.login('admin','another password'))
 print("read-only users, locked/guest reset denial, reauth, migration, transactional saves, stale writes, throttle and actor permission passed")

@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.47:
+This repository currently contains V0.18.48:
+
+V0.18.48 adds first-run password enrollment, authentication after reboot and a
+kernel-level session screen. Press **F12 before leaving the computer**; Settings
+also provides a Lock action. Stock CC:Tweaked does not
+report closing the computer screen, so automatic lock on closing is not promised.
+Browser, CraftTube, Store and NEXUS have native pixel clients; CraftTube and Store
+are now listed in the launcher. Combat avoids repeated classification work and
+copies less private radar evidence to its UI. See [usage, limits and validation](docs/SESSION-NATIVE-0.18.48.md).
+
+V0.18.47:
 
 V0.18.47 refuses application access when security verification is unavailable,
 restricts security-data reads to explicitly authorized admin sessions/apps,
