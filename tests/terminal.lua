@@ -86,3 +86,16 @@ package.loaded["system.services.sabled"].pose=function() return {logicalPose={or
 command("navigation pose")
 assert(table.concat(app.lines,"\n"):find("w = nil [nil]",1,true))
 print("terminal pose diagnostics: permission gate, cached-only read, component types and missing scalar passed")
+
+package.loaded["system.services.sabled"].pose=function() return {logicalPose={orientation={real=1,imaginary={x=0,y=0,z=0}}}} end
+command("navigation pose")
+assert(table.concat(app.lines,"\n"):find("q.imaginary.x = 0",1,true))
+assert(table.concat(app.lines,"\n"):find("q.real = 1",1,true))
+package.loaded["system.services.sabled"].pose=function() return {logicalPose={orientation={}}} end
+command("navigation pose")
+assert(table.concat(app.lines,"\n"):find("q = {} (empty)",1,true))
+local cycle={} cycle.self=cycle
+package.loaded["system.services.sabled"].pose=function() return {logicalPose={orientation=cycle}} end
+command("navigation pose")
+assert(table.concat(app.lines,"\n"):find("[cycle]",1,true))
+print("terminal orientation structure: nested fields, empty table and bounded cycle passed")

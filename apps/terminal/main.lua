@@ -255,6 +255,27 @@ local function runCommand(app, ctx, input)
           end
         end
       end
+      if type(q)=="table" then
+        local remaining,seen=32,{}
+        local function fields(value,path,depth)
+          if seen[value] then append(app,path.." = [cycle]") return end
+          seen[value]=true
+          local any=false
+          for key,item in pairs(value) do
+            any=true
+            if remaining<=0 then append(app,"[orientation fields truncated]") break end
+            remaining=remaining-1
+            local label=path.."."..((type(key)=="string" or type(key)=="number") and tostring(key):sub(1,40) or "["..type(key).."]")
+            if type(item)=="table" and depth<3 then fields(item,label,depth+1)
+            else
+              local scalar=type(item)=="number" or type(item)=="string" or type(item)=="boolean"
+              append(app,label.." = "..(scalar and tostring(item):sub(1,80) or "["..type(item).."]"))
+            end
+          end
+          if not any then append(app,path.." = {} (empty)") end
+        end
+        append(app,"Actual orientation fields:") fields(q,"q",1)
+      end
       append(app,"Pose age: "..(pose and type(pose.timestamp)=="number" and tostring(os.clock()-pose.timestamp) or "unknown"))
       append(app,"World frame: "..tostring(pose and pose.frame).." | on vehicle: "..tostring(pose and pose.inSublevel))
     elseif rest=="" then ctx.apps.launch("navigation")
