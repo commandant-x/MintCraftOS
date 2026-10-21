@@ -2,7 +2,15 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.50:
+This repository currently contains V0.18.51:
+
+V0.18.51 adds persistent escalating password retry delays with a visible console
+countdown. After one successful migration, logins use 15,000 PBKDF2 iterations
+instead of 600,000, while preserving a high-cost credential for older OS rollback.
+This deliberately reduces resistance to offline guessing; retry delays protect
+the running console, not stolen account files. See [policy, migration and limits](docs/AUTH-RETRY-0.18.51.md).
+
+V0.18.50:
 
 V0.18.50 adds live measured equipment diagrams (top, side, front and isometric),
 component selection/inspection and zoom. Burner diagnostics separate signal,

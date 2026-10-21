@@ -223,7 +223,7 @@ local function control(options, total)
     if sleep and clock()-last >= 0.02 then sleep(0) last=clock() end
   end
 end
-function M.create(password, options)
+local function create(password, options, iterations)
   assert(type(password) == "string" and #password <= 1024, "Invalid password")
   sequence = sequence + 1
   -- Salts need uniqueness, not secrecy. Do not use this source for keys/nonces.
@@ -231,16 +231,18 @@ function M.create(password, options)
     tostring(os.getComputerID and os.getComputerID() or 0) .. ":" .. sequence
   for _ = 1, 16 do source = source .. string.char(math.random(0,255)) end
   local salt = hex(digest(source):sub(1,16))
-  local iterations = 600000
   return {algorithm="pbkdf2-hmac-sha256", salt=salt, iterations=iterations,
-    digest=hex(pbkdf2(password,salt,iterations,control(options)))}
+    digest=hex(pbkdf2(password,salt,iterations,control(options,iterations)))}
 end
+-- Keep the high-cost credential for compatibility with retained older releases.
+function M.create(password,options) return create(password,options,600000) end
+function M.createQuick(password,options) return create(password,options,15000) end
 function M.verify(password, value, options)
   if type(password) ~= "string" or #password > 1024 or type(value) ~= "table"
     or value.algorithm ~= "pbkdf2-hmac-sha256" or type(value.salt) ~= "string"
     or #value.salt ~= 32 or not value.salt:match("^[0-9a-f]+$")
     or type(value.iterations) ~= "number" or value.iterations % 1 ~= 0
-    or value.iterations < 600000 or value.iterations > 2000000
+    or value.iterations < 15000 or value.iterations > 2000000
     or type(value.digest) ~= "string" or #value.digest ~= 64
     or not value.digest:match("^[0-9a-f]+$") then return false end
   local actual = hex(pbkdf2(password,value.salt,value.iterations,control(options,value.iterations)))

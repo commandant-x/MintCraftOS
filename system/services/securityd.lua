@@ -100,7 +100,7 @@ function M.setPassword(name, password, oldPassword, actor, options)
     allowed, reason = M.authorize(nil, "system.security.admin")
   end
   if not allowed then return false, reason end
-  local ok, msg = users.setPassword(name, password, oldPassword, options)
+  local ok, msg = users.setPassword(name, password, oldPassword, authenticationOptions(options))
   if ok then sessionRevision=sessionRevision+1 end
   log.info("securityd", ok and ("password changed for " .. tostring(name)) or tostring(msg))
   return ok, msg

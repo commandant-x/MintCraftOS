@@ -2,6 +2,7 @@ package.path="./?.lua;"..package.path
 local function copy(v) if type(v)~="table" then return v end local out={} for k,x in pairs(v) do out[k]=copy(x) end return out end
 local stored,serialized,writes,fail,now=nil,nil,0,false,0
 os.epoch=function() return now*1000 end
+os.clock=function() return now end
 os.getComputerID=function() return 0 end
 fs={exists=function() return stored~=nil end}
 textutils={serialize=function(v) serialized=copy(v) return "serialized" end}

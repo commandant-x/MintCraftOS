@@ -3,8 +3,10 @@ keys={f12=12,backspace=14,enter=28}
 colors={black=32768,white=1}
 local locked,enrollment=false,false
 local login,created,frames=0,0,0
+local now,wait=0,0
+os.clock=function() return now end
 local scheduled
-package.loaded["system.security.users"]={needsEnrollment=function() return enrollment end}
+package.loaded["system.security.users"]={authenticationStatus=function() return {retryAfter=wait} end,needsEnrollment=function() return enrollment end}
 package.loaded["system.services.securityd"]={
   isLocked=function() return locked end,
   lock=function() locked=true return false,"disk full" end,
@@ -44,7 +46,13 @@ event("paste","different password") event("key",keys.enter) assert(created==0 an
 event("paste","new password") event("key",keys.enter)
 event("paste","new password") event("key",keys.enter)
 assert(created==1 and not screen:blocked())
-locked=true screen:sync() screen.password="secret password"
+locked=true wait=30 screen:sync() screen.password="secret password"
+local previous=login
+screen:submit() assert(login==previous and screen:retrySeconds()==30,"cooldown started a KDF")
+assert(screen:messageText():find("30s",1,true))
+now=1 assert(screen:tick() and screen:retrySeconds()==29)
+now=31 wait=0 assert(screen:tick() and screen:retrySeconds()==0)
+screen.password="secret password"
 local Surface=require("system.graphics.surface")
 local backend={surface=Surface.new(306,171,4)}
 screen:drawPixels(backend)

@@ -1,5 +1,6 @@
 local config = require("system.libraries.config")
 local safeWrite = require("system.libraries.safe_write")
+local throttle = require("system.security.auth_throttle")
 
 local M = {
   path = "/system/security/users.db",
@@ -111,32 +112,42 @@ local function crypto()
   return nil, "Password changes unavailable: vetted password KDF provider is not installed"
 end
 
-local failures, retryAt = 0, 0
-local function now()
-  return os.epoch and os.epoch("utc") / 1000 or os.clock()
-end
-
-local function failedAttempt()
-  failures = math.min(failures + 1, 12)
-  if failures >= 5 then retryAt = now() + math.min(300, 2 ^ (failures - 5)) end
-  return false, "invalid credentials"
-end
-
 local function authenticate(db, name, password, options)
-  if now() < retryAt then return false, "Too many attempts; retry later" end
-  if type(password) ~= "string" or #password > 1024 then return failedAttempt() end
-  local user = db.users[name]
-  if not user then return failedAttempt() end
-  if type(user.passwordHash) == "table" then
-    local provider, err = crypto()
-    if not provider then return false, err end
-    local ok, valid = pcall(provider.verify, password, copy(user.passwordHash), options)
-    if not ok then return false, "Password verification unavailable" end
-    if valid ~= true then return failedAttempt() end
-  elseif type(user.passwordHash) ~= "string" or user.passwordHash ~= legacyHash(password) then
-    return failedAttempt()
+  if options and options.cancelled and options.cancelled() then return false,"Authentication cancelled" end
+  local reservation,err=throttle.reserve(db.authThrottle)
+  if not reservation then return false,err end
+  local expected=copy(db)
+  db.authThrottle=reservation
+  -- Reserve durably before an expensive/yielding comparison: reboot/cancellation
+  -- cannot discard an attempted guess. A storage failure refuses authentication.
+  local saved,saveErr=M.save(db,expected)
+  if not saved then return false,saveErr end
+  local reserved=copy(db)
+  local function failed()
+    db.authThrottle=throttle.defer(reservation)
+    local ok,problem=M.save(db,reserved)
+    if not ok then return false,problem end
+    return false,"invalid credentials"
   end
-  return true
+  if type(password)~="string" or #password>1024 then return failed() end
+  local user=db.users[name]
+  if not user then return failed() end
+  if type(user.passwordHash)=="table" then
+    local provider,problem=crypto()
+    if not provider then return false,problem end
+    local value=user.passwordHash
+    -- The old high-cost record remains for older OS rollback. A quick record
+    -- is usable only while tied to that exact credential, including its salt.
+    if type(user.quickPasswordHash)=="table" and same(user.quickPasswordSource,value) then value=user.quickPasswordHash end
+    local ok,valid=pcall(provider.verify,password,copy(value),options)
+    if not ok then return false,"Password verification unavailable" end
+    if valid~=true then return failed() end
+  elseif type(user.passwordHash)~="string" or user.passwordHash~=legacyHash(password) then
+    return failed()
+  end
+  if options and options.cancelled and options.cancelled() then return false,"Authentication cancelled" end
+  db.authThrottle=nil
+  return M.save(db,reserved)
 end
 
 local function credential(password, options)
@@ -145,6 +156,20 @@ local function credential(password, options)
   local ok, value = pcall(provider.create, password, options)
   if not ok or type(value) ~= "table" then return nil, "Password KDF failed; password unchanged" end
   return value
+end
+
+local function prepareQuick(user,password,options)
+  local provider=crypto()
+  if not provider or type(provider.createQuick)~="function" then return true end
+  if type(user.quickPasswordHash)=="table" and same(user.quickPasswordSource,user.passwordHash) then return true end
+  local ok,value=pcall(provider.createQuick,password,options)
+  if not ok or type(value)~="table" then return false,"Password verification setup unavailable" end
+  user.quickPasswordHash=value user.quickPasswordSource=copy(user.passwordHash)
+  return true
+end
+
+function M.authenticationStatus()
+  return throttle.status(M.load().authThrottle)
 end
 
 function M.load()
@@ -196,9 +221,9 @@ end
 
 local function login(name, password, options)
   local db = M.load()
-  local expected = copy(db)
   local ok, err = authenticate(db, name, password, options)
   if not ok then return false, err end
+  local expected=copy(db)
   if type(db.users[name].passwordHash) == "string" then
     local provider = crypto()
     if provider then
@@ -207,12 +232,13 @@ local function login(name, password, options)
       db.users[name].passwordHash = migrated
     end
   end
+  local ready,problem=prepareQuick(db.users[name],password,options)
+  if not ready then return false,problem end
   db.currentUser = name
   db.locked = false
   if options and options.cancelled and options.cancelled() then return false, "Authentication cancelled" end
   local saved, saveErr = M.save(db, expected)
   if not saved then return false, saveErr end
-  failures, retryAt = 0, 0
   return true, "logged in as " .. tostring(name)
 end
 
@@ -248,12 +274,15 @@ local function setPassword(name, password, oldPassword, options)
   end
   local ok, err = authenticate(db, db.currentUser, oldPassword, options)
   if not ok then return false, err end
+  expected=copy(db)
   local value, hashErr = credential(password, options)
   if not value then return false, hashErr end
   db.users[name].passwordHash = value
+  db.users[name].quickPasswordHash=nil db.users[name].quickPasswordSource=nil
+  local ready,problem=prepareQuick(db.users[name],password,options)
+  if not ready then return false,problem end
   if options and options.cancelled and options.cancelled() then return false, "Authentication cancelled" end
   local saved, saveErr = M.save(db, expected)
-  if saved then failures, retryAt = 0, 0 end
   return saved, saveErr
 end
 
@@ -307,7 +336,11 @@ function M.enroll(password, options)
     local value,err=credential(password,options)
     if not value then return false,err end
     if options and options.cancelled and options.cancelled() then return false,"Authentication cancelled" end
-    db.users.admin.passwordHash=value db.currentUser="admin" db.locked=false
+    db.users.admin.passwordHash=value
+    local ready,problem=prepareQuick(db.users.admin,password,options)
+    if not ready then return false,problem end
+    if options and options.cancelled and options.cancelled() then return false,"Authentication cancelled" end
+    db.authThrottle=nil db.currentUser="admin" db.locked=false
     return M.save(db,expected)
   end)
 end

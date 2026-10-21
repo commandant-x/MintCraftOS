@@ -150,7 +150,7 @@ function M.start()
     if raw[1] == "timer" and raw[2] == clockTimer then
       clockTimer = os.startTimer(0.5)
       local time = desktop.clockText()
-      if time ~= lastClock then
+      if session:tick() or time ~= lastClock then
         drawFrame()
         lastClock = time
       end

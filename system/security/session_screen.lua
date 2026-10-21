@@ -9,6 +9,29 @@ function M.new(ctx)
   local function invalidate()
     if ctx.invalidateDisplay then ctx.invalidateDisplay() end
   end
+  function self:retrySeconds()
+    return math.max(0,math.ceil((self.retryUntil or 0)-os.clock()))
+  end
+  function self:refreshRetry()
+    local ok,status,err=pcall(users.authenticationStatus)
+    if not ok or type(status)~="table" or type(status.retryAfter)~="number" then
+      self.retryError=ok and tostring(err or "Retry protection unavailable") or "Retry protection unavailable"
+      status=nil
+    else self.retryError=nil end
+    self.retryUntil=os.clock()+(status and status.retryAfter or 0)
+    self.lastRetry=self:retrySeconds()
+  end
+  function self:tick()
+    local seconds=self:retrySeconds()
+    if self.active and self.lastRetry~=seconds then self.lastRetry=seconds invalidate() return true end
+    return false
+  end
+  function self:messageText()
+    if self.retryError then return self.retryError end
+    local seconds=self:retrySeconds()
+    if seconds>0 and not self.busy then return "Too many attempts; retry in "..seconds.."s" end
+    return self.message
+  end
   function self:blocked()
     local revision=security.sessionRevision and security.sessionRevision()
     if revision==nil or self.cachedRevision~=revision or self.cachedBlock==nil then
@@ -22,13 +45,14 @@ function M.new(ctx)
     local blocked=self:blocked()
     if self.active~=blocked then
       self.active=blocked self.password="" self.confirmation=nil self.message=""
+      if blocked then self:refreshRetry() end
       if ctx.pixelWorkspace then ctx.pixelWorkspace:deactivate() end
       invalidate()
     end
     return blocked
   end
   function self:submit()
-    if self.busy then return end
+    if self.busy or self.retryError or self:retrySeconds()>0 then return end
     local enrollment=self.enrollment
     if enrollment then
       if #self.password<8 then self.message="Use at least 8 characters" return end
@@ -50,7 +74,7 @@ function M.new(ctx)
         -- Guest has no password and must not bypass the protected console.
         return security.login("admin",password,options)
       end)
-      password=nil self.busy=false
+      password=nil self.busy=false self:refreshRetry()
       self.message=success and (ok and "" or tostring(err)) or "Authentication unavailable"
       self:sync() invalidate()
       os.queueEvent("mintcraft_session_result")
@@ -64,7 +88,7 @@ function M.new(ctx)
       security.lock() self:sync() return true
     end
     if not self.active or not inputs[event.name] then return false end
-    if not self.busy then
+    if not self.busy and not self.retryError and self:retrySeconds()==0 then
       if event.name=="char" or event.name=="paste" then
         self.password=(self.password..tostring(event.args[1])):sub(1,1024)
       elseif event.name=="key" then
@@ -87,7 +111,7 @@ function M.new(ctx)
     local w,h=term.getSize()
     local function line(y,text) term.setCursorPos(2,math.min(h,y)) term.write(text:sub(1,math.max(0,w-2))) end
     line(2,self:title()) line(4,"Password: "..string.rep("*",math.min(#self.password,math.max(0,w-13))))
-    line(6,self.message) line(8,"Enter to continue | F12 to lock")
+    line(6,self:messageText()) line(8,"Enter to continue | F12 to lock")
     term.setCursorBlink(false)
   end
   function self:drawPixels(backend)
@@ -97,9 +121,9 @@ function M.new(ctx)
     local bw=math.min(360,w-16) local x=math.floor((w-bw)/2) local y=math.max(4,math.floor((h-125)/2))
     widgets.label(s,x,y,self:title(),bw,0,15)
     widgets.input(s,{x=x,y=y+24,w=bw,h=24},string.rep("*",#self.password),p,true,"Password")
-    widgets.label(s,x,y+58,self.message,bw,0,15)
+    widgets.label(s,x,y+58,self:messageText(),bw,0,15)
     self.pixelButton={x=x,y=y+78,w=bw,h=24}
-    widgets.button(s,self.pixelButton,self.busy and "Please wait" or "Continue",p,true)
+    widgets.button(s,self.pixelButton,(self.busy or self:retrySeconds()>0 or self.retryError) and "Please wait" or "Continue",p,true)
     widgets.label(s,x,y+110,"Enter to continue | F12 to lock",bw,8,15)
   end
   return self

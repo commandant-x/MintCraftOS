@@ -36,7 +36,7 @@ for path,content in pairs(files) do
  end
 end
 local nextFiles={} for path,data in pairs(files) do nextFiles[path]=data end
-nextFiles.VERSION='0.18.51\n'
+nextFiles.VERSION='0.18.52\n'
 local source=codec.unpack(files['apps/terminal/main.lua'])..'\n-- next release witness\n'
 nextFiles['apps/terminal/main.lua']=codec.pack('apps/terminal/main.lua',source)
 assert(installer.install(nextFiles))
@@ -88,6 +88,12 @@ if arg[1] then
  assert(state.nodes['/apps/terminal/main.lua']==previousFiles['apps/terminal/main.lua'])
  assert(state.nodes['/home/user/documents/witness']==string.rep('user data\n',10000))
  print(string.format('actual release upgrade/rollback: %s -> %s; peak %d of 1000000 bytes with 100000-byte witness',previousFiles.VERSION:gsub('%s+',''),files.VERSION:gsub('%s+',''),peak()))
+ local candidates={}
+ for path,content in pairs(files) do
+  if previousFiles[path] and previousFiles[path]~=content and path:match('%.lua$') and not path:match('^system/config/') and not path:match('^home/') and not path:match('^packages/') then candidates[#candidates+1]=path end
+ end
+ table.sort(candidates)
+ local probePath=assert(candidates[1],'actual release needs a changed Lua file for interruption probe')
  for _,phase in ipairs({'backup','live'}) do
   state,installer,used,peak=setup()
   assert(installer.install(previousFiles))
@@ -95,7 +101,7 @@ if arg[1] then
   state.hook=function(action,path)
    quotaHook(action,path)
    assert(action~='write' or not path:match('^/var/tmp/mintcraft%-install/stage/'),'upgrade redundantly staged RAM payload on disk')
-   if not interrupted and (phase=='backup' and action=='copy' and path:match('^/var/tmp/mintcraft%-install/backup/apps/') or phase=='live' and action=='write' and path:match('^/apps/')) then
+   if not interrupted and (phase=='backup' and action=='copy' and path=='/var/tmp/mintcraft-install/backup/'..probePath or phase=='live' and action=='write' and path=='/'..probePath) then
     interrupted=true coroutine.yield('power loss')
    end
   end
