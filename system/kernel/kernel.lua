@@ -17,7 +17,7 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.48", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.57", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
   register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.48", permissions = { "network.http" } })
   register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.48", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
   register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.48", permissions = { "rednet.send", "rednet.receive" } })

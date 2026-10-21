@@ -51,7 +51,7 @@ local help = {
   browser = "browser [url] - open text browser",
   crafttube = "crafttube - open native YouTube metadata client",
   messenger = "messenger - open Rednet chat",
-  navigation = "navigation - open Sable navigation control center",
+  navigation = "navigation - open navigation; navigation pose - read cached orientation diagnostics",
   combat = "combat - open radar/CBC combat control center",
   store = "store - open package store",
   install = "install <pkg> - install package",
@@ -238,7 +238,27 @@ local function runCommand(app, ctx, input)
   elseif cmd == "messenger" then
     ctx.apps.launch("messenger")
   elseif cmd == "navigation" then
-    ctx.apps.launch("navigation")
+    if rest=="pose" then
+      local permitted,denied=ctx.security.require("devices.list","navigation pose")
+      if not permitted then append(app,tostring(denied)) return end
+      local pose=require("system.services.sabled").pose()
+      local logical=pose and pose.logicalPose
+      local q=type(logical)=="table" and logical.orientation
+      append(app,"Cached Sable pose; read only, no burner command")
+      append(app,"orientation type: "..type(q))
+      if type(q)=="table" then
+        for _,key in ipairs({"x","y","z","w",1,2,3,4}) do
+          local value=q[key]
+          if type(key)=="string" or value~=nil then
+            local scalar=type(value)=="number" or type(value)=="string" or type(value)=="boolean"
+            append(app,tostring(key).." = "..(scalar and tostring(value):sub(1,80) or type(value)).." ["..type(value).."]")
+          end
+        end
+      end
+      append(app,"Pose age: "..(pose and type(pose.timestamp)=="number" and tostring(os.clock()-pose.timestamp) or "unknown"))
+      append(app,"World frame: "..tostring(pose and pose.frame).." | on vehicle: "..tostring(pose and pose.inSublevel))
+    elseif rest=="" then ctx.apps.launch("navigation")
+    else append(app,"Usage: navigation [pose]") end
   elseif cmd == "combat" then
     ctx.apps.launch("combat")
   elseif cmd == "store" then

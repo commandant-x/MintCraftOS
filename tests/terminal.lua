@@ -76,3 +76,13 @@ allowed=true
 package.loaded["system.dev.autocomplete"].prefix=function() return "computer" end
 app.input="" assert(app:handle({name="paste",args={"display computer\nreboot"}}) and app.input=="display computer")
 app.keyboard.onEnter() assert(displayCalls==2)
+
+local poseReads=0
+package.loaded["system.services.sabled"]={pose=function() poseReads=poseReads+1 return {logicalPose={orientation={x=0,y=0,z=0,w=1}},timestamp=os.clock(),frame="world",inSublevel=true} end}
+allowed=false command("navigation pose") assert(poseReads==0)
+allowed=true command("navigation pose") assert(poseReads==1)
+assert(table.concat(app.lines,"\n"):find("w = 1 [number]",1,true))
+package.loaded["system.services.sabled"].pose=function() return {logicalPose={orientation={x="0",y=0,z=0}},timestamp=os.clock()} end
+command("navigation pose")
+assert(table.concat(app.lines,"\n"):find("w = nil [nil]",1,true))
+print("terminal pose diagnostics: permission gate, cached-only read, component types and missing scalar passed")
