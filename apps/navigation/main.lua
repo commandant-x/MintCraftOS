@@ -155,11 +155,12 @@ function M.run(ctx)
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
     elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="guide",label="Guide"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
     elseif app.page=="setup" then
-      if not app.setup then return {{id="guide",label="Detect"},{id="devices",label="Devices"}} end
+      if not app.setup then return {{id="guide",label="Detect"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"},{id="devices",label="Devices"}} end
       if app.setupStep==5 then return {{id="calibrationPage",label="Calibration"},{id="pidPage",label="PID"},{id="controlPage",label="Control"}} end
-      return {{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="devices",label="Devices"}}
+      return {{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"},{id="devices",label="Devices"}}
     elseif app.page=="context" then return {{id="guide",label="Setup guide"},{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
-    elseif app.page=="diagram" then return {{id="analysis",label="Analysis"},{id="top",label="Top"},{id="side",label="Side"},{id="outputs",label="Actuators"}}
+    elseif app.page=="diagram" then return {{id="top",label="Top"},{id="side",label="Side"},{id="front",label="Front"},{id="iso",label="3D"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="inspect",label="Details"},{id="rescan",label="Rescan"}}
+    elseif app.page=="component" then return {{id="diagram",label="Diagram"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="rescan",label="Rescan"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
     elseif app.page=="control" then
@@ -190,13 +191,14 @@ function M.run(ctx)
       if self.setup and self.setupStep==3 then self.form:draw(w,h,fields())
       else
         local p=self.setup
-        local paragraphs=not p and {self.message,"La detection des bruleurs exige le pont Vehicle Bridge 0.2.0."} or {
+        local paragraphs=not p and {self.message} or {
           [1]={"Nous avons detecte "..p.burnerCount.." bruleur(s).","Un seul canal collectif commandera leur chauffe. Maintien d'altitude uniquement : pas de stabilisation du roulis, tangage ou cap.","Aucun signal n'est emis par cet assistant."},
           [2]={"Frequence collective :",tostring(p.frequency.first),tostring(p.frequency.second),"Configurer cette paire sur chaque recepteur Create relie aux bruleurs. Relier un Redstone Link Bridge au PC.","La paire est proposee selon les liens visibles sur ce vehicule, pas reservee globalement. Verifier les machines voisines et le cablage."},
           [4]={"Verifier la frequence et le transmetteur avant Apply + Save.","Transmetteur : "..tostring(self.setupOptions.transmitter),"Stationnaire : "..tostring(self.setupOptions.neutral).." / secours : "..tostring(self.setupOptions.rescue),"Cette operation remplace le mapping seulement avec votre accord. Elle enregistre la configuration sans emettre de signal.","Les gains PID restent nuls : armement bloque avant calibration."},
           [5]={"Configuration enregistree, controle desarme.","Calibration : tester le sens, verifier le signal stationnaire et le secours physiquement. Puis regler les gains d'altitude dans PID.","Au bruleur, 0 coupe l'apport et 15 chauffe au maximum. Un cablage externe peut inverser ce sens.","Couper la chauffe ne vide pas instantanement le ballon. Le delai thermique interdit de supposer que 0 garantit une descente sure."}
         }
         if p then paragraphs=paragraphs[self.setupStep] or {} end
+        for _,row in ipairs(balloonSetup.diagnostics(self.bridge or {})) do paragraphs[#paragraphs+1]=row end
         local rows={}
         for _,paragraph in ipairs(paragraphs) do
           local line=""
@@ -214,7 +216,16 @@ function M.run(ctx)
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
     elseif self.page=="diagram" then
       local analysis=vehicle.analyze(draft.vehicle,draft.channels)
-      vehicleDiagram.draw(w,h,analysis,draft.vehicle,self.diagramSide)
+      vehicleDiagram.draw(w,h,analysis,draft.vehicle,false,{snapshot=self.bridge,view=self.diagramView,index=self.componentIndex,zoom=self.diagramZoom})
+    elseif self.page=="component" then
+      local model=vehicleDiagram.model(vehicle.analyze(draft.vehicle,draft.channels),draft.vehicle,self.bridge)
+      local rows={}
+      -- Wrap identifiers and coordinates rather than silently cropping diagnostic data.
+      for _,row in ipairs(vehicleDiagram.details(model,self.componentIndex or 1)) do
+        while #row>w do rows[#rows+1]=row:sub(1,w) row=row:sub(w+1) end
+        rows[#rows+1]=row
+      end
+      lines(w,h,rows)
     elseif self.page=="context" then
       local analysis=vehicle.analyze(draft.vehicle,draft.channels)
       local rows={analysis.frame,draft.vehicle.type.." | "..fmt(draft.vehicle.massKg," kg")}
@@ -353,7 +364,7 @@ function M.run(ctx)
       elseif id=="guideApply" then
         confirm("Save collective burner mapping? No signal emitted.",function()
           local latest=vehicleBridge.snapshot()
-          if not latest.ok or latest.vehicleId~=self.setup.vehicleId then report(false,"Vehicle changed or unavailable; Detect again") return end
+          if not latest.ok or latest.inventoryComplete~=true or latest.vehicleId~=self.setup.vehicleId then report(false,"Vehicle changed or unavailable; Detect again") return end
           local present={} for _,burner in ipairs(latest.burners or {}) do present[burner.id]=true end
           for _,burnerId in ipairs(self.setup.burnerIds) do if not present[burnerId] then report(false,"Burner missing; Detect again") return end end
           local candidate,err=balloonSetup.create(draft,self.setup,self.setupOptions)
@@ -387,7 +398,13 @@ function M.run(ctx)
         else self.message="Fresh measured Sable mass unavailable" end return true
       elseif id=="analysis" then self.page="context" return true
       elseif id=="diagram" then self.page="diagram" return true
-      elseif id=="top" or id=="side" then self.diagramSide=id=="side" return true
+      elseif id=="top" or id=="side" or id=="front" or id=="iso" then self.diagramView=id return true
+      elseif id=="componentPrev" or id=="componentNext" then
+        local model=vehicleDiagram.model(vehicle.analyze(draft.vehicle,draft.channels),draft.vehicle,self.bridge)
+        self.componentIndex=math.max(1,math.min(#model.points,(self.componentIndex or 1)+(id=="componentNext" and 1 or -1))) self.scroll=1 return true
+      elseif id=="zoomIn" or id=="zoomOut" then
+        self.diagramZoom=math.max(1,math.min(8,(self.diagramZoom or 1)*(id=="zoomIn" and 2 or 0.5))) return true
+      elseif id=="inspect" then self.page="component" self.scroll=1 return true
       elseif id=="vehicle" then self.page="vehicle" return true
       elseif id=="outputs" then self.page="mapping" return true
       elseif id=="rescan" then avionics.rescan() sable.rescan() vehicleBridge.rescan() return true

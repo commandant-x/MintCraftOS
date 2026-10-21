@@ -24,6 +24,16 @@ snapshot.links[1].position.x=1
 assert(setup.plan(snapshot,control,endpoints).reused)
 snapshot.burnerDiscoveryAvailable=false assert(not setup.plan(snapshot,control,endpoints))
 snapshot.burnerDiscoveryAvailable=true snapshot.complete=false assert(not setup.plan(snapshot,control,endpoints))
+snapshot.inventoryComplete=true
+assert(setup.plan(snapshot,control,endpoints),"burner guide coupled to COM/propeller geometry")
+snapshot.inventoryComplete=false
+assert(not setup.plan(snapshot,control,endpoints),"truncated inventory accepted")
+local _,missing=setup.plan({available=false},control,endpoints)
+assert(missing:find("0.2.1",1,true) and missing:find("redemarrer",1,true))
+snapshot.status="partial" snapshot.burners[1].gasOutput=0 snapshot.burners[1].gasActive=false
+local diagnostics=table.concat(setup.diagnostics(snapshot),"\n")
+assert(diagnostics:find("signal 6/15",1,true) and diagnostics:find("gaz actif non",1,true))
+assert(diagnostics:find("ballon associe",1,true),"empty balloon confused with absent association")
 local a={link={first="minecraft:white_wool",second="minecraft:white_wool"},name="a"}
 local b={link={first="minecraft:white_wool",second="minecraft:white_wool"},name="b"}
 assert(link.key(a)==link.key(b),"same frequency on different transmitters must collide")

@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.49:
+This repository currently contains V0.18.50:
+
+V0.18.50 adds live measured equipment diagrams (top, side, front and isometric),
+component selection/inspection and zoom. Burner diagnostics separate signal,
+gas output, balloon association and gas activity. An incomplete centre of mass
+or propeller direction no longer hides an otherwise complete burner inventory;
+stale/truncated scans still refuse setup and complete geometry is still required
+for physical model import. Hull blocks, shafts and nested sublevels are **not**
+exported by Vehicle Bridge 0.2.1. See [usage and limits](docs/VEHICLE-DIAGRAM-0.18.50.md).
+
+V0.18.49:
 
 V0.18.49 adds Navigation's opt-in autonomous waypoint pilot, with dedicated
 directional thrusters or verified tilt guidance, altitude-first travel and final

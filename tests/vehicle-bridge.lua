@@ -60,6 +60,16 @@ ready,why=bridge.balloonStatus({vehicleId="ship-1",burnerIds={"absent"}})
 assert(not ready and why:find("Burner missing",1,true))
 raw.actuators[1].direction={x=0,y=0,z=0}
 assert(not bridge.normalize(raw).complete,"uninitialised direction silently omitted from complete model")
+-- Missing thrust geometry/COM must block physical import, not hide an intact burner inventory.
+raw.burners[1].hasBalloon=true raw.centerOfMass=nil raw.revision=360 bridge.acquire()
+snapshot=bridge.snapshot()
+assert(snapshot.inventoryComplete and not snapshot.complete)
+assert(not vehicle.import({},snapshot),"incomplete geometry imported")
+assert(bridge.balloonStatus(setup),"intact burner inventory blocked by unrelated geometry")
+raw.complete=false raw.revision=380 bridge.acquire()
+assert(not bridge.balloonStatus(setup),"partial Java inventory accepted")
+raw.complete=true raw.revision=400 bridge.acquire()
+now=now+2.1 assert(not bridge.balloonStatus(setup),"expired burner inventory accepted")
 mintcraft_vehicle.snapshot=function() error("addon API failed") end
 bridge.acquire() assert(not bridge.snapshot().ok and bridge.snapshot().available)
 print("vehicle bridge: absence, cached acquisition, revisions/staleness, geometry/frequency import, unknown wiring/units and failures passed")

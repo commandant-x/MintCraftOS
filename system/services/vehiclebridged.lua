@@ -17,9 +17,17 @@ function M.normalize(raw)
   if type(raw.actuators)~="table" or #raw.actuators>256 or type(raw.links)~="table" or #raw.links>256 then return nil,"bridge inventory limit exceeded" end
   local out={available=true,ok=true,vehicleId=raw.vehicleId,name=tostring(raw.name or "Vehicle"):sub(1,128),
     frame=raw.frame,units=addon.copy(raw.units),sourceRevision=raw.revision,ageTicks=raw.ageTicks,
-    complete=raw.complete==true,actuators={},links={},burners={},burnerDiscoveryAvailable=type(raw.features)=="table" and raw.features.burners==true,
+    inventoryComplete=raw.complete==true,complete=raw.complete==true,actuators={},links={},burners={},burnerDiscoveryAvailable=type(raw.features)=="table" and raw.features.burners==true,
     centerOfMass=boundedVector(raw.centerOfMass),mass=raw.mass,
     controlBindingsKnown=false}
+  out.bridgeVersion=type(raw.bridgeVersion)=="string" and raw.bridgeVersion:sub(1,32) or "unknown"
+  out.errors={}
+  if type(raw.errors)=="table" then
+    for i=1,math.min(#raw.errors,64) do
+      if type(raw.errors[i])=="string" then out.errors[#out.errors+1]=raw.errors[i]:sub(1,256) end
+    end
+  end
+  out.visitedBlockEntities=addon.finite(raw.visitedBlockEntities) and math.max(0,math.min(4096,raw.visitedBlockEntities)) or nil
   local seen={}
   if type(raw.inertia)=="table" and #raw.inertia==3 then
     local matrix,valid={},true
@@ -109,7 +117,7 @@ function M.status()
 end
 function M.health() return M.status() end
 function M.balloonStatus(setup)
-  if not cached.ok or not cached.validUntil or os.clock()>cached.validUntil or not cached.complete then return false,"Balloon discovery stale/incomplete" end
+  if not cached.ok or not cached.validUntil or os.clock()>cached.validUntil or not cached.inventoryComplete then return false,"Balloon discovery stale/incomplete" end
   if not cached.burnerDiscoveryAvailable or cached.vehicleId~=setup.vehicleId then return false,"Balloon vehicle changed" end
   local found={}
   for _,burner in ipairs(cached.burners) do found[burner.id]=burner end

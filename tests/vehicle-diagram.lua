@@ -22,4 +22,30 @@ for _,size in ipairs({{12,9},{20,10},{26,17},{80,28}}) do
  assert(calls>0)
  diagram.draw(width,height,vehicle.analyze({},{}),vehicle.profile({}),false)
 end
+local snapshot={ok=true,frame="body_plot",vehicleId="live-ship",inventoryComplete=true,
+ centerOfMass={x=0,y=0,z=0},actuators={{id="thruster",position={x=100,y=10,z=-100},direction={x=0,y=1,z=0},geometryValid=true,active=false,thrust=0}},
+ burners={{id="burner",position={x=101,y=10,z=-100},signal=3,gasOutput=7,hasBalloon=true,gasActive=false}},
+ links={{id="rx",position={x=102,y=10,z=-100},receiver=true,first={item="minecraft:white_wool"},second={item="minecraft:orange_wool"},signal=3}}}
+local model=diagram.model(vehicle.analyze(profile,channels),profile,snapshot)
+assert(#model.points==3 and model.fresh and model.complete,"saved components mixed into live ship")
+assert(diagram.project({x=1,y=2,z=3},"front")==1)
+local details={}
+for i,p in ipairs(model.points) do
+ details[p.kind]=table.concat(diagram.details(model,i),"\n")
+end
+assert(details.burner:find("gas active: false",1,true) and details.burner:find("associated: true",1,true))
+assert(details.RX:find("orange_wool",1,true))
+assert(details.thruster:find("binding unverified",1,true))
+for _,size in ipairs({{12,9},{20,10},{26,17},{80,28}}) do
+ width,height=table.unpack(size)
+ for _,view in ipairs({"top","side","front","iso"}) do
+  for _,zoom in ipairs({1,2,8}) do
+   diagram.draw(width,height,vehicle.analyze(profile,channels),profile,false,{snapshot=snapshot,view=view,zoom=zoom,index=3})
+  end
+ end
+end
+snapshot.ok=false
+model=diagram.model({},profile,snapshot)
+assert(not model.fresh and table.concat(diagram.details(model,1),"\n"):find("STALE",1,true))
+assert(#diagram.model({},profile,{available=false}).points==0)
 print("vehicle top/side diagram: six rotors, unknown geometry, subpixel rows and small viewports passed")

@@ -6,8 +6,12 @@ local function spec(row)
 end
 local function key(value) return link.key({link=value}) end
 function M.plan(snapshot,control,endpoints)
-  if not snapshot.ok or not snapshot.complete then return nil,"Discover requiert un inventaire complet et recent" end
-  if not snapshot.burnerDiscoveryAvailable then return nil,"Installer le pont 0.2.0 pour detecter les bruleurs" end
+  if snapshot.available==false then return nil,"Vehicle Bridge absent : installer le JAR 0.2.1 dans mods serveur et clients, puis redemarrer" end
+  if not snapshot.ok then return nil,"Pont indisponible ou perime : "..tostring(snapshot.error or snapshot.status or "Rescan requis") end
+  local complete=snapshot.inventoryComplete
+  if complete==nil then complete=snapshot.complete end
+  if not complete then return nil,"Inventaire incomplet : corriger les erreurs/limites du pont avant Detect" end
+  if not snapshot.burnerDiscoveryAvailable then return nil,"Installer le pont 0.2.1 pour detecter les bruleurs" end
   if #(snapshot.burners or {})==0 then return nil,"Aucun bruleur detecte sur ce sublevel" end
   local p={vehicleId=snapshot.vehicleId,burnerIds={},endpoints={},connected=0,baseline=nil}
   local baseline,uniform,shared,consistent=nil,true,nil,true
@@ -43,6 +47,27 @@ function M.plan(snapshot,control,endpoints)
   for _,e in ipairs(endpoints) do if e.backend=="frequency" then p.endpoints[#p.endpoints+1]=e.name end end
   p.transmitter=#p.endpoints==1 and p.endpoints[1] or ""
   return p
+end
+function M.diagnostics(snapshot)
+  local rows={"Pont : "..tostring(snapshot.status or (snapshot.ok and "recent" or "indisponible"))}
+  if snapshot.error then rows[#rows+1]=tostring(snapshot.error) end
+  if snapshot.available==false then
+    rows[#rows+1]="Installer Vehicle Bridge 0.2.1 dans mods serveur ET clients, puis redemarrer."
+    return rows
+  end
+  rows[#rows+1]="Version du pont : "..tostring(snapshot.bridgeVersion or "inconnue")
+  rows[#rows+1]="Detection passive : aucun signal emis."
+  for _,err in ipairs(snapshot.errors or {}) do rows[#rows+1]="Pont : "..err end
+  rows[#rows+1]="Geometrie : "..(snapshot.complete and "complete" or "partielle").." / inventaire : "..((snapshot.inventoryComplete==true or (snapshot.inventoryComplete==nil and snapshot.complete)) and "complet" or "partiel")
+  for _,b in ipairs(snapshot.burners or {}) do
+    rows[#rows+1]=b.id
+    rows[#rows+1]="  signal "..tostring(b.signal).."/15 / gaz "..tostring(b.gasOutput)
+    rows[#rows+1]="  ballon "..(b.hasBalloon and "associe" or "non confirme").." / gaz actif "..(b.gasActive and "oui" or "non")
+    if not b.hasBalloon then rows[#rows+1]="  Calibration > Initialize (2s), puis Rescan ; verifier enveloppe et degagement." end
+  end
+  if #(snapshot.burners or {})==0 then rows[#rows+1]="Aucun bruleur visible : verifier le Computer sur le vaisseau assemble." end
+  rows[#rows+1]="Signal/gaz ne prouvent pas le vol stationnaire : calibration physique requise."
+  return rows
 end
 function M.create(control,plan,options)
   if not plan or not plan.frequency or not key(plan.frequency) then return nil,"Frequence manquante" end

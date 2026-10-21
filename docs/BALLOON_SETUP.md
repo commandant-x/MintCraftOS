@@ -50,3 +50,16 @@ roulis, le tangage ou le cap. La position d'un bruleur n'est pas le point
 d'application de la flottabilite. La detection ne valide ni le cablage, ni les
 gains, ni la consigne de secours. Aucun test, armement ou reglage de gain
 automatique n'est effectue par le guide.
+
+
+### V0.18.50 diagnostics
+
+The guide now shows current bridge status/version and bounded bridge errors,
+plus each burner signal (0–15), gas output, balloon association and gas activity
+as separate facts. A structurally associated empty balloon is not reported as
+missing. These readings do not certify hover, wiring or safe rescue behaviour.
+A complete Java inventory may be used for the burner wizard even when COM or
+propeller direction is unavailable; this does not enable physical model import.
+Missing bridge, stale data and truncated scans still refuse discovery/setup.
+Install the 0.2.1 JAR on server and clients and restart; the OS installer cannot
+install a Minecraft mod. Use Rescan, then Detect to rebuild a proposed mapping.
