@@ -1,5 +1,8 @@
 # Graphics performance and safe rollback — 0.18.45
 
+Storage/install sizing below describes the original uncompressed 0.18.45 release.
+For first installation under the pack's 1 MB limit, use [0.18.46 compact installation](COMPACT-INSTALL.md).
+
 Starting reference: 0.18.44, `458a0f820c91c9822e52efb264ad041827f4ce31`.
 Development branch: `codex/graphics-performance-rollback`. Main is not rewritten.
 

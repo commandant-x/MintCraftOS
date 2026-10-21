@@ -25,9 +25,10 @@ assert(state.nodes['/home/user/documents/witness']=='user data')
 local cfg=textutils.unserialize(state.nodes['/system/config/system.cfg'])
 assert(cfg.vehicle=='witness' and cfg.customField==42 and cfg.safeMode and cfg.graphicsOptimizations==false)
 local empty=assert(nativeLoadfile('tests/storage-fixture.lua'))()()
+state=empty
 fs.getFreeSpace=function() return 1000000 end
 local ok,err=pcall(installer.install,files)
-assert(not ok and tostring(err):find('INSTALL-DISK',1,true),'one-million-byte pack disk was not refused')
-assert(not fs.exists('/VERSION') and not fs.exists('/var/tmp/mintcraft-install'))
+assert(ok,tostring(err))
+assert(fs.exists('/VERSION') and not fs.exists('/var/tmp/mintcraft-install'))
 loadfile=nativeLoadfile
 print('distributable upgrade: isolated bundled checkpoint loader, actual installer, verified rollback and configuration preservation passed')

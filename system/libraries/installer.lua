@@ -33,6 +33,11 @@ function M.install(files,options)
   local function progress(phase,path,done,total)
     if options and type(options.onProgress)=="function" then pcall(options.onProgress,phase,path,done,total) end
   end
+  local packedCodec=files["system/libraries/packed_source.lua"]
+    and assert(load(files["system/libraries/packed_source.lua"],"packed codec","t",_ENV))()
+  if packedCodec and fs.exists(root) then
+    local recovered,problem=M.recover() assert(recovered,problem)
+  end
   -- A retained transaction may contain the only backup after an interrupted write.
   if fs.exists(root) then error("Unfinished installation: recover " .. root .. " before retrying") end
   local paths = {}
@@ -47,7 +52,13 @@ function M.install(files,options)
     local target="/"..path
     if not (preserved(path) and fs.exists(target)) and not identical(target,files[path]) then
       assert(not fs.exists(target) or not fs.isDir(target),"Destination is a directory: "..path)
-      if path:match("%.lua$") then local fn,problem=load(files[path],"@"..path,"t",_ENV) assert(fn,tostring(problem)) end
+      if path:match("%.lua$") then
+        local fn,problem=load(files[path],"@"..path,"t",_ENV) assert(fn,tostring(problem))
+        if packedCodec then
+          local source=packedCodec.unpack(files[path])
+          fn,problem=load(source,"@"..path,"t",_ENV) assert(fn,tostring(problem))
+        end
+      end
       plan.changed[#plan.changed+1]=path plan.stageBytes=plan.stageBytes+#files[path]
       if fs.exists(target) and fs.getSize then plan.backupBytes=plan.backupBytes+fs.getSize(target) end
     end
@@ -82,6 +93,7 @@ function M.install(files,options)
   local changed, touched = {}, {}
   local ok, err = pcall(function()
     fs.makeDir(root)
+    if packedCodec then write(root.."/format","MintCraft install transaction 3") end
     for index, path in ipairs(plan.changed) do
         progress("stage",path,index-1,#plan.changed)
         write(root .. "/stage/" .. path, files[path])
@@ -145,7 +157,17 @@ end
 function M.recover()
   if not fs.exists(root) then return true, "No pending installation" end
   local h = fs.open(root .. "/journal.cfg", "r")
-  if not h then return false, "No recovery journal; inspect " .. root end
+  if not h then
+    local marker=fs.open(root.."/format","r")
+    if marker then
+      local kind=marker.readAll() marker.close()
+      if kind=="MintCraft install transaction 3" and not fs.exists(root.."/committed") then
+        -- Protocol 3 does not touch live files before publishing its journal.
+        fs.delete(root) return true,"Discarded incomplete staging; live files untouched"
+      end
+    end
+    return false,"No recovery journal; inspect "..root
+  end
   local parsed, entries = pcall(function() return textutils.unserialize(h.readAll()) end)
   h.close()
   if not parsed or type(entries) ~= "table" then return false, "Invalid recovery journal" end

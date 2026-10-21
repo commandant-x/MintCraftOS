@@ -10,7 +10,9 @@ local count=0
 for path,content in pairs(captured) do
   local file=assert(io.open(path,'rb'),'Bundled source missing: '..path)
   local source=file:read('*a'):gsub('\r\n','\n') file:close()
-  assert(source==content,'Stale installer payload: '..path..'; regenerate tools/build-installer.ps1')
+  local decoded=require('system.libraries.packed_source').unpack(content)
+  source=require('system.libraries.packed_source').unpack(source)
+  assert(source==decoded,'Stale installer payload: '..path..'; regenerate tools/build-installer.ps1')
   count=count+1
 end
 for _,path in ipairs({'VERSION','boot.lua','startup.lua','system/libraries/installer.lua','apps/devices/main.lua','apps/devices/model.lua','apps/devices/pixel.lua','apps/settings/pixel.lua','system/services/settingsd.lua','apps/messenger/pixel.lua'}) do

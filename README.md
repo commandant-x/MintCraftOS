@@ -2,7 +2,16 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.45:
+This repository currently contains V0.18.46:
+
+V0.18.46 retains every application while reducing the first-install payload from
+1,031,390 to 609,435 bytes using lossless installed Lua source packing. Readable
+sources remain in Git; boot, Recovery and transaction code remain unpacked.
+The strict 1,000,000-byte disk test includes personal witness data, a subsequent
+update and rollback. No server quota change is needed for that tested workflow.
+See [compact installation, storage evidence and limits](docs/COMPACT-INSTALL.md).
+
+V0.18.45:
 
 V0.18.45 suppresses empty graphical presentations, batches compatible pixel rows,
 retains bounded sparse damage and coalesces visible invalidations without gating
