@@ -1,17 +1,17 @@
 -- Bounded open-loop identification. No peripheral writes or calibration flags.
 local addon=require("system.libraries.addon")
 local M={}
-function M.defaults() return {first=7,last=15,dwell=6,maxTravel=8,maxSpeed=1,timeout=120} end
+function M.defaults() return {first=7,last=15,dwell=15,maxTravel=8,maxSpeed=1,timeout=180} end
 function M.validate(value)
   if type(value)~="table" then return nil,"Sweep options missing" end
   local p={}
-  for key,range in pairs({first={1,15},last={1,15},dwell={4,15},maxTravel={1,32},maxSpeed={0.1,2},timeout={10,180}}) do
+  for key,range in pairs({first={1,15},last={1,15},dwell={4,60},maxTravel={1,32},maxSpeed={0.1,2},timeout={10,180}}) do
     local v=value[key]
     if not addon.finite(v) or v<range[1] or v>range[2] then return nil,"Sweep "..key.." outside "..range[1]..".."..range[2] end
     p[key]=v
   end
   if p.first%1~=0 or p.last%1~=0 or p.last-p.first<2 then return nil,"At least three integer heat levels required" end
-  if (p.last-p.first+1)*p.dwell>p.timeout then return nil,"Timeout shorter than requested sweep" end
+  if (p.last-p.first+1)*4>p.timeout then return nil,"Timeout too short for stability measurements" end
   return p
 end
 local function fit(rows)
@@ -94,24 +94,40 @@ function M.new(options,start,now)
       level.count=level.count+1 level.minAltitude=math.min(level.minAltitude,t.altitude) level.maxAltitude=math.max(level.maxAltitude,t.altitude)
       level.sumRate=level.sumRate+t.altitudeRate
       level.tail=level.tail or {} level.tail[#level.tail+1]=sample
-      while #level.tail>6 do table.remove(level.tail,1) end
+      while #level.tail>8 do table.remove(level.tail,1) end
       local minY,maxY,minV,maxV=math.huge,-math.huge,math.huge,-math.huge
       for _,r in ipairs(level.tail) do minY=math.min(minY,r.altitude) maxY=math.max(maxY,r.altitude) minV=math.min(minV,r.rate) maxV=math.max(maxV,r.rate) end
       local span=sample.time-level.tail[1].time
-      level.stableAltitude=span>=2 and maxY-minY<=0.2 and math.max(math.abs(minV),math.abs(maxV))<=0.05
-      level.steadySpeed=span>=2 and maxV-minV<=0.04
+      local contiguous=true
+      local mt,mv=0,0
+      for i,r in ipairs(level.tail) do
+        mt=mt+r.time mv=mv+r.rate
+        if i>1 and r.time-level.tail[i-1].time>1.25 then contiguous=false end
+      end
+      mt,mv=mt/#level.tail,mv/#level.tail
+      local covariance,variance=0,0
+      for _,r in ipairs(level.tail) do covariance=covariance+(r.time-mt)*(r.rate-mv) variance=variance+(r.time-mt)^2 end
+      level.speedSlope=variance>0 and covariance/variance or math.huge
+      level.windowSpan,level.speedSpread=span,maxV-minV
+      local windowReady=#level.tail>=8 and span>=3 and contiguous
+      level.stableAltitude=windowReady and maxY-minY<=0.2 and math.max(math.abs(minV),math.abs(maxV))<=0.05
+      level.steadySpeed=windowReady and maxV-minV<=0.04 and math.abs(level.speedSlope)<=0.01
       self.levels[self.signal]=level
     end
-    if clock-self.stageAt>=self.options.dwell then
-      local level=self.levels[self.signal]
-      if not level or level.count<4 then return self:abort("Too few acknowledged measurements at heat level "..self.signal) end
+    local level=self.levels[self.signal]
+    if ack and level and self.lastObserved==t.timestamp and level.steadySpeed then
+      level.settled=true level.finishedAt=clock-self.startedAt
+
       if self.signal==self.options.last then
         self.state="complete" self.reason="Measurements complete; returning to rescue"
         self.proposal,self.fitError=M.analyze(self.samples,self.options)
         return nil,self.reason
       end
-      self.signal=self.signal+1 self.stageAt=clock
-    end
+      self.signal=self.signal+1 self.stageAt=clock self.lastObserved=nil
+      self.reason="Waiting for measured speed stability at heat "..self.signal
+    elseif clock-self.stageAt>=self.options.dwell then
+      return self:abort("No measured stability before level safety timeout at heat "..self.signal)
+    else self.reason="Measuring heat "..self.signal.."; waiting for steady vertical speed" end
     return self.signal
   end
   function self:status(full)

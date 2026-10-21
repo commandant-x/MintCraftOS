@@ -1,5 +1,7 @@
 # Automatic altitude measurements and PI candidate — 0.18.55
 
+Historical release description. For the current unified, stability-driven workflow, see [0.18.60](AUTO-ALTITUDE-0.18.60.md).
+
 Navigation → Views → **Auto altitude** (also in Calibration actions) provides a
 bounded flight experiment. It defaults to heater levels **7 through 15**, one
 level at a time, **6 seconds per level**, a **120-second** overall deadline,

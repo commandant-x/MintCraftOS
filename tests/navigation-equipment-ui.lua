@@ -18,14 +18,26 @@ package.loaded["apps.navigation.route"]={new=function() return {refresh=function
 local snapshot={ok=true,available=true,complete=false,inventoryComplete=true,frame="body_plot",vehicleId="ship-a",status="Partial vehicle inventory",
  burnerDiscoveryAvailable=true,actuators={},links={},burners={{id="heater",position={x=1,y=2,z=3},signal=3,gasOutput=4,hasBalloon=true,gasActive=false}}}
 local rescans,saved,started,stopped=0,0,0,0
+local preflightConfig
+local progress={initializationConfirmed=true,tested={}}
+local initializeCalls,calibrationCalls=0,{}
 local rejectSweep=false
 local sweepState
 package.loaded["system.services.vehiclebridged"]={snapshot=function() return snapshot end,rescan=function() rescans=rescans+1 end}
 package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
 package.loaded["system.services.avionicsd"]={snapshot=function() return {} end,rescan=function() end}
-package.loaded["system.services.flightd"]={configuration=function() return {channels={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
- status=function() return {calibration={initializationConfirmed=true,tested={}},sweep=sweepState} end,telemetry=function() return {} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
+package.loaded["system.services.flightd"]={configuration=function() if preflightConfig then return preflightConfig end return {channels={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
+ status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
  configure=function() saved=saved+1 return true end,
+ testOutput=function() initializeCalls=initializeCalls+1 progress.initializationConfirmed=true return true end,
+ calibrate=function(_,kind)
+  calibrationCalls[#calibrationCalls+1]=kind
+  if kind=="channel" then preflightConfig.channels[1].validated=true
+  elseif kind=="manual" then preflightConfig.manualValidated=true
+  elseif kind=="rescue" then progress.rescueTested=true
+  elseif kind=="rescueConfirm" then preflightConfig.rescueValidated=true end
+  return true
+ end,
  startSweep=function(_,p,confirmed,control)
   if rejectSweep then return false,"Sweep blocked: Rescue OK (Test rescue completed; confirmation still missing)" end
   assert(confirmed and p.first==7 and p.last==15 and control.balloonSetup.vehicleId=="ship-a")
@@ -60,6 +72,18 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   assert(table.concat(writes,"\n"):find("Initialization this run: confirmed (retained while off)",1,true),"retained initialization not shown")
   width,height=12,9 app.scroll=100 app:draw(width,height)
   width,height=26,17
+  preflightConfig={vehicle={},channels={{id="burners",backend="frequency",neutral=5,rescue=0,mix={altitude=1},actuator={role="buoyancy"}}},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}}
+  progress.initializationConfirmed=false progress.rescueTested=false
+  command("sweepResults")
+  for _,kind in ipairs({"initialize","channel","manual","rescue","rescueConfirm"}) do
+    command("sweepNext") assert(app.confirm,"next preflight action needs explicit physical confirmation")
+    app:handle({name="mouse_click",args={1,1,1}})
+    assert(app.page=="sweep","preflight left consolidated tab")
+  end
+  assert(initializeCalls==1 and table.concat(calibrationCalls,",")=="channel,manual,rescue,rescueConfirm","preflight repeated initialization or skipped rescue confirmation")
+  command("sweepNext") assert(not app.confirm and initializeCalls==1,"ready preflight restarted initialization")
+  assert(app.page=="sweepConfirm" and app.sweepPending,"completed preflight did not open sweep review")
+  preflightConfig=nil
   command("guide") assert(app.setup and app.setup.burnerCount==1,"intact burner guide blocked by missing COM")
   for i=1,60 do app.scroll=i app:draw(width,height) end
   assert(table.concat(writes,"\n"):find("signal 3/15",1,true),"live burner feedback missing from guide")

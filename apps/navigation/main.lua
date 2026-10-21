@@ -139,7 +139,7 @@ function M.run(ctx)
     elseif app.page=="sweep" then
       -- Options are a test draft, not edits to the saved flight configuration.
       for _,entry in ipairs({{"first","First heat level (1..15)"},{"last","Last heat level (1..15)"},
-        {"dwell","Seconds per level (4..15)"},{"maxTravel","Max altitude/world travel (1..32 blocks)"},
+        {"dwell","Safety timeout per level (4..60s)"},{"maxTravel","Max altitude/world travel (1..32 blocks)"},
         {"maxSpeed","Max vertical speed (0.1..2 blocks/s)"},{"timeout","Total time limit (10..180s)"}}) do
         rows[#rows+1]=forms.field(app.sweepOptions,entry[1],entry[2],"number")
       end
@@ -165,11 +165,29 @@ function M.run(ctx)
     app.scroll=math.max(1,math.min(app.scroll,math.max(1,#rows-count+1)))
     for i=app.scroll,math.min(#rows,app.scroll+count-1) do renderer.writeAt(1,y+i-app.scroll,renderer.crop(rows[i],w)) end
   end
+  local function sweepNext()
+    local c=flight.configuration()
+    local progress=app.flight.calibration or {}
+    local channel=(c.channels or {})[1]
+    if not channel or not c.balloonSetup then return nil,"Configure burner group with Setup guide first" end
+    if app.flight.state=="calibration" or app.flight.rescuePending then return nil,"Operation running; wait for feedback/rescue" end
+    if not progress.initializationConfirmed then return "initializeBalloon","Initialize burners" end
+    if not channel.validated then return "channel","Verify direction" end
+    if not c.manualValidated then return "manual","Manual OK" end
+    if not c.rescueValidated then
+      if not progress.rescueTested then return "rescue","Test rescue" end
+      return "rescueConfirm","Rescue OK"
+    end
+    return nil,"Preflight complete; Start sweep"
+  end
   local function actions()
     if app.page=="autopilot" or app.page=="sublevel" then return app.routePanel:actions() end
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
     elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="guide",label="Guide"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
-    elseif app.page=="sweep" or app.page=="sweepResults" then return {{id="sweepStop",label="STOP / rescue"},{id="sweepOptions",label="Options"},{id="sweepStart",label="Start sweep"},{id="sweepResults",label="Results"},{id="sweepApply",label="Apply candidate"},{id="sweepExport",label="Save report"},{id="calibrationPage",label="Calibration"}}
+    elseif app.page=="sweep" or app.page=="sweepResults" then
+      local nextCommand,nextLabel=sweepNext()
+      if not nextCommand then nextLabel=nextLabel=="Preflight complete; Start sweep" and "Start sweep" or "Check status" end
+      return {{id="sweepStop",label="STOP / rescue"},{id="sweepNext",label=nextLabel},{id=app.sweepEditing and "sweepDashboard" or "sweepOptions",label=app.sweepEditing and "Back" or "Options"},{id="sweepStart",label="Start sweep"},{id="sweepResults",label="Results"},{id="sweepApply",label="Apply candidate"},{id="sweepExport",label="Save report"}}
     elseif app.page=="sweepConfirm" then return {{id="sweepStop",label="STOP / rescue"},{id=app.sweepRead and "sweepConfirm" or "sweepRead",label=app.sweepRead and "CONFIRM" or "Read next"},{id="sweepOptions",label="Cancel"}}
     elseif app.page=="burnerGroup" then return {{id="applyGroup",label="Use group"},{id="guide",label="Reset / Detect"}}
     elseif app.page=="setup" then
@@ -197,7 +215,8 @@ function M.run(ctx)
     if h<9 then renderer.writeAt(1,1,renderer.crop("Navigation: enlarge window",w)) return end
     local title="Navigation"
     for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
-    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page})
+    if self.page:match("^sweep") then title="Auto altitude" end
+    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page:match("^sweep") and "sweep" or self.page})
     local commands=actions()
     for _,command in ipairs(commands) do
       command.primary=command.id:match("^sweep")~=nil or self.page=="setup" or command.id=="initializeBalloon" or command.id=="guide" or command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
@@ -205,15 +224,15 @@ function M.run(ctx)
     end
     self.bar=menus.bar(self.commands,1,2,w,commands,{title=title.." actions"})
     if self.page=="autopilot" or self.page=="sublevel" then self.routePanel:drawText(w,h)
-    elseif self.page=="sweep" then
+    elseif self.page=="sweep" and self.sweepEditing then
       self.form:draw(w,h,fields())
-      if not self.form.edit then renderer.writeAt(1,3,renderer.crop("Sweep options; manual/rescue/direction checks required",w),colors.cyan) end
+      if not self.form.edit then renderer.writeAt(1,3,renderer.crop("Stability-driven sweep; time values are safety limits",w),colors.cyan) end
     elseif self.page=="sweepConfirm" then
       local plan=self.sweepPending
       local channel=(self.sweepPendingControl.channels or {})[1] or {}
       local paragraphs={"MEASUREMENT FLIGHT: vessel will move.","Vehicle: "..tostring((self.sweepPendingControl.balloonSetup or {}).vehicleId),"First heat level: "..plan.first,"Last heat level: "..plan.last,
-        "Dwell seconds: "..plan.dwell,"Altitude/world travel limit: "..plan.maxTravel,"Vertical speed limit: "..plan.maxSpeed,
-        "Nominal measurement seconds: "..((plan.last-plan.first+1)*plan.dwell),"Total seconds limit: "..plan.timeout,"Rescue transmitted signal: "..tostring(channel.rescue),
+        "Per-level safety timeout: "..plan.dwell,"Altitude/world travel limit: "..plan.maxTravel,"Vertical speed limit: "..plan.maxSpeed,
+        "Advance only on measured steady vertical speed; altitude may still change.","Total seconds limit: "..plan.timeout,"Rescue transmitted signal: "..tostring(channel.rescue),
         "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
         "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","No automatic arming or physical confirmations."}
       local rows={}
@@ -225,16 +244,27 @@ function M.run(ctx)
       self.sweepOffset=math.min(self.sweepOffset or 1,math.max(1,#rows-self.sweepConfirmCount+1))
       for i=self.sweepOffset,math.min(#rows,self.sweepOffset+self.sweepConfirmCount-1) do renderer.writeAt(1,4+i-self.sweepOffset,rows[i]) end
       self.sweepRead=self.sweepOffset+self.sweepConfirmCount-1>=#rows
-    elseif self.page=="sweepResults" then
+    elseif self.page=="sweepResults" or self.page=="sweep" then
       local s=self.flight.sweep
-      local rows={"F10 / STOP stops a running sweep; data stays in RAM until Save report."}
+      local c=flight.configuration()
+      local progress=self.flight.calibration or {}
+      local channel=(c.channels or {})[1] or {}
+      local _,nextLabel=sweepNext()
+      local rows={"AUTO ALTITUDE | setup checks, measurements and PI candidate", "Next: "..nextLabel,
+        "Initialize: "..tostring(progress.initializationConfirmed==true).." | direction: "..tostring(channel.validated==true),
+        "Manual: "..tostring(c.manualValidated==true).." | rescue applied: "..tostring(progress.rescueTested==true).." | rescue OK: "..tostring(c.rescueValidated==true),
+        "Service: "..tostring(self.flight.state).." | "..tostring(self.flight.reason),
+        "Heat "..self.sweepOptions.first..".."..self.sweepOptions.last.." | level timeout "..self.sweepOptions.dwell.."s | total limit "..self.sweepOptions.timeout.."s",
+        "Advance on 8 fresh acknowledged samples: speed spread <=0.04 m/s, drift <=0.01 m/s2, window >=3s.",
+        "Steady speed can be a climb/descent; stable altitude is reported separately.",
+        "F10 / STOP stops a running sweep; data stays in RAM until Save report."}
       if self.sweepStartError then rows[#rows+1]="START REFUSED: "..self.sweepStartError end
       if not s then rows[#rows+1]="No measurement sweep yet" else
         rows[#rows+1]=s.state..": "..s.reason
         rows[#rows+1]="Heat "..s.signal.." | samples "..s.count
         for i=s.options.first,s.options.last do
           local r=s.levels[i]
-          rows[#rows+1]=r and string.format("%d: n=%d | Y %.2f..%.2f | mean V/S %.3f",i,r.count,r.minAltitude,r.maxAltitude,r.sumRate/r.count).." | stable Y="..tostring(r.stableAltitude) or (i..": not measured")
+          rows[#rows+1]=r and string.format("%d: n=%d | Y %.2f..%.2f | mean V/S %.3f",i,r.count,r.minAltitude,r.maxAltitude,r.sumRate/r.count).." | stable Y="..tostring(r.stableAltitude).." | steady V/S="..tostring(r.steadySpeed).." | settled="..tostring(r.settled==true) or (i..": not measured")
         end
         if s.proposal then
           local p=s.proposal
@@ -425,7 +455,7 @@ function M.run(ctx)
     end
     if command and command:match("^route:") then self.routePanel:action(command) refresh() return true end
     if routePage then return self.routePanel:handleText(event) end
-    if event.name=="mouse_scroll" and self.page~="sweep" and self.page~="sweepConfirm" and self.page~="burnerGroup" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_scroll" and not (self.page=="sweep" and self.sweepEditing) and self.page~="sweepConfirm" and self.page~="burnerGroup" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
     if event.name=="mouse_click" or command then
       local _,x,y=table.unpack(event.args)
       local id=command
@@ -440,8 +470,25 @@ function M.run(ctx)
         self.index=#draft.channels return true
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
       elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
-      elseif id=="sweepOptions" then self.page="sweep" self.form.scroll=1 self.sweepPending=nil return true
-      elseif id=="sweepResults" then self.page="sweepResults" self.scroll=1 return true
+      elseif id=="sweepOptions" then self.page="sweep" self.sweepEditing=true self.form.scroll=1 self.sweepPending=nil return true
+      elseif id=="sweepDashboard" or id=="sweepResults" then self.page="sweep" self.sweepEditing=false self.form.edit=nil self.scroll=1 return true
+      elseif id=="sweepNext" then
+        if self.dirty then report(false,"Save control changes before preflight") return true end
+        refresh()
+        local command,label=sweepNext()
+        if not command then
+          if label=="Preflight complete; Start sweep" then return self:handle({name="action",args={},navigationCommand="sweepStart"}) end
+          report(false,label) return true
+        end
+        draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.index=1
+        if command=="initializeBalloon" then
+          local channel=draft.channels[1]
+          local value=channel.neutral
+          local heat=(channel.mix.altitude or 0)<0 and 15-value or value
+          if heat<=0 then value=(channel.mix.altitude or 0)<0 and 15-self.sweepOptions.first or self.sweepOptions.first end
+          self.testValue={value=value}
+        end
+        return self:handle({name="action",args={},navigationCommand=command})
       elseif id=="sweepStop" then report(flight.disarm(actor)) refresh() return true
       elseif id=="sweepStart" then
         if self.dirty then report(false,"Save control changes before sweep") return true end
@@ -452,7 +499,7 @@ function M.run(ctx)
       elseif id=="sweepConfirm" then
         if not self.sweepRead or not self.sweepPending then report(false,"Read all sweep limits first") return true end
         local plan=addon.copy(self.sweepPending) self.sweepPending=nil
-        self.page="sweepResults" self.scroll=1
+        self.page="sweep" self.sweepEditing=false self.scroll=1
         local ok,err=flight.startSweep(actor,plan,true,self.sweepPendingControl)
         self.sweepStartError=not ok and tostring(err or "Refused") or nil
         report(ok,err) refresh() return true
@@ -580,7 +627,7 @@ function M.run(ctx)
         self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
-    if self.page=="sweep" or self.page=="burnerGroup" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
+    if (self.page=="sweep" and self.sweepEditing) or self.page=="burnerGroup" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
   pixel.attach(app,{

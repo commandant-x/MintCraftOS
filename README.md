@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.55:
+This repository currently contains V0.18.60:
+
+V0.18.60 consolidates burner preflight, measurements, reports and proposed gains
+in **Navigation → Auto altitude**. Its next-check action follows live validation
+state without reinitializing already confirmed burners. Heat levels advance on
+sustained measured vertical-speed stability, never just elapsed dwell time.
+Per-level and overall timeouts remain safety limits; unsettled response aborts
+and returns to the configured rescue. Stable vertical speed and stable altitude
+are shown separately. See [the unified workflow](docs/AUTO-ALTITUDE-0.18.60.md).
+
+Earlier measurement/model design:
 
 V0.18.55 adds a confirmed, bounded altitude characterization sweep, default heat
 levels 7–15, recording altitude and vertical speed with per-heater acknowledgment.

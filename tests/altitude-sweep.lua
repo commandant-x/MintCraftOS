@@ -43,3 +43,28 @@ local regressed=assert(S.new(p,100,0))
 regressed:step({timestamp=1,altitude=100,altitudeRate=0,inSublevel=true},1,false)
 assert(not regressed:step({timestamp=0.9,altitude=100,altitudeRate=0,inSublevel=true},0.9,false))
 print("altitude sweep: 7..15 dynamic identification, PI/hover fit, no extrapolation/noisy guesses, duplicate data and bounded motion/time/clock guards passed")
+
+local stable=assert(S.new(p,100,0))
+for i=0,6 do
+ local t=i*0.5
+ assert(stable:step({timestamp=t,altitude=100,altitudeRate=0,inSublevel=true},t,true)==7)
+end
+assert(stable:step({timestamp=3.5,altitude=100,altitudeRate=0,inSublevel=true},3.5,true)==8,"measured stability did not advance before safety timeout")
+assert(stable.levels[7].settled and stable.levels[7].stableAltitude)
+local unstable=assert(S.new(p,100,0))
+for i=0,29 do
+ local t=i*0.5
+ assert(unstable:step({timestamp=t,altitude=100,altitudeRate=0.2*math.sin(t*2),inSublevel=true},t,true)==7,"unsettled response advanced by clock")
+end
+assert(not unstable:step({timestamp=15,altitude=100,altitudeRate=0.1,inSublevel=true},15,true))
+assert(unstable.state=="aborted" and unstable.reason:find("stability",1,true))
+local gap=assert(S.new(p,100,0))
+for _,t in ipairs({0,0.5,1,1.5,3.5,4,4.5,5}) do
+ assert(gap:step({timestamp=t,altitude=100,altitudeRate=0,inSublevel=true},t,true)==7,"gapped samples accepted as sustained stability")
+end
+local drift=assert(S.new(p,100,0))
+for i=0,7 do
+ local t=i*0.5
+ assert(drift:step({timestamp=t,altitude=100,altitudeRate=t*0.011,inSublevel=true},t,true)==7,"slow acceleration accepted as settled")
+end
+print("stability-driven progression: early measured settling, no timed advance, unstable timeout, gap and drift rejection passed")
