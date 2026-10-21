@@ -1,4 +1,10 @@
 local reason = ...
+local function checksum(data)
+  local a,b=1,0
+  for i=1,#data do a=(a+data:byte(i))%65521 b=(b+a)%65521 end
+  return string.format("%08x",b*65536+a)
+end
+
 if term and term.setFrozen then pcall(term.setFrozen,false) end
 if term and term.setGraphicsMode then pcall(term.setGraphicsMode,0) end
 
@@ -60,6 +66,16 @@ local function restoreRaw(resumeOnly)
       seen[path], count = true, count + 1
     end
     assert(count > 0 and count == #manifest.paths, "Incomplete rollback manifest")
+    if manifest.checksums then
+      assert(type(manifest.checksums)=="table" and manifest.kind=="files","Invalid checkpoint checksums")
+      for _,path in ipairs(manifest.paths) do
+        if manifest.existed[path] then
+          local h=assert(fs.open(backupDir..path,"r"))
+          local data=h.readAll() h.close()
+          assert(checksum(data)==manifest.checksums[path],"Corrupt checkpoint: "..path)
+        end
+      end
+    end
     if fs.exists(stage) then
       local target = readConfig(stage .. "/target.cfg")
       assert(type(target) == "string" and seen[target] and target ~= "/packages", "Invalid pending restore target")

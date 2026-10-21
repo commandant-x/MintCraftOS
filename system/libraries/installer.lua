@@ -52,7 +52,18 @@ function M.install(files,options)
       if fs.exists(target) and fs.getSize then plan.backupBytes=plan.backupBytes+fs.getSize(target) end
     end
   end
-  if options and options.beforeInstall then options.beforeInstall(plan) end
+  -- A manual wget upgrade must retain the same durable checkpoint as Update.
+  -- Refuse before touching live files when space or the checkpoint is unavailable.
+  local free=fs.getFreeSpace and fs.getFreeSpace("/")
+  local upgrading=fs.exists("/VERSION") and #plan.changed>0
+  local required=plan.stageBytes+plan.backupBytes*(upgrading and 2 or 1)+math.max(32768,#plan.changed*256)
+  if type(free)=="number" then assert(free>=required,"INSTALL-DISK: insufficient space for staging and retained rollback; backups retained") end
+  if options and options.beforeInstall then options.beforeInstall(plan)
+  elseif upgrading then
+    local updated=require("system.services.updated")
+    local saved,problem=updated.createRollback("before manual installation",plan.changed)
+    assert(saved,"INSTALL-BACKUP: "..tostring(problem))
+  end
   assert(not fs.exists(root), "Installation started while preparing; recover before retrying")
   local changed, touched = {}, {}
   local ok, err = pcall(function()

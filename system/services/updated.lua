@@ -3,6 +3,11 @@ local version = require("system.libraries.version")
 local source = require("system.libraries.update_source")
 local safeWrite = require("system.libraries.safe_write")
 local httpClient = require("system.network.http_client")
+local function checksum(data)
+  local a,b=1,0
+  for i=1,#data do a=(a+data:byte(i))%65521 b=(b+a)%65521 end
+  return string.format("%08x",b*65536+a)
+end
 local operation
 local rootContext,controller
 
@@ -256,7 +261,7 @@ local function createRollback(reason,changes)
     createdUptime = os.clock(),
     paths = {},
   }
-  if changes then manifest.kind="files" manifest.existed={} end
+  if changes then manifest.kind="files" manifest.existed={} manifest.checksums={} end
 
   for _,entry in ipairs(changes or ROLLBACK_PATHS) do
     local path=changes and ("/"..entry) or entry
@@ -270,6 +275,11 @@ local function createRollback(reason,changes)
     if fs.exists(path) then
       local target = backupDir .. path
       copyTree(path, target)
+      if changes then
+        local original=assert(readFile(path),"Cannot read checkpoint source")
+        assert(readFile(target)==original,"Checkpoint copy mismatch")
+        manifest.checksums[path]=checksum(original)
+      end
       table.insert(manifest.paths, path)
     elseif changes then table.insert(manifest.paths,path)
     end
@@ -336,6 +346,15 @@ local function rollback(options)
   end
   if count == 0 or count ~= #manifest.paths then return false, "empty or incomplete rollback manifest" end
 
+  if manifest.checksums then
+    if type(manifest.checksums)~="table" or manifest.kind~="files" then return false,"Invalid checkpoint checksums" end
+    for _,path in ipairs(manifest.paths) do
+      if manifest.existed[path] then
+        local data=readFile(backupDir..path)
+        if not data or checksum(data)~=manifest.checksums[path] then return false,"Corrupt checkpoint: "..path.."; backups retained" end
+      end
+    end
+  end
   assert(config.save("/var/tmp/mintcraft-rollback.cfg", {id=info.id}))
 
   for index, path in ipairs(manifest.paths) do
