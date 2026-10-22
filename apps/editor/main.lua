@@ -8,6 +8,7 @@ local ui = require("system.gui.components")
 local editing=require('apps.editor.editing')
 local pixel=require('apps.editor.pixel')
 
+local sharedClipboard=require('system.graphics.clipboard')
 local M = {}
 
 local function splitLines(text)
@@ -281,7 +282,7 @@ function M.run(ctx)
     if ch == "s" then
       save()
     else
-      local actions={f='find',a='selectAll',c='copy',x='cut'}
+      local actions={f='find',a='selectAll',c='copy',x='cut',v='paste'}
       if actions[ch] then app:action(actions[ch]) end
     end
   end
@@ -297,10 +298,10 @@ function M.run(ctx)
     elseif id=='keyboard' then self.keyboardVisible=not self.keyboardVisible self.pixelKeyboard=not self.pixelKeyboard
     elseif id=='find' then self.searchOpen=not self.searchOpen self.searchQuery=self.searchQuery or ''
     elseif id=='findNext' then self.status=editing.find(self,self.searchQuery or '') and 'Match selected' or 'No match'
-    elseif id=='copy' then self.clipboard=editing.selected(self) self.status=#self.clipboard>0 and 'Selection copied inside Editor' or 'No selection'
+    elseif id=='copy' then self.clipboard=editing.selected(self) sharedClipboard.set(self.clipboard) self.status=#self.clipboard>0 and 'Selection copied' or 'No selection'
     elseif id=='cut' then
       self:action('copy') if self.clipboard~='' then insertText(self,'') end
-    elseif id=='paste' then if self.clipboard and self.clipboard~='' then insertText(self,self.clipboard) end
+    elseif id=='paste' then local value=sharedClipboard.get() if value~='' then insertText(self,value) end
     elseif id=='selectAll' then self.anchor={row=1,col=1} self.cy=#self.lines self.cx=#self.lines[self.cy]+1 self.revealCursor=true
     end
   end

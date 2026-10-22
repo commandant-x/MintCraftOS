@@ -2,7 +2,14 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.65:
+This repository currently contains V0.18.66:
+
+V0.18.66 adds 1x/1.5x/2x pixel UI scaling and a bounded, session-scoped RAM
+clipboard shared by Editor, Terminal and native client fields. Physical display
+resolution/palette and text rescue are preserved; undersized screens use 1x.
+See [UI behavior, benchmark evidence and game checks](docs/HARDENING-0.18.66.md).
+
+Previous navigation stage:
 
 V0.18.65 adds operator-configurable altitude-sweep speed and travel limits.
 Both default to 0 (disabled), preserving the existing unrestricted settings.

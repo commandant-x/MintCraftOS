@@ -103,6 +103,7 @@ function M.run(ctx)
       add('gfxopt:off','Disable new graphics optimizations',cfg.graphicsOptimizations==false)
       add('gfxopt:on','Enable graphics optimizations',cfg.graphicsOptimizations~=false)
       for _,hz in ipairs({10,15,20}) do add('gfxhz:'..hz,'Presentation max '..hz..' Hz',(cfg.graphicsMaxHz or 20)==hz) end
+      for _,scale in ipairs({1,1.5,2}) do add('uiscale:'..scale,'UI scale '..scale..'x',(cfg.uiScale or 1)==scale) end
       local selected=deviced.getPreference and deviced.getPreference() or "auto"
       add("display:auto","Automatic",selected=="auto") add("display:computer","Computer",selected=="computer")
       for _,device in ipairs(deviced.list()) do
@@ -375,7 +376,8 @@ function M.run(ctx)
     elseif request.page=='sound' then result.audio=audiod.status()
     elseif request.page=='display' then
       result.capabilities=ctx.system.graphicsCapabilities and ctx.system.graphicsCapabilities() or {}
-      result.lines[#result.lines+1]='UI scale: 1x (fixed)'
+      local cfg=config.load('/system/config/system.cfg',{})
+      result.lines[#result.lines+1]='Requested UI scale: '..tostring(cfg.uiScale or 1)..'x (small displays use 1x)'
       result.lines[#result.lines+1]='Frame policy: retained/event-driven'
       for _,key in ipairs({'graphics','palette','freeze','color','probed'}) do result.lines[#result.lines+1]=key..': '..tostring(result.capabilities[key]) end
     end

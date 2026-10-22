@@ -3,6 +3,7 @@
 local ui=require("system.graphics.widgets")
 local keyboard=require("system.graphics.keyboard")
 local fonts=require("system.graphics.fonts")
+local clipboard=require('system.graphics.clipboard')
 local M={}
 function M.attach(app,api)
   local state={first=1,field=nil,showKeyboard=false}
@@ -108,9 +109,21 @@ function M.attach(app,api)
   function app:handlePixelKey(event)
     if not self.graphicsActive then return false end
     state.model=api.model()
-    if event.name=="char" or event.name=="paste" then if field() then kb.onText(tostring(event.args[1])) return true end
+    local function transfer(key)
+      local f=field()
+      if not f then return true end
+      if key=='c' and not f.secret then clipboard.set(tostring(f.value or ''))
+      elseif key=='v' then kb.onText(clipboard.get()) end
+      return true
+    end
+    if event.name=='key_up' and (event.args[1]==keys.leftCtrl or event.args[1]==keys.rightCtrl) then state.control=false return true end
+    if event.name=="char" or event.name=="paste" then
+      if event.name=='char' and state.control then return transfer(tostring(event.args[1]):lower()) end
+      if field() then kb.onText(tostring(event.args[1])) return true end
     elseif event.name=="key" then
       local key=event.args[1]
+      if key==keys.leftCtrl or key==keys.rightCtrl then state.control=true return true end
+      if state.control and (key==keys.c or key==keys.v) then return transfer(key==keys.c and 'c' or 'v') end
       if key==keys.escape then state.field=nil state.showKeyboard=false return true end
       if field() then
         if key==keys.enter then kb.onEnter() elseif key==keys.backspace then kb.onBackspace() end

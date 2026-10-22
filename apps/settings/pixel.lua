@@ -6,7 +6,7 @@ local Keyboard=require('system.graphics.keyboard')
 local M={}
 local function rect(x,y,w,h) return {x=x,y=y,w=w,h=h} end
 local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
-local groups={{'gfxprofile:','Performance profile','radio'},{'gfxopt:','Graphics optimizations','radio'},{'gfxhz:','Presentation ceiling (Hz)','step'},{'graphics:','Requested renderer','select'},{'display:','Output','select'},{'scale:','Monitor text scale','step'},
+local groups={{'uiscale:','Pixel interface scale','radio'},{'gfxprofile:','Performance profile','radio'},{'gfxopt:','Graphics optimizations','radio'},{'gfxhz:','Presentation ceiling (Hz)','step'},{'graphics:','Requested renderer','select'},{'display:','Output','select'},{'scale:','Monitor text scale','step'},
   {'theme:','Appearance','radio'},{'profile:','Application profile','radio'},{'volume:','Speaker volume','step'},{'speaker:','Default speaker','select'}}
 local hints={label='Computer label',unlock='Unlock password',adminLogin='Admin password',passwordOld='Current admin password',passwordNew='New password',passwordConfirm='Confirm password'}
 function M.attach(app,pages)

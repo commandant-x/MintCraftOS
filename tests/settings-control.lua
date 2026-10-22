@@ -24,7 +24,7 @@ end
 local first,second=owner(),owner()
 local service=require('system.services.settingsd')
 local graphics={}
-assert(service.start({scheduler=scheduler,apps={get=function(id) return id=='editor' or id=='browser' end},setGraphicsMode=function(mode) graphics[#graphics+1]=mode end}))
+assert(service.start({scheduler=scheduler,apps={get=function(id) return id=='editor' or id=='browser' end},setGraphicsMode=function(mode) graphics[#graphics+1]=mode end,setUIScale=function(value) graphics[#graphics+1]=value return true end}))
 local function wake(name) scheduler:dispatch({name=name,args={},raw={name}}) end
 assert(not service.request(first,'eval','print(1)'))
 assert(not service.request(first,'label',{}))
@@ -54,6 +54,8 @@ failSave=true assert(service.request(first,'gfxprofile:stable')) wake('mintcraft
 assert(service.request(first,'gfxopt:off')) wake('mintcraft_settings_action') assert(cfg.graphicsOptimizations==false)
 assert(service.request(first,'gfxhz:10')) wake('mintcraft_settings_action') assert(cfg.graphicsMaxHz==10)
 assert(service.request(first,'gfxhz:1')) wake('mintcraft_settings_action') assert(cfg.graphicsMaxHz==10 and not service.status().result)
+assert(service.request(first,'uiscale:1.5')) wake('mintcraft_settings_action') assert(cfg.uiScale==1.5 and graphics[#graphics]==1.5)
+assert(service.request(first,'uiscale:3')) wake('mintcraft_settings_action') assert(cfg.uiScale==1.5 and not service.status().result)
 suspend=true assert(service.request(first,'display:terminal_1')) wake('mintcraft_settings_action')
 assert(scheduler:kill(service.status().pid,true))
 assert(service.status().phase=='uncertain' and not service.request(first,'theme:dark') and not service.stop(),'uncertain worker automatically retried')

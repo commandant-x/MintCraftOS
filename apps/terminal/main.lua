@@ -1,3 +1,4 @@
+local sharedClipboard=require('system.graphics.clipboard')
 local renderer = require("system.gui.renderer")
 local log = require("system.libraries.log")
 local keyboard = require("system.gui.keyboard")
@@ -484,8 +485,8 @@ function M.run(ctx)
       local rows={} local first,last=self.selection and self.selection.first,self.selection and self.selection.last
       if first and last then for i,line in ipairs(self.lines) do local seq=self.lineIds[i]
         if seq>=math.min(first,last) and seq<=math.max(first,last) then rows[#rows+1]=line end
-      end end self.clipboard=table.concat(rows,'\n')
-    elseif id=='paste' then if self.clipboard then self.keyboard.onText(self.clipboard) end
+      end end self.clipboard=table.concat(rows,'\n') sharedClipboard.set(self.clipboard)
+    elseif id=='paste' then local value=sharedClipboard.get() if value~='' then self.keyboard.onText(value) end
     elseif id=='clear' then self:clearOutput()
     elseif id=='submit' then submit()
     else for _,item in ipairs(quick) do if item.id==id then self.input=item.text self.cursor=nil submit() break end end end

@@ -17,7 +17,7 @@ local M = {}
 
 local function bootApps(ctx)
   local register=apps.registerBuiltin
-  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.58", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
+  register("terminal", "Terminal", "apps.terminal.main", { icon = ">_", iconPath = "/system/themes/icons/terminal.nfp", category = "System", version = "0.18.66", permissions = { "filesystem.read", "filesystem.write", "process.list", "process.kill", "logs.read", "packages.install", "system.reboot", "system.auth", "system.security.admin", "devices.list", "system.config" } })
   register("browser", "Browser", "apps.browser.main", { icon = "BR", iconPath = "/system/themes/icons/browser.nfp", category = "Internet", version = "0.18.48", permissions = { "network.http" } })
   register("crafttube", "CraftTube", "apps.crafttube.main", { icon = "CT", iconPath = "/system/themes/icons/crafttube.nfp", category = "Internet", version = "0.18.48", permissions = { "network.http", "filesystem.read", "filesystem.write" } })
   register("messenger", "Messenger", "apps.messenger.main", { icon = "MS", iconPath = "/system/themes/icons/messenger.nfp", category = "Network", version = "0.18.48", permissions = { "rednet.send", "rednet.receive" } })
@@ -25,13 +25,13 @@ local function bootApps(ctx)
   register("navigation", "Navigation", "apps.navigation.main", { icon = "NV", iconPath = "/system/themes/icons/navigation.nfp", category = "Control", version = "0.18.65", permissions = { "sable.read", "avionics.read", "redstone.output", "navigation.assist", "navigation.calibrate", "navigation.control", "navigation.autopilot", "peripheral.probe" } })
   register("combat", "Combat", "apps.combat.main", { icon = "CB", iconPath = "/system/themes/icons/combat.nfp", category = "Control", version = "0.18.48", permissions = { "combat.read", "combat.aim", "combat.fire", "combat.configure", "peripheral.probe" } })
   register("files", "Files", "apps.files.main", { icon = "[]", iconPath = "/system/themes/icons/files.nfp", category = "Files", version = "0.18.48", permissions = { "filesystem.read", "filesystem.write" } })
-  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.53", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
+  register("settings", "Settings", "apps.settings.main", { icon = "##", iconPath = "/system/themes/icons/settings.nfp", category = "System", version = "0.18.66", permissions = { "system.config", "audio.control", "system.auth", "system.security.admin", "system.storage.manage" } })
   register("taskmanager", "Task Manager", "apps.taskmanager.main", { icon = "PS", iconPath = "/system/themes/icons/taskmanager.nfp", category = "System", version = "0.18.48", permissions = { "process.list", "process.kill" } })
   register("logs", "Logs", "apps.logs.main", { icon = "LG", iconPath = "/system/themes/icons/logs.nfp", category = "System", version = "0.18.48", permissions = { "logs.read" } })
   register("services", "Services", "apps.services.main", { icon = "SV", iconPath = "/system/themes/icons/services.nfp", category = "System", version = "0.18.48", permissions = { "services.list", "services.control" } })
   register("store", "Store", "apps.store.main", { icon = "ST", iconPath = "/system/themes/icons/store.nfp", category = "System", version = "0.18.48", permissions = { "packages.install", "filesystem.write" } })
   register("devices", "Devices", "apps.devices.main", { icon = "IO", iconPath = "/system/themes/icons/devices.nfp", category = "Hardware", version = "0.18.48", permissions = { "devices.list", "peripheral.probe" } })
-  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.48", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
+  register("editor", "Editor", "apps.editor.main", { icon = "{}", iconPath = "/system/themes/icons/editor.nfp", category = "Dev", version = "0.18.66", permissions = { "filesystem.read", "filesystem.write", "dev.compile" }, hidden = true })
   register("update", "Update", "apps.update.main", { icon = "UP", iconPath = "/system/themes/icons/update.nfp", category = "System", version = "0.18.48", permissions = { "network.http", "system.update" } })
   packageManager.setContext(ctx)
   packageManager.registerInstalledApps()
@@ -84,15 +84,16 @@ function M.start()
   local policyOptions=Policy.options(graphicsConfig)
   if guard.state=="safe" then policyOptions.optimized=false policyOptions.batchRows=1 end
   local renderPolicy=Policy.new(policyOptions)
+  local uiScale=require("system.graphics.scale").new(graphicsConfig.uiScale or 1)
   local workspace=require("system.graphics.workspace").new(ctx)
   ctx.pixelWorkspace=workspace
   local session=require("system.security.session_screen").new(ctx)
   local screen = compositor.new(devices.getTarget, devices.outputFailed,{
     backendOptions=policyOptions,nativeShell=true,
     mode=(graphicsConfig.safeMode or guard.state=="safe") and "text" or graphicsConfig.graphicsMode=='pixel16' and 'pixel16' or "auto",
-    beforeRender=function(backend) if not session:sync() then workspace:prepare(backend) end end,
-    pixelRender=function(backend) if session:sync() then session:drawPixels(backend) else workspace:draw(backend) end end,
-    onGraphicsFailure=function(err) policyOptions.optimized=false policyOptions.batchRows=1 Guard.fail(guard,err) workspace:deactivate() log.error("graphics",tostring(err)) end,
+    beforeRender=function(backend) local view=uiScale:prepare(backend) if not session:sync() then workspace:prepare(view) end end,
+    pixelRender=function(backend) local view=uiScale:prepare(backend) if session:sync() then session:drawPixels(view) else workspace:draw(view) end uiScale:flush() end,
+    onGraphicsFailure=function(err) uiScale:deactivate() policyOptions.optimized=false policyOptions.batchRows=1 Guard.fail(guard,err) workspace:deactivate() log.error("graphics",tostring(err)) end,
   })
   local forceRender=true
   ctx.setGraphicsMode=function(mode)
@@ -103,15 +104,20 @@ function M.start()
       policyOptions=Policy.options(require("system.libraries.config").load("/system/config/system.cfg",{}))
       renderPolicy.options=policyOptions screen:setBackendOptions(policyOptions)
     end
-    workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() forceRender=true
+    uiScale:deactivate() workspace:deactivate() screen:configure(mode) ctx.wm:invalidate() forceRender=true
   end
   ctx.setGraphicsPolicy=function(cfg)
     policyOptions=Policy.options(cfg) renderPolicy.options=policyOptions
     screen:setBackendOptions(policyOptions) ctx.wm:invalidate() forceRender=true
   end
+  ctx.setUIScale=function(value)
+    local ok,err=uiScale:set(value) if not ok then return false,err end
+    workspace:deactivate() screen:invalidate() ctx.wm:invalidate() forceRender=true return true
+  end
   ctx.invalidateDisplay = function() screen:invalidate() ctx.wm:invalidate() forceRender=true end
   ctx.renderStats = function()
     local stats=screen:stats()
+    stats.uiScale=uiScale.requested stats.effectiveUIScale=uiScale.effective
     stats.renderRequests=renderPolicy.requests stats.skippedRenders=renderPolicy.skipped
     stats.profile=policyOptions.profile stats.optimized=policyOptions.optimized stats.maxHz=policyOptions.maxHz
     stats.bootGuard=guard.state stats.bootGuardReason=guard.reason
@@ -171,7 +177,7 @@ function M.start()
         elseif event.name=="peripheral" or event.name=="peripheral_detach" or event.name=="monitor_resize" or event.name=="term_resize" or event.name=="mintcraft_display_resize" then
           ctx.wm:invalidate()
         end
-        if session:handle(event) then
+        if session:handle(uiScale:event(event)) then
           -- Passwords and locked input never reach app workers or the event bus.
         elseif event.name == "terminate" then
           ctx.notifications:push("warn", "Terminate", "Use Recovery or reboot from Terminal", 4)
@@ -182,7 +188,7 @@ function M.start()
           end
           ctx.scheduler:dispatch(event)
           local pixelActive=screen:stats().backend~="TEXT"
-          if pixelActive and workspace:handle(event) then
+          if pixelActive and workspace:handle(uiScale:event(event)) then
             -- Pixel shell consumed the event; never forward it to the grid behind.
           elseif pixelActive and event.name:match("^mouse_") then
             -- Pointer events are exclusively routed by the pixel workspace.
