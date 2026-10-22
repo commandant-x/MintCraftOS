@@ -2,7 +2,15 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.67:
+This repository currently contains V0.18.68:
+
+V0.18.68 completes native Combat radar/cannon/network/alias configuration and
+its staged radar setup. These reuse existing validators and save handlers;
+configuration views do not issue aim/fire commands. Explicit fire controls and
+single-use confirmations stay separate. See [native coverage and safety
+checks](docs/HARDENING-0.18.68.md).
+
+Previous Navigation native stage:
 
 V0.18.67 completes Navigation's native secondary forms, calibration, setup,
 Auto altitude and equipment projections while retaining the text rescue client.

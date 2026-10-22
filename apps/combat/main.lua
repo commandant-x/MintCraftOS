@@ -362,6 +362,52 @@ function M.run(ctx)
     end
     return self.page=="config" and self.form:handle(event) or false
   end
+  local function finishSetup()
+    if app.setup and app.setup.closed then
+      if app.setup.saved then app.radarId=app.setup.id cfg=combat.configuration() app.page="radar" end
+      app.setup=nil
+    end
+  end
+  app.nativePanel=require("system.graphics.form_client").new({
+    urgent={id="panelAbort",label="Cancel / stop track"},
+    error=function(message) if app.setup then app.setup.error=message else app.message=message end end,
+    committed=function() app.form.edit=nil if app.setup then app.setup.form.edit=nil end end,
+    model=function()
+      local model={page="config:"..app.configKind..":"..tostring(app.radarId)..":"..tostring(app.cannonId),actions={},fields={},rows={},footer=app.message}
+      if app.confirm then
+        model.page=model.page..":confirm" model.actions={{id="panelConfirm",label="Confirm"},{id="panelCancel",label="Cancel"}}
+        model.rows={{title="Explicit confirmation",description=app.confirm.title}} return model
+      end
+      if app.setup then
+        local setup=app.setup
+        model.page="radarSetup:"..setup.step..":"..tostring(setup.id)
+        model.footer=setup.error or "Radar geometry only; no aim/fire command"
+        model.fields=setup:fields()
+        model.actions={{id="wizardCancel",label="Cancel"}}
+        if setup.step>1 then model.actions[#model.actions+1]={id="wizardBack",label="Back"} end
+        model.actions[#model.actions+1]={id="wizardNext",label=setup.step==4 and "Save" or "Next"}
+        model.rows={{title="Radar setup "..setup.step.."/4",description="Use real API/manual coordinates. Unknown frames remain unverified."}}
+      else
+        model.fields=app.form.edit and {app.form.edit} or fields()
+        model.actions={{id="backRadar",label="Radar"}}
+        for _,action in ipairs(actions()) do model.actions[#model.actions+1]=action end
+        model.rows={{title="Configuration",description="Fields reuse the existing configuration and service validation. No native form submits an aim/fire command."}}
+      end
+      return model
+    end,
+    action=function(id)
+      if id=="panelAbort" then
+        app.tracking=false app.confirm=nil app.form.edit=nil app.nativePanel.buffers={}
+        if app.setup then app.setup:action("cancel") finishSetup() else app.page="radar" end
+      elseif id=="panelConfirm" then local c=app.confirm app.confirm=nil if c then c.callback() end
+      elseif id=="panelCancel" then app.confirm=nil
+      elseif id=="backRadar" then app.page="radar"
+      elseif id:match("^wizard") then
+        if app.setup then app.setup:action(({wizardCancel="cancel",wizardBack="back",wizardNext="next"})[id]) finishSetup() end
+      else app:handle({name="mouse_click",args={1,-999,-999},command=id}) end
+      app.pixelPages.radar=true app.pixelPages.three=true app.pixelPages.config=true
+      if win then win.dirty=true end
+    end})
   pixel.attach(app,{
     action=function(id) app:handle({name="mouse_click",args={1,-999,-999},command=id}) end,
     select=selectTarget,
@@ -371,6 +417,22 @@ function M.run(ctx)
       else confirm("Include station #"..key.."? Same world/dimension required",function() value.trusted[key]=true report(radarNet.configure(actor,value)) end) end
     end,
   },tabs)
+  local oldDrawPixels,oldHandlePixels,oldHandle=app.drawPixels,app.handlePixels,app.handle
+  local function panelActive() return app.setup~=nil or app.page=="config" end
+  app.pixelPages.config=true app.pixelPages.radar=true app.pixelPages.three=true
+  function app:drawPixels(surface,w,h,palette)
+    if panelActive() then self.nativePanel:drawPixels(surface,w,h,palette) else oldDrawPixels(self,surface,w,h,palette) end
+  end
+  function app:handlePixels(event)
+    if panelActive() then return self.nativePanel:handlePixels(event) end
+    return oldHandlePixels(self,event)
+  end
+  function app:handle(event)
+    if self.graphicsActive and panelActive() and self.nativePanel:handlePixelKey(event) then return true end
+    local result=oldHandle(self,event)
+    self.pixelPages.config=true self.pixelPages.radar=true self.pixelPages.three=true
+    return result
+  end
   refresh()
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Combat",w=math.min(120,w-2),h=math.min(38,h-2),x=2,y=2,app=app})

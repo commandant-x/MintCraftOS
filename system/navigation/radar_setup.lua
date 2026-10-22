@@ -116,14 +116,7 @@ function M.new(snapshot,selected,configuration,onShip,save,validate)
     buttons[#buttons+1]={id="next",label=self.step==4 and "Enregistrer" or "Suivant"}
     self.bar=ui.toolbar(1,h,w,buttons,self.barState)
   end
-  function state:handle(event)
-    if self.form.edit then return self.form:handle(event) end
-    if event.name=="mouse_click" then
-      for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,event.args[2],event.args[3]) then
-        self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true
-      end end
-    end
-    local action=event.name=="mouse_click" and ui.toolbarHit(self.bar,event.args[2],event.args[3])
+  function state:action(action)
     if action=="cancel" then self.closed=true return true
     elseif action=="back" then self.step=math.max(1,self.step-1) self.form.scroll=1 self.error=nil return true
     elseif action=="next" then
@@ -148,6 +141,17 @@ function M.new(snapshot,selected,configuration,onShip,save,validate)
       end
       self.step=math.min(4,self.step+1) self.form.scroll=1 self.error=nil return true
     end
+    return false
+  end
+  function state:handle(event)
+    if self.form.edit then return self.form:handle(event) end
+    if event.name=="mouse_click" then
+      for _,box in ipairs(self.bar or {}) do if box.delta and ui.hit(box,event.args[2],event.args[3]) then
+        self.barState.first=math.max(1,(self.barState.first or 1)+box.delta) return true
+      end end
+    end
+    local action=event.name=="mouse_click" and ui.toolbarHit(self.bar,event.args[2],event.args[3])
+    if action and self:action(action) then return true end
     return self.form:handle(event)
   end
   return state
