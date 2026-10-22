@@ -84,7 +84,26 @@ function M.normalize(raw)
     end
   end
   if not out.centerOfMass then out.complete=false end
+  out.mechanics={}
+  if type(raw.features)=="table" and raw.features.mechanics then
+    if type(raw.mechanics)~="table" or #raw.mechanics>1024 then return nil,"Invalid mechanical inventory" end
+    local ids={}
+    for _,row in ipairs(raw.mechanics) do
+      local p=type(row)=="table" and boundedVector(row.position)
+      if not p or type(row.id)~="string" or #row.id>192 or ids[row.id] or not addon.finite(row.rpm) or not addon.finite(row.theoreticalRPM) then return nil,"Invalid mechanical feedback" end
+      ids[row.id]=true
+      local m={id=row.id,position=p,block=tostring(row.block):sub(1,128),rpm=row.rpm,theoreticalRPM=row.theoreticalRPM,overstressed=row.overstressed==true,
+        role=({clutch=true,reverse=true,gear=true,other=true})[row.role] and row.role or "other",sourceId=type(row.sourceId)=="string" and row.sourceId:sub(1,192) or nil}
+      if type(row.powered)=="boolean" then m.powered=row.powered end
+      if type(row.disengaged)=="boolean" then m.disengaged=row.disengaged end
+      out.mechanics[#out.mechanics+1]=m
+    end
+  end
   return out
+end
+function M.structureFingerprint()
+  if not hullScan or hullScan.vehicleId~=cached.vehicleId or hullScan.state~="complete" or not hullScan.coverage or not cached.ok then return nil end
+  return hullScan.fingerprint
 end
 function M.acquire()
   local api=rawget(_G,"mintcraft_vehicle")
@@ -120,8 +139,19 @@ function M.acquireGeometry()
   local scan=hullScan
   local values,errors=addon.read({page=function() return api.geometryPage(scan.nextPage,scan.token) end},{"page"},0.5,{priority="diagnostics"})
   if hullScan~=scan then return end
-  local ok,issue=Hull.accept(scan,values.page)
+  local page=values.page
+  if type(page)=="table" and page.structureHash~=nil and
+    (type(page.structureHash)~="string" or #page.structureHash~=64 or not page.structureHash:match("^[0-9a-f]+$") or
+      not addon.finite(page.page) or not addon.finite(page.pages) or page.page+1~=page.pages or page.coverageComplete~=true) then
+    scan.state="partial" scan.reason="Invalid structure fingerprint" return
+  end
+  local ok,issue=Hull.accept(scan,page)
+  if ok and scan.state=="complete" and scan.coverage then scan.fingerprint=page.structureHash end
   if not ok then scan.state="partial" scan.reason=errors.page or issue end
+end
+function M.geometryStatus()
+  if not hullScan or hullScan.vehicleId~=cached.vehicleId then return nil end
+  return {state=hullScan.state,reason=hullScan.reason,coverage=hullScan.coverage,fingerprint=hullScan.fingerprint,vehicleId=hullScan.vehicleId}
 end
 function M.geometry()
   if not hullScan or hullScan.vehicleId~=cached.vehicleId then return nil end

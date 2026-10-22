@@ -81,7 +81,10 @@ function M.attach(app,api,tabs)
     local controlWidth=w<260 and 56 or 78
     local controlX=w-controlWidth-30
     button("views","Flight",rect(4,3,math.min(96,controlX-8),22))
-    button("control","Control",rect(controlX,3,controlWidth,22))
+    if w>=400 then
+      button("activateAutomatic","Autopilot",rect(106,3,100,22))
+      button("control","Control",rect(controlX,3,controlWidth,22))
+    else button("activateAutomatic","Pilot",rect(controlX,3,controlWidth,22)) end
     local rescan=rect(w-26,3,22,22) ui.symbol(s,rescan,"refresh",p)
     self.nativeHits[#self.nativeHits+1]={id="rescan",rect=rescan}
     local snap=self.nativeFlight or {values={},state="unknown"}

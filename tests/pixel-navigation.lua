@@ -56,6 +56,7 @@ end end
 assert(selected=="vehicle" and app.pixelPages.flight and not app.pixelPages.vehicle)
 app.page="flight" draw(600,330) click("control") assert(selected=="control","control navigation not accessible")
 assert(command=="rescan","view selection emitted a flight command")
+app.page="flight" draw(600,330) click("activateAutomatic") assert(command=="activateAutomatic","one-button entry unavailable")
 app.page="flight" app.nativeFlight=missing
 draw(600,330)
 assert(app.nativeHorizon.image.rows[1]==string.rep(string.char(15),app.nativeHorizon.image.width),"missing attitude invented a level horizon")

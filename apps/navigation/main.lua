@@ -40,6 +40,10 @@ function M.run(ctx)
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
     app.bridge=vehicleBridge.snapshot()
+    local automatic=app.flight.automatic
+    if automatic and automatic.phase=="calibration" and not app.autoConfigSynced and not app.dirty then
+      draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) app.autoConfigSynced=true
+    end
     if (app.page=="diagram" or app.page=="component") and vehicleBridge.geometry then
       if not app.geometryRequested and vehicleBridge.requestGeometry then vehicleBridge.requestGeometry() app.geometryRequested=true end
       app.bridge.hull=vehicleBridge.geometry()
@@ -62,6 +66,7 @@ function M.run(ctx)
   local function report(ok,message) app.message=ok and (message or "Done") or tostring(message or "Refused") end
   local function confirm(title,callback) app.confirm={title=title,callback=callback} end
   app.routePanel=require("apps.navigation.route").new({
+    activate=function() app:handle({name="navigation_action",args={},navigationCommand="activateAutomatic"}) end,
     pose=sable.pose,
     page=function(id) app.page=id app.form.scroll=1 app.scroll=1 end,
     devices=function() ctx.apps.launch("devices") end,
@@ -305,7 +310,7 @@ function M.run(ctx)
     elseif app.page=="sweep" or app.page=="sweepResults" then
       local nextCommand,nextLabel=sweepNext()
       if not nextCommand then nextLabel=(nextLabel=="Preflight complete; Start sweep" or nextLabel=="Ready for automatic tests + sweep") and "Start sequence" or "Check status" end
-      return {{id="sweepStop",label="STOP / rescue"},{id="sweepNext",label=nextLabel},{id=app.sweepEditing and "sweepDashboard" or "sweepOptions",label=app.sweepEditing and "Back" or "Options"},{id="sweepStart",label="Start sequence"},{id="sweepResults",label="Results"},{id="sweepApply",label="Apply candidate"},{id="sweepExport",label="Save report"},{id="measuredHold",label="Pilot altitude"},{id="altitudeEdit",label="Target altitude"},{id="altitudeApply",label="Set altitude"}}
+      return {{id="activateAutomatic",label="Activate autopilot"},{id="sweepStop",label="STOP / rescue"},{id="sweepNext",label=nextLabel},{id=app.sweepEditing and "sweepDashboard" or "sweepOptions",label=app.sweepEditing and "Back" or "Options"},{id="sweepStart",label="Start sequence"},{id="sweepResults",label="Results"},{id="sweepApply",label="Apply candidate"},{id="sweepExport",label="Save report"},{id="measuredHold",label="Pilot altitude"},{id="altitudeEdit",label="Target altitude"},{id="altitudeApply",label="Set altitude"}}
     elseif app.page=="sweepConfirm" then return {{id="sweepStop",label="STOP / rescue"},{id=app.sweepRead and "sweepConfirm" or "sweepRead",label=app.sweepRead and "CONFIRM" or "Read next"},{id="sweepOptions",label="Cancel"}}
     elseif app.page=="burnerGroup" then return {{id="applyGroup",label="Use group"},{id="guide",label="Reset / Detect"}}
     elseif app.page=="setup" then
@@ -318,7 +323,7 @@ function M.run(ctx)
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
     elseif app.page=="control" then
-      local out={{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"}}
+      local out={{id="activateAutomatic",label="Activate autopilot"},{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"}}
       if draft.mode~="altitude" then out[#out+1]={id="yawLeft",label="Yaw-"} out[#out+1]={id="yawRight",label="Yaw+"} end
       return out
     elseif app.page=="calibration" then
@@ -327,7 +332,7 @@ function M.run(ctx)
       out[#out+1]={id="sweepOptions",label="Auto altitude"}
       for _,item in ipairs({{id="channel",label="Verify direction"},{id="hover",label="Hover OK"},{id="manual",label="Manual OK"},{id="rescue",label="Test rescue"},{id="rescueConfirm",label="Rescue OK"},{id="disarm",label="Acknowledge"},{id="rescan",label="Rescan"}}) do out[#out+1]=item end
       return out
-    else return {{id="rescan",label="Rescan"},{id="devices",label="Devices"},{id="logs",label="Logs"}} end
+    else return {{id="activateAutomatic",label="Activate autopilot"},{id="rescan",label="Rescan"},{id="devices",label="Devices"},{id="logs",label="Logs"}} end
   end
   local function actions()
     local out=baseActions()
@@ -668,6 +673,14 @@ function M.run(ctx)
           self.testValue={value=value}
         end
         return self:handle({name="action",args={},navigationCommand=command})
+      elseif id=="activateAutomatic" then
+        if self.dirty then report(false,"Save or discard draft changes before automatic activation") return true end
+        self.page="sweep" self.sweepEditing=false
+        confirm("Activate automatic pilot? The vessel will move: initialization, rescue, altitude calibration if needed, motor tests and a short route. Confirm a clear area. F10 stops; keep Navigation open.",function()
+          app.autoConfigSynced=false
+          report(flight.activateAutomatic(actor,true))
+          draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) refresh()
+        end) return true
       elseif id=="measuredHold" then
         confirm("Start qualified vertical altitude hold only? No horizontal route.",function()
           report(flight.startMeasuredHold(actor,self.altitudeTarget and self.altitudeTarget.value,true)) refresh()
@@ -854,6 +867,10 @@ function M.run(ctx)
       row("Review complete","Only now confirm the frozen measurement plan.")
       return model
     end
+    if app.flight.automatic then
+      local a=app.flight.automatic row("Automatic pilot",a.state.." / "..a.phase.." | "..a.reason)
+      row("Height table",a.reused and (a.state=="active" and "Saved model freshly verified" or "Saved model candidate; live verification running") or "Fresh measurement when required")
+    end
     row("State",tostring(app.flight.state).." | "..tostring(app.flight.reason))
     if not app.flight.measuredHold then for _,err in ipairs(app.flight.errors or {}) do row("Readiness",err) end end
     if app.flight.measuredHold then row("Vertical autopilot","ACTIVE | target "..fmt(app.flight.measuredHold.target,"m").." | measured altitude range only") end
@@ -982,7 +999,7 @@ function M.run(ctx)
   pixel.attach(app,{
     page=nativePage,
     action=function(id)
-      if id=="rescan" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
+      if id=="rescan" or id=="activateAutomatic" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
     end,
   },tabs)
   local nativeDraw,nativeHandle=app.drawPixels,app.handlePixels

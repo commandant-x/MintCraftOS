@@ -1,9 +1,17 @@
-# MintCraft Vehicle Bridge 0.2.2
+# MintCraft Vehicle Bridge 0.2.3
 
 Standalone, read-only NeoForge addon. It exposes the containing Sable vehicle to
 ComputerCraft as the global `mintcraft_vehicle` API. No existing mod is patched.
 
-0.2.2 adds `geometryPage(page, token)` for lossless loaded parent-plot block surveys.
+0.2.3 adds read-only Create mechanical telemetry (signed actual/theoretical RPM,
+overstress, source IDs, powered state and Create clutch disengagement) plus stable
+SHA-256 fingerprints after complete sequential geometry surveys. Runtime block
+properties `powered`, `power`, `lit` do not invalidate the structural fingerprint.
+The mechanical inventory is limited to 1024 entries and follows real source IDs;
+control roles are not inferred from arbitrary spatial proximity. See
+[automatic pilot activation](../../docs/AUTOPILOT-0.18.74.md).
+
+0.2.2 added `geometryPage(page, token)` for lossless loaded parent-plot block surveys.
 Start with `(0, "")`, then pass the returned token and increasing page indexes.
 Each page reads at most one nonempty 16³ section, with a palette of block IDs and
 states, sparse runs `start:length:palette;` (cell index `x + 16*z + 256*y`) and an
@@ -28,7 +36,7 @@ This build also compiles against the profile's Sable 2.0.6 using
 
 1. Stop Minecraft/the server normally. Back up the world before trying a new mod.
    Remove the previous Vehicle Bridge JAR when replacing it; do not keep two versions.
-2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.2.jar` to the chosen profile's
+2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.3.jar` to the chosen profile's
    `mods` directory, alongside CC:Tweaked, Sable, Create and Aeronautics.
    For multiplayer, install on the server and clients using that modpack.
 3. Restart Minecraft. Place the computer on the assembled Sable vehicle.

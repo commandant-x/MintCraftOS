@@ -29,3 +29,18 @@ local p=assert(G.transform({x=0,y=0,z=1},{position={x=3,y=4,z=5},orientation=q,r
 assert(math.abs(p.x-4)<1e-6 and math.abs(p.z-5)<1e-6)
 assert(not G.heading({a=math.huge,v={x=0,y=0,z=0}}))
 print('drivetrain: unique hardware roles, disengage-shift-engage, actual fresh RX acknowledgements, neutral rescue, measured authority rejection and native Sable quaternion passed')
+
+local candidate=assert(D.model({
+ {side='left',gear=8,reverse=0,observable=true,forward=.2,yaw=-2,peakSpeed=.3,brakingDistance=.4},
+ {side='left',gear=8,reverse=15,observable=true,forward=-.2,yaw=2,peakSpeed=.3,brakingDistance=.4},
+ {side='right',gear=8,reverse=0,observable=true,forward=.2,yaw=2,peakSpeed=.3,brakingDistance=.4},
+ {side='right',gear=8,reverse=15,observable=true,forward=-.2,yaw=-2,peakSpeed=.3,brakingDistance=.4}}))
+local checks={}
+for _,step in ipairs(D.references(candidate)) do
+ for _,list in ipairs({candidate.groups[step.side].positive,candidate.groups[step.side].negative}) do
+  for _,r in ipairs(list) do if r.gear==step.gear and r.reverse==step.reverse then checks[#checks+1]=A.copy(r) end end
+ end
+end
+assert(#checks==4 and D.referencesMatch(candidate,checks))
+checks[1].forward=-.2 assert(not D.referencesMatch(candidate,checks),'changed motor direction reused saved response')
+print('motor revalidation: four actual forward/reverse checks, response comparison and changed-direction rejection passed')

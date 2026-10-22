@@ -15,6 +15,7 @@ local Sweep=require("system.navigation.altitude_sweep")
 local sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport,sweepOrigin
 local sweepOwner,measuredHold
 local calibration,calibrationSaved
+local activation
 local calibrationToken={}
 local Drive=require("system.navigation.drivetrain")
 local driveDemand,driveValues,driveAppliedAt,drivePose,drivePrevious
@@ -237,6 +238,7 @@ local function altitudeBinding(c)
   return {mode=c.mode,channels=rows,sensors=addon.copy(c.sensors),balloonSetup=addon.copy(c.balloonSetup),drivetrain=addon.copy(c.drivetrain)}
 end
 local function differentialCurrent(token)
+  if state~="armed" or not measuredHold then return false,"Activate measured altitude hold before differential travel" end
   if not calibration or (calibration.state~="complete" and not (token==calibrationToken and calibration.phase=="routeCheck")) or not calibration.driveModel then return false,"Measured differential calibration required" end
   if not same(calibration.binding,altitudeBinding(cfg.control)) then return false,"Motor mapping/configuration changed; repeat calibration" end
   local current=vehicleBridge.snapshot()
@@ -281,6 +283,7 @@ function M.configure(actor, value)
 end
 
 function M.fail(message,token)
+  if activation and (activation.state=="running" or activation.state=="active") and token~=calibrationToken then activation.state,activation.reason="blocked",message end
   if calibration and calibration:running() and token~=calibrationToken then calibration:abort(message) end
   measuredHold=nil driveDemand=nil
   if sweep and sweep.state=="running" then sweep:abort(message) end
@@ -328,6 +331,7 @@ end
 function M.disarm(actor,token)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
+  if activation and (activation.state=="running" or activation.state=="active") and token~=calibrationToken then activation.state,activation.reason="blocked","Stopped by operator" end
   if calibration and calibration:running() and token~=calibrationToken then calibration:abort("Stopped by operator") end
   if state=="armed" or state=="calibration" then M.fail("manual disarm: calibrated rescue",token) end
   if not rescuePending then
@@ -339,7 +343,7 @@ function M.disarm(actor,token)
   return true
 end
 
-function M.release(pid, message) if owner==pid or calibration and calibration:running() and calibration.owner==pid then M.fail(message or "Navigation closed") end end
+function M.release(pid, message) if owner==pid or calibration and calibration:running() and calibration.owner==pid or activation and activation.state=="running" and activation.owner==pid then M.fail(message or "Navigation closed") end end
 
 local function takeover(message,t)
   if not autopilot:running() then return end
@@ -661,7 +665,7 @@ function M.exportSweep(actor)
   local report=sweep:status(true)
   report.worldOrigin=addon.copy(sweepOrigin)
   report.vehicleId=sweepSource.balloonSetup.vehicleId report.burnerIds=addon.copy(sweepSource.balloonSetup.burnerIds)
-  local content=textutils.serialize(report)
+  local content=textutils.serialize(report,{compact=true})
   if #content>100000 or fs.getFreeSpace("/")<2*#content+2048 then return false,"Not enough space for durable sweep report; measurements remain in RAM" end
   local stamp=tostring(math.floor(os.epoch and os.epoch("utc") or os.clock()*1000))
   for i=1,99 do
@@ -700,7 +704,7 @@ function M.startMeasuredHold(actor,target,confirmed)
   current.sessionActive=nil original.sessionActive=nil
   if not same(current,original) then return false,"Configuration changed; repeat measurement sequence" end
   local model=sweep.proposal
-  if target==nil then target=model.points[#model.points].altitude end
+  if target==nil then target=sweep.reusedModel and math.max(model.points[1].altitude,math.min(model.points[#model.points].altitude,M.telemetry().altitude)) or model.points[#model.points].altitude end
   local heat,problem=require("system.navigation.altitude_model").heatAt(model,target)
   if not heat then return false,problem end
   local pose,why=sweepPose(os.clock(),cfg.control.balloonSetup.vehicleId) if not pose then return false,why end
@@ -733,14 +737,81 @@ function M.startAutoCalibration(actor,confirmed)
   local options=Sweep.defaults() options.certify=true options.autoPrepare=true options.autoHold=true
   return M.startSweep(actor,options,true,cfg.control)
 end
+-- Entry point owns the whole sequence. Nothing moves before explicit confirmation.
+function M.activateAutomatic(actor,confirmed)
+  for _,permission in ipairs({"navigation.control","navigation.calibrate","navigation.autopilot"}) do
+    local ok,err=authorize(actor,permission) if not ok then return false,err end
+  end
+  if confirmed~=true then return false,"Confirm automatic preparation, movement tests and clear area" end
+  if activation and activation.state=="running" then return false,"Automatic preparation already running" end
+  if state=="armed" and measuredHold and owner==actor.pid and calibration and calibration.state=="complete" then return true,"Measured pilot already active" end
+  if state=="failsafe" and not rescuePending then local ok,err=M.disarm(actor) if not ok then return false,err end end
+  if state~="disarmed" or rescuePending then return false,"Wait for pending rescue before automatic activation" end
+  local current=vehicleBridge.snapshot()
+  if not current.ok or not current.inventoryComplete then return false,"Fresh complete Vehicle Bridge inventory required" end
+  local position,err=sweepPose(os.clock(),current.vehicleId) if not position then return false,err end
+  for _,binding in ipairs(cfg.control.manualInputs or {}) do if redstone.getInput(binding.side) then return false,"Release physical pilot input first" end end
+  activation={state="running",phase="survey",reason="Surveying structure before preparing pilot",owner=actor.pid,vehicleId=current.vehicleId,target=M.telemetry().altitude}
+  vehicleBridge.requestGeometry()
+  return true
+end
+local function prepareAutomatic()
+  local job=activation
+  if not job or job.state~="running" then return end
+  for _,permission in ipairs({"navigation.control","navigation.calibrate","navigation.autopilot"}) do
+    local ok,err=authorize({pid=job.owner},permission) if not ok then M.fail(err) return end
+  end
+  local current=vehicleBridge.snapshot()
+  if not current.ok or not current.inventoryComplete or current.vehicleId~=job.vehicleId then M.fail("Automatic preparation lost its containing vehicle") return end
+  local position,err=sweepPose(os.clock(),job.vehicleId) if not position then M.fail(err) return end
+  for _,binding in ipairs(cfg.control.manualInputs or {}) do if redstone.getInput(binding.side) then M.fail("Physical pilot input stopped automatic preparation") return end end
+  if job.phase=="survey" then
+    local hull=vehicleBridge.geometryStatus()
+    local api=rawget(_G,"mintcraft_vehicle")
+    if type(api)=="table" and type(api.geometryPage)=="function" then
+      if not hull or hull.state=="scanning" then return end
+      job.fingerprint=vehicleBridge.structureFingerprint()
+    end
+    local proposed,problem=require("system.navigation.automatic_setup").plan(current,cfg.control,M.endpoints())
+    if not proposed then M.fail(problem) return end
+    if not same(proposed,cfg.control) then
+      local ok,issue=M.configure({pid=job.owner},proposed) if not ok then M.fail(issue) return end
+    end
+    local report=config.load("/system/config/navigation-calibration.cfg",{})
+    local model,issue=require("system.navigation.automatic_setup").candidate(report,job.fingerprint,current)
+    if model and not same(report.binding,altitudeBinding(cfg.control)) then model,issue=nil,"Motor/sensor/output binding changed: full measurement required" end
+    local options=Sweep.defaults()
+    if model then options.first=model.points[1].heat options.last=model.points[#model.points].heat end
+    local ok,problem=M.startSweep({pid=job.owner},options,true,cfg.control)
+    if not ok then M.fail(problem) return end
+    if activation~=job or job.state~="running" then M.fail("Automatic preparation cancelled") return end
+    if model and cfg.control.drivetrain and cfg.control.drivetrain.enabled then
+      calibration.motorCandidate=require("system.navigation.automatic_setup").motorCandidate(report)
+      if calibration.motorCandidate then calibration.motorRows=addon.copy(report.motorTests) end
+    end
+    calibration.structureFingerprint=job.fingerprint
+    sweep.reusedModel=model job.reused=model~=nil job.phase="calibration" job.reason=issue or "Measuring current vessel"
+  elseif job.phase=="calibration" then
+    if calibration and calibration.state=="aborted" then job.state,job.reason="blocked",calibration.reason
+    elseif calibration and calibration.state=="complete" and measuredHold and state=="armed" then
+      job.state,job.phase="active","hold"
+      job.reason=calibration.driveModel and "Measured altitude and motor pilot ready; choose a route destination" or ("Altitude pilot active; horizontal unavailable: "..tostring(calibration.horizontal))
+      local points=measuredHold.model.points
+      local target=math.max(points[1].altitude,math.min(points[#points].altitude,job.target))
+      local ok,problem=M.setSetpoint({pid=job.owner},"altitude",target)
+      if not ok then job.state,job.reason="blocked",problem M.fail(problem) end
+    end
+  end
+end
 function M.saveCalibration(actor)
   local ok,err=authorize(actor,"navigation.calibrate") if not ok then return false,err end
   if not calibration or calibration.state~="complete" then return false,"Complete measured calibration first" end
   local report=calibration:status()
-  report.schema=1 report.binding=addon.copy(calibration.binding) report.vehicleId=calibration.binding.balloonSetup.vehicleId
+  report.schema=2 report.structureFingerprint=calibration.structureFingerprint report.binding=addon.copy(calibration.binding) report.vehicleId=calibration.binding.balloonSetup.vehicleId
   report.mass=calibration.mass report.massUnit=calibration.massUnit report.model=addon.copy(calibration.model)
-  report.drivetrain=addon.copy(calibration.driveModel) report.motorTests=calibration.driveProbe and addon.copy(calibration.driveProbe.rows) or nil
-  local content=textutils.serialize(report)
+  report.drivetrain=addon.copy(calibration.driveModel) report.motorTests=addon.copy(calibration.motorRows or calibration.driveProbe and calibration.driveProbe.rows)
+  report.freshMotorChecks=addon.copy(calibration.freshMotorChecks)
+  local content=textutils.serialize(report,{compact=true})
   if #content>65536 or fs.getFreeSpace("/")<2*#content+2048 then return false,"No space for calibration report; evidence retained in RAM" end
   local saved,why=safeWrite.write("/system/config/navigation-calibration.cfg",content)
   if saved then calibrationSaved=true end
@@ -757,6 +828,7 @@ function M.step(rescan)
     local dt=drivePrevious and world.at-drivePrevious.at
     if dt and dt>0 and dt<=0.5 and drivePrevious.vehicleId==world.vehicleId then drivePose.yawRate=geometry.wrap(t.heading-drivePrevious.heading)/dt end
   end
+  if activation and activation.state=="running" then prepareAutomatic() end
   timestamp=now
   if cfg.control.drivetrain and cfg.control.drivetrain.enabled and driveValues and driveAppliedAt and (state=="armed" or state=="calibration") then
     local ack,issue=Drive.feedback(cfg.control.drivetrain,vehicleBridge.snapshot(),driveValues,driveAppliedAt)
@@ -874,7 +946,13 @@ function M.step(rescan)
         job.horizontal=job.driveProbe.reason
         if motorAction and motorAction.kind=="drive" then driveDemand=Drive.commands(cfg.control.drivetrain,motorAction.selection)
         elseif motorAction and motorAction.kind=="complete" then
-          driveDemand=nil job.driveModel,issue=Drive.model(job.driveProbe.rows)
+          driveDemand=nil
+          if job.motorCandidate and not Drive.referencesMatch(job.motorCandidate,job.driveProbe.rows) then
+            job.motorCandidate,job.motorRows=nil,nil job.driveProbe=Drive.newProbe()
+            job.horizontal="Saved motor response changed; automatically measuring all 60 modes"
+          else
+          if job.motorCandidate then job.driveModel=addon.copy(job.motorCandidate) job.freshMotorChecks=addon.copy(job.driveProbe.rows)
+          else job.driveModel,issue=Drive.model(job.driveProbe.rows) end
           job.driveDone=true job.horizontal=job.driveModel and "Measured forward/reverse, yaw and braking: ready" or tostring(issue)
           job.state,job.phase,job.reason="complete","complete","Automatic calibration complete; "..job.horizontal
           if job.driveModel then
@@ -885,6 +963,7 @@ function M.step(rescan)
               {x=p.x+2*math.sin(a)+2*math.cos(a),y=p.y,z=p.z+2*math.cos(a)-2*math.sin(a)}}
             local started,issue=M.startMission({pid=job.owner},plan,true,calibrationToken)
             if not started then M.fail(issue) return M.step(false) end
+          end
           end
         end
       else action=job:step(t,now,ack) end
@@ -903,7 +982,7 @@ function M.step(rescan)
         if not ok then M.fail(problem or "Automatic calibration action refused") return M.step(false) end
       end
       if job.state=="complete" and cfg.control.drivetrain and cfg.control.drivetrain.enabled and not job.driveDone then
-        job.driveProbe=Drive.newProbe() job.state,job.phase="running","motors" job.horizontal="Testing clutch/transmission/reverser combinations" driveDemand=nil
+        job.driveProbe=Drive.newProbe(job.motorCandidate and Drive.references(job.motorCandidate)) job.state,job.phase="running","motors" job.horizontal="Testing clutch/transmission/reverser combinations" driveDemand=nil
       end
       if job.state=="complete" and not calibrationSaved then
         local saved,why=M.saveCalibration({pid=job.owner})
@@ -938,6 +1017,10 @@ function M.step(rescan)
     local previous=sweep.signal
     local phase=sweep.phase
     local heat,guardErr=sweep:step(t,now,ack)
+    if sweep.prepared and sweep.reusedModel then
+      sweep.proposal=addon.copy(sweep.reusedModel) sweep.state="complete" sweep.reason="Saved model candidate prepared; fresh closed-loop checks required"
+      heat=nil
+    end
     if phase=="initialize" and sweep.initialized then
       burnerInitialization={vehicleId=cfg.control.balloonSetup.vehicleId,burnerIds=addon.copy(cfg.control.balloonSetup.burnerIds),channelId=sweepChannel,confirmedAt=now}
     end
@@ -1088,6 +1171,7 @@ function M.status()
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
     autopilot=autopilot:status(),measuredHold=measuredHold and {active=true,target=targets.altitude,range=addon.copy(measuredHold.model.measuredRange)} or nil,
     sweep=sweep and sweep:status(false) or nil,
+    automatic=activation and addon.copy(activation) or nil,
     autoCalibration=calibration and calibration:status() or nil,differentialReady=differentialReady,differentialReason=differentialReason,calibrationSaved=calibrationSaved,
     calibration={tested=addon.copy(tested),rescueTested=rescueTested,test=addon.copy(M.test),initializationConfirmed=burnerInitialization~=nil},
     outputs=addon.copy(last),outputResults=addon.copy(outputResults),rescueResults=addon.copy(rescueResults),rescuePending=rescuePending,timestamp=timestamp}
@@ -1105,7 +1189,7 @@ function M.start(context)
   sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport,sweepOrigin=nil,nil,nil,nil,nil,nil
   routeForward,routeRight=0,0
   sweepOwner,measuredHold=nil,nil
-  calibration,calibrationSaved=nil,false
+  calibration,calibrationSaved=nil,false activation=nil
   driveDemand,driveValues,driveAppliedAt,drivePose,drivePrevious=nil,nil,nil,nil,nil
   migrate()
   state,owner,rescuePending="disarmed",nil,false

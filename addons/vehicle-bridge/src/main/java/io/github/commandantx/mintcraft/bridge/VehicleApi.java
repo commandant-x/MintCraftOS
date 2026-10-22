@@ -37,6 +37,7 @@ public final class VehicleApi implements ILuaAPI {
     private record Cached(long tick, Map<String, Object> data) {}
     private final IComputerSystem computer;
     private HullScan hull;
+    private final Map<Integer,String> hullHashes=new LinkedHashMap<>();
     private long lastHullTick = Long.MIN_VALUE;
     private record Section(net.minecraft.world.level.chunk.LevelChunkSection data, int x, int y, int z) {}
     private record HullScan(String token, String vehicle, long started, List<Section> sections,
@@ -51,7 +52,7 @@ public final class VehicleApi implements ILuaAPI {
             long tick=computer.getLevel().getGameTime();
             if (tick==lastHullTick) return unavailable("BUSY","One geometry page per game tick");
             lastHullTick=tick;
-            if(page==0 && token.isEmpty()) hull=beginHull(ship,tick);
+            if(page==0 && token.isEmpty()) { hull=beginHull(ship,tick); hullHashes.clear(); }
             if(hull==null || !hull.vehicle.equals(ship.getUniqueId().toString()) || page<0 || page>=Math.max(1,hull.sections.size()) ||
                 (page!=0 || !token.isEmpty()) && !hull.token.equals(token) || tick<hull.started || tick-hull.started>24000)
                 return unavailable("SCAN_CHANGED","Restart geometry survey");
@@ -70,11 +71,16 @@ public final class VehicleApi implements ILuaAPI {
             var palette=new ArrayList<Map<String,String>>();
             var indices=new LinkedHashMap<net.minecraft.world.level.block.state.BlockState,Integer>();
             int[] cells=new int[4096];
+            var shape=new StringBuilder();
+            var shapes=new java.util.HashMap<net.minecraft.world.level.block.state.BlockState,String>();
             if(!hull.sections.isEmpty()) {
                 Section section=hull.sections.get(page);
                 result.put("origin",BridgeMath.vector(section.x,section.y,section.z));
+                shape.append(section.x).append(':').append(section.y).append(':').append(section.z).append(';');
                 for(int n=0;n<4096;n++) {
                     var state=section.data.getBlockState(n&15,n>>8,(n>>4)&15);
+                    String stable=state.isAir() ? "air" : shapes.computeIfAbsent(state,VehicleApi::stableState);
+                    shape.append(stable).append('\n');
                     if(!state.isAir()) {
                         Integer id=indices.get(state);
                         if(id==null) {
@@ -86,8 +92,19 @@ public final class VehicleApi implements ILuaAPI {
                 }
             } else result.put("origin",BridgeMath.vector(0,0,0));
             result.put("palette",palette); result.put("runs",VoxelCodec.encode(cells));
+            hullHashes.put(page,StructureHash.digest(shape.toString()));
+            if(hullHashes.size()==Math.max(1,hull.sections.size()) && hull.coverage) {
+                var all=new StringBuilder();
+                for(int i=0;i<Math.max(1,hull.sections.size());i++) all.append(hullHashes.get(i));
+                result.put("structureHash",StructureHash.digest(all.toString()));
+            }
             return result;
         } catch(RuntimeException | LinkageError error) { return unavailable("HULL_READ_FAILED",error.getClass().getSimpleName()); }
+    }
+    private static String stableState(net.minecraft.world.level.block.state.BlockState state) {
+        var properties=new LinkedHashMap<String,String>();
+        state.getValues().forEach((key,value)->properties.put(key.getName(),value.toString()));
+        return StructureHash.state(BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),properties);
     }
     private static HullScan beginHull(ServerSubLevel ship,long tick) {
         var origin=ship.getPlot().getCenterBlock();
@@ -120,7 +137,7 @@ public final class VehicleApi implements ILuaAPI {
     @Override public String[] getNames() { return new String[]{"mintcraft_vehicle"}; }
 
     @LuaFunction public final Map<String, Object> status() {
-        return Map.of("schema", 1, "version", "0.2.2", "readOnly", true,
+        return Map.of("schema", 1, "version", "0.2.3", "readOnly", true,
             "scope", "containing sublevel; loaded blocks and block entities", "controlWrites", false);
     }
 
@@ -178,9 +195,10 @@ public final class VehicleApi implements ILuaAPI {
         var actuators = new ArrayList<Map<String, Object>>();
         var burners = new ArrayList<Map<String, Object>>();
         var links = new ArrayList<Map<String, Object>>();
+        var mechanics = new ArrayList<Map<String,Object>>();
         BlockPos origin = ship.getPlot().getCenterBlock();
         result.put("schema", 1); result.put("ok", true); result.put("readOnly", true);
-        result.put("bridgeVersion", "0.2.2"); result.put("features", Map.of("burners",true,"hullPages",true));
+        result.put("bridgeVersion", "0.2.3"); result.put("features", Map.of("burners",true,"hullPages",true,"mechanics",true,"structureHash",true));
         result.put("vehicleId", ship.getUniqueId().toString()); result.put("name", ship.getName());
         result.put("observedAtGameTick", tick); result.put("revision", tick);
         result.put("frame", "body_plot");
@@ -203,6 +221,10 @@ public final class VehicleApi implements ILuaAPI {
                 if (++visited > MAX_BLOCK_ENTITIES) { complete = false; break scan; }
                 if (entity.isRemoved()) continue;
                 try {
+                    if(entity instanceof com.simibubi.create.content.kinetics.base.KineticBlockEntity kinetic) {
+                        if(mechanics.size()>=1024) complete=false;
+                        else mechanics.add(mechanical(ship,kinetic,origin));
+                    }
                     if (entity instanceof PropellerBearingBlockEntity || entity instanceof BasePropellerBlockEntity) {
                         if (actuators.size() >= MAX_ACTUATORS) { complete = false; continue; }
                         actuators.add(propeller(ship, entity, origin, result));
@@ -223,15 +245,35 @@ public final class VehicleApi implements ILuaAPI {
         actuators.sort(Comparator.comparing(row -> (String) row.get("id")));
         links.sort(Comparator.comparing(row -> (String) row.get("id")));
         burners.sort(Comparator.comparing(row -> (String) row.get("id")));
+        result.put("mechanics",mechanics);
         result.put("burners",burners);
         result.put("actuators", actuators); result.put("links", links); result.put("errors", errors);
         result.put("complete", complete); result.put("visitedBlockEntities", Math.min(visited, MAX_BLOCK_ENTITIES));
-        result.put("limits", Map.of("chunks", MAX_CHUNKS, "blockEntities", MAX_BLOCK_ENTITIES, "actuators", MAX_ACTUATORS, "links", MAX_LINKS));
+        result.put("limits", Map.of("chunks", MAX_CHUNKS, "blockEntities", MAX_BLOCK_ENTITIES, "actuators", MAX_ACTUATORS, "links", MAX_LINKS, "mechanics",1024));
         result.put("controlBindingsKnown", false);
         result.put("nestedSublevelsIncluded", false);
         return result;
     }
 
+    private static Map<String,Object> mechanical(ServerSubLevel ship,com.simibubi.create.content.kinetics.base.KineticBlockEntity kinetic,BlockPos origin) {
+        var row=new LinkedHashMap<String,Object>();
+        String block=BuiltInRegistries.BLOCK.getKey(kinetic.getBlockState().getBlock()).toString();
+        row.put("id",id(ship,kinetic.getBlockPos(),origin)); row.put("block",block);
+        row.put("position",position(kinetic.getBlockPos(),origin));
+        double rpm=kinetic.getSpeed(),theoretical=kinetic.getTheoreticalSpeed();
+        if(!Double.isFinite(rpm) || !Double.isFinite(theoretical)) throw new IllegalArgumentException("invalid kinetic speed");
+        var powered=net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED;
+        if(kinetic.getBlockState().hasProperty(powered)) {
+            boolean value=kinetic.getBlockState().getValue(powered);
+            row.put("powered",value);
+            if(block.equals("create:clutch")) row.put("disengaged",value);
+        }
+        row.put("rpm",rpm); row.put("theoreticalRPM",theoretical); row.put("overstressed",kinetic.isOverStressed());
+        row.put("role",block.equals("create:clutch") ? "clutch" : block.equals("create:gearshift") ? "reverse" :
+            block.endsWith(":analog_transmission") ? "gear" : "other");
+        if(kinetic.hasSource() && kinetic.source!=null) row.put("sourceId",id(ship,kinetic.source,origin));
+        return row;
+    }
     private static Map<String, Object> propeller(ServerSubLevel ship, BlockEntity entity, BlockPos origin, Map<String, Object> root) {
         BlockEntityPropeller prop = (BlockEntityPropeller) entity;
         var direction = prop.getBlockDirection().getNormal();

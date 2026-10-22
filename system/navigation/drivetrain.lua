@@ -79,11 +79,12 @@ function M.feedback(d,snapshot,values,after)
  end
  return true
 end
-function M.newProbe()
+function M.newProbe(steps)
  local self={phase='baseline',index=1,steps={},rows={},reason='Waiting for stationary motors',settled=0}
+ if steps then self.steps=addon.copy(steps) else
  for gear=1,15 do for _,side in ipairs(sides) do for _,reverse in ipairs({0,15}) do
   self.steps[#self.steps+1]={side=side,gear=gear,reverse=reverse}
- end end end
+ end end end end
  function self:step(s,ack)
   if self.phase=='complete' then return end
   if not s.velocity or not addon.finite(s.heading) or not addon.finite(s.yawRate) then return nil,'Fresh world velocity/heading/yaw rate required' end
@@ -101,7 +102,7 @@ function M.newProbe()
     row.stoppedAt=s.at
     self.index=self.index+1
    end
-   if self.index>#self.steps then self.phase='complete' self.reason='All 60 motor modes observed and neutral braking measured' return {kind='complete'} end
+   if self.index>#self.steps then self.phase='complete' self.reason='All '..#self.steps..' motor modes observed and neutral braking measured' return {kind='complete'} end
    self.phase='pulse' self.from=addon.copy(s) self.samples=0 self.settled=0 self.appliedAt=nil
    local mode=self.steps[self.index]
    self.reason='Probe '..mode.side..' transmission '..mode.gear..'/15 reverser '..mode.reverse
@@ -142,6 +143,28 @@ function M.model(rows)
  if math.abs(model.determinant)<0.001 or a.yaw*b.yaw>=0 then return nil,'Independent left/right yaw authority not measured' end
  if model.maxSpeed<0.2 then return nil,"Insufficient observed motor speed for route qualification" end
  return model
+end
+-- Recheck forward/reverse on both groups before reusing their measured curve.
+function M.references(model)
+ local out={}
+ for _,side in ipairs(sides) do
+  local group=model.groups[side]
+  for _,list in ipairs({group.positive,group.negative}) do
+   local best=list[1] for _,r in ipairs(list) do if math.abs(r.forward)>math.abs(best.forward) then best=r end end
+   out[#out+1]={side=side,gear=best.gear,reverse=best.reverse}
+  end
+ end
+ return out
+end
+function M.referencesMatch(model,rows)
+ if #rows~=4 then return false end
+ for _,r in ipairs(rows) do
+  local group=model.groups[r.side] local old
+  for _,list in ipairs({group.positive,group.negative}) do for _,v in ipairs(list) do if v.gear==r.gear and v.reverse==r.reverse then old=v end end end
+  if not old or not r.observable or math.abs(r.forward-old.forward)>.01+.35*math.abs(old.forward) or
+   math.abs(r.yaw-old.yaw)>.1+.35*math.abs(old.yaw) or r.brakingDistance>math.max(.5,old.brakingDistance*1.5) then return false end
+ end
+ return true
 end
 function M.control(model,s,target)
  if not s.velocity or not addon.finite(s.yawRate) or not addon.finite(s.heading) then return nil,'Motor guidance telemetry unavailable' end

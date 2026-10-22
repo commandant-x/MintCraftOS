@@ -2,7 +2,18 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.73:
+This repository currently contains V0.18.74:
+
+V0.18.74 adds **Activate autopilot**: one confirmed automatic survey, unambiguous
+hardware setup, calibration/revalidation, and altitude hold. A matching loaded
+structure SHA-256, vehicle, mass and mapping permit reuse of the height table;
+all electrical/closed-loop checks remain fresh. Four actual motor reference
+checks can reuse the measured response profile; changed responses automatically
+trigger full motor measurement. STOP or closing Navigation cancels preparation.
+Vehicle Bridge 0.2.3 adds actual Create RPM, overload/source-chain feedback and
+structural survey fingerprints. See [automatic activation](docs/AUTOPILOT-0.18.74.md).
+
+Previous rendering fix:
 
 V0.18.73 corrects isometric face culling and depth order to match the actual
 projection camera, including all four rotated views. No bridge update is needed.

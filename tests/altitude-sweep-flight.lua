@@ -26,7 +26,7 @@ local stored,serialized,files={},nil,{}
 local onTransmit
 local stuckRescue=false
 textutils={serialize=function(t) serialized=addon.copy(t) return "cfg" end}
-package.loaded["system.libraries.config"]={load=function() return addon.copy(stored) end}
+package.loaded["system.libraries.config"]={load=function(path) return addon.copy(path=="/system/config/navigation-calibration.cfg" and files[path] or stored) end}
 package.loaded["system.libraries.safe_write"]={write=function(path)
  if failWrite then return false,"disk full" end
  if path=="/system/config/navigation.cfg" then stored=addon.copy(serialized) end
@@ -346,3 +346,53 @@ assert(flight.stopMission(actor)) flight.step()
 assert(command==0 and motorSignals['minecraft:motor_left_clutch']==15 and motorSignals['minecraft:motor_right_clutch']==15,'STOP did not disengage both motors')
 assert(not flight.status().measuredHold)
 print('two-motor automatic calibration: 60 gearbox/reverser modes, actual receiver feedback, neutral braking, disengage-shift-engage sequencing, service-owned differential route evidence, actual waypoint settling and STOP passed')
+
+-- Single-button activation after restart: only the saved model is reused;
+-- every electrical and closed-loop test is repeated against fresh measurements.
+assert(flight.disarm(actor))
+local fingerprint=string.rep('a',64)
+motorReport.structureFingerprint=fingerprint
+files['/system/config/navigation-calibration.cfg']=addon.copy(motorReport)
+mintcraft_vehicle.geometryPage=function(page,token)
+ return {schema=1,ok=true,readOnly=true,vehicleId='ship',frame='body_plot',units='block',token='automatic-survey',page=0,pages=1,
+  origin={x=0,y=0,z=0},startedTick=100,observedTick=100,coverageComplete=true,palette={},runs='',structureHash=fingerprint}
+end
+flight.start(ctx) flight.step(true) sample()
+assert(not flight.activateAutomatic(actor,false),'automatic activation ran without confirmation')
+allowed=false assert(not flight.activateAutomatic(actor,true)) allowed=true
+assert(flight.activateAutomatic(actor,true))
+assert(not flight.status().measuredHold and not flight.status().autoCalibration,'activation skipped survey')
+bridge.acquireGeometry() flight.step()
+assert(flight.status().automatic.reused,'matching saved model not selected: '..flight.status().automatic.reason)
+for i=1,40000 do
+ plantTick(i)
+ local status=flight.status()
+ assert(status.automatic.state~='blocked',status.automatic.reason)
+ if status.automatic.state=='active' then break end
+ assert(i<40000,'automatic activation did not finish')
+end
+local active=flight.status()
+assert(active.measuredHold and active.differentialReady and active.sweep.count==0,'reused model either repeated the sweep or skipped actual qualification')
+for _,name in ipairs({'hover','down','up','rescue','priority','horizontal'}) do assert(active.autoCalibration.checks[name].passed,'missing fresh '..name) end
+assert(files['/system/config/navigation-calibration.cfg'].structureFingerprint==fingerprint)
+assert(#files['/system/config/navigation-calibration.cfg'].freshMotorChecks==4,'unchanged motors repeated all 60 probes')
+assert(flight.disarm(actor)) flight.step()
+-- Changed structure triggers a fresh sweep, rather than trusting old evidence.
+fingerprint=string.rep('b',64) sample()
+assert(flight.activateAutomatic(actor,true)) bridge.acquireGeometry() flight.step()
+assert(not flight.status().automatic.reused,'changed hull reused saved calibration')
+assert(flight.disarm(actor)) flight.step() local cancelled=flight.status().automatic
+assert(cancelled.state=='blocked')
+for i=1,20 do plantTick(i) end
+assert(not flight.status().measuredHold and flight.status().automatic.state=='blocked','STOP restarted automatic preparation')
+-- Closing the window while a survey is pending is also cancellation.
+assert(flight.disarm(actor)) sample() assert(flight.activateAutomatic(actor,true))
+flight.release(actor.pid,'closed during survey') flight.step()
+assert(flight.status().automatic.state=='blocked')
+print('one-button activation: explicit confirmation/permission, restart revalidation without repeat sweep, real motor/route evidence, changed-structure fallback and STOP/close cancellation passed')
+
+local savedReport=files['/system/config/navigation-calibration.cfg']
+assert(loadfile('tests/storage-fixture.lua'))()()
+local compactReport=textutils.serialize(savedReport,{compact=true})
+assert(#compactReport<65536,'real calibration report exceeds persistence budget')
+print('compact persisted calibration report upper-bound encoding: '..#compactReport..' bytes')

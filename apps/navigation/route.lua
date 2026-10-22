@@ -75,12 +75,14 @@ function M.new(api)
       for _,row in ipairs(bridge.actuators or {}) do rows[#rows+1]={title=tostring(row.block),description=coordinate(row.position).." | wiring unknown"} end
       for _,row in ipairs(bridge.links or {}) do rows[#rows+1]={title=(row.receiver and "RX " or "TX ")..row.first.item.." + "..row.second.item,description="Signal "..tostring(row.signal or "?").." | "..coordinate(row.position)} end
       for _,row in ipairs(bridge.burners or {}) do rows[#rows+1]={title="Burner "..row.id,description=coordinate(row.position).." | signal "..tostring(row.signal)} end
+      for _,row in ipairs(bridge.mechanics or {}) do rows[#rows+1]={title=row.block.." | "..number(row.rpm).." RPM",description=coordinate(row.position).." | theoretical "..number(row.theoreticalRPM).." RPM | overstressed "..tostring(row.overstressed).." | source "..tostring(row.sourceId or "none")} end
       return rows
     end
     if self.view=="options" or self.view=="point" then
       for _,field in ipairs(self:fields()) do rows[#rows+1]={id="field:"..field.id,title=field.label,description=tostring(field.get())} end
       return rows
     end
+    if self.state.automatic then local a=self.state.automatic rows[#rows+1]={title="Automatic pilot: "..a.state.." / "..a.phase,description=a.reason} end
     local a=self.state.autopilot or {state="idle",reason="No autonomous mission"}
     rows[#rows+1]={title="Flight: "..tostring(self.state.state or "unavailable").." | Pilot: "..a.state,description=a.reason}
     local p=addon.vec(self.pose.logicalPose and (self.pose.logicalPose.position or self.pose.logicalPose.pos))
@@ -94,7 +96,7 @@ function M.new(api)
     if self.pending then return {{id=self.warningRead and "route:confirm" or "route:review",label=self.warningRead and "Confirm" or "Read next"},{id="route:cancel",label="Cancel"}} end
     local actions={{id="route:flight",label="Flight"},{id="route:route",label="Route"},{id="route:sublevel",label="Sublevel"},
       {id="route:options",label="Options"},{id="route:add",label="Add here"},{id="route:edit",label="Edit point"},{id="route:remove",label="Remove point"},
-      {id="route:arm",label="Arm"},{id="route:start",label="Start route"},{id="route:stop",label="Take over"},{id="route:disarm",label="Rescue/disarm"},
+      {id="route:automatic",label="Activate autopilot"},{id="route:arm",label="Arm"},{id="route:start",label="Start route"},{id="route:stop",label="Take over"},{id="route:disarm",label="Rescue/disarm"},
       {id="route:devices",label="Devices"},{id="route:mapping",label="Actuators"}}
     if self.view=="point" or self.view=="options" then table.insert(actions,1,{id="route:done",label="Apply field"}) end
     return actions
@@ -108,6 +110,7 @@ function M.new(api)
   end
   function self:action(id)
     id=id:gsub("^route:","")
+    if id=="automatic" then if api.activate then api.activate() end return end
     if id=="stop" then self.pending=nil report(api.stop()) return end
     if id=="disarm" then self.pending=nil report(api.disarm()) return end
     if self.pending then

@@ -90,3 +90,22 @@ hull.count=999 assert(bridge.geometry().count==1,'caller mutated cached hull')
 bridge.acquireGeometry() assert(hullCalls==1 and bridge.snapshot().observedAt==stamp)
 raw.vehicleId='changed' raw.revision=520 bridge.acquire() assert(bridge.geometry()==nil,'old hull crossed vehicle identity')
 print('hull service: explicit separate acquisition, immutable cache copies, no inventory freshening and vehicle isolation passed')
+
+raw.features.mechanics=true raw.mechanics={{id='motor',position={x=1,y=2,z=3},rpm=-128,theoreticalRPM=-256,overstressed=true,role='gear',sourceId='shaft'}}
+local mechanical=assert(bridge.normalize(raw)).mechanics[1]
+assert(mechanical.rpm==-128 and mechanical.theoreticalRPM==-256 and mechanical.overstressed and mechanical.sourceId=='shaft')
+raw.mechanics[1].rpm=0/0 assert(not bridge.normalize(raw),'nonfinite mechanical feedback accepted')
+print('mechanical bridge: actual signed RPM, stress/source evidence and invalid-data rejection passed')
+
+raw.mechanics[1].rpm=-128 raw.mechanics[1].powered=false raw.mechanics[1].disengaged=false raw.revision=600 bridge.acquire()
+assert(bridge.snapshot().mechanics[1].powered==false and bridge.snapshot().mechanics[1].disengaged==false,'false mechanical state lost as unknown')
+local digest='bad'
+mintcraft_vehicle.geometryPage=function()
+ return {schema=1,ok=true,readOnly=true,vehicleId=raw.vehicleId,frame='body_plot',units='block',token='fingerprint-survey',page=0,pages=1,
+  origin={x=0,y=0,z=0},palette={},runs='',coverageComplete=true,startedTick=10,observedTick=12,structureHash=digest}
+end
+bridge.requestGeometry() bridge.acquireGeometry()
+assert(bridge.geometryStatus().state=='partial' and bridge.geometry().count==0,'invalid fingerprint partially committed its page')
+digest=string.rep('a',64) bridge.requestGeometry() bridge.acquireGeometry()
+assert(bridge.structureFingerprint()==digest and bridge.geometryStatus().fingerprint==digest,'complete fingerprint was not retained')
+print('fingerprint service: malformed hashes do not commit pages, complete hash retained and measured false clutch state preserved passed')
