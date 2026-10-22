@@ -345,9 +345,19 @@ for i=1,8000 do
  if flight.status().autopilot.state=='holding' then break end
  assert(i<8000,'differential route never settled')
 end
+local requested=flight.status().targets.altitude
+assert(flight.setFlightTargets(actor,{altitude=requested,speed=0.2,heading=90}))
+assert(flight.status().pilot.heading==90 and not flight.status().autopilot.state:match('following'))
+local before=flight.status().targets.altitude
+assert(not flight.setFlightTargets(actor,{altitude=999999,speed=0.1,heading=0}))
+assert(flight.status().pilot.heading==90 and flight.status().targets.altitude==before,'invalid cockpit target changed active guidance')
+assert(not flight.setFlightTargets({pid=99},{altitude=requested,speed=0.1,heading=0}))
+assert(not flight.setFlightTargets(actor,{altitude=requested,speed=9999,heading=0}))
+for i=1,30 do plantTick(i) assert(flight.status().state=='armed',flight.status().reason) end
+assert(flight.status().pilot,'cockpit demand lost during guidance')
 assert(flight.stopMission(actor)) flight.step()
 assert(command==0 and motorSignals['minecraft:motor_left_clutch']==15 and motorSignals['minecraft:motor_right_clutch']==15,'STOP did not disengage both motors')
-assert(not flight.status().measuredHold)
+assert(not flight.status().measuredHold and not flight.status().pilot)
 print('two-motor automatic calibration: 60 gearbox/reverser modes, actual receiver feedback, neutral braking, disengage-shift-engage sequencing, service-owned differential route evidence, actual waypoint settling and STOP passed')
 
 -- Single-button activation after restart: only the saved model is reused;

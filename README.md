@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.76:
+This repository currently contains V0.18.77:
+
+V0.18.77 adds direct cockpit altitude, speed and heading targets under Flight >
+Control. Automatic preparation measures the craft first; Apply sends validated
+setpoints to the live controller. Horizontal controls require measured differential
+authority; single-burner craft retain vertical hold. F10 applies rescue.
+See [cockpit instructions](docs/COCKPIT-0.18.77.md).
 
 V0.18.76 groups all discovered burner receivers by exact item/color frequency,
 then drives their distinct frequencies as one collective altitude channel. Motor

@@ -18,6 +18,7 @@ local calibration,calibrationSaved
 local activation
 local calibrationToken={}
 local Drive=require("system.navigation.drivetrain")
+local pilotDemand
 local driveDemand,driveValues,driveAppliedAt,drivePose,drivePrevious
 local Calibration=require("system.navigation.auto_calibration")
 local autopilot=Autopilot.new()
@@ -285,7 +286,7 @@ end
 function M.fail(message,token)
   if activation and (activation.state=="running" or activation.state=="active") and token~=calibrationToken then activation.state,activation.reason="blocked",message end
   if calibration and calibration:running() and token~=calibrationToken then calibration:abort(message) end
-  measuredHold=nil driveDemand=nil
+  measuredHold=nil driveDemand=nil pilotDemand=nil
   if sweep and sweep.state=="running" then sweep:abort(message) end
   burnerInitialization,burnerDemand,burnerHeatSince=nil,false,nil
   autopilot:cancel(message,true)
@@ -346,7 +347,8 @@ end
 function M.release(pid, message) if owner==pid or calibration and calibration:running() and calibration.owner==pid or activation and activation.state=="running" and activation.owner==pid then M.fail(message or "Navigation closed") end end
 
 local function takeover(message,t)
-  if not autopilot:running() then return end
+  if not autopilot:running() and not pilotDemand then return end
+  pilotDemand=nil
   autopilot:cancel(message)
   routeForward,routeRight=0,0 driveDemand=nil
   t=t or M.telemetry()
@@ -373,7 +375,8 @@ function M.startMission(actor,plan,confirmed,token)
       local heat,issue=require("system.navigation.altitude_model").heatAt(measuredHold.model,t.altitude+point.y-sample.position.y)
       if not heat then return false,issue end
     end
-    return autopilot:start(route,t,os.clock())
+    local started,problem=autopilot:start(route,t,os.clock())
+    if started then pilotDemand=nil end return started,problem
   end
   if owner~=actor.pid or state~="armed" or cfg.control.mode=="altitude" then return false,"Arm calibrated full flight control with this Navigation window first" end
   for _,value in pairs(manual) do if value.expires>os.clock() then return false,"Release manual controls first" end end
@@ -396,7 +399,8 @@ function M.startMission(actor,plan,confirmed,token)
   if sable.pose then autopilot:observe(sable.pose(),os.clock()) end
   local vehicle=cfg.control.vehicle
   if vehicle and vehicle.bridgeVehicleId and autopilot.sample and vehicle.bridgeVehicleId~=autopilot.sample.vehicleId then return false,"Imported vehicle geometry belongs to another sublevel; Discover and calibrate this vehicle" end
-  return autopilot:start(plan,M.telemetry(),os.clock())
+  local started,problem=autopilot:start(plan,M.telemetry(),os.clock())
+  if started then pilotDemand=nil end return started,problem
 end
 
 function M.stopMission(actor,token)
@@ -407,6 +411,29 @@ function M.stopMission(actor,token)
   return true
 end
 
+-- Direct cockpit guidance uses the same measured authority and output interlocks as routes.
+function M.setFlightTargets(actor,request)
+  for _,permission in ipairs({"navigation.control","navigation.autopilot"}) do
+    local ok,why=authorize(actor,permission) if not ok then return false,why end
+  end
+  if state~="armed" or owner~=actor.pid or not measuredHold or not calibration or calibration.state~="complete" then return false,"Finish automatic preparation with this Navigation window first" end
+  if type(request)~="table" or not addon.finite(request.altitude) then return false,"World altitude required" end
+  local heat,why=require("system.navigation.altitude_model").heatAt(measuredHold.model,request.altitude)
+  if not heat then return false,why end
+  local demand
+  if request.speed~=nil or request.heading~=nil then
+    local ready,issue=differentialCurrent() if not ready then return false,issue end
+    if not addon.finite(request.heading) or not addon.finite(request.speed) or request.speed<0 or request.speed>calibration.driveModel.maxSpeed then return false,"Speed must be within the measured motor range; heading must be finite" end
+    if not drivePose or os.clock()-drivePose.at>0.5 then return false,"Fresh motor pose required" end
+    demand={speed=request.speed,heading=request.heading%360}
+  end
+  -- Validate the whole request before replacing an existing route or target.
+  takeover("Cockpit targets applied")
+  pilotDemand=demand targets={altitude=request.altitude}
+  controllers={} reason=demand and "Cockpit altitude / speed / heading hold" or "Cockpit altitude hold"
+  return true
+end
+
 function M.setSetpoint(actor,axis,value,token)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
@@ -414,11 +441,11 @@ function M.setSetpoint(actor,axis,value,token)
   if calibration and calibration:running() and token~=calibrationToken then return false,"Automatic calibration running; STOP before changing targets" end
   if not addon.finite(value) or not mode.enabled(cfg.control,axis) then return false,"invalid or disabled setpoint" end
   if (axis=="pitch" or axis=="roll") and math.abs(value)>30 then return false,"attitude setpoint limited to 30 degrees" end
-  takeover("Pilot changed setpoint")
   if measuredHold and axis=="altitude" then
     local heat,problem=require("system.navigation.altitude_model").heatAt(measuredHold.model,value)
     if not heat then return false,problem end
   end
+  takeover("Pilot changed setpoint")
   targets[axis]=axis=="heading" and value%360 or value
   controllers[axis]={}
   return true
@@ -799,7 +826,7 @@ local function prepareAutomatic()
     if calibration and calibration.state=="aborted" then job.state,job.reason="blocked",calibration.reason
     elseif calibration and calibration.state=="complete" and measuredHold and state=="armed" then
       job.state,job.phase="active","hold"
-      job.reason=calibration.driveModel and "Measured altitude and motor pilot ready; choose a route destination" or ("Altitude pilot active; horizontal unavailable: "..tostring(calibration.horizontal))
+      job.reason=calibration.driveModel and "Measured pilot ready; choose cockpit targets or a route destination" or ("Altitude pilot active; horizontal unavailable: "..tostring(calibration.horizontal))
       local points=measuredHold.model.points
       local target=math.max(points[1].altitude,math.min(points[#points].altitude,job.target))
       local ok,problem=M.setSetpoint({pid=job.owner},"altitude",target)
@@ -1093,9 +1120,10 @@ function M.step(rescan)
       output[axis]=pid.step(controllers[axis],measuredHold and measuredHold.model.gains or cfg.control.gains[axis],error,t[axis.."Rate"],dt)
     end
   end
-  if autopilot:running() and measuredHold and calibration and calibration.driveModel and targets.drive then
+  if (autopilot:running() and targets.drive or pilotDemand) and measuredHold and calibration and calibration.driveModel then
+    local permitted,denial=authorize({pid=owner},"navigation.autopilot") if not permitted then M.fail(denial) return M.step(false) end
     local ready,issue=differentialCurrent(calibration.phase=="routeCheck" and calibrationToken or nil) if not ready then M.fail(issue) return M.step(false) end
-    local selection,issue=Drive.control(calibration.driveModel,drivePose,targets.drive)
+    local selection,issue=Drive.control(calibration.driveModel,drivePose,pilotDemand or targets.drive)
     if not selection then M.fail(issue) return M.step(false) end
     local desired=Drive.commands(cfg.control.drivetrain,selection)
     if not driveValues or not same(desired,driveValues) then
@@ -1173,6 +1201,9 @@ function M.status()
   local differentialReady,differentialReason=differentialCurrent()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
+    groundSpeed=drivePose and drivePose.velocity and math.sqrt(drivePose.velocity.x^2+drivePose.velocity.z^2) or nil,
+    pilot=pilotDemand and addon.copy(pilotDemand) or nil,
+    maxSpeed=differentialReady and calibration.driveModel.maxSpeed or nil,
     autopilot=autopilot:status(),measuredHold=measuredHold and {active=true,target=targets.altitude,range=addon.copy(measuredHold.model.measuredRange)} or nil,
     sweep=sweep and sweep:status(false) or nil,
     automatic=activation and addon.copy(activation) or nil,
@@ -1189,7 +1220,7 @@ end
 function M.start(context)
   if runner then runner:stop() end
   ctx=context
-  autopilot=Autopilot.new()
+  autopilot=Autopilot.new() pilotDemand=nil
   sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport,sweepOrigin=nil,nil,nil,nil,nil,nil
   routeForward,routeRight=0,0
   sweepOwner,measuredHold=nil,nil

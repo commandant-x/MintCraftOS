@@ -115,7 +115,15 @@ function M.run(ctx)
     local function measured(key,label,object)
       rows[#rows+1]={label=label.." (detected)",readOnly=true,get=function() return object[key] end}
     end
-    if app.page=="drivetrain" then
+    if app.page=="control" then
+      local t=flight.telemetry()
+      app.pilotTargets=app.pilotTargets or {altitude=(app.flight.targets or {}).altitude or t.altitude or 0,speed=0,heading=t.heading or 0}
+      rows[#rows+1]=forms.field(app.pilotTargets,"altitude","Altitude cible (m monde)","number")
+      if app.flight.differentialReady then
+        rows[#rows+1]=forms.field(app.pilotTargets,"speed","Vitesse cible (m/s)","number")
+        rows[#rows+1]=forms.field(app.pilotTargets,"heading","Cap cible (degres, +Z=0)","number")
+      end
+    elseif app.page=="drivetrain" then
       draft.drivetrain=draft.drivetrain or {enabled=false,name="",clutchOff=15,left={},right={}}
       local drive=draft.drivetrain
       field(drive,"enabled","Two independent Link motor groups","boolean")
@@ -332,9 +340,7 @@ function M.run(ctx)
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
     elseif app.page=="control" then
-      local out={{id="activateAutomatic",label="Activate autopilot"},{id="arm",label="Arm"},{id="disarm",label="Disarm"},{id="altDown",label="Alt-"},{id="altUp",label="Alt+"}}
-      if draft.mode~="altitude" then out[#out+1]={id="yawLeft",label="Yaw-"} out[#out+1]={id="yawRight",label="Yaw+"} end
-      return out
+      return {{id="applyPilot",label="Appliquer les consignes"},{id="activateAutomatic",label="Preparation automatique"},{id="disarm",label="STOP / secours"},{id="sweepResults",label="Calibration"}}
     elseif app.page=="calibration" then
       local out={{id="previous",label="Prev"},{id="next",label="Next"},{id="test",label="Test"}}
       if draft.balloonSetup then out[#out+1]={id="initializeBalloon",label="Initialize (2s)"} end
@@ -511,10 +517,7 @@ function M.run(ctx)
       local rows={"REAL | "..tostring(self.sub.status or "waiting"),"Pitch "..fmt(pitch,"deg").." Roll "..fmt(roll,"deg"),"Alt "..fmt(t.altitude,"m").." V/S "..fmt(t.altitudeRate,"m/s"),"Heading "..fmt(t.heading,"deg +Z=0"),"Source: "..tostring(t.headingSource or "missing heading sensor"),"Speed "..fmt(speed,"m/s"),"Mass "..fmt(mass,"kg"),"Control: "..tostring(self.flight.state)}
       for i=1,math.min(#rows,h-y) do renderer.writeAt(x,y+i-1,renderer.crop(rows[i],w-x+1)) end
     elseif self.page=="control" then
-      local rows={"State: "..tostring(self.flight.state),tostring(self.flight.reason),draft.mode=="altitude" and "Altitude only; no attitude/heading hold" or "Pitch/roll setpoint: 0 deg at arm","Measured altitude: "..fmt(flight.telemetry().altitude,"m"),"Altitude target: "..(self.flight.targets and self.flight.targets.altitude and fmt(self.flight.targets.altitude,"m") or "set when armed"),"Readiness:"}
-      for _,err in ipairs(self.flight.errors or {}) do rows[#rows+1]="- "..err end
-      for name,value in pairs(self.flight.outputs or {}) do rows[#rows+1]=name.." signal="..value end
-      lines(w,h,rows)
+      self.form:draw(w,h,fields())
     elseif self.page=="calibration" then
       local channel=draft.channels[self.index]
       local progress=self.flight.calibration or {}
@@ -616,6 +619,10 @@ function M.run(ctx)
         self.page=id:sub(6) self.form.scroll=1 self.scroll=1 self.form.edit=nil self.testValue=nil
         if self.page=="setup" then guide() end
         return true
+      elseif id=="applyPilot" then
+        local request=addon.copy(self.pilotTargets or {})
+        if not self.flight.differentialReady then request.speed=nil request.heading=nil end
+        report(flight.setFlightTargets(actor,request)) refresh() return true
       elseif id=="detectedLinks" then self.manualLink=false return true
       elseif id=="geometryMode" then self.manualGeometry=not self.manualGeometry self.form.edit=nil return true
       elseif id=="previous" or id=="next" then
@@ -841,7 +848,7 @@ function M.run(ctx)
         self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
-    if (self.page=="sweep" and self.sweepEditing) or self.page=="burnerGroup" or self.page=="drivetrain" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
+    if self.page=="control" or (self.page=="sweep" and self.sweepEditing) or self.page=="burnerGroup" or self.page=="drivetrain" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
   local function nativePage(id)
@@ -867,7 +874,7 @@ function M.run(ctx)
     model.actions[1]={id="panelViews",label="Views"}
     for _,action in ipairs(actions()) do model.actions[#model.actions+1]=action end
     if app.form.edit then model.fields={app.form.edit} row("Edit field","Enter applies the field; flight commands remain separately confirmed.") return model end
-    if app.page=="drivetrain" or app.page=="vehicle" or app.page=="mapping" or app.page=="manual" or app.page=="gains" or app.page=="sensors" or app.page=="burnerGroup" or (app.page=="setup" and app.setupStep==3) or (app.page=="sweep" and app.sweepEditing) then model.fields=fields() end
+    if app.page=="control" or app.page=="drivetrain" or app.page=="vehicle" or app.page=="mapping" or app.page=="manual" or app.page=="gains" or app.page=="sensors" or app.page=="burnerGroup" or (app.page=="setup" and app.setupStep==3) or (app.page=="sweep" and app.sweepEditing) then model.fields=fields() end
     if app.page=="sweepConfirm" then
       model.page=model.page..":"..tostring(app.sweepPending)
       for _,text in ipairs(sweepWarnings()) do
@@ -876,7 +883,7 @@ function M.run(ctx)
       row("Review complete","Only now confirm the frozen measurement plan.")
       return model
     end
-    if app.flight.automatic then
+    if app.flight.automatic and app.page~="control" then
       local a=app.flight.automatic row("Automatic pilot",a.state.." / "..a.phase.." | "..a.reason)
       if a.groups then
         row("Burner groups",tostring(#a.groups.burnerIds).." burners / "..#a.groups.burners.." frequencies / one altitude command")
@@ -895,7 +902,7 @@ function M.run(ctx)
     row("State",tostring(app.flight.state).." | "..tostring(app.flight.reason))
     if not app.flight.measuredHold then for _,err in ipairs(app.flight.errors or {}) do row("Readiness",err) end end
     if app.flight.measuredHold then row("Vertical autopilot","ACTIVE | target "..fmt(app.flight.measuredHold.target,"m").." | measured altitude range only") end
-    if app.flight.autoCalibration then
+    if app.flight.autoCalibration and app.page~="control" then
       local proof=app.flight.autoCalibration
       row("Automatic calibration",proof.state.." / "..proof.phase.." | "..proof.reason)
       for _,key in ipairs({"hover","down","up","return","rescue","priority","horizontal"}) do
@@ -974,8 +981,19 @@ function M.run(ctx)
     elseif app.page=="frequencies" then
       for _,command in ipairs((original.aircraft or {}).commands or {}) do row(command.name,command.frequency) end
     elseif app.page=="control" then
-      local t=flight.telemetry() row("Measured altitude",fmt(t.altitude,"m")) row("Target",fmt(app.flight.targets and app.flight.targets.altitude,"m"))
-      for id,value in pairs(app.flight.outputs or {}) do row(id,"signal "..value) end
+      local t=flight.telemetry() local hold=app.flight.measuredHold
+      row("Pilotage",hold and "VOL ACTIF : maintien des consignes" or "PREPARATION : les mouvements mesurent le vaisseau")
+      row("Altitude mesuree",fmt(t.altitude,"m").." | V/S "..fmt(t.altitudeRate,"m/s"))
+      row("Vitesse mesuree",fmt(app.flight.groundSpeed,"m/s"))
+      row("Altitude commandee",fmt((app.flight.targets or {}).altitude,"m"))
+      if hold and hold.range then row("Plage mesuree",fmt(hold.range.minAltitude,"m").." a "..fmt(hold.range.maxAltitude,"m")) end
+      if app.flight.differentialReady then
+        row("Vitesse maximale mesuree",fmt(app.flight.maxSpeed,"m/s"))
+        row("Cap mesure",fmt(t.heading,"deg (+Z=0)"))
+        local demand=app.flight.pilot
+        row("Consignes actives",demand and (fmt(demand.speed,"m/s").." | "..fmt(demand.heading,"deg")) or "Maintien vertical / route ; appliquer pour piloter directement")
+      else row("Cap / vitesse indisponibles",app.flight.differentialReason or "Autorite horizontale non mesuree ; altitude seule disponible") end
+      row("Utilisation","Preparation automatique une fois, puis modifier les valeurs et Appliquer les consignes. F10 = secours.")
     end
     if app.page=="calibration" or app.page=="setup" or app.page=="burnerGroup" then
       for _,b in ipairs((app.bridge or {}).burners or {}) do row("Burner "..b.id,"signal "..tostring(b.signal).." | associated "..tostring(b.hasBalloon).." | gas active "..tostring(b.gasActive).." | "..tostring(b.associationState)) end

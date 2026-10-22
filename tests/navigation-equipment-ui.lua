@@ -210,6 +210,13 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
       measuredRange={first=7,last=9,minAltitude=65,maxAltitude=75},points={{heat=7,altitude=65},{heat=8,altitude=70},{heat=9,altitude=75}}}}
   width,height=80,28 app:draw(width,height)
   app:drawPixels(Surface.new(600,500),600,500,palette)
+  app.page="control" app.pilotTargets=nil
+  app.flight.differentialReady=false
+  app:drawPixels(Surface.new(600,500),600,500,palette)
+  assert(#app.nativePanel.state.model.fields==1,'altitude-only craft exposed unsupported horizontal commands')
+  app.flight.differentialReady=true app.flight.maxSpeed=2
+  app:drawPixels(Surface.new(600,500),600,500,palette)
+  assert(#app.nativePanel.state.model.fields==3,'cockpit lacks altitude/speed/heading fields')
   win.closed=true return {name="test",args={}}
  end})
 print("Navigation equipment UI: passive diagram/inspection, live guide, missing bridge, bounded viewports and apply-time inventory rejection passed")
