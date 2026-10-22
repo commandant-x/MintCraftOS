@@ -46,6 +46,9 @@ function M.new(api)
   end})
  function self:refresh(s,telemetry,p)
   state,t,pose=s or {},telemetry or {},p or {}
+  local adaptation=state.measuredHold and state.measuredHold.adaptation
+  if adaptation and adaptation.mass~=self.adaptationMass then self.message=nil end
+  self.adaptationMass=adaptation and adaptation.mass
   if self.mapVehicleId and self.mapVehicleId~=pose.vehicleId then
    self.origin=nil self.destination=nil self.pending=nil self.mapVehicleId=nil self.mode='hold' self.message='Vaisseau change : destination effacee'
   end
@@ -134,11 +137,13 @@ function M.new(api)
    label(254,'Chauffe '..num(hold.requestedHeat)..'/15 | signal '..tostring(hold.heat or '?'))
    local heat=hold.requestedHeat
    label(269,addon.finite(heat) and ('Alternance '..math.floor(heat)..' / '..math.ceil(heat)..' | haut '..math.floor((heat-math.floor(heat))*100+0.5)..'%') or 'Alternance : disponible apres calibration')
-   if hold.range then label(284,'Plage '..num(hold.range.minAltitude)..' a '..num(hold.range.maxAltitude)..' m') end
-   label(299,state.differentialReady and ('Cap '..num(t.heading)..' deg | vitesse '..num(state.groundSpeed)..' m/s') or 'Altitude seule | direction non calibree')
+   if hold.range then label(284,(hold.adaptation and 'Ancienne plage ' or 'Plage ')..num(hold.range.minAltitude)..' a '..num(hold.range.maxAltitude)..' m') end
+   if hold.adaptation then label(299,'Adaptation masse | correction '..num(hold.adaptation.bias)..' | '..(hold.adaptation.phase=='holding' and 'stable' or 'apprentissage'))
+   else label(299,state.differentialReady and ('Cap '..num(t.heading)..' deg | vitesse '..num(state.groundSpeed)..' m/s') or 'Altitude seule | direction non calibree') end
   end
   s=screen offset=0 body=false
-  label(h-18,(state.state~='armed' and state.reason) or self.message or state.reason or '',p.muted)
+  local adaptation=state.measuredHold and state.measuredHold.adaptation
+  label(h-18,(state.state~='armed' and state.reason) or self.message or adaptation and adaptation.reason or state.reason or '',p.muted)
  end
  function self:handlePixels(event)
   if self.mode=='edit' or self.mode=='confirm' then return self.editor:handlePixels(event) end

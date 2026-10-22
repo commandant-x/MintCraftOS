@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.79:
+This repository currently contains V0.18.80:
+
+V0.18.80 adapts vertical heat locally after an observed mass change without a
+rescue solely for mass or a new altitude sweep. Horizontal travel pauses because
+its measured response is no longer certified. The pilot shows the live trim;
+it does not label this local feedback correction a full recalibration.
+See [airborne mass adaptation](docs/MASS-ADAPTATION-0.18.80.md).
 
 V0.18.79 opens a graphical Autopilot dashboard after calibration: large measured
 and target altitude, metre step buttons, direct entry, live burner heat and

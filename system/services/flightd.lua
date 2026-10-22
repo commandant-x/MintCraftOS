@@ -18,6 +18,7 @@ local calibration,calibrationSaved
 local activation
 local calibrationToken={}
 local Drive=require("system.navigation.drivetrain")
+local Trim=require("system.navigation.flight_trim")
 local pilotDemand
 local driveDemand,driveValues,driveAppliedAt,drivePose,drivePrevious
 local Calibration=require("system.navigation.auto_calibration")
@@ -240,6 +241,7 @@ local function altitudeBinding(c)
 end
 local function differentialCurrent(token)
   if state~="armed" or not measuredHold then return false,"Activate measured altitude hold before differential travel" end
+  if measuredHold.trim and measuredHold.trim.active then return false,"Mass changed: airborne altitude adaptation; horizontal response needs revalidation" end
   if not calibration or (calibration.state~="complete" and not (token==calibrationToken and calibration.phase=="routeCheck")) or not calibration.driveModel then return false,"Measured differential calibration required" end
   if not same(calibration.binding,altitudeBinding(cfg.control)) then return false,"Motor mapping/configuration changed; repeat calibration" end
   local current=vehicleBridge.snapshot()
@@ -317,6 +319,7 @@ function M.arm(actor)
   session=true
   measuredHold=storedModel and {model=addon.copy(storedModel),vehicleId=cfg.control.balloonSetup and cfg.control.balloonSetup.vehicleId} or nil
   if measuredHold then
+    measuredHold.trim=Trim.new(vehicleBridge.snapshot())
     measuredHold.model.gains=addon.copy(cfg.control.gains.altitude)
     local points=measuredHold.model.points
     measuredHold.model.measuredRange={first=points[1].heat,last=points[#points].heat,minAltitude=points[1].altitude,maxAltitude=points[#points].altitude}
@@ -416,7 +419,7 @@ function M.setFlightTargets(actor,request)
   for _,permission in ipairs({"navigation.control","navigation.autopilot"}) do
     local ok,why=authorize(actor,permission) if not ok then return false,why end
   end
-  if state~="armed" or owner~=actor.pid or not measuredHold or not calibration or calibration.state~="complete" then return false,"Finish automatic preparation with this Navigation window first" end
+  if state~="armed" or owner~=actor.pid or not measuredHold or not calibration or (calibration.state~="complete" and not (measuredHold.trim and measuredHold.trim.active)) then return false,"Finish automatic preparation with this Navigation window first" end
   if type(request)~="table" or not addon.finite(request.altitude) then return false,"World altitude required" end
   local heat,why=require("system.navigation.altitude_model").heatAt(measuredHold.model,request.altitude)
   if not heat then return false,why end
@@ -745,12 +748,13 @@ function M.startMeasuredHold(actor,target,confirmed)
   if state~="calibration" or owner~=actor.pid then return false,"Measured altitude hold cancelled" end
   local permitted,denial=authorize(actor,"navigation.control")
   if not permitted then M.fail(denial) return false,denial end
-  measuredHold={model=addon.copy(model),vehicleId=cfg.control.balloonSetup.vehicleId}
+  measuredHold={model=addon.copy(model),vehicleId=cfg.control.balloonSetup.vehicleId,trim=Trim.new(vehicleBridge.snapshot())}
   targets={altitude=target} controllers,manual={},{}
   state,reason,lastTick="armed","Measured altitude hold (vertical only)",os.clock()
   return true
 end
 function M.startAutoCalibration(actor,confirmed)
+  if measuredHold and measuredHold.trim and measuredHold.trim.active then return false,"Airborne trim active; stop before starting motion tests" end
   local ok,err=authorize(actor,"navigation.calibrate") if not ok then return false,err end
   ok,err=authorize(actor,"navigation.control") if not ok then return false,err end
   if confirmed~=true then return false,"Confirm automatic motion calibration first" end
@@ -773,6 +777,7 @@ function M.activateAutomatic(actor,confirmed,options)
   local plan,problem=Sweep.validate(options or Sweep.defaults())
   if not plan then return false,problem end
   if not plan.autoPrepare or not plan.autoHold or not plan.certify then return false,"Automatic pilot requires initialization, hold and certification enabled in Options; use Start sequence for measurement-only options" end
+  if state=="armed" and measuredHold and measuredHold.trim and measuredHold.trim.active then return false,"Airborne altitude trim active: no motion tests in flight; STOP before full horizontal calibration" end
   if activation and activation.state=="running" then return false,"Automatic preparation already running" end
   if state=="armed" and measuredHold and owner==actor.pid and calibration and calibration.state=="complete" then
     if not activation or not same(activation.options,plan) then return false,"STOP before applying different calibration options; use Control for live altitude/speed/heading targets" end
@@ -844,6 +849,7 @@ local function prepareAutomatic()
 end
 function M.saveCalibration(actor)
   local ok,err=authorize(actor,"navigation.calibrate") if not ok then return false,err end
+  if measuredHold and measuredHold.trim and measuredHold.trim.active then return false,"Local airborne trim is not a full calibration report" end
   if not calibration or calibration.state~="complete" then return false,"Complete measured calibration first" end
   local report=calibration:status()
   report.schema=2 report.structureFingerprint=calibration.structureFingerprint report.binding=addon.copy(calibration.binding) report.vehicleId=calibration.binding.balloonSetup.vehicleId
@@ -895,6 +901,27 @@ function M.step(rescan)
       for _,axis in ipairs(mode.axes(cfg.control)) do if not addon.finite(t[axis]) or not addon.finite(t[axis.."Rate"]) then M.fail(axis.." sensor invalid") break end end
       for _,channel in ipairs(cfg.control.channels) do local valid,why=channelValid(channel) if not valid then M.fail(why) break end end
       if cfg.control.balloonSetup then local valid,why=balloonStatus() if not valid then M.fail(why) end end
+    end
+  end
+  if state=="armed" and measuredHold then
+    local hold=measuredHold local current=vehicleBridge.snapshot()
+    if current.ok and current.inventoryComplete and current.vehicleId==hold.vehicleId then
+      hold.trim=hold.trim or Trim.new(current)
+      local changed,issue=Trim.observe(hold.trim,current)
+      if changed==nil then M.fail(issue)
+      elseif changed then
+        local target=targets.altitude local controller=controllers.altitude
+        if calibration and calibration:running() then
+          if require("system.navigation.altitude_model").heatAt(hold.model,t.altitude) then target=t.altitude end
+          calibration:abort("Mass changed: motion tests interrupted; airborne altitude trim only")
+        end
+        takeover("Mass changed: horizontal travel paused",t)
+        autopilot:cancel("Mass changed: horizontal response requires revalidation")
+        pilotDemand,driveDemand=nil,nil targets={altitude=target} controllers={altitude=controller or {}}
+        calibrationSaved=false
+        reason="Airborne mass adaptation: altitude maintained; horizontal travel paused"
+        if activation then activation.state,activation.phase,activation.reason="active","adaptation",reason end
+      end
     end
   end
   if rescuePending then
@@ -1153,6 +1180,8 @@ function M.step(rescan)
     if measuredHold then
       local heat,problem=require("system.navigation.altitude_model").heatAt(measuredHold.model,targets.altitude)
       if not heat then M.fail(problem) return M.step(false) end
+      Trim.step(measuredHold.trim,measuredHold.model,t,targets.altitude,measuredHold.ackAt,measuredHold.requestedHeat,now,channel.mix.altitude<0 and 15-channel.max or channel.min,channel.mix.altitude<0 and 15-channel.min or channel.max)
+      heat=heat+((measuredHold.trim or {}).bias or 0)
       value=(channel.mix.altitude or 0)<0 and 15-heat or heat
     end
     for _,axis in ipairs(mode.axes(cfg.control)) do value=value+(channel.mix[axis] or 0)*output[axis] end
@@ -1163,7 +1192,8 @@ function M.step(rescan)
     end
     if measuredHold then
       local range=measuredHold.model.measuredRange
-      local low,high=range.first,range.last
+      local adapting=measuredHold.trim and measuredHold.trim.active
+      local low,high=adapting and 0 or range.first,adapting and 15 or range.last
       if channel.mix.altitude<0 then low,high=15-high,15-low end
       value=math.max(low,math.min(high,value))
     end
@@ -1213,7 +1243,7 @@ function M.status()
     groundSpeed=drivePose and drivePose.velocity and math.sqrt(drivePose.velocity.x^2+drivePose.velocity.z^2) or nil,
     pilot=pilotDemand and addon.copy(pilotDemand) or nil,
     maxSpeed=differentialReady and calibration.driveModel.maxSpeed or nil,
-    autopilot=autopilot:status(),measuredHold=measuredHold and {active=true,target=targets.altitude,heat=measuredHold.heat,requestedHeat=measuredHold.requestedHeat,range=addon.copy(measuredHold.model.measuredRange)} or nil,
+    autopilot=autopilot:status(),measuredHold=measuredHold and {active=true,target=targets.altitude,heat=measuredHold.heat,requestedHeat=measuredHold.requestedHeat,adaptation=Trim.status(measuredHold.trim),range=addon.copy(measuredHold.model.measuredRange)} or nil,
     sweep=sweep and sweep:status(false) or nil,
     automatic=activation and addon.copy(activation) or nil,
     autoCalibration=calibration and calibration:status() or nil,differentialReady=differentialReady,differentialReason=differentialReason,calibrationSaved=calibrationSaved,

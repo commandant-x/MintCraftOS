@@ -224,6 +224,43 @@ end
 assert(math.abs(z-82)<1,'measured interpolation/duty cycle failed metre target: '..z)
 local heatDisplay=flight.status().measuredHold
 assert(type(heatDisplay.requestedHeat)=='number' and heatDisplay.heat==command,'cockpit heat readout differs from actual applied command')
+-- Damage changes equilibrium; learn a trim without a sweep or target motion.
+raw.mass=65 raw.units.mass='kg' sample() flight.step()
+local modelBefore=addon.copy(flight.configuration())
+local savedReportBefore=files['/system/config/navigation-calibration.cfg']
+for _,change in ipairs({{mass=52,zero=60},{mass=72,zero=20}}) do
+ raw.mass=change.mass sample() flight.step()
+ assert(flight.status().state=='armed' and flight.status().measuredHold.adaptation,'mass event stopped altitude hold')
+ for i=1,6000 do
+  now=now+0.1 v=v+(0.1*(change.zero+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+  if i%10==0 then sample() end
+  flight.step()
+  local status=flight.status()
+  assert(status.state=='armed' and not status.rescuePending,'mass adaptation issued rescue: '..status.reason)
+  assert(status.targets.altitude==82,'mass adaptation deliberately moved the altitude target')
+  if status.measuredHold.adaptation.phase=='holding' and math.abs(z-82)<0.5 and math.abs(v)<=0.25 then break end
+ end
+ local status=flight.status()
+ assert(math.abs(z-82)<0.5 and math.abs(v)<=0.25,'airborne trim did not recover height: '..z..' / '..v)
+ assert(status.measuredHold.adaptation.phase=='holding','stable natural response was not observed: '..status.measuredHold.adaptation.phase..' / '..status.measuredHold.adaptation.samples..' / '..status.measuredHold.adaptation.bias)
+ assert(not flight.saveCalibration(actor),'local trim exported a false full calibration')
+ if change.mass==52 then assert(status.measuredHold.requestedHeat<7,'damage trim remained trapped above old measured heat range') end
+end
+-- If lift cannot support the target, keep best available output, never a
+-- fabricated stable certificate or an automatic burner-off rescue.
+raw.mass=90 sample() flight.step()
+for i=1,2000 do
+ now=now+0.1 v=v+(0.1*(-10+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+ if i%10==0 then sample() end
+ flight.step()
+ assert(flight.status().state=='armed' and flight.status().targets.altitude==82,'heat saturation triggered rescue or a target excursion')
+end
+local exhausted=flight.status().measuredHold.adaptation
+assert(command==15 and exhausted.saturated and exhausted.phase=='learning','exhausted heat authority was not reported honestly')
+assert(files['/system/config/navigation-calibration.cfg']==savedReportBefore and flight.configuration().gains.altitude.kp==modelBefore.gains.altitude.kp,'adaptation replaced stored model or controller gains')
+assert(not flight.activateAutomatic(actor,true),'mass adaptation started a new motion sequence in flight')
+assert(not flight.startAutoCalibration(actor,true),'airborne trim accepted a motion test sequence')
+print('airborne mass adaptation: lighter/heavier actual equilibrium, unchanged height target, stable natural response, no sweep/rescue and no forged calibration passed')
 pressed=true now=now+0.1 sample() flight.step()
 assert(not flight.status().measuredHold and command==0,'physical takeover failed during measured hold')
 pressed=false assert(flight.disarm(actor)) flight.step()
@@ -290,6 +327,11 @@ for _,key in ipairs({'hover','down','up','return','rescue','priority'}) do asser
 assert(flight.status().measuredHold and flight.status().calibrationSaved)
 assert(files['/system/config/navigation-calibration.cfg'].checks.priority.scope:find('physical switch not inferred',1,true))
 assert(not flight.configuration().manualValidated and not flight.configuration().rescueValidated,'certificate forged old manual flags')
+assert(flight.startAutoCalibration(actor,true))
+raw.mass=60 sample() flight.step()
+local interrupted=flight.status()
+assert(interrupted.state=='armed' and interrupted.measuredHold.adaptation and interrupted.autoCalibration.state=='aborted','mass event during motion tests triggered rescue')
+assert(math.abs(interrupted.targets.altitude-z)<1e-6 and not interrupted.rescuePending,'interrupted motion calibration did not hold current height')
 assert(flight.stopMission(actor)) flight.step()
 assert(command==0 and not flight.status().measuredHold,'pilot STOP did not stop vertical-only control')
 assert(flight.disarm(actor))
@@ -357,6 +399,14 @@ assert(not flight.setFlightTargets({pid=99},{altitude=requested,speed=0.1,headin
 assert(not flight.setFlightTargets(actor,{altitude=requested,speed=9999,heading=0}))
 for i=1,30 do plantTick(i) assert(flight.status().state=='armed',flight.status().reason) end
 assert(flight.status().pilot,'cockpit demand lost during guidance')
+raw.mass=50 sample() plantTick(1)
+local damaged=flight.status()
+assert(damaged.state=='armed' and damaged.measuredHold and damaged.measuredHold.adaptation and not damaged.rescuePending,'mass event rescued a flying motor vessel')
+assert(not damaged.pilot and not damaged.differentialReady and damaged.targets.altitude==requested,'damaged mass kept stale horizontal model or changed altitude')
+assert(motorSignals['minecraft:motor_left_clutch']==15 and motorSignals['minecraft:motor_right_clutch']==15,'mass event did not disengage horizontal motors')
+assert(command>0,'mass event cut burner to rescue')
+raw.mass=65 sample() plantTick(1)
+assert(not flight.status().differentialReady,'returning mass silently restored old horizontal certificate')
 assert(flight.stopMission(actor)) flight.step()
 assert(command==0 and motorSignals['minecraft:motor_left_clutch']==15 and motorSignals['minecraft:motor_right_clutch']==15,'STOP did not disengage both motors')
 assert(not flight.status().measuredHold and not flight.status().pilot)
