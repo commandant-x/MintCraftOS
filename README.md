@@ -2,7 +2,14 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.84:
+This repository currently contains V0.18.85:
+
+V0.18.85 adds a native **Etat** view inside the existing pilot cockpit: current
+vertical/differential availability, measured tests, sweep waiting reasons, mass
+adaptation, six-axis observations and empirical braking. Expired state is not
+shown as active authority. This is a **partial Lot A.5 interface increment**;
+observations do not enable unqualified axes, terrain avoidance or landing.
+See [A.5 instructions](docs/ASCENDANCY-A5-CAPABILITIES.md).
 
 V0.18.84 adds **partial Lot A.4 sweep progress diagnostics**: measured continuous
 climb/descent, oscillation and lack of clear improvement are explained in the

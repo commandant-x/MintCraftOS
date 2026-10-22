@@ -60,6 +60,12 @@ click('hold') click('edit') draw(600,330)
 pilot.editor.buffers={[1]='invalid'}
 pilot.editor:handlePixels({name='mouse_click',args={1,5,5}})
 assert(stops==1 and pilot.mode=='hold','invalid field blocked emergency stop')
+click('status') assert(pilot.mode=='status')
+for _,size in ipairs({{156,180},{304,240},{600,330},{958,491}}) do draw(table.unpack(size)) end
+assert(#pilot.editor.state.model.fields==0 and #pilot.editor.state.model.rows>10,'capability view became editable or lost evidence')
+assert(calls==2 and prepares==0,'reading capabilities sent commands or started calibration')
+pilot:handlePixels({name='mouse_click',args={1,5,5}})
+assert(stops==2 and pilot.mode=='hold','capability page blocked urgent STOP')
 click('prepare') assert(prepares==1 and calls==2,'opening cockpit repeated calibration')
 click('back') assert(page=='flight')
 click('map') pose.vehicleId='other-ship' pilot:refresh(state,{altitude=80},pose)

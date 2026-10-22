@@ -3,6 +3,7 @@ local ui=require('system.graphics.widgets')
 local fonts=require('system.graphics.fonts')
 local View=require('system.graphics.view')
 local addon=require('system.libraries.addon')
+local Capabilities=require('apps.navigation.capabilities')
 local M={}
 local function num(v) return addon.finite(v) and string.format('%.1f',v) or '?' end
 function M.new(api)
@@ -22,7 +23,10 @@ function M.new(api)
  self.editor=require('system.graphics.form_client').new({urgent={id='stop',label='STOP / F10'},
   model=function()
    local model={page=self.mode,actions={},fields={},rows={},footer=self.message}
-   if self.mode=='confirm' then
+   if self.mode=='status' then
+    model.actions={{id='cancel',label='Pilotage'},{id='prepare',label='Initialiser'}}
+    model.rows=Capabilities.rows(state,t,pose,os.clock())
+   elseif self.mode=='confirm' then
     model.actions={{id='go',label='Confirmer trajet degage'},{id='cancel',label='Annuler'}}
     model.rows={{title='Destination monde',description='X '..num(self.pending.x)..' / Z '..num(self.pending.z)},
      {title='Altitude maintenue',description=num(self.pending.altitude)..' m'},
@@ -36,6 +40,7 @@ function M.new(api)
   end,error=function(why) self.message=why end,
   action=function(id)
    if id=='stop' then self:action('stop')
+   elseif id=='prepare' then self:action('prepare')
    elseif id=='cancel' then self.mode='hold' self.pending=nil
    elseif id=='apply' then apply()
    elseif id=='go' then
@@ -61,7 +66,8 @@ function M.new(api)
  function self:action(id)
   if id=='stop' then api.stop() self.pending=nil self.mode='hold' self.message='Secours demande'
   elseif id=='back' then api.page('flight')
-  elseif id=='prepare' then api.prepare()
+  elseif id=='prepare' then self.mode='hold' api.prepare()
+  elseif id=='status' then self.mode='status'
   elseif id=='edit' then self.mode='edit'
   elseif id=='hold' then self.mode='hold'
   elseif id=='map' then
@@ -81,7 +87,7 @@ function M.new(api)
   end
  end
  function self:drawPixels(s,w,h,p)
-  if self.mode=='edit' or self.mode=='confirm' then self.editor:drawPixels(s,w,h,p) return end
+  if self.mode=='edit' or self.mode=='confirm' or self.mode=='status' then self.hits={} self.editor:drawPixels(s,w,h,p) return end
   self.height=h
   local screen=s local offset=0 local body=false
   s:rect(0,0,w,h,p.panel) self.hits={}
@@ -94,7 +100,9 @@ function M.new(api)
    if bottom>top then self.hits[#self.hits+1]={id=id,rect={x=x,y=top,w=bw,h=bottom-top}} end
   end
   local gap=4 local bw=math.floor((w-16)/3)
-  button('back','Flight',4,3,bw) button('stop','STOP / F10',8+bw,3,bw) button('prepare','Calibrer',12+2*bw,3,bw)
+  local head=math.floor((w-20)/4)
+  button('back','Flight',4,3,head) button('stop',w<300 and 'STOP' or 'STOP / F10',8+head,3,head)
+  button('prepare','Calibrer',12+2*head,3,head) button('status','Etat',16+3*head,3,head)
   label(32,'AUTOPILOT | '..(state.measuredHold and 'Maintien actif' or 'Calibration requise'),p.accent)
   self.maxScroll=math.max(0,330-h) self.scroll=math.max(0,math.min(self.maxScroll,self.scroll or 0))
   local fullHeight=math.max(330,h)
@@ -146,7 +154,7 @@ function M.new(api)
   label(h-18,(state.state~='armed' and state.reason) or self.message or adaptation and adaptation.reason or state.reason or '',p.muted)
  end
  function self:handlePixels(event)
-  if self.mode=='edit' or self.mode=='confirm' then return self.editor:handlePixels(event) end
+  if self.mode=='edit' or self.mode=='confirm' or self.mode=='status' then return self.editor:handlePixels(event) end
   if event.name=='mouse_scroll' then self.scroll=math.max(0,math.min(self.maxScroll or 0,(self.scroll or 0)+event.args[1]*18)) return true end
   if event.name~='mouse_click' then return false end
   local _,x,y=table.unpack(event.args)
@@ -157,7 +165,7 @@ function M.new(api)
   return true
  end
  function self:handlePixelKey(event)
-  if self.mode=='edit' or self.mode=='confirm' then return self.editor:handlePixelKey(event) end
+  if self.mode=='edit' or self.mode=='confirm' or self.mode=='status' then return self.editor:handlePixelKey(event) end
   return false
  end
  return self

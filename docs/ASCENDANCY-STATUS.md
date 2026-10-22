@@ -204,3 +204,21 @@ Résultats A.4 : 165 suites réussies sur sources et runtime compressé ; compil
 991 733 octets. Mise à jour depuis 0.18.83 sans nouvel historique : pic 934 508
 octets ; anciens checkpoints préservés par défaut et interruptions récupérées.
 Aucun essai Minecraft effectué.
+
+### Interface A.5 livrée en 0.18.85
+
+La [vue native État](ASCENDANCY-A5-CAPABILITIES.md), dans le cockpit existant,
+rassemble les capacités actuelles, essais, adaptation, attente du sweep,
+observations moteur et limites. Les états périmés ne certifient aucune commande.
+Aucun onglet global ou second contrôleur n'est ajouté ; STOP reste immédiat.
+La calibration/allocation universelle et la surveillance mécanique attribuable
+aux chaînes réelles restent à développer. Ce n'est pas la livraison du lot A complet.
+
+Résultats A.5 : 166 suites réussies sur sources et runtime compressé ; compilation
+367 fichiers source / 169 fichiers runtime. Installation : 929 725 octets avec
+100 000 octets de données personnelles ; pic mise à jour/checkpoint/retour :
+996 712 octets. Mise à jour depuis 0.18.84 sans nouvel historique : pic 941 415
+octets, données et anciens checkpoints conservés par défaut, interruption récupérée.
+Le scénario avec conservation de rollback approche la limite : toute extension
+suivante devra revalider ce budget, sans supprimer les données utilisateur.
+Aucun essai Minecraft effectué.
