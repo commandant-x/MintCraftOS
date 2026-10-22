@@ -21,6 +21,7 @@ local now,z,v,command,pressed,allowed,badReceiver,stale,failWrite=10,100,0,0,fal
 os.clock=function() return now end os.epoch=function() return now*1000 end
 local stored,serialized,files={},nil,{}
 local onTransmit
+local stuckRescue=false
 textutils={serialize=function(t) serialized=addon.copy(t) return "cfg" end}
 package.loaded["system.libraries.config"]={load=function() return addon.copy(stored) end}
 package.loaded["system.libraries.safe_write"]={write=function(path)
@@ -47,7 +48,7 @@ mintcraft_vehicle={snapshot=function() return addon.copy(raw) end}
 local bridge=require("system.services.vehiclebridged")
 local function sample()
  raw.revision=raw.revision+1
- for i,b in ipairs(raw.burners) do b.signal=(i==1 and badReceiver) and 0 or command b.gasOutput=b.signal*10 b.hasBalloon=b.signal>0 b.associationState=b.hasBalloon and "associated" or "no_balloon_reference" end
+ for i,b in ipairs(raw.burners) do b.signal=(i==1 and stuckRescue and command==0) and 7 or ((i==1 and badReceiver) and 0 or command) b.gasOutput=b.signal*10 b.hasBalloon=b.signal>0 b.associationState=b.hasBalloon and "associated" or "no_balloon_reference" end
  bridge.acquire()
 end
 local process={pid=7,state="ready",meta={appId="navigation"},permissions={}}
@@ -56,7 +57,7 @@ local flight=require("system.services.flightd")
 local actor={pid=7}
 flight.start(ctx) flight.step(true) sample()
 local function prepare()
- pressed,allowed,badReceiver,stale,failWrite=false,true,false,false,false process.state="ready"
+ pressed,allowed,badReceiver,stale,failWrite=false,true,false,false,false stuckRescue=false process.state="ready"
  worldX,tilt,poseLost,foreignPose=0,0,false,false
  if flight.status().state=="failsafe" then assert(flight.disarm(actor)) end
  local cfg=flight.configuration()
@@ -72,9 +73,10 @@ local function prepare()
  assert(flight.calibrate(actor,"manual",nil,true))
  assert(flight.calibrate(actor,"rescue",nil,true)) flight.step()
  assert(flight.calibrate(actor,"rescueConfirm",nil,true))
- z,v=100,0 sample()
+ z,v=55,0 sample()
 end
 local options=require("system.navigation.altitude_sweep").defaults()
+options.autoPrepare=false options.autoHold=false
 prepare()
 local verified=flight.configuration()
 local unverified=addon.copy(verified) unverified.manualValidated=false
@@ -91,7 +93,7 @@ local ticks=0
 while flight.status().sweep.state=="running" do
  ticks=ticks+1 assert(ticks<1800)
  now=now+0.1
- v=v+(0.05*(command-11)-v)/2*0.1 z=z+v*0.1
+ v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
  if ticks%10==0 then sample() end
  flight.step()
 end
@@ -104,7 +106,7 @@ assert(not flight.applySweep(actor,false))
 local saved,path=flight.exportSweep(actor) assert(saved and files[path].samples[1])
 space=0 assert(not flight.exportSweep(actor)) space=1000000
 assert(flight.applySweep(actor,true))
-assert(flight.configuration().channels[1].neutral==11 and flight.configuration().gains.altitude.ki>0)
+assert(flight.configuration().channels[1].neutral==11 and flight.configuration().gains.altitude.kp>0)
 assert(not flight.configuration().manualValidated and not flight.configuration().hoverValidated and not flight.configuration().rescueValidated)
 assert(not flight.arm(actor),"model fit forged physical validation")
 -- Captured server rotation: large yaw is not a tilt failure.
@@ -168,3 +170,87 @@ assert(flight.startSweep(actor,limited,true)) flight.step()
 worldX=11 now=now+0.1 sample() flight.step()
 assert(flight.status().sweep.state=='aborted' and command==0,'operator world limit did not rescue')
 print('operator world constraint retains rescue and disarmed defaults passed')
+
+-- One explicit start authorizes actual initialization/rescue tests, measurement,
+-- then a session-only vertical hold when independently qualified by real data.
+orientationFormat='sable' prepare()
+local autoCfg=flight.configuration() autoCfg.manualValidated=false
+assert(flight.configure(actor,autoCfg))
+local autoOptions=require('system.navigation.altitude_sweep').defaults()
+assert(autoOptions.autoPrepare and autoOptions.autoHold)
+assert(flight.startSweep(actor,autoOptions,true,flight.configuration()))
+assert(not flight.status().calibration.initializationConfirmed and command==0)
+local autoTicks=0 local sawInit,sawRescue,sawMeasure=false,false,false
+while flight.status().sweep.state=='running' do
+ autoTicks=autoTicks+1 assert(autoTicks<20000,'automatic measurement did not complete')
+ now=now+0.1
+ v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+ if autoTicks%10==0 then sample() end
+ flight.step()
+ local report=flight.status().sweep
+ sawInit=sawInit or report.phase=='initialize'
+ sawRescue=sawRescue or report.phase=='rescue'
+ sawMeasure=sawMeasure or report.phase=='measure'
+end
+local autoResult=assert(flight.sweepReport(actor))
+assert(sawInit and sawRescue and sawMeasure and autoResult.prepared)
+assert(autoResult.proposal,autoResult.fitError)
+assert(flight.status().state=='armed' and flight.status().measuredHold,'qualified vertical hold did not start: '..flight.status().reason)
+assert(stored.control.sessionActive,'automatic hold was not durably marked')
+local physical=flight.configuration()
+assert(not physical.channels[1].validated and not physical.manualValidated and not physical.rescueValidated and not physical.hoverValidated,'automatic tests forged physical calibration')
+assert(flight.setSetpoint(actor,'altitude',82))
+assert(not flight.setSetpoint(actor,'altitude',10000),'automatic hold extrapolated beyond measured heights')
+for i=1,1600 do
+ now=now+0.1 v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+ if i%10==0 then sample() end
+ flight.step()
+ assert(flight.status().state=='armed','vertical hold failed: '..flight.status().reason)
+end
+assert(math.abs(z-82)<1,'measured interpolation/duty cycle failed metre target: '..z)
+pressed=true now=now+0.1 sample() flight.step()
+assert(not flight.status().measuredHold and command==0,'physical takeover failed during measured hold')
+pressed=false assert(flight.disarm(actor)) flight.step()
+assert(flight.status().state=='disarmed' and not flight.status().measuredHold,'STOP restarted automatic hold')
+print('automatic sequence: actual all-burner initialization/rescue feedback, qualified vertical hold, fractional heat metre target in simulated plant, no forged flags and manual-stop/no-restart passed')
+
+for _,fault in ipairs({'initialization','rescue','permission','owner','disk'}) do
+ prepare()
+ local c=flight.configuration() c.manualValidated=false assert(flight.configure(actor,c))
+ local opts=require('system.navigation.altitude_sweep').defaults() opts.autoHold=false
+ if fault=='disk' then failWrite=true assert(not flight.startSweep(actor,opts,true) and command==0) failWrite=false
+ else
+  assert(flight.startSweep(actor,opts,true)) flight.step()
+  if fault=='rescue' then
+   now=now+0.1 sample() flight.step() assert(flight.status().sweep.phase=='rescue') stuckRescue=true
+  elseif fault=='initialization' then badReceiver=true
+  elseif fault=='permission' then allowed=false
+  elseif fault=='owner' then process.state='killed' end
+  now=now+2.1 sample() flight.step()
+  assert(flight.status().sweep.state=='aborted' and command==0,fault..' preparation failure was ignored')
+  assert(not flight.configuration().rescueValidated and not flight.configuration().manualValidated)
+ end
+ failWrite=false allowed=true process.state='ready' badReceiver=false stuckRescue=false
+ assert(flight.disarm(actor))
+end
+print('automatic preparation: wrong/missing receiver at initialization or rescue, revoked permission, lost owner and full disk stop without forged flags passed')
+
+for _,fault in ipairs({'receiver','late-stop'}) do
+ prepare()
+ local c=flight.configuration() c.manualValidated=false assert(flight.configure(actor,c))
+ local opts=require('system.navigation.altitude_sweep').defaults()
+ assert(flight.startSweep(actor,opts,true))
+ for i=1,20000 do
+  now=now+0.1 v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+  if i%10==0 then sample() end
+  flight.step()
+  if flight.status().sweep.state~='running' then break end
+ end
+ assert(flight.status().measuredHold,flight.status().reason)
+ if fault=='late-stop' then onTransmit=function() assert(flight.disarm(actor)) end
+ else badReceiver=true end
+ for i=1,35 do now=now+0.1 sample() flight.step() end
+ assert(command==0 and not flight.status().measuredHold and flight.status().state=='failsafe',fault..' hold fault was overwritten or rearmed')
+ badReceiver=false assert(flight.disarm(actor))
+end
+print('measured hold: receiver loss cannot be hidden by fractional modulation, and STOP during a suspended write is rescued without rearming passed')

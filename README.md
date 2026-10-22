@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.70:
+This repository currently contains V0.18.71:
+
+V0.18.71 measures a settled height at each heat level only after eight fresh
+samples with absolute vertical speed <=0.1 m/s. There is no sweep/level/sample
+expiry. One confirmed sequence automatically checks every burner's initialization
+and rescue signal, then measures; qualified restoring/damping dynamics can start
+a session-only vertical hold using the actual altitude table and acknowledged
+fractional heat modulation. Physical validation flags and horizontal flight are
+not inferred. See [automatic altitude workflow](docs/ALTITUDE-0.18.71.md).
+
+Previous Navigation workflow stage:
 
 V0.18.70 reduces Navigation from 16 global views to eight workspaces. Bridge
 identity, geometry, burner group, transmitter and receiver frequency suggestions

@@ -148,7 +148,7 @@ function M.balloonStatus(setup,proof,demand)
   return true
 end
 -- A transmitter API acknowledgement is not a heater-side acknowledgement.
-function M.burnerFeedback(setup,expected,after)
+function M.burnerFeedback(setup,expected,after,proof)
   local s=M.snapshot()
   if not s.ok or not s.inventoryComplete or not s.observedAt or s.observedAt<=after then return false,"No fresh burner feedback after command" end
   if s.vehicleId~=setup.vehicleId then return false,"Balloon vehicle changed" end
@@ -160,7 +160,7 @@ function M.burnerFeedback(setup,expected,after)
     local label=id:match("(-?%d+:-?%d+:-?%d+)$") or id
     if not b then errors[#errors+1]="Burner "..label.." missing"
     elseif b.signal~=expected then errors[#errors+1]="Burner "..label..": received "..b.signal.."/15, expected "..expected.."; check RX frequency/wiring/other transmitters"
-    elseif not b.hasBalloon then errors[#errors+1]="Burner "..label..": signal received; balloon association unavailable; check envelope/clearance" end
+    elseif not b.hasBalloon and not (expected==0 and initializedGroup(setup,proof) and b.gasOutput==0 and b.associationSource=="heater_membership" and b.associationState=="no_balloon_reference") then errors[#errors+1]="Burner "..label..": signal received; balloon association unavailable; check envelope/clearance" end
   end
   return #errors==0,table.concat(errors,"; ")
 end

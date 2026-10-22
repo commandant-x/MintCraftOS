@@ -56,6 +56,7 @@ local function command(id) assert(app:handle({name="action",args={},navigationCo
 require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=function() return 1 end,
  windowManager={create=function(_,opts) app=opts.app win={closed=false} return win end},
  pullEvent=function()
+  app.sweepOptions.autoPrepare=false app.sweepOptions.autoHold=false
   local sections=require("system.navigation.sections")
   assert(#sections.tabs==8 and #sections.pages()==17 and sections.parent("gains")=="sweep" and sections.parent("manual")=="mapping")
   local Surface=require("system.graphics.surface")
@@ -196,6 +197,13 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   snapshot={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing"}
   command("guide") assert(not app.setup and app.message:find("0.2.1",1,true))
   app:draw(width,height)
+  -- New height-table proposals must render in both clients (no legacy speed fields).
+  app.page="sweep" app.sweepEditing=false app.confirm=nil
+  app.flight.sweep={state="complete",reason="Stable heights",signal=15,count=100,options={first=7,last=9},levels={},
+    proposal={kind="altitude-table",hover=8,neutral=8,tau=2,r2=0.99,gains={kp=0.05,ki=0,kd=0.2},note="Measured dynamics",
+      measuredRange={first=7,last=9,minAltitude=65,maxAltitude=75},points={{heat=7,altitude=65},{heat=8,altitude=70},{heat=9,altitude=75}}}}
+  width,height=80,28 app:draw(width,height)
+  app:drawPixels(Surface.new(600,500),600,500,palette)
   win.closed=true return {name="test",args={}}
  end})
 print("Navigation equipment UI: passive diagram/inspection, live guide, missing bridge, bounded viewports and apply-time inventory rejection passed")
