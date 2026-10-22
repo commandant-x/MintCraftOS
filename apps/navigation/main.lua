@@ -131,12 +131,17 @@ function M.run(ctx)
         for _,role in ipairs({"clutch","gear","reverse"}) do
           local side,role=side,role local options={}
           for _,pair in ipairs(pairs) do options[#options+1]=pair.label end
+          local spec=drive[side][role]
+          local groupLabel=spec and spec.members and ("Group: "..(#spec.members+1).." frequencies")
+          if groupLabel then table.insert(options,1,groupLabel) end
           if #options>0 then
             rows[#rows+1]={label=side.." "..role.." receiver frequency",options=options,get=function()
+              if groupLabel then return groupLabel end
               local key=linkOutput.key({link=drive[side][role]})
               for _,pair in ipairs(pairs) do if pair.key==key then return pair.label end end
               return "Choose detected receiver"
             end,set=function(value)
+              if value==groupLabel then return end
               for _,pair in ipairs(pairs) do if pair.label==value then drive[side][role]=addon.copy(pair.spec) app.dirty=true return end end
             end}
           end
@@ -185,12 +190,16 @@ function M.run(ctx)
           local options={} for _,pair in ipairs(pairs) do options[#options+1]=pair.label end
           local current=linkOutput.key(channel) local currentLabel
           for _,pair in ipairs(pairs) do if pair.key==current then currentLabel=pair.label end end
-          if not currentLabel and not emptyLink(channel) then currentLabel="Current pair (not detected)" options[#options+1]=currentLabel end
+          if channel.link.members then currentLabel="Group: "..(#channel.link.members+1).." frequencies" options[#options+1]=currentLabel
+          elseif not currentLabel and not emptyLink(channel) then currentLabel="Current pair (not detected)" options[#options+1]=currentLabel end
           options[#options+1]="Manual entry"
           rows[#rows+1]={label="Detected receiver frequency",options=options,get=function()
             return currentLabel or (#pairs==1 and pairs[1].label or "Choose detected pair")
           end,set=function(value)
-            if value=="Manual entry" then app.manualLink=true return end
+            if value=="Manual entry" then
+              if channel.link.members then channel.link.members=nil app.dirty=true end
+              app.manualLink=true return
+            end
             for _,pair in ipairs(pairs) do if pair.label==value then channel.link=addon.copy(pair.spec) app.dirty=true return end end
           end}
         else
@@ -869,6 +878,18 @@ function M.run(ctx)
     end
     if app.flight.automatic then
       local a=app.flight.automatic row("Automatic pilot",a.state.." / "..a.phase.." | "..a.reason)
+      if a.groups then
+        row("Burner groups",tostring(#a.groups.burnerIds).." burners / "..#a.groups.burners.." frequencies / one altitude command")
+        for _,g in ipairs(a.groups.burners) do
+          row("Burner frequency",tostring(#g.burnerIds).." burners | "..g.link.first.." + "..g.link.second.." | colors "..tostring(g.link.firstColor).." / "..tostring(g.link.secondColor))
+          for _,id in ipairs(g.burnerIds) do row("Burner member",id) end
+        end
+        row("Motor groups",tostring(#a.groups.motors).." command groups | "..#a.groups.unmappedMotors.." unresolved propellers")
+        for _,g in ipairs(a.groups.banks or {}) do
+          row("Motor bank "..g.side,tostring(#g.actuatorIds).." propellers / "..g.commandGroups.." source groups")
+          for _,id in ipairs(g.actuatorIds) do row("Motor member "..g.side,id) end
+        end
+      end
       row("Height table",a.reused and (a.state=="active" and "Saved model freshly verified" or "Saved model candidate; live verification running") or "Fresh measurement when required")
     end
     row("State",tostring(app.flight.state).." | "..tostring(app.flight.reason))

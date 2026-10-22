@@ -9,11 +9,14 @@ local roles={'clutch','gear','reverse'}
 function M.validate(d,burners)
  if type(d)~='table' or d.enabled~=true then return true end
  if type(d.name)~='string' or d.name=='' or #d.name>128 or (d.clutchOff~=0 and d.clutchOff~=15) then return false,'Select detected transmitter and clutch-off signal' end
- local seen={} for _,c in ipairs(burners or {}) do local k=link.key(c) if k then seen[k]=true end end
+ local seen={}
+ for _,c in ipairs(burners or {}) do for _,k in ipairs(link.keys(c)) do seen[k]=true end end
  for _,side in ipairs(sides) do for _,role in ipairs(roles) do
-  local k=type(d[side])=='table' and link.key({link=d[side][role]})
-  if not k or seen[k] then return false,'Six distinct motor frequencies required, separate from burners: '..side..' '..role end
-  seen[k]=true
+  local c={link=type(d[side])=='table' and d[side][role]}
+  if not link.key(c) then return false,'Invalid motor frequency group: '..side..' '..role end
+  for _,k in ipairs(link.keys(c)) do
+   if seen[k] then return false,'Motor commands must be distinct from other roles and burners: '..side..' '..role end seen[k]=true
+  end
  end end
  return true
 end
@@ -41,13 +44,8 @@ function M.observed(d,snapshot)
  local out={}
  if not snapshot.ok or not snapshot.inventoryComplete then return nil end
  for _,c in ipairs(M.channels(d)) do
-  for _,r in ipairs(snapshot.links or {}) do
-   if r.receiver and link.key(c)==link.key({link={first=r.first.item,second=r.second.item,firstColor=r.first.dyedColor,secondColor=r.second.dyedColor}}) then
-    if not addon.finite(r.signal) or r.signal%1~=0 or r.signal<0 or r.signal>15 then return nil end
-    out[c.id]=r.signal
-   end
-  end
-  if out[c.id]==nil then return nil end
+  local value=link.received(c,snapshot)
+  if value==nil then return nil end out[c.id]=value
  end
  return out
 end
@@ -69,13 +67,9 @@ end
 function M.feedback(d,snapshot,values,after)
  if not snapshot.ok or not snapshot.inventoryComplete or not addon.finite(snapshot.observedAt) or snapshot.observedAt<=after then return false,'Fresh motor receiver feedback required' end
  for _,c in ipairs(M.channels(d)) do
-  local key=link.key(c) local found=false
-  for _,r in ipairs(snapshot.links or {}) do
-   if r.receiver and key==link.key({link={first=r.first.item,second=r.second.item,firstColor=r.first.dyedColor,secondColor=r.second.dyedColor}}) then
-    found=true if values[c.id]~=nil and r.signal~=values[c.id] then return false,'Motor receiver mismatch: '..c.id end
-   end
+  if values[c.id]~=nil then
+   local value,err=link.received(c,snapshot,values[c.id]) if value==nil then return false,err end
   end
-  if values[c.id]~=nil and not found then return false,'Motor receiver missing: '..c.id end
  end
  return true
 end

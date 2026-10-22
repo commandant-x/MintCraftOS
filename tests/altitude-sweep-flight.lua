@@ -25,6 +25,7 @@ os.clock=function() return now end os.epoch=function() return now*1000 end
 local stored,serialized,files={},nil,{}
 local onTransmit
 local stuckRescue=false
+local separateBurners,secondBurnerCommand=false,0
 textutils={serialize=function(t) serialized=addon.copy(t) return "cfg" end}
 package.loaded["system.libraries.config"]={load=function(path) return addon.copy(path=="/system/config/navigation-calibration.cfg" and files[path] or stored) end}
 package.loaded["system.libraries.safe_write"]={write=function(path)
@@ -42,6 +43,7 @@ addon.inventory=function() return {{name="tx",types={"redstone_link_bridge"},set
   local clutch=first:gsub('_gear$','_clutch'):gsub('_reverse$','_clutch')
   if not first:find('_clutch',1,true) and motorSignals[first]~=value then assert(motorSignals[clutch]==15,'shift/reverse while clutch engaged') end
   motorSignals[first]=value
+ elseif first=="minecraft:second_burner" then secondBurnerCommand=value
  else command=value end
  if onTransmit then local callback=onTransmit onTransmit=nil callback() end return true end}}} end
 package.loaded["system.services.sabled"]={snapshot=function() return {timestamp=now} end,status=function() return {inSublevel=true} end,pose=function() if poseLost then return nil end return {vehicleId=foreignPose and "other" or "ship",inSublevel=true,frame="world",timestamp=now,identityAt=now,logicalPose={position={x=worldX,y=z,z=worldZ},orientation=orientation()}} end}
@@ -57,7 +59,7 @@ mintcraft_vehicle={snapshot=function() return addon.copy(raw) end}
 local bridge=require("system.services.vehiclebridged")
 local function sample()
  raw.revision=raw.revision+1
- for i,b in ipairs(raw.burners) do b.signal=(i==1 and stuckRescue and command==0) and 7 or ((i==1 and badReceiver) and 0 or command) b.gasOutput=b.signal*10 b.hasBalloon=b.signal>0 b.associationState=b.hasBalloon and "associated" or "no_balloon_reference" end
+ for i,b in ipairs(raw.burners) do b.signal=(i==1 and stuckRescue and command==0) and 7 or ((i==1 and badReceiver) and 0 or (i==2 and separateBurners and secondBurnerCommand or command)) b.gasOutput=b.signal*10 b.hasBalloon=b.signal>0 b.associationState=b.hasBalloon and "associated" or "no_balloon_reference" end
  for _,r in ipairs(raw.links) do if r.motor then r.signal=motorSignals[r.first.item] or 0 end end
  bridge.acquire()
 end
@@ -213,7 +215,8 @@ assert(not physical.channels[1].validated and not physical.manualValidated and n
 assert(flight.setSetpoint(actor,'altitude',82))
 assert(not flight.setSetpoint(actor,'altitude',10000),'automatic hold extrapolated beyond measured heights')
 for i=1,1600 do
- now=now+0.1 v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+ now=now+0.1 local heat=separateBurners and (command+secondBurnerCommand)/2 or command
+ v=v+(0.1*(30+5*heat-z)-0.6*v)*0.1 z=z+v*0.1
  if i%10==0 then sample() end
  flight.step()
  assert(flight.status().state=='armed','vertical hold failed: '..flight.status().reason)
@@ -415,6 +418,30 @@ assert(single.autoCalibration.checks.hover.passed and single.autoCalibration.che
 assert(single.automatic.reason:find('one propeller',1,true),'partial authority not explained')
 assert(flight.disarm(actor)) flight.step()
 print('single burner + one motor: duplicate legacy collective channels repaired, complete real vertical calibration/hold, no invented steering and STOP passed')
+
+-- A new second burner has its own Link frequency. Activation groups both,
+-- verifies every heater, then applies the same fractional heat to both outputs.
+assert(flight.disarm(actor)) sample()
+separateBurners=true secondBurnerCommand=0
+raw.burners[2]={id='heater2',position={x=4,y=0,z=0},signal=0,gasOutput=0,hasBalloon=false,associationSource='heater_membership',associationState='no_balloon_reference'}
+raw.links={
+ {id='heater-rx1',receiver=true,position={x=1,y=1,z=0},first={item='minecraft:white_wool'},second={item='minecraft:white_wool'},signal=0},
+ {id='heater-rx2',receiver=true,position={x=4,y=1,z=0},first={item='minecraft:second_burner'},second={item='minecraft:second_burner'},signal=0}}
+sample() assert(flight.activateAutomatic(actor,true)) bridge.acquireGeometry() flight.step()
+local grouped=flight.configuration()
+assert(#grouped.channels==1 and #grouped.channels[1].link.members==1 and #grouped.balloonSetup.burnerIds==2,'automatic activation did not include both burner frequency groups')
+for i=1,40000 do
+ plantTick(i)
+ local status=flight.status()
+ assert(status.automatic.state~='blocked',status.automatic.reason)
+ if status.automatic.state=='active' then break end
+ assert(i<40000,'grouped burner hold did not finish')
+end
+assert(flight.status().measuredHold and command==secondBurnerCommand and command>0)
+assert(#flight.status().automatic.groups.burners==2)
+assert(flight.disarm(actor)) flight.step()
+assert(command==0 and secondBurnerCommand==0,'STOP did not rescue every burner frequency')
+print('multi-frequency burner service: automatic grouping includes added burner, real all-heater initialization, stable measurement/hold, collective fractional output and STOP on both frequencies passed')
 
 local savedReport=files['/system/config/navigation-calibration.cfg']
 assert(loadfile('tests/storage-fixture.lua'))()()

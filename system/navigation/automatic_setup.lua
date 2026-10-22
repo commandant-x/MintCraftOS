@@ -7,66 +7,63 @@ local Link=require('system.navigation.link_output')
 local M={}
 function M.plan(snapshot,control,endpoints)
  local out=addon.copy(control)
- if #(out.channels or {})==0 then
-  local p,err=Balloon.plan(snapshot,out,endpoints)
-  if not p then return nil,err end
-  if not p.reused or p.transmitter=='' then return nil,'Need one existing burner RX frequency and one transmitter; use Vehicle setup' end
-  out,err=Balloon.create(out,p,{transmitter=p.transmitter,neutral=0,rescue=0,wiringConfirmed=true,replaceExisting=false})
-  if not out then return nil,err end
+ local groups=require('system.navigation.equipment_groups').discover(snapshot)
+ local names={} for _,e in ipairs(endpoints) do if e.backend=='frequency' then names[#names+1]=e.name end end
+ local burnerLink,burnerIssue=require('system.navigation.equipment_groups').burnerLink(groups)
+ if not burnerLink and #groups.burnerIds>0 then
+  local selected={} for _,id in ipairs((out.balloonSetup or {}).burnerIds or {}) do selected[id]=true end
+  for _,id in ipairs(groups.burnerIds) do if not selected[id] then return nil,'Cannot group burner '..id..': '..tostring(burnerIssue),groups end end
  end
- -- Legacy duplicate channels can address the same collective receiver.
- if out.balloonSetup and #out.channels>0 and (out.mode~='altitude' or #out.channels>1) then
-  local first=out.channels[1] local shared=Link.key(first) local compatible=shared~=nil
+ local freshVehicle=out.balloonSetup and out.balloonSetup.vehicleId~=snapshot.vehicleId
+ if #(out.channels or {})==0 then
+  if not burnerLink or #names~=1 then return nil,burnerIssue or 'Need detected burner receivers and one transmitter',groups end
+  local plan={vehicleId=snapshot.vehicleId,burnerIds=groups.burnerIds,endpoints=names,frequency=burnerLink}
+  local err
+  out,err=Balloon.create(out,plan,{transmitter=names[1],neutral=0,rescue=0,wiringConfirmed=true,replaceExisting=false})
+  if not out then return nil,err,groups end
+ else
+  local first=out.channels[1] local compatible=first.backend=='frequency' and first.mix~=nil
   for _,c in ipairs(out.channels) do
-   if Link.key(c)~=shared or c.name~=first.name or not c.actuator or c.actuator.role~='buoyancy' or
+   if c.backend~='frequency' or c.name~=first.name or not c.actuator or c.actuator.role~='buoyancy' or
     not c.mix or not first.mix or c.mix.altitude~=first.mix.altitude or c.rescue~=first.rescue or c.min~=first.min or c.max~=first.max then compatible=false end
    for axis,value in pairs(c.mix or {}) do if axis~='altitude' and value~=0 then compatible=false end end
   end
-  if compatible then out.mode='altitude' out.channels={first} end
- end
- if out.mode~='altitude' or not out.balloonSetup then return nil,'Collective burner group required; existing controls preserved' end
- local props={}
- for _,a in ipairs(snapshot.actuators or {}) do if a.geometryValid and math.abs(a.direction.y)<.25 then props[#props+1]=a end end
- local function vertical(reason)
-  if out.drivetrain then out.drivetrain.enabled=false end
-  return out,'Altitude available; horizontal unavailable: '..reason
- end
- if #props==1 then return vertical('one propeller; no measured independent steering') end
- if out.drivetrain and out.drivetrain.enabled then
-  if Drive.validate(out.drivetrain,out.channels) and Drive.observed(out.drivetrain,snapshot) then return out,'Saved motor roles; live tests required' end
-  return vertical('saved motor receivers unavailable')
- end
- if #props==0 then return out,'Vertical pilot; no measured horizontal propeller inventory' end
- if #props~=2 then return vertical('no two-group drive mapping') end
- table.sort(props,function(a,b)return a.position.x<b.position.x end)
- local names={} for _,e in ipairs(endpoints) do if e.backend=='frequency' then names[#names+1]=e.name end end
- if #names~=1 then return vertical('select motor transmitter in Motor links') end
- local nodes={} for _,r in ipairs(snapshot.mechanics or {}) do nodes[r.id]=r end
- local d={enabled=true,name=names[1],clutchOff=15,left={},right={}}
- for i,side in ipairs({'left','right'}) do
-  local id,seen=props[i].id,{}
-  for _=1,128 do
-   if not id then break end
-   if seen[id] then return vertical('kinetic source cycle; select motor roles once') end seen[id]=true
-   local node=nodes[id] if not node then break end
-   if node.role~='other' then
-    if d[side][node.role] then return vertical('ambiguous '..side..' '..node.role..' chain') end
-    local matches={}
-    for _,r in ipairs(snapshot.links or {}) do
-     local p,q=node.position,r.position
-     if r.receiver and math.abs(math.abs(p.x-q.x)+math.abs(p.y-q.y)+math.abs(p.z-q.z)-1)<.01 then matches[#matches+1]=r end
-    end
-    if #matches~=1 then return vertical('ambiguous RX for '..side..' '..node.role) end
-    local r=matches[1]
-    d[side][node.role]={first=r.first.item,second=r.second.item,firstColor=r.first.dyedColor,secondColor=r.second.dyedColor}
+  if compatible and (burnerLink or Link.key(first) and #out.channels>0) then
+   local specs={} for _,c in ipairs(out.channels) do for _,f in ipairs(Link.specs(c) or {}) do specs[#specs+1]={first=f.first,second=f.second,firstColor=f.firstColor,secondColor=f.secondColor} end end
+   local combined=burnerLink or Link.combine(specs)
+   if combined then
+    first.link=combined out.mode='altitude' out.channels={first}
+    if burnerLink then out.balloonSetup={vehicleId=snapshot.vehicleId,burnerIds=addon.copy(groups.burnerIds),wiringConfirmed=true} end
    end
-   id=node.sourceId
   end
  end
- local ok,err=Drive.validate(d,out.channels)
- if not ok then return vertical('incomplete kinetic source chain: '..err) end
+ if out.mode~='altitude' or not out.balloonSetup then return nil,'Collective burner group required; existing controls preserved',groups end
+ if freshVehicle and out.drivetrain then out.drivetrain.enabled=false end
+ -- A burner/motor frequency conflict cannot be isolated by software.
+ local heatKeys={}
+ for _,c in ipairs(out.channels) do for _,k in ipairs(Link.keys(c)) do heatKeys[k]=true end end
+ for _,g in ipairs(groups.motors) do for _,f in pairs(g.roles) do
+  if heatKeys[Link.key({link=f})] then return nil,'Burner and motor share a frequency; separate their commands',groups end
+ end end
+ local function vertical(reason)
+  if out.drivetrain then out.drivetrain.enabled=false end
+  return out,'Altitude available; horizontal unavailable: '..reason,groups
+ end
+ if #groups.unmappedMotors==0 and #groups.motors==1 then return vertical('one motor command group; no independent steering') end
+ local props=0 for _,p in ipairs(snapshot.actuators or {}) do if p.geometryValid and math.abs(p.direction.y)<.25 then props=props+1 end end
+ if props==1 then return vertical('one propeller; no measured independent steering') end
+ if out.drivetrain and out.drivetrain.enabled then
+  if Drive.validate(out.drivetrain,out.channels) and Drive.observed(out.drivetrain,snapshot) then return out,'Saved motor groups; live tests required',groups end
+  return vertical('saved motor receivers unavailable')
+ end
+ if props==0 then return vertical('no measured horizontal propellers') end
+ if #names~=1 then return vertical('select motor transmitter') end
+ local d,err=require('system.navigation.equipment_groups').drive(groups,names[1])
+ if not d then return vertical(err) end
+ local ok,issue=Drive.validate(d,out.channels)
+ if not ok then return vertical(issue) end
  out.drivetrain=d
- return out,'Source-chain roles detected; motion tests required'
+ return out,'Motor banks grouped; actual motion tests required',groups
 end
 function M.candidate(report,fingerprint,snapshot)
  if type(report)~='table' or report.schema~=2 or report.state~='complete' then return nil,'No reusable calibration report' end

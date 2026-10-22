@@ -772,7 +772,8 @@ local function prepareAutomatic()
       if not hull or hull.state=="scanning" then return end
       job.fingerprint=vehicleBridge.structureFingerprint()
     end
-    local proposed,problem=require("system.navigation.automatic_setup").plan(current,cfg.control,M.endpoints())
+    local proposed,problem,groups=require("system.navigation.automatic_setup").plan(current,cfg.control,M.endpoints())
+    job.groups=groups
     if not proposed then M.fail(problem) return end
     if not same(proposed,cfg.control) then
       local ok,issue=M.configure({pid=job.owner},proposed) if not ok then M.fail(issue) return end

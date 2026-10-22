@@ -17,7 +17,7 @@ assert(c.drivetrain.enabled and c.drivetrain.left.clutch.first=='minecraft:leftc
 assert(not control.drivetrain,'passive proposal mutated configuration')
 local bad=A.copy(snap);bad.mechanics[2].sourceId=nil assert(not assert(Setup.plan(bad,control,{{backend='frequency',name='tx'}})).drivetrain,'missing actual source path replaced with proximity guess')
 bad=A.copy(snap);bad.mechanics[4].sourceId='leftp' assert(not assert(Setup.plan(bad,control,{{backend='frequency',name='tx'}})).drivetrain,'source cycle accepted')
-bad=A.copy(snap);bad.links[#bad.links+1]=A.copy(bad.links[1]) assert(not assert(Setup.plan(bad,control,{{backend='frequency',name='tx'}})).drivetrain,'ambiguous RX accepted')
+bad=A.copy(snap);bad.links[#bad.links+1]=A.copy(bad.links[1]) bad.links[#bad.links].first.item='minecraft:conflicting_rx' assert(not assert(Setup.plan(bad,control,{{backend='frequency',name='tx'}})).drivetrain,'ambiguous RX accepted')
 local model={kind='altitude-table',r2=.99,points={{heat=7,altitude=50},{heat=8,altitude=55},{heat=9,altitude=60}},hover=8,neutral=8,tau=2,
  dynamics={stiffness=.1,damping=.5,heatAcceleration=.5},gains={kp=.05,ki=0,kd=0,limit=2,slew=.25,integralLimit=0,deadband=.1},measuredRange={first=7,last=9,minAltitude=50,maxAltitude=60}}
 local report={schema=2,state='complete',structureFingerprint=string.rep('a',64),vehicleId='ship',mass=10,massUnit='kg',model=model}
@@ -30,7 +30,7 @@ print('automatic navigation: actual source-chain mapping, ambiguity/cycle refusa
 
 local one=A.copy(snap) one.actuators={one.actuators[1]}
 local single,note=Setup.plan(one,control,{{backend='frequency',name='tx'}})
-assert(single and not single.drivetrain and note:find('one propeller',1,true),'single motor blocked altitude')
+assert(single and not single.drivetrain and note:find('independent steering',1,true),'single motor blocked altitude')
 local old=A.copy(c) old.channels[1].actuator={role='buoyancy'} old.channels[1].mix={altitude=1}
 old.channels[2]=A.copy(old.channels[1]) old.mode='full'
 local legacy=assert(Setup.plan(one,old,{{backend='frequency',name='tx'}}))
