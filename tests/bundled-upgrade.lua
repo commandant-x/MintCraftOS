@@ -6,6 +6,7 @@ assert(loadfile('install.lua','t',{assert=assert,print=function() end,load=funct
 end}))()
 local state=assert(loadfile('tests/storage-fixture.lua'))()()
 for path,data in pairs(files) do state.put('/'..path,data) end
+state.config('/system/config/update-storage.cfg',{retainRollback=true})
 state.put('/VERSION','0.18.44\n') state.put('/boot.lua','return "stable"')
 state.put('/home/user/documents/witness','user data')
 state.config('/system/config/system.cfg',{safeMode=false,vehicle='witness',customField=42})

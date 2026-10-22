@@ -242,6 +242,7 @@ end
 
 local function createRollback(reason,changes)
   local storage = M.storageInfo()
+  if storage.policy.retainRollback==false then return true,{disabled=true} end
   local estimate = 0
   for _, entry in ipairs(changes or ROLLBACK_PATHS) do
     estimate = estimate + M.storageBytes(changes and ("/" .. entry) or entry)
@@ -417,12 +418,12 @@ local function apply(options)
   if not data:find("-- MintCraft installer protocol: 2",1,true) then return false,"Unsupported installer; use a pinned manual installation" end
   local environment=setmetatable({print=function() end},{__index=_ENV})
   local backedUp,committed=false,false
-  environment.mintcraftInstallOptions={beforeInstall=function(plan)
+  environment.mintcraftInstallOptions={beforeHistoryCleanup=function() commit(options) end,beforeInstall=function(plan)
     authorize(options)
     assert(version.compare(trim(plan.version),trim(remote))==0,"Pinned installer/version mismatch")
     assert(version.compare(trim(plan.version), M.localVersion()) == 1, "Installed version changed; check again")
     local free=fs.getFreeSpace and fs.getFreeSpace("/")
-    local required=plan.stageBytes+plan.backupBytes*2+math.max(32768,#plan.changed*256)
+    local required=plan.stageBytes+plan.backupBytes*(plan.retainRollback==false and 1 or 2)+math.max(32768,#plan.changed*256)
     if type(free)=="number" and free<required then error("UPD-DISK: need "..required.." free bytes; available "..free..". Backups retained.") end
     commit(options)
     phase(options,"checkpoint","Creating rollback checkpoint")
@@ -459,6 +460,7 @@ function M.storageInfo()
   if type(policy) ~= "table" then policy = {} end
   policy = {
     quotaBytes = type(policy.quotaBytes) == "number" and math.max(0, policy.quotaBytes) or 0,
+    retainRollback = policy.retainRollback ~= false,
     retainCount = type(policy.retainCount) == "number" and math.max(1, math.floor(policy.retainCount)) or 3,
   }
   local protected, rows, total, validCount = {}, {}, 0, 0
@@ -512,12 +514,15 @@ function M.storageInfo()
 end
 
 function M.setStoragePolicy(policy)
-  if type(policy) ~= "table" or type(policy.quotaBytes) ~= "number" or policy.quotaBytes < 0
+  if type(policy) ~= "table" or (policy.retainRollback~=nil and type(policy.retainRollback)~="boolean") or type(policy.quotaBytes) ~= "number" or policy.quotaBytes < 0
     or policy.quotaBytes ~= policy.quotaBytes or policy.quotaBytes == math.huge
     or type(policy.retainCount) ~= "number" or policy.retainCount < 1 or policy.retainCount % 1 ~= 0 then
     return false, "Invalid storage policy"
   end
-  return config.save("/system/config/update-storage.cfg", {quotaBytes=policy.quotaBytes, retainCount=policy.retainCount})
+  local current=config.load("/system/config/update-storage.cfg",{})
+  local retain=policy.retainRollback
+  if retain==nil then retain=current.retainRollback end
+  return config.save("/system/config/update-storage.cfg", {quotaBytes=policy.quotaBytes, retainCount=policy.retainCount,retainRollback=retain})
 end
 
 function M.purgeBackup(id, confirmed)

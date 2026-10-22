@@ -8,6 +8,7 @@ local nativeLoadfile=loadfile
 local quota=1000000
 local function setup()
  local state=fixture() local peak=0
+ state.config('/system/config/update-storage.cfg',{retainRollback=true})
  -- Conservative allocation model: at least 512 bytes per file and directory.
  local function used()
   local total=0
@@ -30,13 +31,13 @@ local installed=used()
 local codec=require('system.libraries.packed_source')
 local checked=0
 for path,content in pairs(files) do
- if path~='system/config/system.cfg' then
+ if not path:match('^system/config/') then
   assert(state.nodes['/'..path]==content,'installed bytes differ: '..path)
   if path:match('%.lua$') then assert(load(codec.unpack(content),'@/'..path,'t',_ENV)) checked=checked+1 end
  end
 end
 local nextFiles={} for path,data in pairs(files) do nextFiles[path]=data end
-nextFiles.VERSION='0.18.63\n'
+nextFiles.VERSION='0.18.64\n'
 local source=codec.unpack(files['apps/terminal/main.lua'])..'\n-- next release witness\n'
 nextFiles['apps/terminal/main.lua']=codec.pack('apps/terminal/main.lua',source)
 assert(installer.install(nextFiles))

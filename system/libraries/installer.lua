@@ -63,6 +63,24 @@ function M.install(files,options)
       if fs.exists(target) and fs.getSize then plan.backupBytes=plan.backupBytes+fs.getSize(target) end
     end
   end
+  local policyPath="/system/config/update-storage.cfg"
+  local policy={}
+  if fs.exists(policyPath) then
+    local h=assert(fs.open(policyPath,"r"))
+    local raw=h.readAll() h.close()
+    policy=textutils.unserialize(raw)
+    assert(type(policy)=="table","Invalid update storage policy")
+  end
+  local bundledPolicy=files["system/config/update-storage.cfg"] and textutils.unserialize(files["system/config/update-storage.cfg"]) or {}
+  plan.retainRollback=policy.retainRollback
+  if plan.retainRollback==nil then plan.retainRollback=not (type(bundledPolicy)=="table" and bundledPolicy.retainRollback==false) end
+  if plan.retainRollback==false then
+    if options and options.beforeHistoryCleanup then options.beforeHistoryCleanup() end
+    assert(not fs.exists("/var/tmp/mintcraft-rollback.cfg") and not fs.exists("/var/tmp/mintcraft-restore") and not fs.exists("/var/tmp/mintcraft-package"),"Recover pending operation before removing version history")
+    if fs.exists("/var/backups/update") then fs.delete("/var/backups/update") end
+    policy.retainRollback=false
+    write(policyPath,textutils.serialize(policy))
+  end
   -- A manual wget upgrade must retain the same durable checkpoint as Update.
   -- Refuse before touching live files when space or the checkpoint is unavailable.
   local free=fs.getFreeSpace and fs.getFreeSpace("/")
@@ -73,10 +91,10 @@ function M.install(files,options)
   plan.payloadBytes=plan.stageBytes
   if upgrading then plan.stageBytes=0 end
   assert(not upgrading or type(free)=="number" or free=="unlimited","INSTALL-DISK: cannot verify free space for a reversible upgrade")
-  local required=plan.stageBytes+plan.backupBytes*(upgrading and 2 or 1)+math.max(32768,#plan.changed*256)
+  local required=plan.stageBytes+plan.backupBytes*(upgrading and plan.retainRollback and 2 or 1)+math.max(32768,#plan.changed*256)
   if type(free)=="number" then assert(free>=required,"INSTALL-DISK: insufficient space for staging and retained rollback; backups retained") end
   if options and options.beforeInstall then options.beforeInstall(plan)
-  elseif upgrading then
+  elseif upgrading and plan.retainRollback then
     -- Use the verified bundled checkpoint implementation even when upgrading
     -- an older installed service. Keep its dependency cache private.
     local loaded={}
@@ -94,6 +112,8 @@ function M.install(files,options)
     local saved,problem=updated.createRollback("before manual installation",plan.changed)
     assert(saved,"INSTALL-BACKUP: "..tostring(problem))
   end
+  -- Legacy Update callbacks may have created a checkpoint; honor no-history mode.
+  if plan.retainRollback==false and fs.exists("/var/backups/update") then fs.delete("/var/backups/update") end
   assert(not fs.exists(root), "Installation started while preparing; recover before retrying")
   local changed, touched = {}, {}
   local ok, err = pcall(function()

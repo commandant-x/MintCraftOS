@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.62:
+This repository currently contains V0.18.63:
+
+V0.18.63 defaults to no retained version history. The installer removes old update
+checkpoints before preparing the upgrade and does not keep a previous release
+after success. Personal files/configuration are preserved. A temporary recovery
+transaction still protects interrupted writes and is removed after success;
+there is no post-install rollback in this mode. Existing explicit
+`retainRollback=true` policies remain an opt-in compatibility mode.
+See [no-history storage behavior](docs/NO-HISTORY-0.18.63.md).
+
+Previous sweep changes:
 
 V0.18.62 also removes the imposed world/altitude travel cutoff from the measurement sweep. World origin and altitude samples remain recorded; fresh pose/identity, tilt, time and manual stop checks remain.
 
