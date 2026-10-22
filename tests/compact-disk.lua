@@ -37,7 +37,7 @@ for path,content in pairs(files) do
  end
 end
 local nextFiles={} for path,data in pairs(files) do nextFiles[path]=data end
-nextFiles.VERSION='0.18.65\n'
+nextFiles.VERSION='0.18.66\n'
 local source=codec.unpack(files['apps/terminal/main.lua'])..'\n-- next release witness\n'
 nextFiles['apps/terminal/main.lua']=codec.pack('apps/terminal/main.lua',source)
 assert(installer.install(nextFiles))

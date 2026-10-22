@@ -641,6 +641,10 @@ function M.step(rescan)
     if not permitted then M.fail(denial) return M.step(false) end
     local position,poseErr=sweepPose(now,cfg.control.balloonSetup.vehicleId)
     if not position then M.fail(poseErr) return M.step(false) end
+    if sweep.options.maxTravel>0 then
+      local distance=math.sqrt((position.x-sweepOrigin.x)^2+(position.y-sweepOrigin.y)^2+(position.z-sweepOrigin.z)^2)
+      if distance>sweep.options.maxTravel then M.fail("Operator world travel limit reached") return M.step(false) end
+    end
     local channel=cfg.control.channels[1]
     local valid,problem=channelValid(channel)
     if not valid then M.fail(problem) return M.step(false) end

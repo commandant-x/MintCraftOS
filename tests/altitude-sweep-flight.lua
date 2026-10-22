@@ -161,3 +161,10 @@ flight.start(ctx)
 assert(flight.status().state=="failsafe" and flight.status().rescuePending and not flight.status().sweep)
 flight.step(true) assert(command==0,"boot did not apply interrupted sweep rescue")
 print("altitude sweep service: simulated plant/model, explicit start/apply, durable preparation/report, config invalidation, guard failures, owner/manual/permission stop and interrupted boot rescue passed")
+
+prepare()
+local limited=require('system.navigation.altitude_sweep').defaults() limited.maxTravel=10
+assert(flight.startSweep(actor,limited,true)) flight.step()
+worldX=11 now=now+0.1 sample() flight.step()
+assert(flight.status().sweep.state=='aborted' and command==0,'operator world limit did not rescue')
+print('operator world constraint retains rescue and disarmed defaults passed')

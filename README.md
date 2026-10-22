@@ -2,7 +2,15 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.64:
+This repository currently contains V0.18.65:
+
+V0.18.65 adds operator-configurable altitude-sweep speed and travel limits.
+Both default to 0 (disabled), preserving the existing unrestricted settings.
+Positive limits trigger rescue when exceeded. Telemetry, vessel identity,
+physical validation, STOP/F10, owner and receiver checks remain mandatory.
+See [the navigation audit](docs/HARDENING-0.18.65.md).
+
+Previous security stage:
 
 V0.18.64 rejects factory-empty admin login at the authentication API, gates app
 authorization until secure enrollment, preserves existing protected account

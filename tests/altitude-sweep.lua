@@ -70,3 +70,12 @@ for i=0,7 do
  assert(drift:step({timestamp=t,altitude=100,altitudeRate=t*0.011,inSublevel=true},t,true)==7,"slow acceleration accepted as settled")
 end
 print("stability-driven progression: early measured settling, no timed advance, unstable timeout, gap and drift rejection passed")
+
+local constrained=S.defaults() constrained.maxSpeed=2 constrained.maxTravel=10
+local limited=assert(S.new(constrained,100,0))
+assert(not limited:step({timestamp=0,altitude=100,altitudeRate=3,inSublevel=true},0,true))
+assert(limited.reason:find('Operator vertical',1,true))
+limited=assert(S.new(constrained,100,0))
+assert(not limited:step({timestamp=0,altitude=111,altitudeRate=0,inSublevel=true},0,true))
+assert(not S.validate({first=7,last=15,dwell=15,timeout=180,maxSpeed=-1}))
+print('operator limits: disabled defaults, explicit speed/travel constraints and invalid configuration rejection passed')

@@ -1,13 +1,18 @@
 -- Bounded open-loop identification. No peripheral writes or calibration flags.
 local addon=require("system.libraries.addon")
 local M={}
-function M.defaults() return {first=7,last=15,dwell=15,timeout=180} end
+function M.defaults() return {first=7,last=15,dwell=15,timeout=180,maxSpeed=0,maxTravel=0} end
 function M.validate(value)
   if type(value)~="table" then return nil,"Sweep options missing" end
   local p={}
   for key,range in pairs({first={1,15},last={1,15},dwell={4,60},timeout={10,180}}) do
     local v=value[key]
     if not addon.finite(v) or v<range[1] or v>range[2] then return nil,"Sweep "..key.." outside "..range[1]..".."..range[2] end
+    p[key]=v
+  end
+  for key,maximum in pairs({maxSpeed=1000,maxTravel=10000000}) do
+    local v=value[key] or 0
+    if not addon.finite(v) or v<0 or v>maximum then return nil,"Invalid optional sweep "..key end
     p[key]=v
   end
   if p.first%1~=0 or p.last%1~=0 or p.last-p.first<2 then return nil,"At least three integer heat levels required" end
@@ -93,6 +98,8 @@ function M.new(options,start,now)
     if clock-self.startedAt>self.options.timeout then return self:abort("Sweep time limit reached") end
     if not t.inSublevel or not addon.finite(t.timestamp) or clock<t.timestamp or clock-t.timestamp>0.5 or
       not addon.finite(t.altitude) or not addon.finite(t.altitudeRate) then return self:abort("Fresh altitude/rate/sublevel telemetry lost") end
+    if self.options.maxSpeed>0 and math.abs(t.altitudeRate)>self.options.maxSpeed then return self:abort("Operator vertical-speed limit reached") end
+    if self.options.maxTravel>0 and math.abs(t.altitude-self.startAltitude)>self.options.maxTravel then return self:abort("Operator altitude travel limit reached") end
     if ack and t.timestamp>=self.stageAt and (not self.lastObserved or t.timestamp-self.lastObserved>=0.5) then
       if #self.samples>=360 then return self:abort("Sweep sample limit reached") end
       local sample={time=t.timestamp-self.startedAt,signal=self.signal,altitude=t.altitude,rate=t.altitudeRate}

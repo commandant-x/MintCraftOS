@@ -140,7 +140,7 @@ function M.run(ctx)
       -- Options are a test draft, not edits to the saved flight configuration.
       for _,entry in ipairs({{"first","First heat level (1..15)"},{"last","Last heat level (1..15)"},
         {"dwell","Safety timeout per level (4..60s)"},
-        {"timeout","Total time limit (10..180s)"}}) do
+        {"timeout","Total time limit (10..180s)"},{"maxSpeed","Optional speed limit (0 = disabled)"},{"maxTravel","Optional travel limit (0 = disabled)"}}) do
         rows[#rows+1]=forms.field(app.sweepOptions,entry[1],entry[2],"number")
       end
     elseif app.page=="burnerGroup" and app.setup then
@@ -231,7 +231,7 @@ function M.run(ctx)
       local plan=self.sweepPending
       local channel=(self.sweepPendingControl.channels or {})[1] or {}
       local paragraphs={"MEASUREMENT FLIGHT: vessel will move.","Vehicle: "..tostring((self.sweepPendingControl.balloonSetup or {}).vehicleId),"First heat level: "..plan.first,"Last heat level: "..plan.last,
-        "Per-level safety timeout: "..plan.dwell,"No imposed world/altitude travel cutoff.","Vertical speed is measured; no imposed speed cutoff.",
+        "Per-level safety timeout: "..plan.dwell,"Operator travel limit: "..plan.maxTravel.." (0 = disabled)","Operator speed limit: "..plan.maxSpeed.." (0 = disabled)",
         "Advance only on measured steady vertical speed; altitude may still change.","Total seconds limit: "..plan.timeout,"Rescue transmitted signal: "..tostring(channel.rescue),
         "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
         "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","No automatic arming or physical confirmations."}
@@ -255,7 +255,7 @@ function M.run(ctx)
       local rows={"AUTO ALTITUDE | setup checks, measurements and PI candidate",
         "Altitude "..fmt(telemetry.altitude,"m").." | vertical speed "..fmt(telemetry.altitudeRate,"m/s").." | target "..fmt(target,"m"),
         "Requested target: "..fmt(self.altitudeTarget and self.altitudeTarget.value,"m").." | measured error "..fmt(target and telemetry.altitude and target-telemetry.altitude,"m"),
-        "No imposed speed cutoff; measured response determines the model.", "Next: "..nextLabel,
+        "Speed/travel limits are operator options, disabled by default.", "Next: "..nextLabel,
         "Initialize: "..tostring(progress.initializationConfirmed==true).." | direction: "..tostring(channel.validated==true),
         "Manual: "..tostring(c.manualValidated==true).." | rescue applied: "..tostring(progress.rescueTested==true).." | rescue OK: "..tostring(c.rescueValidated==true),
         "Service: "..tostring(self.flight.state).." | "..tostring(self.flight.reason),
