@@ -105,3 +105,16 @@ environ 882 Ko avec 100 Ko de données personnelles, pic de migration depuis
 avant écriture. Le rapport de calibration compact de la simulation mesure environ
 37 Ko ; un disque plus rempli peut conserver la preuve en RAM sans pouvoir sauver
 le rapport, ce qui impose une nouvelle mesure au prochain démarrage.
+
+## Correctif 0.18.75 : capacités partielles
+
+Un seul brûleur suffit pour le maintien d'altitude. Zéro ou un propulseur,
+ou des chaînes moteur ambiguës, ne bloquent plus les tests verticaux. Les mappings
+moteurs sont conservés mais désactivés lorsqu'un propulseur unique est détecté ;
+aucune commande gauche/droite n'est fabriquée. Le pilotage horizontal autonome
+reste indisponible tant que son autorité n'est pas mesurée. L'interface distingue
+les deux capacités au lieu de refuser toute activation.
+
+Les doublons hérités d'une même fréquence collective de brûleurs sont fusionnés
+si endpoint, limites, secours et mix altitude correspondent. Un canal de commande
+peut piloter un seul brûleur ; ce n'est pas une exigence de deux brûleurs.

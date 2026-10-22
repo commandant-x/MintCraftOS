@@ -2,7 +2,15 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.74:
+This repository currently contains V0.18.75:
+
+V0.18.75 lets a single-burner balloon use the altitude pilot even with one motor,
+no horizontal drive, or ambiguous motor source chains. Independent horizontal
+steering remains separately qualified. Duplicate legacy burner channels addressing
+the same collective receiver are consolidated without inventing motor commands.
+Vehicle Bridge 0.2.3 remains compatible.
+
+Previous automatic activation stage:
 
 V0.18.74 adds **Activate autopilot**: one confirmed automatic survey, unambiguous
 hardware setup, calibration/revalidation, and altitude hold. A matching loaded

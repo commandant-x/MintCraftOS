@@ -391,6 +391,31 @@ flight.release(actor.pid,'closed during survey') flight.step()
 assert(flight.status().automatic.state=='blocked')
 print('one-button activation: explicit confirmation/permission, restart revalidation without repeat sweep, real motor/route evidence, changed-structure fallback and STOP/close cancellation passed')
 
+-- One burner and one propeller must still get real vertical calibration.
+assert(flight.disarm(actor)) flight.step() assert(flight.disarm(actor))
+raw.burners={raw.burners[1]}
+raw.actuators={{id='single-propeller',position={x=0,y=0,z=2},direction={x=0,y=0,z=1},active=false,thrust=0}}
+local singleConfig=flight.configuration()
+singleConfig.drivetrain=nil singleConfig.balloonSetup.burnerIds={'heater1'}
+singleConfig.mode='full'
+singleConfig.channels[2]=addon.copy(singleConfig.channels[1]) singleConfig.channels[2].id='legacy-duplicate'
+assert(flight.configure(actor,singleConfig)) sample()
+assert(flight.activateAutomatic(actor,true)) bridge.acquireGeometry() flight.step()
+assert(flight.configuration().mode=='altitude' and #flight.configuration().channels==1,'single collective channel not repaired')
+for i=1,40000 do
+ plantTick(i)
+ local status=flight.status()
+ assert(status.automatic.state~='blocked',status.automatic.reason..' at '..i..' z='..z..' v='..v..' cmd='..command)
+ if status.automatic.state=='active' then break end
+ assert(i<40000,'single burner altitude calibration did not finish')
+end
+local single=flight.status()
+assert(single.measuredHold and not single.differentialReady and not flight.configuration().drivetrain,'single motor invented independent steering')
+assert(single.autoCalibration.checks.hover.passed and single.autoCalibration.checks.rescue.passed)
+assert(single.automatic.reason:find('one propeller',1,true),'partial authority not explained')
+assert(flight.disarm(actor)) flight.step()
+print('single burner + one motor: duplicate legacy collective channels repaired, complete real vertical calibration/hold, no invented steering and STOP passed')
+
 local savedReport=files['/system/config/navigation-calibration.cfg']
 assert(loadfile('tests/storage-fixture.lua'))()()
 local compactReport=textutils.serialize(savedReport,{compact=true})

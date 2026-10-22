@@ -3,6 +3,7 @@ local addon=require('system.libraries.addon')
 local Balloon=require('system.navigation.balloon_setup')
 local Drive=require('system.navigation.drivetrain')
 local Altitude=require('system.navigation.altitude_model')
+local Link=require('system.navigation.link_output')
 local M={}
 function M.plan(snapshot,control,endpoints)
  local out=addon.copy(control)
@@ -13,31 +14,49 @@ function M.plan(snapshot,control,endpoints)
   out,err=Balloon.create(out,p,{transmitter=p.transmitter,neutral=0,rescue=0,wiringConfirmed=true,replaceExisting=false})
   if not out then return nil,err end
  end
+ -- Legacy duplicate channels can address the same collective receiver.
+ if out.balloonSetup and #out.channels>0 and (out.mode~='altitude' or #out.channels>1) then
+  local first=out.channels[1] local shared=Link.key(first) local compatible=shared~=nil
+  for _,c in ipairs(out.channels) do
+   if Link.key(c)~=shared or c.name~=first.name or not c.actuator or c.actuator.role~='buoyancy' or
+    not c.mix or not first.mix or c.mix.altitude~=first.mix.altitude or c.rescue~=first.rescue or c.min~=first.min or c.max~=first.max then compatible=false end
+   for axis,value in pairs(c.mix or {}) do if axis~='altitude' and value~=0 then compatible=false end end
+  end
+  if compatible then out.mode='altitude' out.channels={first} end
+ end
  if out.mode~='altitude' or not out.balloonSetup then return nil,'Collective burner group required; existing controls preserved' end
- if out.drivetrain and out.drivetrain.enabled then return out,'Saved motor roles; live tests required' end
  local props={}
  for _,a in ipairs(snapshot.actuators or {}) do if a.geometryValid and math.abs(a.direction.y)<.25 then props[#props+1]=a end end
+ local function vertical(reason)
+  if out.drivetrain then out.drivetrain.enabled=false end
+  return out,'Altitude available; horizontal unavailable: '..reason
+ end
+ if #props==1 then return vertical('one propeller; no measured independent steering') end
+ if out.drivetrain and out.drivetrain.enabled then
+  if Drive.validate(out.drivetrain,out.channels) and Drive.observed(out.drivetrain,snapshot) then return out,'Saved motor roles; live tests required' end
+  return vertical('saved motor receivers unavailable')
+ end
  if #props==0 then return out,'Vertical pilot; no measured horizontal propeller inventory' end
- if #props~=2 then return nil,'Need two motor source chains; select Motor links once' end
+ if #props~=2 then return vertical('no two-group drive mapping') end
  table.sort(props,function(a,b)return a.position.x<b.position.x end)
  local names={} for _,e in ipairs(endpoints) do if e.backend=='frequency' then names[#names+1]=e.name end end
- if #names~=1 then return nil,'Select one motor transmitter in Motor links' end
+ if #names~=1 then return vertical('select motor transmitter in Motor links') end
  local nodes={} for _,r in ipairs(snapshot.mechanics or {}) do nodes[r.id]=r end
  local d={enabled=true,name=names[1],clutchOff=15,left={},right={}}
  for i,side in ipairs({'left','right'}) do
   local id,seen=props[i].id,{}
   for _=1,128 do
    if not id then break end
-   if seen[id] then return nil,'Kinetic source cycle; select motor roles once' end seen[id]=true
+   if seen[id] then return vertical('kinetic source cycle; select motor roles once') end seen[id]=true
    local node=nodes[id] if not node then break end
    if node.role~='other' then
-    if d[side][node.role] then return nil,'Multiple '..node.role..' nodes on '..side..' source chain' end
+    if d[side][node.role] then return vertical('ambiguous '..side..' '..node.role..' chain') end
     local matches={}
     for _,r in ipairs(snapshot.links or {}) do
      local p,q=node.position,r.position
      if r.receiver and math.abs(math.abs(p.x-q.x)+math.abs(p.y-q.y)+math.abs(p.z-q.z)-1)<.01 then matches[#matches+1]=r end
     end
-    if #matches~=1 then return nil,'Ambiguous receiver for '..side..' '..node.role..'; select Motor links once' end
+    if #matches~=1 then return vertical('ambiguous RX for '..side..' '..node.role) end
     local r=matches[1]
     d[side][node.role]={first=r.first.item,second=r.second.item,firstColor=r.first.dyedColor,secondColor=r.second.dyedColor}
    end
@@ -45,7 +64,7 @@ function M.plan(snapshot,control,endpoints)
   end
  end
  local ok,err=Drive.validate(d,out.channels)
- if not ok then return nil,'Incomplete kinetic source chain: '..err..'; select Motor links once' end
+ if not ok then return vertical('incomplete kinetic source chain: '..err) end
  out.drivetrain=d
  return out,'Source-chain roles detected; motion tests required'
 end

@@ -598,7 +598,7 @@ function M.startSweep(actor,options,confirmed,expectedControl)
   if confirmed~=true or state~="disarmed" or rescuePending then return false,"Sweep needs idle state and explicit confirmation" end
   local c=cfg.control
   if expectedControl and not same(c,expectedControl) then return false,"Control changed while reviewing sweep; review again" end
-  if c.mode~="altitude" or not c.balloonSetup or #c.channels~=1 then return false,"One collective burner altitude channel required" end
+  if c.mode~="altitude" or not c.balloonSetup or #c.channels~=1 then return false,"One collective command channel required (it may control one burner)" end
   local channel=c.channels[1]
   local valid,why=channelValid(channel) if not valid then return false,why end
   if not channel.actuator or channel.actuator.role~="buoyancy" or math.abs(channel.mix.altitude or 0)~=1 then return false,"Verified burner channel with unit altitude mix required" end
@@ -777,9 +777,11 @@ local function prepareAutomatic()
     if not same(proposed,cfg.control) then
       local ok,issue=M.configure({pid=job.owner},proposed) if not ok then M.fail(issue) return end
     end
+    if not addon.finite(job.target) then job.target=M.telemetry().altitude end
     local report=config.load("/system/config/navigation-calibration.cfg",{})
     local model,issue=require("system.navigation.automatic_setup").candidate(report,job.fingerprint,current)
     if model and not same(report.binding,altitudeBinding(cfg.control)) then model,issue=nil,"Motor/sensor/output binding changed: full measurement required" end
+    local horizontalReason=problem
     local options=Sweep.defaults()
     if model then options.first=model.points[1].heat options.last=model.points[#model.points].heat end
     local ok,problem=M.startSweep({pid=job.owner},options,true,cfg.control)
@@ -789,6 +791,7 @@ local function prepareAutomatic()
       calibration.motorCandidate=require("system.navigation.automatic_setup").motorCandidate(report)
       if calibration.motorCandidate then calibration.motorRows=addon.copy(report.motorTests) end
     end
+    if not (cfg.control.drivetrain and cfg.control.drivetrain.enabled) then calibration.horizontal=horizontalReason end
     calibration.structureFingerprint=job.fingerprint
     sweep.reusedModel=model job.reused=model~=nil job.phase="calibration" job.reason=issue or "Measuring current vessel"
   elseif job.phase=="calibration" then
@@ -828,7 +831,7 @@ function M.step(rescan)
     local dt=drivePrevious and world.at-drivePrevious.at
     if dt and dt>0 and dt<=0.5 and drivePrevious.vehicleId==world.vehicleId then drivePose.yawRate=geometry.wrap(t.heading-drivePrevious.heading)/dt end
   end
-  if activation and activation.state=="running" then prepareAutomatic() end
+  if activation and activation.state=="running" then prepareAutomatic() now,t=os.clock(),M.telemetry() end
   timestamp=now
   if cfg.control.drivetrain and cfg.control.drivetrain.enabled and driveValues and driveAppliedAt and (state=="armed" or state=="calibration") then
     local ack,issue=Drive.feedback(cfg.control.drivetrain,vehicleBridge.snapshot(),driveValues,driveAppliedAt)
