@@ -222,6 +222,8 @@ for i=1,1600 do
  assert(flight.status().state=='armed','vertical hold failed: '..flight.status().reason)
 end
 assert(math.abs(z-82)<1,'measured interpolation/duty cycle failed metre target: '..z)
+local heatDisplay=flight.status().measuredHold
+assert(type(heatDisplay.requestedHeat)=='number' and heatDisplay.heat==command,'cockpit heat readout differs from actual applied command')
 pressed=true now=now+0.1 sample() flight.step()
 assert(not flight.status().measuredHold and command==0,'physical takeover failed during measured hold')
 pressed=false assert(flight.disarm(actor)) flight.step()

@@ -1173,6 +1173,7 @@ function M.step(rescan)
       -- cannot represent an interpolated height between two heat levels.
       -- Advance the quantizer only on a new receiver acknowledgement. A lost
       -- receiver therefore cannot be hidden by endlessly changing demands.
+      measuredHold.requestedHeat=channel.mix.altitude<0 and 15-value or value
       if not measuredHold.heat or measuredHold.ackAt and measuredHold.ackAt~=(measuredHold.quantizedAt or -1) then
         local total=value+(measuredHold.fraction or 0)
         local quantized=math.floor(total+0.5)
@@ -1212,7 +1213,7 @@ function M.status()
     groundSpeed=drivePose and drivePose.velocity and math.sqrt(drivePose.velocity.x^2+drivePose.velocity.z^2) or nil,
     pilot=pilotDemand and addon.copy(pilotDemand) or nil,
     maxSpeed=differentialReady and calibration.driveModel.maxSpeed or nil,
-    autopilot=autopilot:status(),measuredHold=measuredHold and {active=true,target=targets.altitude,range=addon.copy(measuredHold.model.measuredRange)} or nil,
+    autopilot=autopilot:status(),measuredHold=measuredHold and {active=true,target=targets.altitude,heat=measuredHold.heat,requestedHeat=measuredHold.requestedHeat,range=addon.copy(measuredHold.model.measuredRange)} or nil,
     sweep=sweep and sweep:status(false) or nil,
     automatic=activation and addon.copy(activation) or nil,
     autoCalibration=calibration and calibration:status() or nil,differentialReady=differentialReady,differentialReason=differentialReason,calibrationSaved=calibrationSaved,

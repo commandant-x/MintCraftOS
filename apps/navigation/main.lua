@@ -52,6 +52,8 @@ function M.run(ctx)
     if not draft.vehicle.bridgeVehicleId or draft.vehicle.bridgeVehicleId==app.bridge.vehicleId then
       app.detectedVehicle=vehicle.import(draft.vehicle,app.bridge)
     end
+    if automatic and automatic.state=="active" and app.lastAutomaticState=="running" and app.page=="sweep" and not app.confirm then app.page="control" end
+    app.lastAutomaticState=automatic and automatic.state
     if app.page=="vehicle" then app.detectedSetup,app.discoveryError=balloonSetup.plan(app.bridge,draft,flight.endpoints()) end
     if app.page=="setup" and not app.setup and app.bridge.ok and guide then guide() end
     if app.page=="setup" and app.setup and app.setup.vehicleId==app.bridge.vehicleId then
@@ -59,6 +61,7 @@ function M.run(ctx)
       app.setup.endpoints=names
       if app.setupOptions.transmitter=="" and #names==1 then app.setupOptions.transmitter=names[1] end
     end
+    if app.pilotPanel then app.pilotPanel:refresh(app.flight,flight.telemetry(),sable.pose()) end
     if app.routePanel then app.routePanel:refresh(app.flight,sable.pose(),app.bridge,flight.endpoints()) end
     app.nativeFlight,app.nativeLastAttitude=pixel.sample(app.av,app.sub,app.flight,flight.telemetry(),app.nativeLastAttitude,os.clock())
     if win then win.dirty=true end
@@ -74,6 +77,26 @@ function M.run(ctx)
     start=function(plan) if app.dirty then return false,"Save actuator changes first" end return flight.startMission(actor,plan,true) end,
     stop=function() return flight.stopMission(actor) end,
     disarm=function() return flight.disarm(actor) end,
+  })
+  app.pilotPanel=require("apps.navigation.pilot").new({
+    apply=function(request) return flight.setFlightTargets(actor,request) end,
+    stop=function() report(flight.disarm(actor)) refresh() end,
+    page=function(id) app.page=id end,
+    prepare=function() app:handle({name="navigation_action",args={},navigationCommand="activateAutomatic"}) end,
+    go=function(point)
+      local status=flight.status()
+      if not status.differentialReady then return false,status.differentialReason or "Direction motorisee non calibree" end
+      local pose=sable.pose() local position=addon.vec(pose.logicalPose and (pose.logicalPose.position or pose.logicalPose.pos))
+      local t=flight.telemetry() local now=os.clock()
+      if point.vehicleId~=pose.vehicleId then return false,"Vaisseau change : choisir une nouvelle destination" end
+      if not position or pose.inSublevel~=true or pose.frame~="world" or not addon.finite(pose.timestamp) or now<pose.timestamp or now-pose.timestamp>0.5 or not addon.finite(t.altitude) or not addon.finite(point.altitude) then return false,"Position monde/altitude fraiche requise" end
+      local plan=require("system.navigation.autopilot").defaults()
+      plan.points={{x=point.x,z=point.z,y=position.y+point.altitude-t.altitude}}
+      plan.driveMode="differential" plan.translationVerified=true plan.verifiedVehicleId=pose.vehicleId plan.clearRouteConfirmed=true
+      plan.maxSpeed=point.speed and point.speed>0 and point.speed or math.min(1,status.maxSpeed or 1)
+      if app.dirty then return false,"Save actuator changes first" end
+      local ok,why=flight.startMission(actor,plan,true) refresh() return ok,why
+    end,
   })
   guide=function(selection)
     local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints(),selection)
@@ -580,7 +603,10 @@ function M.run(ctx)
       report(flight.disarm(actor))
       refresh() return true
     end
-    if self.graphicsActive and self.nativePanel and self.page~="flight" and self.page~="autopilot" and self.page~="sublevel" then
+    if self.graphicsActive and self.page=="control" and not self.confirm and not self.panelViews then
+      if self.pilotPanel:handlePixelKey(event) then return true end
+    end
+    if self.graphicsActive and self.nativePanel and self.page~="control" and self.page~="flight" and self.page~="autopilot" and self.page~="sublevel" then
       if self.nativePanel:handlePixelKey(event) then return true end
     end
     local routePage=self.page=="autopilot" or self.page=="sublevel"
@@ -1042,7 +1068,8 @@ function M.run(ctx)
   pixel.attach(app,{
     page=nativePage,
     action=function(id)
-      if id=="rescan" or id=="activateAutomatic" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
+      if id=="activateAutomatic" then nativePage("control")
+      elseif id=="rescan" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
     end,
   },tabs)
   local nativeDraw,nativeHandle=app.drawPixels,app.handlePixels
@@ -1050,11 +1077,13 @@ function M.run(ctx)
   for _,id in ipairs({"component","burnerGroup","diagram","sweepConfirm","sweepResults"}) do app.pixelPages[id]=true end
   function app:drawPixels(s,w,h,p)
     if self.page=="autopilot" or self.page=="sublevel" then self.routePanel:drawPixels(s,w,h,p)
+    elseif self.page=="control" and not self.confirm and not self.panelViews then self.pilotPanel:drawPixels(s,w,h,p)
     elseif self.page=="flight" then nativeDraw(self,s,w,h,p)
     else self.nativePanel:drawPixels(s,w,h,p) end
   end
   function app:handlePixels(event)
     if self.page=="autopilot" or self.page=="sublevel" then return self.routePanel:handlePixels(event) end
+    if self.page=="control" and not self.confirm and not self.panelViews then return self.pilotPanel:handlePixels(event) end
     if self.page=="flight" then return nativeHandle(self,event) end
     return self.nativePanel:handlePixels(event)
   end

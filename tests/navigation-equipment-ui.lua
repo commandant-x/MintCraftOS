@@ -11,7 +11,9 @@ package.loaded["system.gui.components"]={input=function() end,toolbar=function()
 package.loaded["system.gui.action_menu"]={new=function() return {} end,bar=function() return {} end,overlay=function() end}
 package.loaded["system.gui.form"]={new=function() return {draw=function(_,w,h,fields) for _,f in ipairs(fields or {}) do if f.readOnly then writes[#writes+1]=f.label..": "..tostring(f.get()) end end end} end,field=function(object,key,label,kind,options) assert(object,"missing field object: "..tostring(label)) return {get=function() return object[key] end,set=function(v) object[key]=v end,label=label,kind=kind,options=options} end}
 package.loaded["system.libraries.config"]={load=function() return {} end}
-package.loaded["apps.navigation.pixel"]={sample=function() return {} end,attach=function(app)
+local pixelAPI
+package.loaded["apps.navigation.pixel"]={sample=function() return {} end,attach=function(app,api)
+ pixelAPI=api
  app.pixelPages={} app.drawPixels=function() end app.handlePixels=function() end app.handleNativeKey=function() return false end
 end}
 package.loaded["apps.navigation.route"]={new=function() return {refresh=function() end} end}
@@ -25,14 +27,16 @@ local progress={initializationConfirmed=true,tested={}}
 local initializeCalls,calibrationCalls=0,{}
 local targetCalls=0
 local automaticCalls=0
+local liveState,livePose,liveTelemetry,worldRoute
 local rejectSweep=false
 local sweepState
 package.loaded["system.services.vehiclebridged"]={snapshot=function() return snapshot end,rescan=function() rescans=rescans+1 end}
-package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
+package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return livePose or {} end,rescan=function() end}
 package.loaded["system.services.avionicsd"]={snapshot=function() return {} end,rescan=function() end}
 package.loaded["system.services.flightd"]={configuration=function() if preflightConfig then return preflightConfig end return {mode="altitude",channels={},gains={altitude={kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}},sensors={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
+ startMission=function(actor,plan,confirmed) assert(actor.pid==7 and confirmed) worldRoute=plan return true end,
  activateAutomatic=function(actor,confirmed,options) assert(actor.pid==7 and confirmed and options.first==8 and options.last==12) automaticCalls=automaticCalls+1 return true end,
- status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {altitude=67.5,altitudeRate=0} end,endpoints=function() return endpointRows end,
+ status=function() return liveState or {calibration=progress,sweep=sweepState} end,telemetry=function() return liveTelemetry or {altitude=67.5,altitudeRate=0} end,endpoints=function() return endpointRows end,
  configure=function(_,value) saved=saved+1 savedConfig=require("system.libraries.addon").copy(value) return true end,
  setSetpoint=function(actor,axis,value) assert(actor.pid==7 and axis=="altitude" and value==68) targetCalls=targetCalls+1 return true end,
  testOutput=function() initializeCalls=initializeCalls+1 progress.initializationConfirmed=true return true end,
@@ -53,11 +57,12 @@ package.loaded["system.services.flightd"]={configuration=function() if preflight
  disarm=function() stopped=stopped+1 sweepState=nil return true end,
 }
 term={getSize=function() return width,height end}
-local app,win
+local app,win,readyRefresh
 local function command(id) assert(app:handle({name="action",args={},navigationCommand=id})) end
 require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=function() return 1 end,
  windowManager={create=function(_,opts) app=opts.app win={closed=false} return win end},
  pullEvent=function()
+  if readyRefresh then assert(app.page=="control","completed calibration did not open the pilot dashboard") win.closed=true return {name="test",args={}} end
   app.sweepOptions.autoPrepare=false app.sweepOptions.autoHold=false app.sweepOptions.certify=false
   local sections=require("system.navigation.sections")
   assert(#sections.tabs==8 and #sections.pages()==18 and sections.parent("gains")=="sweep" and sections.parent("manual")=="mapping")
@@ -218,13 +223,33 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
       measuredRange={first=7,last=9,minAltitude=65,maxAltitude=75},points={{heat=7,altitude=65},{heat=8,altitude=70},{heat=9,altitude=75}}}}
   width,height=80,28 app:draw(width,height)
   app:drawPixels(Surface.new(600,500),600,500,palette)
-  app.page="control" app.pilotTargets=nil
-  app.flight.differentialReady=false
+  app.page="control" app.pilotPanel:action("edit")
+  app.pilotTargets=nil
+  app.flight.differentialReady=false app.pilotPanel:refresh(app.flight,{altitude=67.5},{})
   app:drawPixels(Surface.new(600,500),600,500,palette)
-  assert(#app.nativePanel.state.model.fields==1,'altitude-only craft exposed unsupported horizontal commands')
-  app.flight.differentialReady=true app.flight.maxSpeed=2
+  assert(#app.pilotPanel.editor.state.model.fields==1,'altitude-only craft exposed unsupported horizontal commands')
+  app.flight.differentialReady=true app.flight.maxSpeed=2 app.pilotPanel:refresh(app.flight,{altitude=67.5},{})
   app:drawPixels(Surface.new(600,500),600,500,palette)
-  assert(#app.nativePanel.state.model.fields==3,'cockpit lacks altitude/speed/heading fields')
-  win.closed=true return {name="test",args={}}
+  assert(#app.pilotPanel.editor.state.model.fields==3,'cockpit lacks altitude/speed/heading fields')
+  app.page="flight" app:drawPixels(Surface.new(600,330),600,330,palette)
+  local activationCount=automaticCalls
+  pixelAPI.action("activateAutomatic")
+  assert(app.page=="control" and automaticCalls==activationCount,"Flight Autopilot repeated calibration instead of opening cockpit")
+  liveState={state="armed",differentialReady=true,maxSpeed=2,targets={altitude=82},calibration=progress}
+  liveTelemetry={altitude=67.5,altitudeRate=0,heading=0}
+  livePose={timestamp=os.clock(),vehicleId="ship-a",frame="world",inSublevel=true,logicalPose={position={x=100,y=70,z=200}}}
+  app.dirty=false app.pilotPanel.mode="hold" app.pilotPanel:refresh(liveState,liveTelemetry,livePose)
+  app.pilotPanel:action("map") app.pilotPanel:drawPixels(Surface.new(600,330),600,330,palette)
+  local map=app.pilotPanel.map
+  app.pilotPanel:handlePixels({name="mouse_click",args={1,map.x+map.w/2+20,map.y+map.h/2-15}})
+  app.pilotPanel:action("go") app.pilotPanel:drawPixels(Surface.new(600,330),600,330,palette)
+  assert(not worldRoute,"map selection actuated before route confirmation")
+  local editor=app.pilotPanel.editor
+  for _,hit in ipairs(editor.state.hits) do if hit.id=="go" then editor:handlePixels({name="mouse_click",args={1,hit.rect.x+1,hit.rect.y+1+editor.header}}) break end end
+  assert(worldRoute and worldRoute.points[1].x==120 and worldRoute.points[1].z==185 and worldRoute.points[1].y==84.5,"Atlas destination lost world altitude conversion")
+  assert(worldRoute.clearRouteConfirmed and worldRoute.driveMode=="differential","map bypassed measured route configuration")
+  app.lastAutomaticState="running" app.page="sweep"
+  liveState.automatic={state="active",phase="hold",reason="ready"}
+  readyRefresh=true return {name="timer",args={1}}
  end})
 print("Navigation equipment UI: passive diagram/inspection, live guide, missing bridge, bounded viewports and apply-time inventory rejection passed")

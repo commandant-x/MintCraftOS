@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.78:
+This repository currently contains V0.18.79:
+
+V0.18.79 opens a graphical Autopilot dashboard after calibration: large measured
+and target altitude, metre step buttons, direct entry, live burner heat and
+adjacent-level duty cycling. The integrated Atlas X/Z selector sends an explicitly
+confirmed world destination to measured differential flight control. It shows
+coordinates, not terrain or obstacle detection. See [pilot dashboard](docs/PILOT-0.18.79.md).
 
 V0.18.78 passes selected burner calibration options through automatic activation,
 freezes them at confirmation and remeasures when the selected heat range changes.
