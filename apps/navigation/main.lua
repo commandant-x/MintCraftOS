@@ -16,6 +16,8 @@ local avionics=require("system.services.avionicsd")
 local flight=require("system.services.flightd")
 local config=require("system.libraries.config")
 local pixel=require("apps.navigation.pixel")
+local linkOutput=require("system.navigation.link_output")
+local sections=require("system.navigation.sections")
 local M={}
 local axes={"pitch","roll","altitude","heading"}
 local sides={"top","bottom","left","right","front","back"}
@@ -31,11 +33,24 @@ function M.run(ctx)
   local app={page="flight",tabState={},barState={},pages=menus.new(),commands=menus.new(),form=forms.new(),index=1,axis=1,scroll=1,message="Control disarmed",av={},sub={},flight={},confirm=nil,sweepOptions=altitudeSweep.defaults()}
   if draft.vehicle.type=="unknown" then app.page="vehicle" end
   if ctx.args and ctx.args.page=="flight" then app.page="flight" end
-  local tabs={{id="flight",label="Flight"},{id="autopilot",label="Autopilot"},{id="sublevel",label="Sublevel equipment"},{id="vehicle",label="Vehicle"},{id="setup",label="Setup guide"},{id="context",label="Vehicle analysis"},{id="control",label="Control"},{id="mapping",label="Actuators"},{id="gains",label="PID gains"},{id="sensors",label="Sensors"},{id="manual",label="Manual inputs"},{id="calibration",label="Calibration"},{id="sweep",label="Auto altitude"},{id="environment",label="Environment"},{id="estimates",label="Estimates"},{id="frequencies",label="Frequencies"}}
+  local tabs=sections.tabs
+  local allPages=sections.pages()
   local win,timer
+  local guide
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
     app.bridge=vehicleBridge.snapshot()
+    app.detectedVehicle=nil
+    if not draft.vehicle.bridgeVehicleId or draft.vehicle.bridgeVehicleId==app.bridge.vehicleId then
+      app.detectedVehicle=vehicle.import(draft.vehicle,app.bridge)
+    end
+    if app.page=="vehicle" then app.detectedSetup,app.discoveryError=balloonSetup.plan(app.bridge,draft,flight.endpoints()) end
+    if app.page=="setup" and not app.setup and app.bridge.ok and guide then guide() end
+    if app.page=="setup" and app.setup and app.setup.vehicleId==app.bridge.vehicleId then
+      local names={} for _,e in ipairs(flight.endpoints()) do if e.backend=="frequency" then names[#names+1]=e.name end end
+      app.setup.endpoints=names
+      if app.setupOptions.transmitter=="" and #names==1 then app.setupOptions.transmitter=names[1] end
+    end
     if app.routePanel then app.routePanel:refresh(app.flight,sable.pose(),app.bridge,flight.endpoints()) end
     app.nativeFlight,app.nativeLastAttitude=pixel.sample(app.av,app.sub,app.flight,flight.telemetry(),app.nativeLastAttitude,os.clock())
     if win then win.dirty=true end
@@ -51,9 +66,9 @@ function M.run(ctx)
     stop=function() return flight.stopMission(actor) end,
     disarm=function() return flight.disarm(actor) end,
   })
-  local function guide(selection)
+  guide=function(selection)
     local plan,err=balloonSetup.plan(vehicleBridge.snapshot(),draft,flight.endpoints(),selection)
-    app.page="setup" app.setup=plan app.setupStep=1 app.scroll=1
+    app.page="setup" app.setup=plan app.setupStep=3 app.scroll=1
     if not plan then app.message=err return end
     app.setupSelection={}
     for _,id in ipairs(plan.burnerIds) do app.setupSelection[id]=true end
@@ -61,21 +76,53 @@ function M.run(ctx)
       inverted=false,wiringConfirmed=false,replaceExisting=false}
     app.message="Detection passive; aucun signal emis"
   end
+  local function frequencyPairs()
+    local out,seen={},{}
+    local snapshot=app.bridge or {}
+    if not snapshot.ok or draft.vehicle.bridgeVehicleId and draft.vehicle.bridgeVehicleId~=snapshot.vehicleId then return out end
+    for _,r in ipairs(snapshot.links or {}) do
+      if r.receiver then
+        local spec={first=r.first.item,second=r.second.item,firstColor=r.first.dyedColor,secondColor=r.second.dyedColor}
+        local key=linkOutput.key({link=spec})
+        if key and not seen[key] then
+          local label=spec.first.." + "..spec.second.." ["..tostring(spec.firstColor or "-")..","..tostring(spec.secondColor or "-").."]"
+          out[#out+1]={key=key,label=label,spec=spec} seen[key]=true
+        end
+      end
+    end
+    return out
+  end
+  local function emptyLink(channel)
+    return not channel.link or (channel.link.first==nil or channel.link.first=="") and (channel.link.second==nil or channel.link.second=="")
+  end
   local function fields()
     local rows={}
     local function field(object,key,label,kind,options)
       local item=forms.field(object,key,label,kind,options)
       local set=item.set item.set=function(value) set(value) app.dirty=true end
       rows[#rows+1]=item
+      return item
+    end
+    local function measured(key,label,object)
+      rows[#rows+1]={label=label.." (detected)",readOnly=true,get=function() return object[key] end}
     end
     if app.page=="vehicle" then
-      field(draft.vehicle,"name","Vehicle name","string")
-      field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
+      local name=field(draft.vehicle,"name","Vehicle name","string")
+      name.get=function() return app.detectedVehicle and draft.vehicle.name=="Vehicle" and app.detectedVehicle.name or draft.vehicle.name end
+      local kind=field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
+      kind.get=function() return app.detectedVehicle and draft.vehicle.type=="unknown" and app.detectedVehicle.type or draft.vehicle.type end
       field(draft,"mode","Control mode",nil,{"full","altitude"})
+      if app.detectedVehicle and not app.manualGeometry then
+        measured("rotorCount","Lift rotor count",app.detectedVehicle)
+        if (app.bridge.units or {}).mass=="kg" then measured("massKg","Mass (kg)",app.detectedVehicle)
+        else measured("mass","Bridge mass ("..tostring((app.bridge.units or {}).mass)..")",app.bridge) end
+        for _,axis in ipairs({"x","y","z"}) do measured(axis,"COM plot "..axis,app.detectedVehicle.com) end
+      else
       field(draft.vehicle,"rotorCount","Lift rotor count (0 = unknown)","number")
       field(draft.vehicle,"massKg","Mass (kg)","number")
       for _,axis in ipairs({"x","y","z"}) do field(draft.vehicle.com,axis,"COM body "..axis.." (blocks)","number") end
       field(draft.vehicle,"comVerified","COM body frame verified","boolean")
+      end
     elseif app.page=="mapping" then
       local channel=draft.channels[app.index]
       if not channel then return rows end
@@ -86,12 +133,33 @@ function M.run(ctx)
         local names={}
         for _,row in ipairs(flight.endpoints()) do if row.backend==channel.backend then names[#names+1]=row.name end end
         local label=channel.backend=="frequency" and "Frequency transmitter" or (channel.backend=="relay" and "Redstone relay" or "Avionics endpoint")
-        if #names>0 then field(channel,"name",label,nil,names) else field(channel,"name",label,"string") end
+        if #names>0 then
+          local endpoint=field(channel,"name",label,nil,names)
+          endpoint.placeholder="Choose detected transmitter"
+          endpoint.get=function() return channel.name and channel.name~="" and channel.name or (#names==1 and names[1] or "") end
+        else
+          rows[#rows+1]={label=label,readOnly=true,get=function() return "Not detected; connect peripheral and Rescan" end}
+        end
         if channel.backend=="relay" then field(channel,"side","Relay side",nil,sides) end
       end
       if channel.backend=="frequency" then
         channel.link=channel.link or {first="",second=""}
-        field(channel.link,"first","Frequency item 1","string") field(channel.link,"second","Frequency item 2","string")
+        local pairs=frequencyPairs()
+        if not app.manualLink and #pairs>0 then
+          local options={} for _,pair in ipairs(pairs) do options[#options+1]=pair.label end
+          local current=linkOutput.key(channel) local currentLabel
+          for _,pair in ipairs(pairs) do if pair.key==current then currentLabel=pair.label end end
+          if not currentLabel and not emptyLink(channel) then currentLabel="Current pair (not detected)" options[#options+1]=currentLabel end
+          options[#options+1]="Manual entry"
+          rows[#rows+1]={label="Detected receiver frequency",options=options,get=function()
+            return currentLabel or (#pairs==1 and pairs[1].label or "Choose detected pair")
+          end,set=function(value)
+            if value=="Manual entry" then app.manualLink=true return end
+            for _,pair in ipairs(pairs) do if pair.label==value then channel.link=addon.copy(pair.spec) app.dirty=true return end end
+          end}
+        else
+          field(channel.link,"first","Frequency item 1 (manual)","string") field(channel.link,"second","Frequency item 2 (manual)","string")
+        end
       end
       for _,key in ipairs({"min","max","neutral","rescue"}) do field(channel,key,key,"number") end
       channel.mix=channel.mix or {}
@@ -102,14 +170,15 @@ function M.run(ctx)
       end
       field(channel,"frequency","Create frequency (label)","string")
       channel.actuator=vehicle.actuator(channel.actuator)
-      if draft.vehicle.bridgeActuators and #draft.vehicle.bridgeActuators>0 then
+      local geometry=app.detectedVehicle or draft.vehicle
+      if geometry.bridgeActuators and #geometry.bridgeActuators>0 then
         local options={"Manual"}
-        for i=1,#draft.vehicle.bridgeActuators do options[#options+1]=i end
+        for i=1,#geometry.bridgeActuators do options[#options+1]=i end
         rows[#rows+1]={label="Measured actuator #",options=options,get=function()
-          for i,row in ipairs(draft.vehicle.bridgeActuators) do if channel.actuator.bridgeId==row.id then return i end end
+          for i,row in ipairs(geometry.bridgeActuators) do if channel.actuator.bridgeId==row.id then return i end end
           return "Manual"
         end,set=function(index)
-          local measured=draft.vehicle.bridgeActuators[index]
+          local measured=geometry.bridgeActuators[index]
           if measured then channel.actuator=vehicle.actuator(measured.actuator) channel.actuator.bridgeId=measured.id
           else channel.actuator.bridgeId=nil end
           app.dirty=true
@@ -150,12 +219,17 @@ function M.run(ctx)
       end
     elseif app.page=="setup" and app.setup and app.setupStep==3 then
       local options=app.setupOptions
-      if #app.setup.endpoints>0 then field(options,"transmitter","Frequency transmitter",nil,app.setup.endpoints) end
+      if #app.setup.endpoints>0 then field(options,"transmitter","Frequency transmitter",nil,app.setup.endpoints).placeholder="Choose detected transmitter" end
       field(options,"neutral","Hover baseline signal (verify)","number")
       field(options,"rescue","Rescue transmitted signal (verify)","number")
       field(options,"inverted","Wiring inverts burner signal","boolean")
       field(options,"wiringConfirmed","Receivers/wiring physically checked","boolean")
       if #draft.channels>0 then field(options,"replaceExisting","Replace existing control mapping","boolean") end
+      rows[#rows+1]={label="Detected frequency",readOnly=true,get=function() return app.setup.frequency.first.." + "..app.setup.frequency.second end}
+      for _,burner in ipairs((app.bridge or {}).burners or {}) do
+        local b=burner
+        rows[#rows+1]={label="Burner "..b.id,readOnly=true,get=function() return "signal "..b.signal.."/15 | associated "..tostring(b.hasBalloon).." | gas active "..tostring(b.gasActive) end}
+      end
     end
     return rows
   end
@@ -189,10 +263,10 @@ function M.run(ctx)
         "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
         "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","No automatic arming or physical confirmations."}
   end
-  local function actions()
+  local function baseActions()
     if app.page=="autopilot" or app.page=="sublevel" then return app.routePanel:actions() end
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
-    elseif app.page=="vehicle" then return {{id="discover",label="Discover"},{id="guide",label="Guide"},{id="save",label="Save"},{id="mass",label="Read mass"},{id="analysis",label="Analysis"},{id="diagram",label="Diagram"}}
+    elseif app.page=="vehicle" then return {{id="save",label="Save"},{id="rescan",label="Rescan"},{id="devices",label="Devices"}}
     elseif app.page=="sweep" or app.page=="sweepResults" then
       local nextCommand,nextLabel=sweepNext()
       if not nextCommand then nextLabel=nextLabel=="Preflight complete; Start sweep" and "Start sweep" or "Check status" end
@@ -202,7 +276,7 @@ function M.run(ctx)
     elseif app.page=="setup" then
       if not app.setup then return {{id="guide",label="Detect"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"},{id="devices",label="Devices"}} end
       if app.setupStep==5 then return {{id="chooseGroup",label="Group"},{id="calibrationPage",label="Calibration"},{id="pidPage",label="PID"},{id="controlPage",label="Control"}} end
-      return {{id="chooseGroup",label="Group"},{id="guideBack",label="Back"},{id=app.setupStep==4 and "guideApply" or "guideNext",label=app.setupStep==4 and "Apply + Save" or "Next"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"},{id="devices",label="Devices"}}
+      return {{id="chooseGroup",label="Burner group"},{id="guideApply",label="Review + Save"},{id="guide",label="Detect again"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"}}
     elseif app.page=="context" then return {{id="guide",label="Setup guide"},{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
     elseif app.page=="diagram" then return {{id="top",label="Top"},{id="side",label="Side"},{id="front",label="Front"},{id="iso",label="3D"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="inspect",label="Details"},{id="rescan",label="Rescan"}}
     elseif app.page=="component" then return {{id="diagram",label="Diagram"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="rescan",label="Rescan"}}
@@ -220,12 +294,27 @@ function M.run(ctx)
       return out
     else return {{id="rescan",label="Rescan"},{id="devices",label="Devices"},{id="logs",label="Logs"}} end
   end
+  local function actions()
+    local out=baseActions()
+    local parent=sections.parent(app.page)
+    if parent~=app.page then table.insert(out,1,{id="open:"..parent,label="Back to "..parent}) end
+    if app.page==parent then
+      for _,child in ipairs(sections.children[parent] or {}) do out[#out+1]={id="open:"..child.id,label=child.label} end
+    end
+    if app.page=="mapping" and app.manualLink then out[#out+1]={id="detectedLinks",label="Use detected frequencies"} end
+    if app.page=="vehicle" then
+      out[#out+1]={id="geometryMode",label=app.manualGeometry and "Use detection" or "Manual override"}
+      if app.manualGeometry then out[#out+1]={id="mass",label="Read measured mass"} end
+      if draft.vehicle.bridgeVehicleId and (app.bridge or {}).ok and draft.vehicle.bridgeVehicleId~=app.bridge.vehicleId then out[#out+1]={id="discover",label="Import other vehicle"} end
+    end
+    return out
+  end
   function app:draw(w,h)
     if h<9 then renderer.writeAt(1,1,renderer.crop("Navigation: enlarge window",w)) return end
     local title="Navigation"
-    for _,tab in ipairs(tabs) do if tab.id==self.page then title=tab.label end end
+    for _,tab in ipairs(allPages) do if tab.id==self.page then title=tab.label end end
     if self.page:match("^sweep") then title="Auto altitude" end
-    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=self.page:match("^sweep") and "sweep" or self.page})
+    menus.bar(self.pages,1,1,w,tabs,{selector=true,label="Views: "..title,title="Navigation views",selected=sections.parent(self.page)})
     local commands=actions()
     for _,command in ipairs(commands) do
       command.primary=command.id:match("^sweep")~=nil or self.page=="setup" or command.id=="initializeBalloon" or command.id=="guide" or command.id=="discover" or command.id=="diagram" or command.id=="top" or command.id=="side" or command.id=="add" or command.id=="mass" or command.id=="analysis" or command.id=="vehicle" or command.id=="outputs" or command.id=="save" or command.id=="disarm" or command.id=="arm" or command.id=="test" or command.id=="previous" or command.id=="next" or command.id=="rescan"
@@ -293,7 +382,7 @@ function M.run(ctx)
       for _,text in ipairs(rows) do while #text>w do wrapped[#wrapped+1]=text:sub(1,w) text=text:sub(w+1) end wrapped[#wrapped+1]=text end
       lines(w,h,wrapped)
     elseif self.page=="setup" then
-      renderer.writeAt(1,3,renderer.crop("Ballon : etape "..tostring(self.setupStep or 1).."/5",w),colors.cyan)
+      renderer.writeAt(1,3,renderer.crop(self.setupStep==5 and "Ballon : configuration enregistree" or "Ballon : configuration automatique",w),colors.cyan)
       if self.setup and self.setupStep==3 then self.form:draw(w,h,fields())
       else
         local p=self.setup
@@ -346,7 +435,7 @@ function M.run(ctx)
       local analysis=vehicle.analyze(draft.vehicle,draft.channels)
       local rows={analysis.frame,draft.vehicle.type.." | "..fmt(draft.vehicle.massKg," kg")}
       rows[#rows+1]="Bridge: "..tostring(self.bridge and self.bridge.status or "waiting")
-      rows[#rows+1]="Physical rotors: "..tostring(#(draft.vehicle.bridgeActuators or {})).." | mapped commands: "..tostring(#draft.channels)
+      rows[#rows+1]="Physical rotors: "..tostring(#((self.detectedVehicle or draft.vehicle).bridgeActuators or {})).." | mapped commands: "..tostring(#draft.channels)
       if draft.vehicle.bridgeMass then rows[#rows+1]="Bridge mass: "..fmt(draft.vehicle.bridgeMass).." "..tostring((draft.vehicle.bridgeUnits or {}).mass) end
       for _,link in ipairs(draft.vehicle.bridgeLinks or {}) do rows[#rows+1]=(link.receiver and "RX " or "TX ")..link.first.item.." + "..link.second.item.." | motor link unknown" end
       rows[#rows+1]="Detected propellers: "..tostring(#(self.av.propeller or {})).." | signal endpoints: "..tostring(#flight.endpoints())
@@ -481,7 +570,13 @@ function M.run(ctx)
     if event.name=="mouse_click" or command then
       local _,x,y=table.unpack(event.args)
       local id=command
-      if id=="previous" or id=="next" then
+      if id and id:match("^open:") then
+        self.page=id:sub(6) self.form.scroll=1 self.scroll=1 self.form.edit=nil self.testValue=nil
+        if self.page=="setup" then guide() end
+        return true
+      elseif id=="detectedLinks" then self.manualLink=false return true
+      elseif id=="geometryMode" then self.manualGeometry=not self.manualGeometry self.form.edit=nil return true
+      elseif id=="previous" or id=="next" then
         if self.page=="gains" then self.axis=(self.axis+(id=="next" and 1 or -1)-1)%#controlMode.axes(draft)+1
         else self.index=math.max(1,math.min(self.page=="manual" and #draft.manualInputs or #draft.channels,self.index+(id=="next" and 1 or -1))) end
         self.testValue=nil self.form.scroll=1 return true
@@ -491,7 +586,24 @@ function M.run(ctx)
         draft.channels[#draft.channels+1]={id="output"..(#draft.channels+1),backend="redstone",side=sides[math.min(6,#draft.channels+1)],min=0,max=15,neutral=15,rescue=15,mix={pitch=0,roll=0,altitude=0,heading=0},validated=false,frequency=""}
         self.index=#draft.channels return true
       elseif id=="remove" then self.dirty=true local rows=self.page=="manual" and draft.manualInputs or draft.channels if self.index<=#rows then table.remove(rows,self.index) end self.index=math.max(1,math.min(self.index,#rows)) return true
-      elseif id=="save" then report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
+      elseif id=="save" then
+        refresh()
+        if not self.manualGeometry then
+          local latest=vehicleBridge.snapshot()
+          if not draft.vehicle.bridgeVehicleId or latest.vehicleId==draft.vehicle.bridgeVehicleId then
+            local measured=vehicle.import(draft.vehicle,latest)
+            if measured then draft.vehicle=measured end
+          end
+        end
+        local pairs=frequencyPairs()
+        for _,channel in ipairs(draft.channels) do
+          if channel.backend=="frequency" and not self.manualLink and emptyLink(channel) and #pairs==1 then channel.link=addon.copy(pairs[1].spec) end
+          if channel.backend~="redstone" and (channel.name==nil or channel.name=="") then
+            local names={} for _,e in ipairs(flight.endpoints()) do if e.backend==channel.backend then names[#names+1]=e.name end end
+            if #names==1 then channel.name=names[1] end
+          end
+        end
+        report(flight.configure(actor,draft)) if self.message=="Done" then draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) self.dirty=false end refresh() return true
       elseif id=="sweepOptions" then self.page="sweep" self.sweepEditing=true self.form.scroll=1 self.sweepPending=nil return true
       elseif id=="sweepDashboard" or id=="sweepResults" then self.page="sweep" self.sweepEditing=false self.form.edit=nil self.scroll=1 return true
       elseif id=="altitudeEdit" then
@@ -562,7 +674,7 @@ function M.run(ctx)
         if self.setupStep==3 then local candidate,err=balloonSetup.create(draft,self.setup,self.setupOptions) if not candidate then report(false,err) return true end end
         self.setupStep=math.min(4,self.setupStep+1) self.form.scroll=1 self.scroll=1 return true
       elseif id=="guideApply" then
-        confirm("Save collective burner mapping? No signal emitted.",function()
+        confirm("Save "..self.setup.burnerCount.." burners via "..tostring(self.setupOptions.transmitter).."; frequency "..self.setup.frequency.first.." + "..self.setup.frequency.second.."; neutral "..self.setupOptions.neutral..", rescue "..self.setupOptions.rescue.."? No signal emitted; shared frequency can affect other machines.",function()
           local latest=vehicleBridge.snapshot()
           if not latest.ok or latest.inventoryComplete~=true or latest.vehicleId~=self.setup.vehicleId then report(false,"Vehicle changed or unavailable; Detect again") return end
           local present={} for _,burner in ipairs(latest.burners or {}) do present[burner.id]=true end
@@ -666,7 +778,7 @@ function M.run(ctx)
     return false
   end
   local function nativePage(id)
-    for _,tab in ipairs(tabs) do if tab.id==id then
+    for _,tab in ipairs(allPages) do if tab.id==id then
       app.page=id app.form.scroll=1 app.scroll=1 app.testValue=nil app.panelViews=false app.form.edit=nil
       if id=="setup" then guide() end
       if id=="sublevel" then app.routePanel.view="sublevel" elseif id=="autopilot" then app.routePanel.view="route" end
@@ -674,7 +786,7 @@ function M.run(ctx)
     end end
   end
   local function panelModel()
-    local model={page=app.page..":"..tostring(app.setupStep)..":"..app.index..":"..app.axis..":"..tostring(app.sweepEditing),actions={},fields={},rows={},footer=app.message}
+    local model={page=app.page..":"..tostring(app.setupStep)..":"..app.index..":"..app.axis..":"..tostring(app.sweepEditing)..":"..tostring(app.manualGeometry)..":"..tostring(app.manualLink)..":"..tostring(app.detectedVehicle~=nil)..":"..tostring((app.bridge or {}).vehicleId),actions={},fields={},rows={},footer=app.message}
     local function row(title,description) model.rows[#model.rows+1]={title=tostring(title),description=tostring(description or "")} end
     if app.confirm then
       model.page=model.page..":confirm" model.actions={{id="panelConfirm",label="Confirm"},{id="panelCancel",label="Cancel"}}
@@ -699,7 +811,13 @@ function M.run(ctx)
     end
     row("State",tostring(app.flight.state).." | "..tostring(app.flight.reason))
     for _,err in ipairs(app.flight.errors or {}) do row("Readiness",err) end
-    if app.page=="calibration" then
+    if app.page=="vehicle" then
+      row("Vehicle Bridge",tostring((app.bridge or {}).status or "Not detected").." | "..tostring((app.bridge or {}).vehicleId or "unknown vehicle"))
+      row("Discovery",app.detectedVehicle and "Live measured geometry; Save records it. Outputs and physical checks are unchanged." or "No complete geometry for this vehicle. Manual override remains available.")
+      local p=app.detectedSetup
+      if p then row("Burner setup detected",p.burnerCount.." burners | "..p.frequency.first.." + "..p.frequency.second.." | transmitter "..(p.transmitter~="" and p.transmitter or "choose detected transmitter"))
+      else row("Burner detection",app.discoveryError or "Unavailable") end
+    elseif app.page=="calibration" then
       local channel=draft.channels[app.index]
       app.testValue=app.testValue or {value=channel and channel.neutral or 0}
       model.fields={forms.field(app.testValue,"value","Test signal","number")}
@@ -731,7 +849,7 @@ function M.run(ctx)
     elseif app.page=="setup" then
       local plan=app.setup
       if plan then
-        row("Setup step",app.setupStep.."/5 | selected burners "..plan.burnerCount)
+        row("Detected burner setup",(app.setupStep==5 and "Saved | " or "Review settings | ")..plan.burnerCount.." selected burners")
         row("Frequency",tostring(plan.frequency.first).." + "..tostring(plan.frequency.second))
         row("Shared control","One collective altitude channel. Verify receiver frequency/wiring; no roll/pitch/heading stabilization.")
         if app.setupOptions then row("Mapping",tostring(app.setupOptions.transmitter).." | neutral "..tostring(app.setupOptions.neutral).." | rescue "..tostring(app.setupOptions.rescue)) end
@@ -803,7 +921,7 @@ function M.run(ctx)
     end,
   },tabs)
   local nativeDraw,nativeHandle=app.drawPixels,app.handlePixels
-  for _,tab in ipairs(tabs) do app.pixelPages[tab.id]=true end
+  for _,tab in ipairs(allPages) do app.pixelPages[tab.id]=true end
   for _,id in ipairs({"component","burnerGroup","diagram","sweepConfirm","sweepResults"}) do app.pixelPages[id]=true end
   function app:drawPixels(s,w,h,p)
     if self.page=="autopilot" or self.page=="sublevel" then self.routePanel:drawPixels(s,w,h,p)

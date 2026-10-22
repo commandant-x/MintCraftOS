@@ -16,3 +16,39 @@ keys={escape=1}
 panel.buffers={[1]='bad'}
 assert(panel:handlePixelKey({name='key',args={keys.escape}}))
 assert(not next(panel.buffers),'Escape did not discard invalid native draft')
+
+keys={escape=1,enter=2,backspace=3,tab=4,space=5,leftCtrl=6,rightCtrl=7,a=8,c=9,v=10}
+local chosen,checked='wired-a',false
+local choices=Panel.new({model=function() return {page='detected',actions={},fields={
+ {label='Transmitter',options={'wired-a','wired-b'},get=function() return chosen end,set=function(v) chosen=v end},
+ {label='Wiring checked',kind='boolean',get=function() return checked end,set=function(v) checked=v end},
+ {label='Measured mass',readOnly=true,get=function() return 65.8 end}}} end,action=function() error('field click issued application command') end})
+local function draw() choices:drawPixels(Surface.new(400,300),400,300,p) end
+local function click(id)
+ draw()
+ for _,hit in ipairs(choices.state.hits) do if hit.id==id and hit.kind=='choice' then
+  return choices:handlePixels({name='mouse_click',args={1,hit.rect.x+1,hit.rect.y+1}})
+ end end error('missing choice control')
+end
+click(1) assert(chosen=='wired-b' and not choices.state.showKeyboard)
+choices:handlePixelKey({name='paste',args={'invented-peripheral'}})
+choices:handlePixelKey({name='char',args={'x'}})
+choices:handlePixelKey({name='key',args={keys.backspace}})
+assert(chosen=='wired-b' and not next(choices.buffers),'choice accepted free text')
+choices:handlePixelKey({name='key',args={keys.enter}}) assert(chosen=='wired-a')
+choices:handlePixelKey({name='key',args={keys.tab}})
+choices:handlePixelKey({name='key',args={keys.space}}) assert(checked)
+click(2) assert(not checked)
+draw() assert(#choices.state.model.fields==2 and #choices.state.model.rows==1,'measurement became editable')
+for _,hit in ipairs(choices.state.hits) do assert(hit.kind~='keyboard','choice showed text keyboard') end
+print('native choices: detected-value buttons, direct boolean toggles, Tab/Enter/Space, no free-text edits and read-only measurements passed')
+local detected=false local manualMass,rescue=1,0
+local live=Panel.new({model=function() return {page='connection',fields=detected and {
+ {label='Detected mass',readOnly=true,get=function() return 65.8 end},
+ {label='Rescue',kind='number',get=function() return rescue end,set=function(v) rescue=v end}} or {
+ {label='Manual mass',kind='number',get=function() return manualMass end,set=function(v) manualMass=v end}}} end,action=function() end})
+live:drawPixels(Surface.new(400,300),400,300,p)
+live.buffers={[1]='999'} live.state.field=1 detected=true
+live:handlePixelKey({name='paste',args={'123'}})
+assert(not next(live.buffers) and not live.state.field and manualMass==1 and rescue==0,'connection change applied a stale draft to a different field')
+print('live discovery: changed field layouts discard stale focus and pending text passed')

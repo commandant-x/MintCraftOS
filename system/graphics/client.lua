@@ -12,15 +12,15 @@ function M.attach(app,api)
   local function field()
     for _,f in ipairs((state.model or {}).fields or {}) do if f.id==state.field then return f end end
   end
-  kb.onText=function(text) local f=field() if f then api.input(f.id,((state.selectAll and "" or tostring(f.value or ""))..text):sub(1,f.limit or 1024)) state.selectAll=false end end
-  kb.onBackspace=function() local f=field() if f then api.input(f.id,state.selectAll and "" or tostring(f.value or ""):sub(1,-2)) state.selectAll=false end end
-  kb.onEnter=function() if api.submit then api.submit(state.field) end end
+  kb.onText=function(text) local f=field() if f and not f.action then api.input(f.id,((state.selectAll and "" or tostring(f.value or ""))..text):sub(1,f.limit or 1024)) state.selectAll=false end end
+  kb.onBackspace=function() local f=field() if f and not f.action then api.input(f.id,state.selectAll and "" or tostring(f.value or ""):sub(1,-2)) state.selectAll=false end end
+  kb.onEnter=function() local f=field() if f and f.action then api.action(f.action) elseif api.submit then api.submit(state.field) end end
   kb.onTab=function() state.showKeyboard=false end
   function app:drawPixels(s,w,h,p)
     s:rect(0,0,w,h,p.panel)
     local model=api.model(w,h) state.model=model state.hits={}
     state.rendered=false
-    if state.page~=model.page then state.first=1 state.field=nil state.selectAll=false state.page=model.page state.lastVisible=0 end
+    if state.page~=model.page then state.first=1 state.field=nil state.selectAll=false state.showKeyboard=false state.actionFirst=1 state.fieldFirst=1 state.page=model.page state.lastVisible=0 end
     if w<140 or h<80 then ui.label(s,3,3,"Enlarge window",math.max(0,w-6),p.muted,p.panel) return end
 
     state.rendered=true
@@ -56,10 +56,16 @@ function M.attach(app,api)
       ui.label(s,4,y,f.label,w-36,p.muted,p.panel) y=y+12
       local r={x=4,y=y,w=w-34,h=23}
       local value=tostring(f.value or "")
+      if f.action then
+        local label=f.checkbox and ((value=='true' and '[x] ' or '[ ] ')..(value=='true' and 'Yes' or 'No')) or (value=='' and (f.placeholder or 'Automatic') or value)..' >'
+        ui.button(s,r,label,p,state.field==f.id) hit(f.id,r,'choice')
+      else
       ui.input(s,r,f.secret and string.rep("*",#value) or value,p,state.field==f.id,f.placeholder)
       hit(f.id,r,"field")
       local toggle={x=w-27,y=y,w=23,h=23}
-      ui.symbol(s,toggle,"keyboard",p,state.showKeyboard and state.field==f.id) hit(f.id,toggle,"keyboard") y=y+28
+      ui.symbol(s,toggle,"keyboard",p,state.showKeyboard and state.field==f.id) hit(f.id,toggle,"keyboard")
+      end
+      y=y+28
     end
     local kbH=state.showKeyboard and math.min(112,math.max(0,h-y-35)) or 0
     local bottom=h-19-kbH state.top=y state.bottom=bottom
@@ -93,6 +99,9 @@ function M.attach(app,api)
     if kbH>=56 then keyboard.draw(s,3,h-19-kbH,w-6,kbH,kb,p) end
   end
   function app:handlePixels(event)
+    local current=api.model()
+    if state.page~=current.page then state.hits={} state.field=nil state.showKeyboard=false state.model=current return true end
+    state.model=current
     if event.name=="mouse_scroll" then state.first=math.max(1,state.first+event.args[1]) return true end
     if event.name~="mouse_click" then return false end
     if state.showKeyboard and keyboard.handle(event,kb) then return true end
@@ -102,6 +111,7 @@ function M.attach(app,api)
       elseif v.kind=="actionsPage" then state.actionFirst=math.max(1,(state.actionFirst or 1)+(v.id=="next" and 1 or -1))
       elseif v.kind=="fieldsPage" then state.fieldFirst=math.max(1,(state.fieldFirst or 1)+(v.id=="next" and 1 or -1)) state.field=nil
       elseif v.kind=="row" then if api.select then api.select(v.id,event.args[1]) end
+      elseif v.kind=="choice" then state.field=v.id state.showKeyboard=false local f=field() if f then api.action(f.action) end
       elseif v.kind=="field" then state.field=v.id state.selectAll=false
       elseif v.kind=="keyboard" then state.field=v.id state.showKeyboard=not state.showKeyboard
       else state.first=math.max(1,state.first+(v.id=="up" and -1 or 1)) end
@@ -112,9 +122,10 @@ function M.attach(app,api)
   function app:handlePixelKey(event)
     if not self.graphicsActive then return false end
     state.model=api.model()
+    if state.page~=state.model.page then state.field=nil state.showKeyboard=false state.selectAll=false end
     local function transfer(key)
       local f=field()
-      if not f then return true end
+      if not f or f.action then return true end
       if key=='a' then state.selectAll=true
       elseif key=='c' and not f.secret then clipboard.set(tostring(f.value or ''))
       elseif key=='v' then kb.onText(clipboard.get()) end
@@ -129,8 +140,14 @@ function M.attach(app,api)
       if key==keys.leftCtrl or key==keys.rightCtrl then state.control=true return true end
       if state.control and (key==keys.c or key==keys.v or key==keys.a) then return transfer(key==keys.c and 'c' or key==keys.a and 'a' or 'v') end
       if key==keys.escape then state.field=nil state.showKeyboard=false return true end
+      if key==keys.tab then
+        local fields=state.model.fields or {} local at=0
+        for i,f in ipairs(fields) do if f.id==state.field then at=i end end
+        if #fields>0 then state.field=fields[at%#fields+1].id state.fieldFirst=at%#fields+1 state.selectAll=false end
+        return true
+      end
       if field() then
-        if key==keys.enter then kb.onEnter() elseif key==keys.backspace then kb.onBackspace() end
+        if key==keys.enter or field().action and key==keys.space then kb.onEnter() elseif key==keys.backspace then kb.onBackspace() end
         return true
       end
       if key==keys.up or key==keys.down then state.first=math.max(1,state.first+(key==keys.up and -1 or 1)) return true end

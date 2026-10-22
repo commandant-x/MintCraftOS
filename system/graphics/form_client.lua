@@ -10,15 +10,17 @@ function M.new(api)
  local function report(message) if api.error then api.error(message) end end
  local function model()
   raw=api.model()
-  if raw.page~=page then panel.buffers={} page=raw.page end
-  local out={page=raw.page,actions={},fields={},rows={},footer=raw.footer}
+  local layout={tostring(raw.page)}
+  for _,f in ipairs(raw.fields or {}) do layout[#layout+1]=tostring(f.label).."/"..tostring(f.kind).."/"..tostring(f.readOnly) end
+  local identity=table.concat(layout,"|")
+  if identity~=page then panel.buffers={} page=identity end
+  local out={page=identity,actions={},fields={},rows={},footer=raw.footer}
   for _,row in ipairs(raw.rows or {}) do out.rows[#out.rows+1]=row end
   for _,a in ipairs(raw.actions or {}) do out.actions[#out.actions+1]=a end
   for i,f in ipairs(raw.fields or {}) do
    local value=f.get()
    if f.readOnly then out.rows[#out.rows+1]={title=f.label,description=tostring(value==nil and "unavailable" or value)}
-   else out.fields[#out.fields+1]={id=i,label=f.label,value=panel.buffers[i]~=nil and panel.buffers[i] or tostring(value==nil and '' or value),secret=f.kind=='secret' or f.kind=='password'} end
-   if not f.readOnly and (f.kind=='boolean' or f.options and #f.options>0) then out.actions[#out.actions+1]={id='fieldCycle:'..i,label='Next '..f.label} end
+   else out.fields[#out.fields+1]={id=i,label=f.label,value=panel.buffers[i]~=nil and panel.buffers[i] or tostring(value==nil and '' or value),secret=f.kind=='secret' or f.kind=='password',action=(f.kind=='boolean' or f.options and #f.options>0) and ('fieldCycle:'..i) or nil,checkbox=f.kind=='boolean',placeholder=f.placeholder} end
   end
   return out
  end

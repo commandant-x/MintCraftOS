@@ -2,7 +2,16 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.69:
+This repository currently contains V0.18.70:
+
+V0.18.70 reduces Navigation from 16 global views to eight workspaces. Bridge
+identity, geometry, burner group, transmitter and receiver frequency suggestions
+come from real cached discovery. Native choices and booleans are clickable
+controls rather than free-text fields. Burner setup opens its populated settings
+in one screen; saving and flight actions remain explicit. See
+[Navigation workflow and checks](docs/NAVIGATION-0.18.70.md).
+
+Previous common-contract stage:
 
 V0.18.69 provides the common real-data contracts/cache readers for progressive
 ASCENDANCY work: source provenance/freshness, frame/unit/clock compatibility,

@@ -9,7 +9,7 @@ package.loaded["system.gui.renderer"]={crop=function(s,w) return tostring(s):sub
  color=function(c) for i=0,15 do if c==2^i then return string.format("%x",i) end end end,fill=function() end}
 package.loaded["system.gui.components"]={input=function() end,toolbar=function() return {} end,toolbarHit=function() return "confirm" end}
 package.loaded["system.gui.action_menu"]={new=function() return {} end,bar=function() return {} end,overlay=function() end}
-package.loaded["system.gui.form"]={new=function() return {draw=function() end} end,field=function(object,key,label,kind,options) assert(object,"missing field object: "..tostring(label)) return {get=function() return object[key] end,set=function(v) object[key]=v end,label=label,kind=kind,options=options} end}
+package.loaded["system.gui.form"]={new=function() return {draw=function(_,w,h,fields) for _,f in ipairs(fields or {}) do if f.readOnly then writes[#writes+1]=f.label..": "..tostring(f.get()) end end end} end,field=function(object,key,label,kind,options) assert(object,"missing field object: "..tostring(label)) return {get=function() return object[key] end,set=function(v) object[key]=v end,label=label,kind=kind,options=options} end}
 package.loaded["system.libraries.config"]={load=function() return {} end}
 package.loaded["apps.navigation.pixel"]={sample=function() return {} end,attach=function(app)
  app.pixelPages={} app.drawPixels=function() end app.handlePixels=function() end app.handleNativeKey=function() return false end
@@ -18,6 +18,8 @@ package.loaded["apps.navigation.route"]={new=function() return {refresh=function
 local snapshot={ok=true,available=true,complete=false,inventoryComplete=true,frame="body_plot",vehicleId="ship-a",status="Partial vehicle inventory",
  burnerDiscoveryAvailable=true,actuators={},links={},burners={{id="heater",position={x=1,y=2,z=3},signal=3,gasOutput=4,hasBalloon=true,gasActive=false}}}
 local rescans,saved,started,stopped=0,0,0,0
+local savedConfig
+local endpointRows={{backend="frequency",name="bridge"}}
 local preflightConfig
 local progress={initializationConfirmed=true,tested={}}
 local initializeCalls,calibrationCalls=0,{}
@@ -28,8 +30,8 @@ package.loaded["system.services.vehiclebridged"]={snapshot=function() return sna
 package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
 package.loaded["system.services.avionicsd"]={snapshot=function() return {} end,rescan=function() end}
 package.loaded["system.services.flightd"]={configuration=function() if preflightConfig then return preflightConfig end return {mode="altitude",channels={},gains={altitude={kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}},sensors={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
- status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {altitude=67.5,altitudeRate=0} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
- configure=function() saved=saved+1 return true end,
+ status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {altitude=67.5,altitudeRate=0} end,endpoints=function() return endpointRows end,
+ configure=function(_,value) saved=saved+1 savedConfig=require("system.libraries.addon").copy(value) return true end,
  setSetpoint=function(actor,axis,value) assert(actor.pid==7 and axis=="altitude" and value==68) targetCalls=targetCalls+1 return true end,
  testOutput=function() initializeCalls=initializeCalls+1 progress.initializationConfirmed=true return true end,
  calibrate=function(_,kind)
@@ -54,6 +56,30 @@ local function command(id) assert(app:handle({name="action",args={},navigationCo
 require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=function() return 1 end,
  windowManager={create=function(_,opts) app=opts.app win={closed=false} return win end},
  pullEvent=function()
+  local sections=require("system.navigation.sections")
+  assert(#sections.tabs==8 and #sections.pages()==17 and sections.parent("gains")=="sweep" and sections.parent("manual")=="mapping")
+  local Surface=require("system.graphics.surface")
+  local palette={desktop=15,panel=7,button=15,text=0,muted=8,accent=9,ink=15,border=8}
+  snapshot.complete=true snapshot.frame="body_plot" snapshot.centerOfMass={x=1,y=2,z=3}
+  snapshot.units={position="block",mass="kg"} snapshot.mass=65.8 snapshot.name="Detected airship"
+  command("disarm")
+  assert(app.detectedVehicle and app.detectedVehicle.massKg==65.8 and app.detectedVehicle.type=="airship" and saved==0)
+  app.page="vehicle" app:drawPixels(Surface.new(600,500),600,500,palette)
+  local model=app.nativePanel.state.model
+  assert(#model.fields==3 and model.fields[1].value=="Detected airship" and model.fields[2].value=="airship","live identity/type not populated")
+  for _,f in ipairs(model.fields) do assert(not f.label:find("COM") and not f.label:find("Mass"),"detected geometry still editable") end
+  assert(saved==0 and not app.dirty,"passive detection saved or dirtied controls")
+  app.panelViews=true app:drawPixels(Surface.new(600,500),600,500,palette)
+  assert(#app.nativePanel.state.model.actions==8,"global view selector not consolidated") app.panelViews=false
+  snapshot.available=false snapshot.ok=false
+  command("guide") assert(not app.setup)
+  snapshot.available=true snapshot.ok=true
+  command("disarm")
+  assert(app.setup and app.setupStep==3 and app.setupOptions.transmitter=="bridge","late bridge connection did not populate setup automatically")
+  assert(not app.setupOptions.wiringConfirmed and saved==0,"discovery faked physical validation or saved")
+  snapshot.ok=false command("disarm") assert(not app.detectedVehicle,"stale geometry stayed live")
+  snapshot.ok=true snapshot.complete=false command("disarm")
+  app.page="flight" app.confirm=nil stopped=0
   command("sweepOptions") command("sweepStart")
   command("sweepConfirm") assert(started==0,"sweep ran before read-through")
   app.sweepOptions.last=14 -- frozen confirmation must still use 15
@@ -143,6 +169,30 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   assert(app.sweepRead,"native read-through cannot reach final warning")
   command("sweepConfirm") assert(started==2,"native review did not start the confirmed frozen plan")
   command("sweepStop")
+  -- A fresh, unambiguous endpoint/frequency is proposed without typing or writing.
+  app.page="mapping" command("add")
+  app.nativePanel.buffers={} app:drawPixels(Surface.new(600,500),600,500,palette)
+  app.nativePanel.buffers={[2]="frequency"} assert(app.nativePanel.commit())
+  snapshot.links={{receiver=true,first={item="minecraft:red_wool",dyedColor=123},second={item="minecraft:white_wool"},position={x=1,y=2,z=2}}}
+  command("disarm") app:drawPixels(Surface.new(600,500),600,500,palette)
+  local before=saved local foundName,foundPair=false,false
+  for _,f in ipairs(app.nativePanel.state.model.fields) do
+    if f.label=="Frequency transmitter" then assert(f.value=="bridge" and f.action) foundName=true end
+    if f.label=="Detected receiver frequency" then assert(f.value:find("minecraft:red_wool",1,true) and f.action) foundPair=true end
+    assert(f.label~="Frequency item 1","detected pair still requires item typing")
+  end
+  assert(foundName and foundPair and saved==before)
+  command("save") assert(saved==before+1 and savedConfig.channels[1].name=="bridge" and savedConfig.channels[1].link.firstColor==123,"unique detected choice not committed on Save")
+  -- Multiple candidates stay explicit; a previous choice is not silently replaced.
+  app.page="mapping" command("add") app:drawPixels(Surface.new(600,500),600,500,palette)
+  app.nativePanel.buffers={[2]="frequency"} assert(app.nativePanel.commit())
+  endpointRows[2]={backend="frequency",name="bridge-2"}
+  snapshot.links[2]={receiver=true,first={item="minecraft:blue_wool"},second={item="minecraft:blue_wool"},position={x=3,y=2,z=2}}
+  command("disarm") app:drawPixels(Surface.new(600,500),600,500,palette)
+  for _,f in ipairs(app.nativePanel.state.model.fields) do
+    if f.label=="Frequency transmitter" then assert(f.value=="","ambiguous endpoint selected itself") end
+    if f.label=="Detected receiver frequency" then assert(f.value=="Choose detected pair","ambiguous pair selected itself") end
+  end
   snapshot={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing"}
   command("guide") assert(not app.setup and app.message:find("0.2.1",1,true))
   app:draw(width,height)

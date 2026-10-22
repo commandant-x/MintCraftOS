@@ -20,11 +20,11 @@ local function draw() app:drawPixels(Surface.new(600,400),600,400,p) end
 local function click(id)
  for _=1,100 do
   draw()
-  for _,hit in ipairs(app.nativePanel.state.hits or {}) do if hit.id==id then
+  for _,hit in ipairs(app.nativePanel.state.hits or {}) do if hit.id==id or hit.kind=='choice' and ('fieldCycle:'..hit.id)==id then
    return app:handlePixels({name='mouse_click',args={1,hit.rect.x+1,hit.rect.y+1+app.nativePanel.header}})
   end end
   local nextHit
-  for _,hit in ipairs(app.nativePanel.state.hits or {}) do if hit.kind=='actionsPage' and hit.id=='next' then nextHit=hit end end
+  for _,hit in ipairs(app.nativePanel.state.hits or {}) do if hit.kind==(id:match('^fieldCycle:') and 'fieldsPage' or 'actionsPage') and hit.id=='next' then nextHit=hit end end
   assert(nextHit,'native action missing: '..id)
   app:handlePixels({name='mouse_click',args={1,nextHit.rect.x+1,nextHit.rect.y+1+app.nativePanel.header}})
  end error('unreachable action '..id)
