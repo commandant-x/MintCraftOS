@@ -691,10 +691,13 @@ function M.run(ctx)
         return self:handle({name="action",args={},navigationCommand=command})
       elseif id=="activateAutomatic" then
         if self.dirty then report(false,"Save or discard draft changes before automatic activation") return true end
+        local plan,problem=altitudeSweep.validate(self.sweepOptions)
+        if not plan then report(false,problem) return true end
+        if not plan.autoPrepare or not plan.autoHold or not plan.certify then report(false,"Enable automatic initialization, hold and calibration in Options; use Start sequence for measurement only") return true end
         self.page="sweep" self.sweepEditing=false
-        confirm("Activate automatic pilot? The vessel will move: initialization, rescue, altitude calibration if needed, motor tests and a short route. Confirm a clear area. F10 stops; keep Navigation open.",function()
+        confirm("Burner heat "..plan.first.." to "..plan.last.." /15. Activate automatic pilot? The vessel will move: initialization, rescue, altitude calibration if needed, motor tests and a short route. Confirm a clear area. F10 stops; keep Navigation open.",function()
           app.autoConfigSynced=false
-          report(flight.activateAutomatic(actor,true))
+          report(flight.activateAutomatic(actor,true,plan))
           draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) refresh()
         end) return true
       elseif id=="measuredHold" then
@@ -885,6 +888,7 @@ function M.run(ctx)
     end
     if app.flight.automatic and app.page~="control" then
       local a=app.flight.automatic row("Automatic pilot",a.state.." / "..a.phase.." | "..a.reason)
+      if a.options then row("Selected burner range",a.options.first.." to "..a.options.last.." /15") end
       if a.groups then
         row("Burner groups",tostring(#a.groups.burnerIds).." burners / "..#a.groups.burners.." frequencies / one altitude command")
         for _,g in ipairs(a.groups.burners) do

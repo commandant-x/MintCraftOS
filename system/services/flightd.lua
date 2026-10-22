@@ -765,20 +765,26 @@ function M.startAutoCalibration(actor,confirmed)
   return M.startSweep(actor,options,true,cfg.control)
 end
 -- Entry point owns the whole sequence. Nothing moves before explicit confirmation.
-function M.activateAutomatic(actor,confirmed)
+function M.activateAutomatic(actor,confirmed,options)
   for _,permission in ipairs({"navigation.control","navigation.calibrate","navigation.autopilot"}) do
     local ok,err=authorize(actor,permission) if not ok then return false,err end
   end
   if confirmed~=true then return false,"Confirm automatic preparation, movement tests and clear area" end
+  local plan,problem=Sweep.validate(options or Sweep.defaults())
+  if not plan then return false,problem end
+  if not plan.autoPrepare or not plan.autoHold or not plan.certify then return false,"Automatic pilot requires initialization, hold and certification enabled in Options; use Start sequence for measurement-only options" end
   if activation and activation.state=="running" then return false,"Automatic preparation already running" end
-  if state=="armed" and measuredHold and owner==actor.pid and calibration and calibration.state=="complete" then return true,"Measured pilot already active" end
+  if state=="armed" and measuredHold and owner==actor.pid and calibration and calibration.state=="complete" then
+    if not activation or not same(activation.options,plan) then return false,"STOP before applying different calibration options; use Control for live altitude/speed/heading targets" end
+    return true,"Measured pilot already active"
+  end
   if state=="failsafe" and not rescuePending then local ok,err=M.disarm(actor) if not ok then return false,err end end
   if state~="disarmed" or rescuePending then return false,"Wait for pending rescue before automatic activation" end
   local current=vehicleBridge.snapshot()
   if not current.ok or not current.inventoryComplete then return false,"Fresh complete Vehicle Bridge inventory required" end
   local position,err=sweepPose(os.clock(),current.vehicleId) if not position then return false,err end
   for _,binding in ipairs(cfg.control.manualInputs or {}) do if redstone.getInput(binding.side) then return false,"Release physical pilot input first" end end
-  activation={state="running",phase="survey",reason="Surveying structure before preparing pilot",owner=actor.pid,vehicleId=current.vehicleId,target=M.telemetry().altitude}
+  activation={state="running",phase="survey",reason="Surveying structure before preparing pilot",owner=actor.pid,vehicleId=current.vehicleId,target=M.telemetry().altitude,options=addon.copy(plan)}
   vehicleBridge.requestGeometry()
   return true
 end
@@ -810,8 +816,10 @@ local function prepareAutomatic()
     local model,issue=require("system.navigation.automatic_setup").candidate(report,job.fingerprint,current)
     if model and not same(report.binding,altitudeBinding(cfg.control)) then model,issue=nil,"Motor/sensor/output binding changed: full measurement required" end
     local horizontalReason=problem
-    local options=Sweep.defaults()
-    if model then options.first=model.points[1].heat options.last=model.points[#model.points].heat end
+    local options=addon.copy(job.options)
+    if model and (model.points[1].heat~=options.first or model.points[#model.points].heat~=options.last) then
+      model,issue=nil,"Selected burner heat range changed: fresh measurement required"
+    end
     local ok,problem=M.startSweep({pid=job.owner},options,true,cfg.control)
     if not ok then M.fail(problem) return end
     if activation~=job or job.state~="running" then M.fail("Automatic preparation cancelled") return end

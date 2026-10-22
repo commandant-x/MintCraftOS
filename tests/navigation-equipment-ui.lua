@@ -31,7 +31,7 @@ package.loaded["system.services.vehiclebridged"]={snapshot=function() return sna
 package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
 package.loaded["system.services.avionicsd"]={snapshot=function() return {} end,rescan=function() end}
 package.loaded["system.services.flightd"]={configuration=function() if preflightConfig then return preflightConfig end return {mode="altitude",channels={},gains={altitude={kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}},sensors={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
- activateAutomatic=function(actor,confirmed) assert(actor.pid==7 and confirmed) automaticCalls=automaticCalls+1 return true end,
+ activateAutomatic=function(actor,confirmed,options) assert(actor.pid==7 and confirmed and options.first==8 and options.last==12) automaticCalls=automaticCalls+1 return true end,
  status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {altitude=67.5,altitudeRate=0} end,endpoints=function() return endpointRows end,
  configure=function(_,value) saved=saved+1 savedConfig=require("system.libraries.addon").copy(value) return true end,
  setSetpoint=function(actor,axis,value) assert(actor.pid==7 and axis=="altitude" and value==68) targetCalls=targetCalls+1 return true end,
@@ -66,9 +66,17 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   snapshot.complete=true snapshot.frame="body_plot" snapshot.centerOfMass={x=1,y=2,z=3}
   snapshot.units={position="block",mass="kg"} snapshot.mass=65.8 snapshot.name="Detected airship"
   app.dirty=false command("activateAutomatic")
+  assert(not app.confirm and automaticCalls==0,'measurement-only options silently replaced for automatic pilot')
+  app.sweepOptions.autoPrepare=true app.sweepOptions.autoHold=true app.sweepOptions.certify=true
+  app.sweepOptions.first=8 app.sweepOptions.last=12
+  command("activateAutomatic")
+  assert(app.confirm.title:find("8 to 12",1,true),'confirmation hides selected burner range')
+  app.sweepOptions.first=7 app.sweepOptions.last=15 -- confirmation must retain frozen values
+
   assert(app.confirm and automaticCalls==0 and app.page=="sweep","one-button action skipped clear-area confirmation")
   app:handle({name="mouse_click",args={1,1,1}})
   assert(automaticCalls==1,"automatic activation required a second workflow")
+  app.sweepOptions.autoPrepare=false app.sweepOptions.autoHold=false app.sweepOptions.certify=false
   command("disarm")
   assert(app.detectedVehicle and app.detectedVehicle.massKg==65.8 and app.detectedVehicle.type=="airship" and saved==0)
   app.page="vehicle" app:drawPixels(Surface.new(600,500),600,500,palette)

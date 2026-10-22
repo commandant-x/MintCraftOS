@@ -389,6 +389,21 @@ assert(active.measuredHold and active.differentialReady and active.sweep.count==
 for _,name in ipairs({'hover','down','up','rescue','priority','horizontal'}) do assert(active.autoCalibration.checks[name].passed,'missing fresh '..name) end
 assert(files['/system/config/navigation-calibration.cfg'].structureFingerprint==fingerprint)
 assert(#files['/system/config/navigation-calibration.cfg'].freshMotorChecks==4,'unchanged motors repeated all 60 probes')
+local changedOptions=require('system.navigation.altitude_sweep').defaults() changedOptions.first=8
+assert(not flight.activateAutomatic(actor,true,changedOptions),'active pilot silently accepted different calibration options')
+assert(flight.status().measuredHold,'option refusal stopped an active pilot')
+assert(flight.disarm(actor)) flight.step()
+-- Explicit burner options are immutable, and a different range cannot reuse old data.
+local selected=require('system.navigation.altitude_sweep').defaults() selected.first=8 selected.last=12
+local invalid=addon.copy(selected) invalid.autoHold=false
+assert(not flight.activateAutomatic(actor,true,invalid),'automatic activation ignored incompatible options')
+sample() assert(flight.activateAutomatic(actor,true,selected))
+selected.first=1 selected.last=3
+bridge.acquireGeometry() flight.step()
+local selectedStatus=flight.status()
+assert(selectedStatus.automatic.options.first==8 and selectedStatus.automatic.options.last==12,'activation options changed after confirmation')
+assert(not selectedStatus.automatic.reused,'saved model replaced selected burner range')
+assert(selectedStatus.sweep.options.first==8 and selectedStatus.sweep.options.last==12,'selected burner levels not passed to sweep')
 assert(flight.disarm(actor)) flight.step()
 -- Changed structure triggers a fresh sweep, rather than trusting old evidence.
 fingerprint=string.rep('b',64) sample()

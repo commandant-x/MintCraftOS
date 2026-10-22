@@ -21,3 +21,15 @@ La vitesse maximale affichée vient des essais moteurs ; la table d'altitude
 n'est pas extrapolée. L'interface montre les mesures et les consignes réellement
 appliquées. La précision réelle dépend du montage et des mesures Minecraft ;
 les essais automatisés utilisent un modèle simulé, pas un serveur Minecraft.
+
+Depuis 0.18.78, les valeurs de **Options** sont également lues par
+**Preparation automatique / Activate autopilot** : notamment le premier et le
+dernier niveau de chauffe. La confirmation affiche cette plage et fige les
+valeurs. Modifier la plage demande une nouvelle mesure, même si une table est
+sauvegardée. Une calibration déjà active doit être arrêtée avec STOP avant de
+changer ses options ; les consignes de vol se changent dans Control.
+
+Pour le pilote complet, activer les trois options d'initialisation, maintien
+et certification. Si vous souhaitez seulement mesurer sans ces étapes,
+utiliser **Start sequence** ; le pilote complet refuse explicitement les options
+incompatibles plutôt que de les remplacer en silence.

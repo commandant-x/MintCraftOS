@@ -2,7 +2,11 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.77:
+This repository currently contains V0.18.78:
+
+V0.18.78 passes selected burner calibration options through automatic activation,
+freezes them at confirmation and remeasures when the selected heat range changes.
+The saved height table can no longer replace a different requested burner range.
 
 V0.18.77 adds direct cockpit altitude, speed and heading targets under Flight >
 Control. Automatic preparation measures the craft first; Apply sends validated
