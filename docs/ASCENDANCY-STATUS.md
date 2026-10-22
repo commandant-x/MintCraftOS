@@ -188,3 +188,19 @@ de données utilisateur ; pic mise à jour/checkpoint/retour : 988 727 octets.
 Mise à jour sans nouvel historique depuis 0.18.82 : pic 960 363 octets, données et
 anciens checkpoints conservés par défaut, récupération après interruption vérifiée.
 Aucun essai Minecraft réalisé.
+
+### Diagnostic A.4 livré en 0.18.84
+
+Le sweep explique les attentes de récepteurs, montée/descente continue,
+oscillation et absence de progrès clair sur huit fenêtres disjointes. Ce
+[diagnostic borné](ASCENDANCY-A4-SWEEP-PROGRESS.md) ne remplace aucun critère
+physique et ne rajoute aucun délai maximal ou abandon automatique. STOP/F10
+reste l'abandon explicite. La calibration et l'allocation génériques du lot A
+restent à développer ; les observations A.3 ne les certifient pas.
+
+Résultats A.4 : 165 suites réussies sur sources et runtime compressé ; compilation
+365 fichiers source / 168 fichiers runtime. Installation : 924 817 octets avec
+100 000 octets de fichiers utilisateur ; pic mise à jour/checkpoint/retour :
+991 733 octets. Mise à jour depuis 0.18.83 sans nouvel historique : pic 934 508
+octets ; anciens checkpoints préservés par défaut et interruptions récupérées.
+Aucun essai Minecraft effectué.

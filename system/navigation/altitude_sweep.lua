@@ -1,5 +1,6 @@
 -- Measurement-driven identification. No peripheral writes or physical-validation flags.
 local addon=require("system.libraries.addon")
+local Progress=require("system.navigation.sweep_progress")
 local M={}
 function M.defaults() return {first=7,last=15,maxSpeed=0,maxTravel=0,autoPrepare=true,autoHold=true,certify=true} end
 function M.validate(value)
@@ -34,6 +35,7 @@ function M.new(options,start,now)
   local p,err=M.validate(options) if not p then return nil,err end
   if not addon.finite(start) or not addon.finite(now) then return nil,"Fresh starting altitude required" end
   local self={options=p,startAltitude=start,startedAt=now,stageAt=now,signal=p.first,state="running",samples={},levels={},reason="Measure stable altitude",lastObserved=nil,phase=p.autoPrepare and "initialize" or "measure",rescueHeat=0}
+  local progress=Progress.new()
   function self:abort(reason) self.state="aborted" self.reason=reason return nil,reason end
   function self:step(t,clock,ack)
     if self.state~="running" then return nil,self.reason end
@@ -86,6 +88,8 @@ function M.new(options,start,now)
       level.stableAltitude=windowReady and maxY-minY<=0.5 and math.max(math.abs(minV),math.abs(maxV))<=0.1
       level.steadySpeed=windowReady and maxV-minV<=0.04 and math.abs(level.speedSlope)<=0.01
       self.levels[self.signal]=level
+      progress:observe(level) self.diagnostic=progress:status()
+      level.progress=addon.copy(self.diagnostic)
     end
     local level=self.levels[self.signal]
     if ack and level and self.lastObserved==t.timestamp and level.stableAltitude then
@@ -99,14 +103,15 @@ function M.new(options,start,now)
         self.proposal,self.fitError=M.analyze(self.samples,self.options,self.levels)
         return nil,self.reason
       end
-      self.signal=self.signal+1 self.stageAt=clock self.lastObserved=nil
+      self.signal=self.signal+1 self.stageAt=clock self.lastObserved=nil self.diagnostic=nil progress=Progress.new()
       self.reason="Waiting for |vertical speed| <= 0.1 m/s at heat "..self.signal
-    else self.reason="Measuring heat "..self.signal.."; waiting for |vertical speed| <= 0.1 m/s" end
+    elseif not ack then self.reason="Waiting for every burner receiver to confirm heat "..self.signal
+    else self.reason="Heat "..self.signal..": "..(self.diagnostic and self.diagnostic.reason or "waiting for fresh stability observations") end
     return self.signal
   end
   function self:status(full)
     local out={state=self.state,phase=self.phase,prepared=self.prepared==true,initialized=self.initialized==true,reason=self.reason,startAltitude=self.startAltitude,startedAt=self.startedAt,signal=self.signal,count=#self.samples,options=addon.copy(self.options),
-      proposal=addon.copy(self.proposal),fitError=self.fitError,levels=addon.copy(self.levels)}
+      proposal=addon.copy(self.proposal),fitError=self.fitError,diagnostic=addon.copy(self.diagnostic),levels=addon.copy(self.levels)}
     for _,level in pairs(out.levels) do level.tail=nil end
     if full then out.samples=addon.copy(self.samples) end
     return out

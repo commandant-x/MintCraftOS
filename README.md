@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.83:
+This repository currently contains V0.18.84:
+
+V0.18.84 adds **partial Lot A.4 sweep progress diagnostics**: measured continuous
+climb/descent, oscillation and lack of clear improvement are explained in the
+existing Calibration screen. The diagnostic never advances a heat level, imposes
+a timeout or declares success; actual stability and STOP protections remain.
+See [A.4 details](docs/ASCENDANCY-A4-SWEEP-PROGRESS.md).
 
 V0.18.83 adds the **partial Lot A.3 motor observation foundation**: the existing
 acknowledged calibration pulses now collect neutral-subtracted six-axis response,
