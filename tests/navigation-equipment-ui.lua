@@ -9,7 +9,7 @@ package.loaded["system.gui.renderer"]={crop=function(s,w) return tostring(s):sub
  color=function(c) for i=0,15 do if c==2^i then return string.format("%x",i) end end end,fill=function() end}
 package.loaded["system.gui.components"]={input=function() end,toolbar=function() return {} end,toolbarHit=function() return "confirm" end}
 package.loaded["system.gui.action_menu"]={new=function() return {} end,bar=function() return {} end,overlay=function() end}
-package.loaded["system.gui.form"]={new=function() return {draw=function() end} end,field=function(object,key) return {set=function(v) object[key]=v end} end}
+package.loaded["system.gui.form"]={new=function() return {draw=function() end} end,field=function(object,key,label,kind,options) assert(object,"missing field object: "..tostring(label)) return {get=function() return object[key] end,set=function(v) object[key]=v end,label=label,kind=kind,options=options} end}
 package.loaded["system.libraries.config"]={load=function() return {} end}
 package.loaded["apps.navigation.pixel"]={sample=function() return {} end,attach=function(app)
  app.pixelPages={} app.drawPixels=function() end app.handlePixels=function() end app.handleNativeKey=function() return false end
@@ -27,7 +27,7 @@ local sweepState
 package.loaded["system.services.vehiclebridged"]={snapshot=function() return snapshot end,rescan=function() rescans=rescans+1 end}
 package.loaded["system.services.sabled"]={snapshot=function() return {} end,pose=function() return {} end,rescan=function() end}
 package.loaded["system.services.avionicsd"]={snapshot=function() return {} end,rescan=function() end}
-package.loaded["system.services.flightd"]={configuration=function() if preflightConfig then return preflightConfig end return {channels={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
+package.loaded["system.services.flightd"]={configuration=function() if preflightConfig then return preflightConfig end return {mode="altitude",channels={},gains={altitude={kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}},sensors={},vehicle={},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}} end,
  status=function() return {calibration=progress,sweep=sweepState} end,telemetry=function() return {altitude=67.5,altitudeRate=0} end,endpoints=function() return {{backend="frequency",name="bridge"}} end,
  configure=function() saved=saved+1 return true end,
  setSetpoint=function(actor,axis,value) assert(actor.pid==7 and axis=="altitude" and value==68) targetCalls=targetCalls+1 return true end,
@@ -74,7 +74,7 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   assert(table.concat(writes,"\n"):find("Initialization this run: confirmed (retained while off)",1,true),"retained initialization not shown")
   width,height=12,9 app.scroll=100 app:draw(width,height)
   width,height=26,17
-  preflightConfig={vehicle={},channels={{id="burners",backend="frequency",neutral=5,rescue=0,mix={altitude=1},actuator={role="buoyancy"}}},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}}
+  preflightConfig={mode="altitude",gains={altitude={kp=0,ki=0,kd=0,limit=1,slew=1,integralLimit=1,deadband=0}},sensors={},vehicle={},channels={{id="burners",backend="frequency",neutral=5,rescue=0,mix={altitude=1},actuator={role="buoyancy"}}},manualInputs={},balloonSetup={vehicleId="ship-a",burnerIds={"heater"}}}
   progress.initializationConfirmed=false progress.rescueTested=false
   command("sweepResults")
   for _,kind in ipairs({"initialize","channel","manual","rescue","rescueConfirm"}) do
@@ -116,6 +116,33 @@ require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=f
   assert(app.setup.ignoredBurnerIds[1]=="inactive" and saved==0,"group selection wrote control outputs")
   command("chooseGroup") app.setupSelection.heater=false command("applyGroup")
   assert(not app.confirm and app.message:find("au moins",1,true),"empty burner selection accepted")
+  local Surface=require("system.graphics.surface")
+  local palette={desktop=15,panel=7,button=15,text=0,muted=8,accent=9,ink=15,border=8}
+  for _,page in ipairs({"vehicle","mapping","gains","sensors","manual","calibration","setup","context","diagram","component","environment","estimates","frequencies","sweep"}) do
+    app.page=page app.sweepEditing=page=="sweep"
+    assert(app.pixelPages[page],"secondary page still requires legacy client: "..page)
+    app:drawPixels(Surface.new(600,330),600,330,palette)
+  end
+  app.nativePanel.buffers={[1]="invalid"}
+  local priorStopped=stopped
+  app:handlePixels({name="mouse_click",args={1,5,5}})
+  assert(stopped==priorStopped+1,"native STOP blocked by invalid field")
+  app.nativePanel.buffers={} app.sweepOptions.last=15
+  rejectSweep=false command("sweepStart")
+  app.nativePanel.state.lastVisible=10000
+  app:drawPixels(Surface.new(100,60),100,60,palette)
+  assert(not app.sweepRead,"small native window inherited a completed warning read-through")
+  for _=1,150 do
+    app:drawPixels(Surface.new(600,330),600,330,palette)
+    if app.sweepRead then break end
+    local hit
+    for _,item in ipairs(app.nativePanel.state.hits or {}) do if item.id=="sweepRead" then hit=item end end
+    assert(hit,"native read-next action missing")
+    app:handlePixels({name="mouse_click",args={1,hit.rect.x+1,hit.rect.y+1+app.nativePanel.header}})
+  end
+  assert(app.sweepRead,"native read-through cannot reach final warning")
+  command("sweepConfirm") assert(started==2,"native review did not start the confirmed frozen plan")
+  command("sweepStop")
   snapshot={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing"}
   command("guide") assert(not app.setup and app.message:find("0.2.1",1,true))
   app:draw(width,height)

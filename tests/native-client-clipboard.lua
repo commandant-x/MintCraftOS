@@ -1,5 +1,5 @@
 package.path='./?.lua;'..package.path
-keys={leftCtrl=1,rightCtrl=2,c=3,v=4,escape=5,enter=6,backspace=7,up=8,down=9}
+keys={a=10,leftCtrl=1,rightCtrl=2,c=3,v=4,escape=5,enter=6,backspace=7,up=8,down=9}
 package.loaded['system.services.securityd']={sessionRevision=function() return 1 end,isLocked=function() return false end,authorize=function() return true end}
 local clipboard=require('system.graphics.clipboard')
 local Client=require('system.graphics.client')
@@ -13,3 +13,6 @@ state.field='secret' assert(key('key',keys.c)) assert(clipboard.get()=='shared f
 assert(clipboard.set('paste text')) assert(key('key',keys.v)) assert(secret=='do not copypaste text')
 key('key_up',keys.leftCtrl)
 print('native clipboard controls: shared field copy/paste, secret copy rejection and control-key release passed')
+
+state.field='plain' key('key',keys.leftCtrl) key('key',keys.a) key('key_up',keys.leftCtrl)
+assert(key('char','replacement')) assert(value=='replacement','Ctrl+A did not replace native field content')

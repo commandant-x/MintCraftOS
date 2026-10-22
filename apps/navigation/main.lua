@@ -101,7 +101,7 @@ function M.run(ctx)
         rows[#rows].get=function() return channel.mix[key] or 0 end
       end
       field(channel,"frequency","Create frequency (label)","string")
-      if not channel.actuator then channel.actuator=vehicle.actuator() end
+      channel.actuator=vehicle.actuator(channel.actuator)
       if draft.vehicle.bridgeActuators and #draft.vehicle.bridgeActuators>0 then
         local options={"Manual"}
         for i=1,#draft.vehicle.bridgeActuators do options[#options+1]=i end
@@ -180,6 +180,15 @@ function M.run(ctx)
     end
     return nil,"Preflight complete; Start sweep"
   end
+  local function sweepWarnings()
+      local plan=app.sweepPending
+      local channel=(app.sweepPendingControl.channels or {})[1] or {}
+      return {"MEASUREMENT FLIGHT: vessel will move.","Vehicle: "..tostring((app.sweepPendingControl.balloonSetup or {}).vehicleId),"First heat level: "..plan.first,"Last heat level: "..plan.last,
+        "Per-level safety timeout: "..plan.dwell,"Operator travel limit: "..plan.maxTravel.." (0 = disabled)","Operator speed limit: "..plan.maxSpeed.." (0 = disabled)",
+        "Advance only on measured steady vertical speed; altitude may still change.","Total seconds limit: "..plan.timeout,"Rescue transmitted signal: "..tostring(channel.rescue),
+        "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
+        "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","No automatic arming or physical confirmations."}
+  end
   local function actions()
     if app.page=="autopilot" or app.page=="sublevel" then return app.routePanel:actions() end
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
@@ -228,13 +237,7 @@ function M.run(ctx)
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop("Stability-driven sweep; time values are safety limits",w),colors.cyan) end
     elseif self.page=="sweepConfirm" then
-      local plan=self.sweepPending
-      local channel=(self.sweepPendingControl.channels or {})[1] or {}
-      local paragraphs={"MEASUREMENT FLIGHT: vessel will move.","Vehicle: "..tostring((self.sweepPendingControl.balloonSetup or {}).vehicleId),"First heat level: "..plan.first,"Last heat level: "..plan.last,
-        "Per-level safety timeout: "..plan.dwell,"Operator travel limit: "..plan.maxTravel.." (0 = disabled)","Operator speed limit: "..plan.maxSpeed.." (0 = disabled)",
-        "Advance only on measured steady vertical speed; altitude may still change.","Total seconds limit: "..plan.timeout,"Rescue transmitted signal: "..tostring(channel.rescue),
-        "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
-        "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","No automatic arming or physical confirmations."}
+      local paragraphs=sweepWarnings()
       local rows={}
       for _,text in ipairs(paragraphs) do
         while #text>w do rows[#rows+1]=text:sub(1,w) text=text:sub(w+1) end
@@ -442,6 +445,9 @@ function M.run(ctx)
       local s=flight.status().sweep
       if s and s.state=="running" then report(flight.stopSweep(actor)) else report(flight.stopMission(actor)) end
       refresh() return true
+    end
+    if self.graphicsActive and self.nativePanel and self.page~="flight" and self.page~="autopilot" and self.page~="sublevel" then
+      if self.nativePanel:handlePixelKey(event) then return true end
     end
     local routePage=self.page=="autopilot" or self.page=="sublevel"
     if routePage and self.graphicsActive then
@@ -659,29 +665,155 @@ function M.run(ctx)
     if (self.page=="sweep" and self.sweepEditing) or self.page=="burnerGroup" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
-  pixel.attach(app,{
-    page=function(id)
-      for _,tab in ipairs(tabs) do if tab.id==id then
-        app.page=id app.form.scroll=1 app.scroll=1 app.testValue=nil
-        if id=="sublevel" then app.routePanel.view="sublevel" elseif id=="autopilot" then app.routePanel.view="route" end
-        if id=="setup" then guide() end
-        if win then win.dirty=true end
-        return
-      end end
+  local function nativePage(id)
+    for _,tab in ipairs(tabs) do if tab.id==id then
+      app.page=id app.form.scroll=1 app.scroll=1 app.testValue=nil app.panelViews=false app.form.edit=nil
+      if id=="setup" then guide() end
+      if id=="sublevel" then app.routePanel.view="sublevel" elseif id=="autopilot" then app.routePanel.view="route" end
+      if win then win.dirty=true end return
+    end end
+  end
+  local function panelModel()
+    local model={page=app.page..":"..tostring(app.setupStep)..":"..app.index..":"..app.axis..":"..tostring(app.sweepEditing),actions={},fields={},rows={},footer=app.message}
+    local function row(title,description) model.rows[#model.rows+1]={title=tostring(title),description=tostring(description or "")} end
+    if app.confirm then
+      model.page=model.page..":confirm" model.actions={{id="panelConfirm",label="Confirm"},{id="panelCancel",label="Cancel"}}
+      row("Explicit confirmation",app.confirm.title) return model
+    end
+    if app.panelViews then
+      model.page="nativeViews"
+      for _,tab in ipairs(tabs) do model.actions[#model.actions+1]={id="panelView:"..tab.id,label=tab.label} end
+      return model
+    end
+    model.actions[1]={id="panelViews",label="Views"}
+    for _,action in ipairs(actions()) do model.actions[#model.actions+1]=action end
+    if app.form.edit then model.fields={app.form.edit} row("Edit field","Enter applies the field; flight commands remain separately confirmed.") return model end
+    if app.page=="vehicle" or app.page=="mapping" or app.page=="manual" or app.page=="gains" or app.page=="sensors" or app.page=="burnerGroup" or (app.page=="setup" and app.setupStep==3) or (app.page=="sweep" and app.sweepEditing) then model.fields=fields() end
+    if app.page=="sweepConfirm" then
+      model.page=model.page..":"..tostring(app.sweepPending)
+      for _,text in ipairs(sweepWarnings()) do
+        for first=1,#text,32 do row("Read flight limits",text:sub(first,first+31)) end
+      end
+      row("Review complete","Only now confirm the frozen measurement plan.")
+      return model
+    end
+    row("State",tostring(app.flight.state).." | "..tostring(app.flight.reason))
+    for _,err in ipairs(app.flight.errors or {}) do row("Readiness",err) end
+    if app.page=="calibration" then
+      local channel=draft.channels[app.index]
+      app.testValue=app.testValue or {value=channel and channel.neutral or 0}
+      model.fields={forms.field(app.testValue,"value","Test signal","number")}
+      local c=app.flight.calibration or {}
+      row("Physical calibration","Initialize: "..tostring(c.initializationConfirmed).." | direction: "..tostring(channel and channel.validated).." | manual: "..tostring(draft.manualValidated).." | rescue applied: "..tostring(c.rescueTested).." | rescue verified: "..tostring(draft.rescueValidated))
+      if c.test then row("Burner feedback",tostring(c.test.burnerFeedback).." | "..tostring(c.test.feedbackError)) end
+    elseif app.page=="sweep" or app.page=="sweepResults" then
+      local _,label=sweepNext() row("Next",label)
+      local c=flight.configuration() local progress=app.flight.calibration or {} local channel=(c.channels or {})[1] or {}
+      row("Physical checks","Initialize "..tostring(progress.initializationConfirmed).." | direction "..tostring(channel.validated).." | manual "..tostring(c.manualValidated).." | rescue applied "..tostring(progress.rescueTested).." | rescue OK "..tostring(c.rescueValidated))
+      local t=flight.telemetry() local target=app.flight.targets and app.flight.targets.altitude
+      row("World altitude",fmt(t.altitude,"m").." | V/S "..fmt(t.altitudeRate,"m/s").." | target "..fmt(target,"m"))
+      if app.sweepStartError then row("START REFUSED",app.sweepStartError) end
+      if app.altitudeTarget then row("Requested target",fmt(app.altitudeTarget.value,"m")) end
+      local sweep=app.flight.sweep
+      if sweep then
+        row("Measurement",sweep.state.." | "..sweep.reason.." | heat "..sweep.signal.." | samples "..sweep.count)
+        for heat=sweep.options.first,sweep.options.last do
+          local r=sweep.levels[heat]
+          if r then row("Heat "..heat,string.format("n=%d | Y %.2f..%.2f | mean V/S %.3f | steady speed %s | stable altitude %s",r.count,r.minAltitude,r.maxAltitude,r.sumRate/r.count,tostring(r.steadySpeed),tostring(r.stableAltitude))) end
+        end
+        local proposal=sweep.proposal
+        if proposal then
+          row("Measured-model candidate",string.format("hover %.3f (rounded %d) | tau %.2fs | R2 %.3f",proposal.hover,proposal.neutral,proposal.tau,proposal.r2))
+          row("PI candidate",string.format("P %.6f | I %.6f | D 0",proposal.gains.kp,proposal.gains.ki)) row("Model qualification",proposal.note)
+          if proposal.measuredRange then for heat=proposal.measuredRange.first,proposal.measuredRange.last,0.5 do row("Estimated heat "..heat,fmt(altitudeSweep.speedAt(proposal,heat),"m/s")) end end
+        else row("Model",sweep.fitError or "No qualified candidate yet") end
+      else row("Measurements","No measurement run yet") end
+    elseif app.page=="setup" then
+      local plan=app.setup
+      if plan then
+        row("Setup step",app.setupStep.."/5 | selected burners "..plan.burnerCount)
+        row("Frequency",tostring(plan.frequency.first).." + "..tostring(plan.frequency.second))
+        row("Shared control","One collective altitude channel. Verify receiver frequency/wiring; no roll/pitch/heading stabilization.")
+        if app.setupOptions then row("Mapping",tostring(app.setupOptions.transmitter).." | neutral "..tostring(app.setupOptions.neutral).." | rescue "..tostring(app.setupOptions.rescue)) end
+        row("Physical validation","Saving mapping does not emit a signal; gains remain zero until validated calibration. Gas inertia persists after cutoff.")
+      else row("Setup unavailable",app.message) end
+    elseif app.page=="component" then
+      local m=vehicleDiagram.model(vehicle.analyze(draft.vehicle,draft.channels),draft.vehicle,app.bridge)
+      for _,text in ipairs(vehicleDiagram.details(m,app.diagramIndex or 1)) do row("Equipment details",text) end
+    elseif app.page=="context" then
+      local analysis=vehicle.analyze(draft.vehicle,draft.channels)
+      row("Geometry",tostring(analysis.status or "Measured/saved equipment; physical calibration required"))
+      for _,r in ipairs(analysis.rows or {}) do row(tostring(r.id),tostring(r.role).." | force "..(r.force and string.format("%.3f / %.3f / %.3f",r.force.x,r.force.y,r.force.z) or "unavailable")) end
+      for _,warning in ipairs(analysis.warnings or {}) do row("Geometry warning",warning) end
+    elseif app.page=="environment" then
+      for _,r in ipairs(app.av.propeller or {}) do row(r.name,"active "..tostring(r.data and r.data.active).." | thrust "..fmt(r.data and r.data.thrust)) end
+      local a=app.sub.aero or {} local g=addon.vec(a.gravity or ((app.av.measurements or {}).gravity or {}).value)
+      row("Measured gravity",g and fmt(math.sqrt(g.x*g.x+g.y*g.y+g.z*g.z),"m/s2") or "unavailable")
+      row("Measured pressure",fmt(((app.av.measurements or {}).pressure or {}).value))
+      row("Drag",a.universalDrag or "unavailable")
+      if a.magneticNorth then row("Magnetic north",textutils.serialize(a.magneticNorth)) end
+    elseif app.page=="estimates" then
+      local aircraft=original.aircraft or {} row("Legacy estimates, not calibration",fmt(aircraft.massKg,"kg").." | declared weight "..fmt(aircraft.declaredWeightNewton,"N"))
+      for _,level in ipairs(aircraft.altitudeLevels or {}) do row("Legacy level "..level.level,level.y.."m") end
+    elseif app.page=="frequencies" then
+      for _,command in ipairs((original.aircraft or {}).commands or {}) do row(command.name,command.frequency) end
+    elseif app.page=="control" then
+      local t=flight.telemetry() row("Measured altitude",fmt(t.altitude,"m")) row("Target",fmt(app.flight.targets and app.flight.targets.altitude,"m"))
+      for id,value in pairs(app.flight.outputs or {}) do row(id,"signal "..value) end
+    end
+    if app.page=="calibration" or app.page=="setup" or app.page=="burnerGroup" then
+      for _,b in ipairs((app.bridge or {}).burners or {}) do row("Burner "..b.id,"signal "..tostring(b.signal).." | associated "..tostring(b.hasBalloon).." | gas active "..tostring(b.gasActive).." | "..tostring(b.associationState)) end
+    end
+    return model
+  end
+  app.nativePanel=require("system.graphics.form_client").new({model=panelModel,error=function(message) app.message=message end,
+    urgent={id="disarm",label="STOP / F10"},committed=function() app.form.edit=nil end,
+    action=function(id)
+      if id=="panelConfirm" then local c=app.confirm app.confirm=nil if c then c.callback() refresh() end
+      elseif id=="panelCancel" then app.confirm=nil
+      elseif id=="panelViews" then app.panelViews=true
+      elseif id:match("^panelView:") then nativePage(id:sub(11)) app.sweepEditing=false
+      elseif id=="sweepRead" and app.page=="sweepConfirm" then local state=app.nativePanel.state state.first=math.max(state.first+1,state.lastVisible+1)
+      else app:handle({name="navigation_action",args={},navigationCommand=id}) end
+      if win then win.dirty=true end
     end,
+    draw=function(surface,w,h,palette)
+      if app.page=="diagram" and not app.confirm and not app.panelViews then
+        local model=vehicleDiagram.model(vehicle.analyze(draft.vehicle,draft.channels),draft.vehicle,app.bridge)
+        app.equipmentHits=require("system.navigation.equipment_pixels").draw(surface,w,h,palette,model,{view=app.diagramView,index=app.diagramIndex,zoom=app.diagramZoom})
+      else app.equipmentHits=nil end
+    end,
+    pointer=function(event)
+      if app.page=="diagram" and event.name=="mouse_click" and not app.confirm and not app.panelViews then
+        for _,hit in ipairs(app.equipmentHits or {}) do
+          if math.abs(event.args[2]-hit.x)<=5 and math.abs(event.args[3]-hit.y)<=5 then
+            app.diagramIndex=hit.index if event.args[1]==2 then app.page="component" end
+            if win then win.dirty=true end return true
+          end
+        end
+      end
+    end,
+    afterDraw=function(state)
+      if app.page=="sweepConfirm" and not app.confirm and state.rendered and state.lastVisible>=#(state.model.rows or {}) then app.sweepRead=true end
+    end})
+  pixel.attach(app,{
+    page=nativePage,
     action=function(id)
       if id=="rescan" then app:handle({name="navigation_action",args={},navigationCommand=id}) end
     end,
   },tabs)
   local nativeDraw,nativeHandle=app.drawPixels,app.handlePixels
-  app.pixelPages.autopilot=true app.pixelPages.sublevel=true
+  for _,tab in ipairs(tabs) do app.pixelPages[tab.id]=true end
+  for _,id in ipairs({"component","burnerGroup","diagram","sweepConfirm","sweepResults"}) do app.pixelPages[id]=true end
   function app:drawPixels(s,w,h,p)
     if self.page=="autopilot" or self.page=="sublevel" then self.routePanel:drawPixels(s,w,h,p)
-    else nativeDraw(self,s,w,h,p) end
+    elseif self.page=="flight" then nativeDraw(self,s,w,h,p)
+    else self.nativePanel:drawPixels(s,w,h,p) end
   end
   function app:handlePixels(event)
     if self.page=="autopilot" or self.page=="sublevel" then return self.routePanel:handlePixels(event) end
-    return nativeHandle(self,event)
+    if self.page=="flight" then return nativeHandle(self,event) end
+    return self.nativePanel:handlePixels(event)
   end
   refresh()
   local w,h=term.getSize()

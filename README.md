@@ -2,7 +2,16 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.66:
+This repository currently contains V0.18.67:
+
+V0.18.67 completes Navigation's native secondary forms, calibration, setup,
+Auto altitude and equipment projections while retaining the text rescue client.
+Native controls use the existing field setters and authorized command handlers;
+STOP remains visible independently of invalid form input. Full flight-limit
+review is required before a native sweep confirmation. See
+[native Navigation validation](docs/HARDENING-0.18.67.md).
+
+Previous UI infrastructure stage:
 
 V0.18.66 adds 1x/1.5x/2x pixel UI scaling and a bounded, session-scoped RAM
 clipboard shared by Editor, Terminal and native client fields. Physical display
