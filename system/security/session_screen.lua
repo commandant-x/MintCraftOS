@@ -42,6 +42,21 @@ function M.new(ctx)
     return self.cachedBlock
   end
   function self:sync()
+    local revision=security.sessionRevision and security.sessionRevision()
+    if security.sessionIdentity and (self.identityRevision~=revision or not self.identityKnown) then
+      local identity=security.sessionIdentity()
+      if self.identityKnown and identity~=self.identity then
+        -- Sign-out/account changes must not expose another user's cached windows.
+        for pid,process in pairs(ctx.scheduler.processes or {}) do
+          if #(process.windows or {})>0 then
+            for _,win in ipairs(process.windows) do win.closed=true end
+            if not (process.meta and process.meta.protected) then ctx.scheduler:kill(pid) end
+          end
+        end
+        if ctx.pixelWorkspace then ctx.pixelWorkspace:deactivate() end
+      end
+      self.identity,self.identityRevision,self.identityKnown=identity,revision,true
+    end
     local blocked=self:blocked()
     if self.active~=blocked then
       self.active=blocked self.password="" self.confirmation=nil self.message=""
@@ -74,7 +89,10 @@ function M.new(ctx)
       local success,ok,err=pcall(function()
         if enrollment then return security.enroll(password,options) end
         -- Guest has no password and must not bypass the protected console.
-        return security.login("admin",password,options)
+        local identity,problem="admin",nil
+        if users.loginIdentity then identity,problem=users.loginIdentity() end
+        if not identity then return false,problem end
+        return security.login(identity,password,options)
       end)
       password=nil self.busy=false self:refreshRetry()
       self.message=success and (ok and "" or tostring(err)) or "Authentication unavailable"

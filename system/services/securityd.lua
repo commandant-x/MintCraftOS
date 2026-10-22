@@ -41,6 +41,7 @@ end
 function M.isLocked()
   return volatileLock or users.isLocked() or users.needsEnrollment()
 end
+function M.sessionIdentity() local user=users.current() return user and user.name end
 function M.sessionRevision() return sessionRevision end
 
 local function authenticationOptions(options)
@@ -112,8 +113,9 @@ end
 
 function M.authorize(actor, permission)
   if not M.cfg then M.load() end
-  if M.cfg.enabled == false then return true end
   if actor and actor.system == true then return true end
+  if users.needsEnrollment() and permission~="system.auth" then return false,"Secure first-start enrollment required" end
+  if M.cfg.enabled == false then return true end
   if permission == nil or permission == "" then return true end
   if M.isLocked() and permission ~= "system.auth" then return false, "session locked" end
   if not users.hasPermission(permission) then return false, "user permission denied: " .. tostring(permission) end

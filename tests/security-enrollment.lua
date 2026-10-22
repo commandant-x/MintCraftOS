@@ -11,6 +11,9 @@ package.loaded["system.libraries.password_crypto"]={create=function(password) if
 package.loaded["system.libraries.log"]={info=function() end}
 local users=require("system.security.users") local security=require("system.services.securityd")
 assert(users.needsEnrollment())
+assert(not users.login("admin",""),"factory empty password authenticated")
+assert(not security.authorize({pid=7},"system.config"),"unenrolled factory admin authorized mutation")
+assert(security.authorize({pid=7},"system.auth"))
 assert(not security.enroll("short")) assert(not stored)
 fail=true assert(not security.enroll("long password")) assert(users.needsEnrollment())
 fail=false assert(security.enroll("long password")) assert(not users.needsEnrollment())
@@ -25,3 +28,12 @@ hook=nil local finished,loggedIn=coroutine.resume(pending)
 assert(finished and not loggedIn and security.isLocked(),"identical repeated lock was overwritten by stale authentication")
 assert(security.login("admin","long password")) assert(not security.isLocked())
 print("enrollment: no default password bypass, minimum length, atomic disk failure, no re-enrollment and repeated-lock auth cancellation passed")
+
+local migrated=users.load()
+migrated.users.captain=migrated.users.admin migrated.users.admin=nil migrated.users.captain.name="captain" migrated.currentUser="captain"
+assert(users.save(migrated))
+assert(users.loginIdentity()=="captain","custom account stranded behind admin-only lock")
+assert(users.login("captain","long password"))
+migrated=users.load() migrated.currentUser="guest" assert(users.save(migrated))
+assert(users.loginIdentity()=="captain","empty guest chosen as protected console identity")
+print("enrollment API gate and custom-identity migration passed")

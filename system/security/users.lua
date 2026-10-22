@@ -247,6 +247,9 @@ end
 
 local function login(name, password, options)
   local db = M.load()
+  if name=="admin" and db.users.admin and db.users.admin.passwordHash==legacyHash("") then
+    return false,"Secure first-start enrollment required"
+  end
   local ok, err = authenticate(db, name, password, options)
   if not ok then return false, err end
   local expected=copy(db)
@@ -338,6 +341,20 @@ function M.isLocked()
 end
 
 -- Only the factory's empty legacy credential is eligible for enrollment.
+-- Select a password-protected existing identity; never unlock as empty guest.
+function M.loginIdentity()
+  local db=M.load()
+  local function protected(name)
+    local user=db.users[name]
+    return user and user.role~="guest" and user.passwordHash~=nil and user.passwordHash~=legacyHash("")
+  end
+  if protected(db.currentUser) then return db.currentUser end
+  if protected("admin") then return "admin" end
+  local names={}
+  for name in pairs(db.users) do if protected(name) then names[#names+1]=name end end
+  table.sort(names)
+  return names[1],"No password-protected account available; recovery required"
+end
 function M.needsEnrollment()
   local db=M.load()
   local admin=db.users.admin

@@ -2,7 +2,15 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.63:
+This repository currently contains V0.18.64:
+
+V0.18.64 rejects factory-empty admin login at the authentication API, gates app
+authorization until secure enrollment, preserves existing protected account
+identities on unlock and isolates cached windows across account changes. Normal
+no-history updates no longer implicitly delete existing backups. See the
+[stage-1 audit, remaining work and in-game procedure](docs/HARDENING-0.18.64.md).
+
+Previous history-policy change:
 
 V0.18.63 defaults to no retained version history. The installer removes old update
 checkpoints before preparing the upgrade and does not keep a previous release

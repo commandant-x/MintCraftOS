@@ -77,7 +77,7 @@ function M.install(files,options)
   if plan.retainRollback==false then
     if options and options.beforeHistoryCleanup then options.beforeHistoryCleanup() end
     assert(not fs.exists("/var/tmp/mintcraft-rollback.cfg") and not fs.exists("/var/tmp/mintcraft-restore") and not fs.exists("/var/tmp/mintcraft-package"),"Recover pending operation before removing version history")
-    if fs.exists("/var/backups/update") then fs.delete("/var/backups/update") end
+    if options and options.purgeHistory==true and fs.exists("/var/backups/update") then fs.delete("/var/backups/update") end
     policy.retainRollback=false
     write(policyPath,textutils.serialize(policy))
   end
@@ -112,8 +112,9 @@ function M.install(files,options)
     local saved,problem=updated.createRollback("before manual installation",plan.changed)
     assert(saved,"INSTALL-BACKUP: "..tostring(problem))
   end
-  -- Legacy Update callbacks may have created a checkpoint; honor no-history mode.
-  if plan.retainRollback==false and fs.exists("/var/backups/update") then fs.delete("/var/backups/update") end
+  -- Existing/migration checkpoints are never implicitly deleted. No-history
+  -- mode prevents new checkpoints in the current Update service.
+  if plan.retainRollback==false and options and options.purgeHistory==true and fs.exists("/var/backups/update") then fs.delete("/var/backups/update") end
   assert(not fs.exists(root), "Installation started while preparing; recover before retrying")
   local changed, touched = {}, {}
   local ok, err = pcall(function()
