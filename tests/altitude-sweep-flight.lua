@@ -392,6 +392,16 @@ assert(not flight.commands({pid=99}),'foreign owner read private Navigation comm
 
 local motorReport=files['/system/config/navigation-calibration.cfg']
 assert(motorReport.drivetrain and #motorReport.motorTests==60,'motor proof was not saved')
+assert(motorReport.motorExperiments and #motorReport.motorExperiments.groups<=4 and #motorReport.motorExperiments.axes==6,'bounded six-axis experiment record missing')
+local usableExperiments=0
+for _,experiment in ipairs(motorReport.motorExperiments.groups) do
+ if experiment.usable then
+  usableExperiments=usableExperiments+1
+  assert(experiment.samples>=3 and experiment.baselineSamples>=4 and #experiment.response==6 and #experiment.noiseStdDev==6 and experiment.notControlCertificate,'incomplete experiment was called usable')
+ end
+end
+assert(usableExperiments>0,'actual acknowledged probes yielded no six-axis experiments')
+
 assert(not flight.configuration().manualValidated,'motor qualification forged physical switch validation')
 local route=require('system.navigation.autopilot').defaults()
 route.points={{x=worldX+4,y=z,z=worldZ+4}} route.clearRouteConfirmed=true
@@ -454,6 +464,7 @@ assert(active.measuredHold and active.differentialReady and active.sweep.count==
 for _,name in ipairs({'hover','down','up','rescue','priority','horizontal'}) do assert(active.autoCalibration.checks[name].passed,'missing fresh '..name) end
 assert(files['/system/config/navigation-calibration.cfg'].structureFingerprint==fingerprint)
 assert(#files['/system/config/navigation-calibration.cfg'].freshMotorChecks==4,'unchanged motors repeated all 60 probes')
+assert(files['/system/config/navigation-calibration.cfg'].motorExperiments.historical and files['/system/config/navigation-calibration.cfg'].freshMotorExperiments,'reuse lost old observations or invented fresh six-axis proof')
 local changedOptions=require('system.navigation.altitude_sweep').defaults() changedOptions.first=8
 assert(not flight.activateAutomatic(actor,true,changedOptions),'active pilot silently accepted different calibration options')
 assert(flight.status().measuredHold,'option refusal stopped an active pilot')

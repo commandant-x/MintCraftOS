@@ -22,6 +22,7 @@ local Trim=require("system.navigation.flight_trim")
 local Authority=require("system.navigation.authority")
 local Estimator=require("system.navigation.state_estimator")
 local Catalogue=require("system.navigation.command_catalogue")
+local Experiments=require("system.navigation.experiments")
 local kinematics=Estimator.new()
 local commandCatalogue,catalogueAt=nil,nil
 local horizontalIssue,horizontalMonitor=nil,Authority.monitor()
@@ -855,7 +856,7 @@ local function prepareAutomatic()
     if activation~=job or job.state~="running" then M.fail("Automatic preparation cancelled") return end
     if model and cfg.control.drivetrain and cfg.control.drivetrain.enabled then
       calibration.motorCandidate=require("system.navigation.automatic_setup").motorCandidate(report)
-      if calibration.motorCandidate then calibration.motorRows=addon.copy(report.motorTests) end
+      if calibration.motorCandidate then calibration.motorRows=addon.copy(report.motorTests) calibration.motorExperiments=Experiments.saved(report.motorExperiments,job.vehicleId) end
     end
     if not (cfg.control.drivetrain and cfg.control.drivetrain.enabled) then calibration.horizontal=horizontalReason end
     calibration.structureFingerprint=job.fingerprint
@@ -887,6 +888,9 @@ function M.saveCalibration(actor)
     determinant=motor.determinant,authority=addon.copy(motor.authority),braking=addon.copy(motor.braking)} or nil
   report.motorTests=addon.copy(calibration.motorRows or calibration.driveProbe and calibration.driveProbe.rows)
   report.freshMotorChecks=addon.copy(calibration.freshMotorChecks)
+  local experiments=calibration.experiments and calibration.experiments:summary(report.vehicleId)
+  report.motorExperiments=calibration.motorRows and addon.copy(calibration.motorExperiments) or experiments
+  report.freshMotorExperiments=calibration.motorRows and experiments or nil
   local content=textutils.serialize(report,{compact=true})
   if #content>65536 or fs.getFreeSpace("/")<2*#content+2048 then return false,"No space for calibration report; evidence retained in RAM" end
   local saved,why=safeWrite.write("/system/config/navigation-calibration.cfg",content)
@@ -905,7 +909,8 @@ function M.step(rescan)
   local world=autopilot.sample
   if world and addon.finite(t.heading) and (not drivePose or drivePose.at~=world.at) then
     drivePrevious=drivePose
-    drivePose={position=addon.copy(world.position),velocity=addon.copy(world.velocity),vehicleId=world.vehicleId,at=world.at,heading=t.heading}
+    drivePose={position=addon.copy(world.position),velocity=addon.copy(world.velocity),vehicleId=world.vehicleId,at=world.at,heading=t.heading,
+      orientation=addon.copy(kinematics.previous and kinematics.previous.orientation)}
     local dt=drivePrevious and world.at-drivePrevious.at
     if dt and dt>0 and dt<=0.5 and drivePrevious.vehicleId==world.vehicleId then drivePose.yawRate=geometry.wrap(t.heading-drivePrevious.heading)/dt end
   end
@@ -1043,14 +1048,18 @@ function M.step(rescan)
         local wanted=driveDemand or Drive.commands(cfg.control.drivetrain)
         if job.driveProbe.phase=="pulse" and not job.driveProbe.appliedAt and same(driveValues,wanted) then job.driveProbe.appliedAt=driveAppliedAt end
         local motorAck=driveValues and driveAppliedAt and same(driveValues,wanted) and Drive.feedback(cfg.control.drivetrain,current,driveValues,driveAppliedAt)
+        job.experiments=job.experiments or Experiments.new()
+        local phase=job.driveProbe.phase
+        job.experiments:observe(job.driveProbe,drivePose,kinematics:status(now),motorAck,measuredHold.heat,measuredHold.ackAt,current.observedAt)
         local motorAction,issue=job.driveProbe:step(drivePose,motorAck)
+        job.experiments:transition(job.driveProbe,phase,drivePose)
         if issue then M.fail(issue) return M.step(false) end
         job.horizontal=job.driveProbe.reason
         if motorAction and motorAction.kind=="drive" then driveDemand=Drive.commands(cfg.control.drivetrain,motorAction.selection)
         elseif motorAction and motorAction.kind=="complete" then
           driveDemand=nil
           if job.motorCandidate and not Drive.referencesMatch(job.motorCandidate,job.driveProbe.rows) then
-            job.motorCandidate,job.motorRows=nil,nil job.driveProbe=Drive.newProbe()
+            job.motorCandidate,job.motorRows,job.motorExperiments=nil,nil,nil job.driveProbe=Drive.newProbe() job.experiments=Experiments.new()
             job.horizontal="Saved motor response changed; automatically measuring all 60 modes"
           else
           if job.motorCandidate then job.driveModel=addon.copy(job.motorCandidate) job.freshMotorChecks=addon.copy(job.driveProbe.rows)
@@ -1303,6 +1312,7 @@ function M.status()
   local differentialReady,differentialReason=differentialCurrent()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
+    motorExperiments=calibration and calibration.experiments and calibration.experiments:summary((cfg.control.balloonSetup or {}).vehicleId) or nil,
     kinematics=M.kinematics(),
     authority=calibration and calibration.driveModel and addon.copy(calibration.driveModel.authority) or nil,
     horizontalDiagnostic={issue=horizontalIssue,noResponseSamples=horizontalMonitor.samples},

@@ -2,7 +2,14 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.82:
+This repository currently contains V0.18.83:
+
+V0.18.83 adds the **partial Lot A.3 motor observation foundation**: the existing
+acknowledged calibration pulses now collect neutral-subtracted six-axis response,
+observed spread and operating velocities with explicit provenance. At most four
+summaries are retained; insufficient or heater-confounded data do not certify new
+control axes. No extra pulses or in-flight exploration are added.
+See [A.3 details](docs/ASCENDANCY-A3-EXPERIMENTS.md).
 
 V0.18.82 adds the **partial Lot A.2 observation foundation**: pose-derived six-axis
 kinematics and a bounded read-only catalogue of configured commands, both available

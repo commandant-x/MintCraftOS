@@ -7,7 +7,9 @@ par le lot A et d'étendre l'existant. `origin/main` a été récupéré et comp
 référence 0.18.80, commit `7947f2cf7ff31803691d4a6d735e1e31b9ecd947`.
 La version 0.18.81 livre un premier incrément **partiel** du lot A.
 0.18.82 ajoute [A.2, observations et catalogue](ASCENDANCY-A2-OBSERVATIONS.md),
-également partiel : pas de calibration universelle ou de nouveaux axes certifiés. Elle ne livre
+également partiel : pas de calibration universelle ou de nouveaux axes certifiés.
+0.18.83 ajoute [A.3, observations des essais moteur](ASCENDANCY-A3-EXPERIMENTS.md),
+sans impulsion supplémentaire ni certification de nouveaux axes. Elle ne livre
 ni Autonomy 2.0 complète ni l'ensemble du lot A.
 
 ## Capacités constatées avant cet incrément
@@ -164,3 +166,25 @@ rotations depuis `sabled.pose()` et publie les frames/horodatages explicites.
 Vérifier leurs conventions dans les API réelles avant transformation vers le corps.
 Ne pas réécrire l'allocateur différentiel ni les calibrations déjà qualifiées.
 La matrice générique seule ne donne pas le droit d'actuer un multirotor.
+
+### Fondation A.3 livrée en 0.18.83
+
+Les essais différentiels existants collectent maintenant les réponses six axes
+soustraites au neutre, leur dispersion et leur point de fonctionnement. Le
+collecteur impose les intervalles entièrement postérieurs aux confirmations RX ;
+les essais trop courts ou perturbés par la chauffe restent insuffisants. Il
+conserve quatre groupes au maximum et distingue les observations historiques des
+recontrôles frais. Aucun contrôle six axes n'est activé depuis ces diagnostics.
+
+Prochaine étape du lot A : utiliser des expériences physiquement attribuables
+pour identifier les couplages et leurs limites, puis qualifier les architectures
+réellement exposées. La surveillance de progrès du sweep et l'interface des
+capacités restent également à compléter.
+
+Résultats A.3 : 164 suites Lua réussies sur sources et runtime compressé ;
+compilation de 363 fichiers source et 167 fichiers du runtime. Rapport moteur
+simulé encodé : 35 518 octets. Installation : 921 886 octets avec 100 000 octets
+de données utilisateur ; pic mise à jour/checkpoint/retour : 988 727 octets.
+Mise à jour sans nouvel historique depuis 0.18.82 : pic 960 363 octets, données et
+anciens checkpoints conservés par défaut, récupération après interruption vérifiée.
+Aucun essai Minecraft réalisé.
