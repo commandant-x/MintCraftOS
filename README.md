@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.85:
+This repository currently contains V0.18.86:
+
+V0.18.86 extends the authorized cached command catalogue with a bounded physical
+kinetic graph: actual Create source edges, signed/theoretical RPM, clutch state
+and overstress flags. Missing or cyclic paths remain explicit. This **partial
+Lot A.6 diagnostic increment** does not infer command wiring or stop a motor bank
+from an unqualified association. See [A.6 details](docs/ASCENDANCY-A6-KINETIC-GRAPH.md).
 
 V0.18.85 adds a native **Etat** view inside the existing pilot cockpit: current
 vertical/differential availability, measured tests, sweep waiting reasons, mass

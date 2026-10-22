@@ -5,6 +5,43 @@ local Drive=require('system.navigation.drivetrain')
 local Contract=require('system.ascendancy.contracts')
 local M={}
 local function label(value) return type(value)=='string' and #value>0 and #value<=192 and not value:find('%c') end
+-- Kinetic edges are exposed by Create. They do not prove Link wiring.
+local function kineticGraph(snapshot)
+ local out={schema=1,source='Vehicle Bridge / Create KineticBlockEntity.source',
+  scope='physical-source-graph-not-command-binding',nodes={},roots={},limits={nodes=64,roots=16,depth=128},truncated=false}
+ local index,published={},{}
+ for i,n in ipairs(snapshot.mechanics or {}) do
+  if i>1024 then out.truncated=true break end
+  if label(n.id) then index[n.id]=n end
+ end
+ for i,a in ipairs(snapshot.actuators or {}) do
+  if i>16 then out.truncated=true break end
+  local root={actuatorId=a.id,pathComplete=false,steps=0} out.roots[#out.roots+1]=root
+  local id,seen=a.id,{}
+  for depth=1,128 do
+   if not label(id) then root.reason='Invalid source node identity' break end
+   if seen[id] then root.reason='Kinetic source cycle' break end seen[id]=true
+   local n=index[id]
+   if not n then root.reason='Source node absent from this snapshot' root.missingId=id break end
+   if not published[id] then
+    if #out.nodes>=64 then root.reason='Published source-node budget reached' out.truncated=true break end
+    published[id]=true
+    local rpm,theory=A.finite(n.rpm) and n.rpm or nil,A.finite(n.theoreticalRPM) and n.theoreticalRPM or nil
+    out.nodes[#out.nodes+1]={id=id,sourceId=label(n.sourceId) and n.sourceId or nil,
+     block=label(n.block) and n.block or nil,role=label(n.role) and n.role or nil,
+     rpm=rpm,theoreticalRPM=theory,overstressed=n.overstressed==true,disengaged=n.disengaged,
+     zeroDespiteTheoreticalRotation=rpm~=nil and theory~=nil and rpm==0 and theory~=0,
+     commandBinding='unqualified; no bank or frequency inferred'}
+   end
+   root.steps=depth
+   if n.sourceId==nil then root.pathComplete=true root.reason='Source chain terminates in this snapshot' break end
+   id=n.sourceId
+   if depth==128 then root.reason='Source depth budget reached' out.truncated=true end
+  end
+ end
+ out.reason=next(index) and 'Physical graph only; sensor freshness belongs to parent catalogue' or 'No mechanical nodes exposed'
+ return out
+end
 function M.build(control,snapshot,endpoints,now)
  local sides={top=true,bottom=true,left=true,right=true,front=true,back=true}
  local setup=type(control.balloonSetup)=='table' and control.balloonSetup or {}
@@ -89,10 +126,12 @@ function M.build(control,snapshot,endpoints,now)
   for _,e in ipairs(group[2] or {}) do
    total=total+1
    if #out.equipment<64 then out.equipment[#out.equipment+1]={id=e.id,kind=group[1],block=e.block,role=e.role,
-    position=A.vec(e.position),sourceId=e.sourceId,rpm=e.rpm,overstressed=e.overstressed,disengaged=e.disengaged,
+    position=A.vec(e.position),sourceId=e.sourceId,rpm=e.rpm,theoreticalRPM=e.theoreticalRPM,overstressed=e.overstressed,disengaged=e.disengaged,
     commandBinding='not-inferred-from-geometry'} else out.truncated=true end
   end
  end
+ out.kineticGraph=kineticGraph(snapshot)
+ if out.kineticGraph.truncated then out.truncated=true end
  out.equipmentCount=total out.complete=out.available and not out.truncated
  out.warnings[#out.warnings+1]='Declared axes and geometry do not certify controllability; unmapped devices are never probed'
  return out

@@ -222,3 +222,22 @@ octets, données et anciens checkpoints conservés par défaut, interruption ré
 Le scénario avec conservation de rollback approche la limite : toute extension
 suivante devra revalider ce budget, sans supprimer les données utilisateur.
 Aucun essai Minecraft effectué.
+
+### Diagnostic A.6 livré en 0.18.86
+
+Le [graphe cinétique borné](ASCENDANCY-A6-KINETIC-GRAPH.md) expose les arêtes
+Create réelles, RPM signés/théoriques, état du clutch et surcharge dans le
+catalogue autorisé. Les chemins absents/cycliques/tronqués sont explicites.
+Aucune fréquence n'est liée à un mécanisme par proximité seule ; ce diagnostic
+ne coupe aucune banque depuis une association non qualifiée. La corrélation des
+états physiques pendant les essais existants reste nécessaire avant de brancher
+ces informations au superviseur. Aucun changement du JAR 0.2.3.
+
+Résultats A.6 : 167 suites réussies sur sources et runtime compressé ; compilation
+368 fichiers source / 169 fichiers runtime. Installation : 930 937 octets avec
+100 000 octets de données personnelles ; pic mise à jour/checkpoint/retour :
+997 924 octets. Mise à jour depuis 0.18.85 sans nouvel historique : pic 940 858
+octets, anciens checkpoints conservés par défaut et interruptions récupérées.
+Installateur reproductible octet pour octet. Aucun essai Minecraft effectué.
+La marge du scénario avec rollback conservé est désormais de 2 076 octets :
+optimiser/revalider le stockage avant une extension substantielle supplémentaire.
