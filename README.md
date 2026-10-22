@@ -2,7 +2,17 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.68:
+This repository currently contains V0.18.69:
+
+V0.18.69 provides the common real-data contracts/cache readers for progressive
+ASCENDANCY work: source provenance/freshness, frame/unit/clock compatibility,
+bounded persistent map encoding, non-actuating waypoint-mission validation and
+supervision status. No simulated Cosmonautics adapter or new major module is
+claimed. It also prevents a legacy disabled-security setting from bypassing a
+locked session. See the [final audit and delivery index](docs/FINAL-HARDENING.md)
+and [ASCENDANCY contracts](docs/ASCENDANCY-CONTRACTS.md).
+
+Previous Combat native stage:
 
 V0.18.68 completes native Combat radar/cannon/network/alias configuration and
 its staged radar setup. These reuse existing validators and save handlers;

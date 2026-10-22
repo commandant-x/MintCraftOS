@@ -37,3 +37,8 @@ assert(users.login("captain","long password"))
 migrated=users.load() migrated.currentUser="guest" assert(users.save(migrated))
 assert(users.loginIdentity()=="captain","empty guest chosen as protected console identity")
 print("enrollment API gate and custom-identity migration passed")
+
+security.lock() security.cfg.enabled=false
+assert(not security.authorize({pid=7},"filesystem.write"),'legacy disabled-security config bypassed a locked session')
+assert(security.authorize({pid=7},"system.auth"))
+print('legacy security-disabled configuration cannot bypass the session lock passed')

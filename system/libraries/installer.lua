@@ -92,7 +92,9 @@ function M.install(files,options)
   if upgrading then plan.stageBytes=0 end
   assert(not upgrading or type(free)=="number" or free=="unlimited","INSTALL-DISK: cannot verify free space for a reversible upgrade")
   local required=plan.stageBytes+plan.backupBytes*(upgrading and plan.retainRollback and 2 or 1)+math.max(32768,#plan.changed*256)
-  if type(free)=="number" then assert(free>=required,"INSTALL-DISK: insufficient space for staging and retained rollback; backups retained") end
+  if type(free)=="number" then
+    assert(free>=required,"INSTALL-DISK: need "..required.." free bytes; available "..free.."; "..(plan.retainRollback and "rollback/recovery copies required; backups retained" or (options and options.purgeHistory==true and "temporary recovery space required; history purge explicitly requested" or "temporary recovery space required; existing backups unchanged")))
+  end
   if options and options.beforeInstall then options.beforeInstall(plan)
   elseif upgrading and plan.retainRollback then
     -- Use the verified bundled checkpoint implementation even when upgrading

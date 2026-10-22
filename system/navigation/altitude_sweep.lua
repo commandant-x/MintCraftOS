@@ -11,7 +11,8 @@ function M.validate(value)
     p[key]=v
   end
   for key,maximum in pairs({maxSpeed=1000,maxTravel=10000000}) do
-    local v=value[key] or 0
+    local v=value[key]
+    if v==nil then v=0 end
     if not addon.finite(v) or v<0 or v>maximum then return nil,"Invalid optional sweep "..key end
     p[key]=v
   end

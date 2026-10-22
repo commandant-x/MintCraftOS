@@ -79,3 +79,5 @@ limited=assert(S.new(constrained,100,0))
 assert(not limited:step({timestamp=0,altitude=111,altitudeRate=0,inSublevel=true},0,true))
 assert(not S.validate({first=7,last=15,dwell=15,timeout=180,maxSpeed=-1}))
 print('operator limits: disabled defaults, explicit speed/travel constraints and invalid configuration rejection passed')
+
+local malformed=S.defaults() malformed.maxSpeed=false assert(not S.validate(malformed),'false silently disabled an operator speed limit')
