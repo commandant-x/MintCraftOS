@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.80:
+This repository currently contains V0.18.81:
+
+V0.18.81 is the first **partial Lot A increment** of Autopilot Ascendancy:
+measured response-subspace diagnostics, predictive differential braking and a
+passive no-response supervisor that preserves verified vertical hold.
+Universal six-axis calibration, terrain avoidance and automatic landing are
+**not delivered** by this increment. See [project status](docs/ASCENDANCY-STATUS.md).
 
 V0.18.80 adapts vertical heat locally after an observed mass change without a
 rescue solely for mass or a new altitude sweep. Horizontal travel pauses because

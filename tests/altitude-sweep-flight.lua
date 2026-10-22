@@ -354,8 +354,10 @@ raw.mass=65 raw.units.mass='kg'
 assert(flight.configure(actor,motorConfig)) sample()
 assert(flight.startSweep(actor,require('system.navigation.altitude_sweep').defaults(),true))
 local velocityX,velocityZ,yawVelocity=0,0,0
+local motorBlocked=false
 local function plantTick(i)
  local function force(side)
+  if motorBlocked then return 0 end
   local prefix='minecraft:motor_'..side..'_'
   if motorSignals[prefix..'clutch']~=0 then return 0 end
   return (motorSignals[prefix..'gear'] or 0)/15*(motorSignals[prefix..'reverse']==15 and -1 or 1)
@@ -377,6 +379,8 @@ for i=1,40000 do
  assert(i<40000,'motor calibration never finished: '..proof.phase..' '..proof.horizontal)
 end
 assert(flight.status().differentialReady,flight.status().autoCalibration.horizontal)
+assert(flight.status().authority.rank==2 and flight.status().authority.frame=='heading_horizontal','measured response authority not integrated')
+assert(flight.status().predictiveBraking and flight.status().predictiveBraking.samples>=2,'actual neutral-stop envelope missing')
 local motorReport=files['/system/config/navigation-calibration.cfg']
 assert(motorReport.drivetrain and #motorReport.motorTests==60,'motor proof was not saved')
 assert(not flight.configuration().manualValidated,'motor qualification forged physical switch validation')
@@ -444,6 +448,20 @@ assert(#files['/system/config/navigation-calibration.cfg'].freshMotorChecks==4,'
 local changedOptions=require('system.navigation.altitude_sweep').defaults() changedOptions.first=8
 assert(not flight.activateAutomatic(actor,true,changedOptions),'active pilot silently accepted different calibration options')
 assert(flight.status().measuredHold,'option refusal stopped an active pilot')
+assert(flight.setFlightTargets(actor,{altitude=active.targets.altitude,speed=.2,heading=yaw}))
+motorBlocked=true velocityX,velocityZ,yawVelocity=0,0,0
+for i=1,800 do
+ plantTick(i)
+ local status=flight.status()
+ assert(status.state=='armed' and status.measuredHold and not status.rescuePending,'horizontal stall cut verified vertical hold')
+ if status.horizontalDiagnostic.issue then break end
+ assert(i<800,'acknowledged motor stall never degraded horizontal control')
+end
+local jammed=flight.status()
+assert(not jammed.differentialReady and not jammed.pilot and jammed.horizontalDiagnostic.noResponseSamples>=8,'stall evidence did not latch degraded authority')
+assert(command>0 and motorSignals['minecraft:motor_left_clutch']==15 and motorSignals['minecraft:motor_right_clutch']==15,'stall failed to disengage motors while preserving heat')
+assert(not flight.setFlightTargets(actor,{altitude=active.targets.altitude,speed=.2,heading=yaw}),'stalled motor model could be reused without revalidation')
+motorBlocked=false
 assert(flight.disarm(actor)) flight.step()
 -- Explicit burner options are immutable, and a different range cannot reuse old data.
 local selected=require('system.navigation.altitude_sweep').defaults() selected.first=8 selected.last=12
@@ -522,6 +540,10 @@ print('multi-frequency burner service: automatic grouping includes added burner,
 
 local savedReport=files['/system/config/navigation-calibration.cfg']
 assert(loadfile('tests/storage-fixture.lua'))()()
+local motorBytes=#textutils.serialize(motorReport,{compact=true})
+assert(motorBytes<38000,'deduplicated motor report exceeds 1 MB transaction budget')
+assert(require('system.navigation.automatic_setup').motorCandidate(motorReport),'summary report lost reconstructible raw motor data')
+print('compact motor calibration report upper-bound encoding: '..motorBytes..' bytes')
 local compactReport=textutils.serialize(savedReport,{compact=true})
 assert(#compactReport<65536,'real calibration report exceeds persistence budget')
 print('compact persisted calibration report upper-bound encoding: '..#compactReport..' bytes')

@@ -55,3 +55,19 @@ local target=assert(route:step(telemetry(),now))
 assert(target.pitch<0 and math.abs(target.pitch)<=tilt.maxTilt and not target.translation,"tilt polarity or bound ignored")
 route:cancel("manual") assert(not route:running() and not route:step(telemetry(),now))
 print("autopilot: explicit validation, body/world guidance, frozen route, two-waypoint settling/hold, tilt bounds, stale/identity/geofence/timeout and takeover passed")
+local measured=addon.copy(plan)
+measured.driveMode='differential' measured.points={{x=0,y=100,z=12}}
+measured.braking={deceleration=.25,reactionTime=1,maxObservedSpeed=2,acceleration=.4}
+heading=0 route=fresh(measured) route.state='cruise'
+local previous=0
+for i=1,5 do
+ now=now+.1 route:observe(pose(),now)
+ local command=assert(route:step(telemetry(),now))
+ assert(command.drive.speed<=previous+.040001,'guidance exceeded measured acceleration ramp')
+ previous=command.drive.speed
+end
+local far=route:status().brakingSpeed
+measured.points={{x=0,y=100,z=2}} route=fresh(measured) route.state='cruise'
+local close=assert(route:step(telemetry(),now))
+assert(route:status().brakingSpeed<far and close.drive.speed<=route:status().brakingSpeed,'guidance ignored measured stopping distance near waypoint')
+print('predictive guidance: observed neutral braking/reaction envelope, no speed extrapolation and measured acceleration ramp passed')

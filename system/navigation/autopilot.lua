@@ -2,6 +2,7 @@
 -- produces attitude/altitude setpoints only; flightd owns every actuator write.
 local addon=require("system.libraries.addon")
 local geometry=require("system.navigation.geometry")
+local Authority=require("system.navigation.authority")
 local M={}
 local function bounded(v,lo,hi) return addon.finite(v) and v>=lo and v<=hi end
 local function clamp(v,limit) return math.max(-limit,math.min(limit,v)) end
@@ -62,6 +63,7 @@ function M.new()
     for _,point in ipairs(plan.points) do if distance(point,s.position)>plan.maxDistance then return false,"Waypoint outside launch geofence" end end
     self.plan=addon.copy(plan) self.vehicleId=s.vehicleId self.home=addon.copy(s.position)
     self.heading=t.heading self.startedAt=now self.index=1 self.settledAt=nil self.phaseAt=now
+    self.driveSpeed,self.driveAt=0,now
     self.state,self.reason="climb","Climb before horizontal travel"
     return true
   end
@@ -89,9 +91,12 @@ function M.new()
       -- Even during the climb, brake existing horizontal drift.
       dx,dz=0,0
     end
+    local safeSpeed=Authority.speed(p.braking,math.max(0,d-p.radius*.5))
+    self.brakingSpeed=safeSpeed
+    local speedLimit=math.min(p.maxSpeed,safeSpeed or p.maxSpeed)
     local desiredX,desiredZ=dx*p.positionGain,dz*p.positionGain
     local magnitude=math.sqrt(desiredX^2+desiredZ^2)
-    if magnitude>p.maxSpeed then desiredX,desiredZ=desiredX*p.maxSpeed/magnitude,desiredZ*p.maxSpeed/magnitude end
+    if magnitude>speedLimit then desiredX,desiredZ=desiredX*speedLimit/magnitude,desiredZ*speedLimit/magnitude end
     local a=math.rad(t.heading) local ex,ez=desiredX-v.x,desiredZ-v.z
     local right=ex*math.cos(a)-ez*math.sin(a)
     local forward=ex*math.sin(a)+ez*math.cos(a)
@@ -100,9 +105,14 @@ function M.new()
       if self.state~="climb" and d>p.radius then heading=math.deg(geometry.atan2(dx,dz))%360 self.course=heading
       elseif self.state~="climb" then heading=self.course or heading end
       local forward=dx*math.sin(math.rad(t.heading))+dz*math.cos(math.rad(t.heading))
-      local wanted=clamp(forward*p.positionGain,p.maxSpeed)
+      local wanted=clamp(forward*p.positionGain,speedLimit)
       if math.abs(geometry.wrap(heading-t.heading))>35 then wanted=0 end
       if self.state=="climb" then wanted=0 end
+      if p.braking and addon.finite(p.braking.acceleration) and p.braking.acceleration>0 and math.abs(wanted)>math.abs(self.driveSpeed or 0) then
+        local increase=p.braking.acceleration*math.max(0,math.min(.5,s.at-(self.driveAt or s.at)))
+        wanted=clamp(wanted,math.abs(self.driveSpeed or 0)+increase)
+      end
+      self.driveSpeed,self.driveAt=wanted,s.at
       targets.drive={speed=wanted,heading=heading}
     elseif p.driveMode=="tilt" then
       targets.pitch=clamp(forward*p.velocityGain*p.pitchSign,p.maxTilt)
@@ -122,7 +132,7 @@ function M.new()
   end
   function self:status()
     return {state=self.state,reason=self.reason,index=self.index,count=self.plan and #self.plan.points or 0,
-      distance=self.distance,speed=self.speed,position=addon.copy(self.position),vehicleId=self.vehicleId}
+      distance=self.distance,speed=self.speed,brakingSpeed=self.brakingSpeed,position=addon.copy(self.position),vehicleId=self.vehicleId}
   end
   return self
 end

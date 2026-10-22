@@ -3,6 +3,7 @@
 local addon=require('system.libraries.addon')
 local link=require('system.navigation.link_output')
 local geometry=require('system.navigation.geometry')
+local Authority=require('system.navigation.authority')
 local M={}
 local sides={'left','right'}
 local roles={'clutch','gear','reverse'}
@@ -88,11 +89,16 @@ function M.newProbe(steps)
   if self.last and s.at-self.last>1.25 then self.settled=0 end self.last=s.at
   if not ack then self.settled=0 return end
   if self.phase=='baseline' or self.phase=='brake' then
+   if self.phase=='brake' then
+    local row=self.rows[#self.rows]
+    row.reactionTime=row.reactionTime or s.at-row.brakeAt
+    self.brakeDistance=math.max(self.brakeDistance or 0,math.sqrt((s.position.x-self.brakeFrom.x)^2+(s.position.z-self.brakeFrom.z)^2))
+   end
    self.settled=speed<=0.1 and math.abs(s.yawRate)<=0.5 and self.settled+1 or 0
    if self.settled<8 then return end
    if self.phase=='brake' then
     local row=self.rows[#self.rows]
-    row.brakingDistance=math.sqrt((s.position.x-self.brakeFrom.x)^2+(s.position.z-self.brakeFrom.z)^2)
+    row.brakingDistance=self.brakeDistance or 0
     row.stoppedAt=s.at
     self.index=self.index+1
    end
@@ -112,11 +118,43 @@ function M.newProbe(steps)
   local dvx,dvz=s.velocity.x-self.from.velocity.x,s.velocity.z-self.from.velocity.z
   self.rows[#self.rows+1]={side=mode.side,gear=mode.gear,reverse=mode.reverse,
    forward=(dvx*math.sin(a)+dvz*math.cos(a))/dt,yaw=(s.yawRate-self.from.yawRate)/dt,
-   peakSpeed=speed,travel=travel,observedAt=s.at,observable=speed>=0.15 or angle>=1}
-  self.phase='brake' self.brakeFrom=addon.copy(s.position) self.settled=0
+   right=(dvx*math.cos(a)-dvz*math.sin(a))/dt,
+   vertical=s.velocity.y and self.from.velocity.y and (s.velocity.y-self.from.velocity.y)/dt or nil,
+   brakeSpeed=speed,brakeAt=s.at,peakSpeed=speed,travel=travel,observedAt=s.at,observable=speed>=0.15 or angle>=1}
+  self.phase='brake' self.brakeFrom=addon.copy(s.position) self.brakeDistance=0 self.settled=0
   return {kind='drive'}
  end
  return self
+end
+function M.evidence(model,rows)
+ local columns={}
+ for _,side in ipairs(sides) do
+  local best
+  for _,r in ipairs(rows or {}) do if r.side==side and r.observable and addon.finite(r.forward) and addon.finite(r.yaw) and r.forward>0 and (not best or r.forward>best.forward) then best=r end end
+  if best then columns[#columns+1]={id=side,values={forward=best.forward,yaw=best.yaw}} end
+ end
+ model.authority=Authority.identify({'forward','yaw'},columns)
+ if model.authority then model.authority.frame='heading_horizontal' model.authority.units={forward='block/s2',yaw='deg/s2'} end
+ model.braking=Authority.braking(rows)
+ if model.braking then model.braking.acceleration=math.abs(model.groups.left.reference.forward)+math.abs(model.groups.right.reference.forward) end
+ return model.authority and model.authority.axes.forward.independent and model.authority.axes.yaw.independent
+end
+function M.expected(model,values)
+ local out={forward=0,yaw=0} local active=false
+ for _,side in ipairs(sides) do
+  local base='drive-'..side..'-'
+  -- The service calls this only for actual acknowledged values and supplies
+  -- the configured engaged clutch value (both clutch polarities supported).
+  if values[base..'clutch']==values.engaged then
+   local found
+   for _,list in ipairs({model.groups[side].positive,model.groups[side].negative}) do for _,r in ipairs(list) do
+    if r.gear==values[base..'gear'] and r.reverse==values[base..'reverse'] then found=r end
+   end end
+   if not found then return nil end
+   out.forward=out.forward+found.forward out.yaw=out.yaw+found.yaw active=true
+  end
+ end
+ return active and out or nil
 end
 function M.model(rows)
  local model={groups={},maxSpeed=0,brakingDistance=0}
@@ -136,6 +174,7 @@ function M.model(rows)
  model.determinant=a.forward*b.yaw-b.forward*a.yaw
  if math.abs(model.determinant)<0.001 or a.yaw*b.yaw>=0 then return nil,'Independent left/right yaw authority not measured' end
  if model.maxSpeed<0.2 then return nil,"Insufficient observed motor speed for route qualification" end
+ if not M.evidence(model,rows) then return nil,'Measured forward/yaw matrix is coupled or ill-conditioned' end
  return model
 end
 -- Recheck forward/reverse on both groups before reusing their measured curve.

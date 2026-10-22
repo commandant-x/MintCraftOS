@@ -19,6 +19,8 @@ local activation
 local calibrationToken={}
 local Drive=require("system.navigation.drivetrain")
 local Trim=require("system.navigation.flight_trim")
+local Authority=require("system.navigation.authority")
+local horizontalIssue,horizontalMonitor=nil,Authority.monitor()
 local pilotDemand
 local driveDemand,driveValues,driveAppliedAt,drivePose,drivePrevious
 local Calibration=require("system.navigation.auto_calibration")
@@ -242,6 +244,7 @@ end
 local function differentialCurrent(token)
   if state~="armed" or not measuredHold then return false,"Activate measured altitude hold before differential travel" end
   if measuredHold.trim and measuredHold.trim.active then return false,"Mass changed: airborne altitude adaptation; horizontal response needs revalidation" end
+  if horizontalIssue then return false,horizontalIssue end
   if not calibration or (calibration.state~="complete" and not (token==calibrationToken and calibration.phase=="routeCheck")) or not calibration.driveModel then return false,"Measured differential calibration required" end
   if not same(calibration.binding,altitudeBinding(cfg.control)) then return false,"Motor mapping/configuration changed; repeat calibration" end
   local current=vehicleBridge.snapshot()
@@ -371,6 +374,7 @@ function M.startMission(actor,plan,confirmed,token)
     local route=addon.copy(plan)
     if type(route)~="table" then return false,"Route required" end
     route.driveMode="differential" route.translationVerified=true route.verifiedVehicleId=cfg.control.balloonSetup.vehicleId
+    route.braking=addon.copy(calibration.driveModel.braking)
     route.maxSpeed=math.min(route.maxSpeed or 0,calibration.driveModel.maxSpeed)
     local sample=autopilot.sample local t=M.telemetry()
     if not sample or not sample.velocity or not drivePose or not addon.finite(drivePose.yawRate) then return false,"Fresh differential velocity/yaw required" end
@@ -402,7 +406,8 @@ function M.startMission(actor,plan,confirmed,token)
   if sable.pose then autopilot:observe(sable.pose(),os.clock()) end
   local vehicle=cfg.control.vehicle
   if vehicle and vehicle.bridgeVehicleId and autopilot.sample and vehicle.bridgeVehicleId~=autopilot.sample.vehicleId then return false,"Imported vehicle geometry belongs to another sublevel; Discover and calibrate this vehicle" end
-  local started,problem=autopilot:start(plan,M.telemetry(),os.clock())
+  local generic=addon.copy(plan) if type(generic)=="table" then generic.braking=nil end
+  local started,problem=autopilot:start(generic,M.telemetry(),os.clock())
   if started then pilotDemand=nil end return started,problem
 end
 
@@ -670,6 +675,7 @@ function M.startSweep(actor,options,confirmed,expectedControl)
   driveDemand,driveValues,driveAppliedAt=nil,nil,nil
   measuredHold=nil
   calibration,calibrationSaved=nil,false
+  horizontalIssue,horizontalMonitor=nil,Authority.monitor()
   if plan.certify then
     local snapshot=vehicleBridge.snapshot()
     calibration=Calibration.new(actor.pid,altitudeBinding(c),snapshot.mass,(snapshot.units or {}).mass)
@@ -777,6 +783,7 @@ function M.activateAutomatic(actor,confirmed,options)
   local plan,problem=Sweep.validate(options or Sweep.defaults())
   if not plan then return false,problem end
   if not plan.autoPrepare or not plan.autoHold or not plan.certify then return false,"Automatic pilot requires initialization, hold and certification enabled in Options; use Start sequence for measurement-only options" end
+  if horizontalIssue and state=="armed" then return false,horizontalIssue.."; STOP before motor revalidation" end
   if state=="armed" and measuredHold and measuredHold.trim and measuredHold.trim.active then return false,"Airborne altitude trim active: no motion tests in flight; STOP before full horizontal calibration" end
   if activation and activation.state=="running" then return false,"Automatic preparation already running" end
   if state=="armed" and measuredHold and owner==actor.pid and calibration and calibration.state=="complete" then
@@ -849,12 +856,18 @@ local function prepareAutomatic()
 end
 function M.saveCalibration(actor)
   local ok,err=authorize(actor,"navigation.calibrate") if not ok then return false,err end
+  if horizontalIssue then return false,"Horizontal model invalidated; fresh calibration required" end
   if measuredHold and measuredHold.trim and measuredHold.trim.active then return false,"Local airborne trim is not a full calibration report" end
   if not calibration or calibration.state~="complete" then return false,"Complete measured calibration first" end
   local report=calibration:status()
   report.schema=2 report.structureFingerprint=calibration.structureFingerprint report.binding=addon.copy(calibration.binding) report.vehicleId=calibration.binding.balloonSetup.vehicleId
   report.mass=calibration.mass report.massUnit=calibration.massUnit report.model=addon.copy(calibration.model)
-  report.drivetrain=addon.copy(calibration.driveModel) report.motorTests=addon.copy(calibration.motorRows or calibration.driveProbe and calibration.driveProbe.rows)
+  local motor=calibration.driveModel
+  -- Curves are derived from motorTests by the existing loader. Persist raw
+  -- observations once so transactional writes still fit the 1 MB computer.
+  report.drivetrain=motor and {schema=1,kind="derived-motor-summary",source="motorTests",maxSpeed=motor.maxSpeed,
+    determinant=motor.determinant,authority=addon.copy(motor.authority),braking=addon.copy(motor.braking)} or nil
+  report.motorTests=addon.copy(calibration.motorRows or calibration.driveProbe and calibration.driveProbe.rows)
   report.freshMotorChecks=addon.copy(calibration.freshMotorChecks)
   local content=textutils.serialize(report,{compact=true})
   if #content>65536 or fs.getFreeSpace("/")<2*#content+2048 then return false,"No space for calibration report; evidence retained in RAM" end
@@ -1018,6 +1031,7 @@ function M.step(rescan)
             job.horizontal="Saved motor response changed; automatically measuring all 60 modes"
           else
           if job.motorCandidate then job.driveModel=addon.copy(job.motorCandidate) job.freshMotorChecks=addon.copy(job.driveProbe.rows)
+            if not Drive.evidence(job.driveModel,job.driveProbe.rows) then job.driveModel=nil issue="Fresh measured motor matrix lost independent authority" end
           else job.driveModel,issue=Drive.model(job.driveProbe.rows) end
           job.driveDone=true job.horizontal=job.driveModel and "Measured forward/reverse, yaw and braking: ready" or tostring(issue)
           job.state,job.phase,job.reason="complete","complete","Automatic calibration complete; "..job.horizontal
@@ -1158,6 +1172,19 @@ function M.step(rescan)
   if (autopilot:running() and targets.drive or pilotDemand) and measuredHold and calibration and calibration.driveModel then
     local permitted,denial=authorize({pid=owner},"navigation.autopilot") if not permitted then M.fail(denial) return M.step(false) end
     local ready,issue=differentialCurrent(calibration.phase=="routeCheck" and calibrationToken or nil) if not ready then M.fail(issue) return M.step(false) end
+    if calibration.state=="complete" then
+      local values=addon.copy(driveValues or {}) values.engaged=15-cfg.control.drivetrain.clutchOff
+      local ack=driveAppliedAt and Drive.feedback(cfg.control.drivetrain,vehicleBridge.snapshot(),values,driveAppliedAt)
+      local problem=horizontalMonitor:observe(drivePose,Drive.expected(calibration.driveModel,values),ack)
+      if problem then
+        local target,controller=targets.altitude,controllers.altitude
+        takeover(problem,t) autopilot:cancel(problem)
+        horizontalIssue=problem pilotDemand,driveDemand=nil,nil targets={altitude=target} controllers={altitude=controller or {}}
+        reason=problem.."; verified vertical hold retained"
+        if activation then activation.reason=reason end
+        return M.step(false)
+      end
+    end
     local selection,issue=Drive.control(calibration.driveModel,drivePose,pilotDemand or targets.drive)
     if not selection then M.fail(issue) return M.step(false) end
     local desired=Drive.commands(cfg.control.drivetrain,selection)
@@ -1240,6 +1267,9 @@ function M.status()
   local differentialReady,differentialReason=differentialCurrent()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
+    authority=calibration and calibration.driveModel and addon.copy(calibration.driveModel.authority) or nil,
+    horizontalDiagnostic={issue=horizontalIssue,noResponseSamples=horizontalMonitor.samples},
+    predictiveBraking=calibration and calibration.driveModel and addon.copy(calibration.driveModel.braking) or nil,
     groundSpeed=drivePose and drivePose.velocity and math.sqrt(drivePose.velocity.x^2+drivePose.velocity.z^2) or nil,
     pilot=pilotDemand and addon.copy(pilotDemand) or nil,
     maxSpeed=differentialReady and calibration.driveModel.maxSpeed or nil,
@@ -1260,6 +1290,7 @@ function M.start(context)
   if runner then runner:stop() end
   ctx=context
   autopilot=Autopilot.new() pilotDemand=nil
+  horizontalIssue,horizontalMonitor=nil,Authority.monitor()
   sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport,sweepOrigin=nil,nil,nil,nil,nil,nil
   routeForward,routeRight=0,0
   sweepOwner,measuredHold=nil,nil
