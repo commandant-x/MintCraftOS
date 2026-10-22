@@ -2,7 +2,10 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.72:
+This repository currently contains V0.18.73:
+
+V0.18.73 corrects isometric face culling and depth order to match the actual
+projection camera, including all four rotated views. No bridge update is needed.
 
 V0.18.72 adds one confirmed calibration sequence: measured altitude sweep,
 closed-loop hover/down/up, rescue and software STOP checks, then optional real

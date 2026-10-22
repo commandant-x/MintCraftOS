@@ -41,9 +41,11 @@ function M.draw(s,model,project,view,turn,area,cx,cy,ox,oy,factor,slice)
    local x,y=project({x=b.x+0.5,y=b.y+0.5,z=b.z+0.5})
    local rx,rz=b.x,b.z
    for _=1,turn or 0 do rx,rz=-rz,rx end
-   local depth=view=='iso' and (rx+rz+b.y) or view=='side' and rx or view=='front' and rz or b.y
+   local depth=view=='iso' and (b.y-rx-rz) or view=='side' and rx or view=='front' and rz or b.y
    local top=not solid(b.x,b.y+1,b.z)
    local l=not solid(b.x+left[1],b.y,b.z+left[2]) local r=not solid(b.x+right[1],b.y,b.z+right[2])
+   -- This projection lifts +X/+Z on screen: the camera sees -X/-Z.
+   if view=='iso' then l=not solid(b.x-right[1],b.y,b.z-right[2]) r=not solid(b.x-left[1],b.y,b.z-left[2]) end
    local visible=view=='iso' and (top or l or r) or view=='side' and r or view=='front' and l or view=='top' and top
    if visible then sorted[#sorted+1]={b=b,x=cx+(x-ox)*factor,y=cy-(y-oy)*factor,depth=depth,top=top,left=l,right=r} end
   end

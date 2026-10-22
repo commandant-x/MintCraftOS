@@ -37,6 +37,21 @@ s=H.new('ship') assert(H.accept(s,p))
 local cube=D.model({}, {}, {ok=true,vehicleId='ship',frame='body_plot',inventoryComplete=true,hull=s,actuators={},burners={},links={}})
 N.draw(cut,200,150,{desktop=15,panel=7,muted=8,text=0,border=8},cube,{view='iso'})
 assert(#require('system.navigation.hull_pixels').sorted==19,'occluded solid voxels unnecessarily rasterized')
+-- The isometric projection lifts +X/+Z, so visible sides face -X/-Z.
+for turn=0,3 do
+ N.draw(cut,200,150,{desktop=15,panel=7,muted=8,text=0,border=8},cube,{view='iso',turn=turn})
+ local minx,minz=math.huge,math.huge
+ for _,b in ipairs(cube.blocks) do local x,z=b.x,b.z for _=1,turn do x,z=-z,x end minx,minz=math.min(minx,x),math.min(minz,z) end
+ local previous=-math.huge
+ for _,v in ipairs(require('system.navigation.hull_pixels').sorted) do
+  local b=v.b local x,z=b.x,b.z for _=1,turn do x,z=-z,x end
+  assert(v.top==(b.y==2),'wrong top-face culling')
+  assert(v.left==(x==minx),'isometric left face points away from camera')
+  assert(v.right==(z==minz),'isometric right face points away from camera')
+  assert(b.y-x-z>=previous,'isometric painter order contradicts camera') previous=b.y-x-z
+ end
+end
+
 N.draw(cut,200,150,{desktop=15,panel=7,muted=8,text=0,border=8},cube,{view='iso',slice=0})
 assert(#require('system.navigation.hull_pixels').sorted==9,'cutaway failed to expose internal faces')
 assert(H.label(nil):find('unavailable',1,true))
