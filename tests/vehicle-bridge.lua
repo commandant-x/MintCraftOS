@@ -73,3 +73,20 @@ now=now+2.1 assert(not bridge.balloonStatus(setup),"expired burner inventory acc
 mintcraft_vehicle.snapshot=function() error("addon API failed") end
 bridge.acquire() assert(not bridge.snapshot().ok and bridge.snapshot().available)
 print("vehicle bridge: absence, cached acquisition, revisions/staleness, geometry/frequency import, unknown wiring/units and failures passed")
+-- Hull acquisition is explicit, independent, bounded and never freshens inventory.
+mintcraft_vehicle.snapshot=function() return addon.copy(raw) end
+raw.revision=500 bridge.acquire()
+local hullCalls=0
+mintcraft_vehicle.geometryPage=function(page,token)
+ hullCalls=hullCalls+1
+ return {schema=1,ok=true,readOnly=true,vehicleId=raw.vehicleId,frame='body_plot',units='block',token='survey',page=page,pages=1,
+  origin={x=-1,y=-2,z=-3},palette={{block='minecraft:stone',state='stone'}},runs='0:1:1;',coverageComplete=true,startedTick=10,observedTick=12}
+end
+bridge.acquireGeometry() assert(hullCalls==0,'hull scan started without request')
+local stamp=bridge.snapshot().observedAt
+bridge.requestGeometry() bridge.acquireGeometry() local hull=bridge.geometry()
+assert(hull.state=='complete' and hull.count==1 and hull.vehicleId==raw.vehicleId)
+hull.count=999 assert(bridge.geometry().count==1,'caller mutated cached hull')
+bridge.acquireGeometry() assert(hullCalls==1 and bridge.snapshot().observedAt==stamp)
+raw.vehicleId='changed' raw.revision=520 bridge.acquire() assert(bridge.geometry()==nil,'old hull crossed vehicle identity')
+print('hull service: explicit separate acquisition, immutable cache copies, no inventory freshening and vehicle isolation passed')

@@ -1,7 +1,7 @@
 package.path='./?.lua;'..package.path
 local S=require('system.navigation.altitude_sweep')
 local Model=require('system.navigation.altitude_model')
-local p=S.defaults() p.autoPrepare=false p.autoHold=false
+local p=S.defaults() p.autoPrepare=false p.autoHold=false p.certify=false
 assert(p.first==7 and p.last==15 and p.dwell==nil and p.timeout==nil)
 local invalid=S.defaults() invalid.first=math.huge assert(not S.validate(invalid))
 invalid=S.defaults() invalid.last=8 assert(not S.validate(invalid))

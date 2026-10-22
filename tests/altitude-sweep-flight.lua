@@ -4,8 +4,11 @@ addon.bounded=function(fn) return pcall(fn) end addon.configure({readsPerTick=10
 addon.periodic=function() return {stop=function() end} end
 parallel={waitForAll=function(...) for _,f in ipairs({...}) do f() end end}
 local worldX,tilt,poseLost,foreignPose=0,0,false,false
+local motorSim,worldZ,yaw=false,0,0
+local motorSignals={}
 local orientationFormat="sable"
 local function orientation()
+ if motorSim then return {a=math.cos(math.rad(yaw)/2),v={x=0,y=math.sin(math.rad(yaw)/2),z=0}} end
  local x,w=math.sin(math.rad(tilt)/2),math.cos(math.rad(tilt)/2)
  if orientationFormat=="sable" then return {a=w,v={x=x,y=0,z=0}} end
  if orientationFormat=="server" then return {a=0.61198675632476807,v={x=-4.7012736104079522e-7,y=0.79086810350418091,z=-1.1281101037273287e-6}} end
@@ -34,8 +37,14 @@ fs={getFreeSpace=function() return space end,exists=function(p) return files[p]~
 package.loaded["system.libraries.log"]={warn=function() end,error=function() end}
 package.loaded["system.security.permissions"]={require=function() return allowed,"denied" end}
 redstone={getInput=function() return pressed end}
-addon.inventory=function() return {{name="tx",types={"redstone_link_bridge"},set={sendLinkSignal=true},device={sendLinkSignal=function(_,_,value) command=value if onTransmit then local callback=onTransmit onTransmit=nil callback() end return true end}}} end
-package.loaded["system.services.sabled"]={snapshot=function() return {timestamp=now} end,status=function() return {inSublevel=true} end,pose=function() if poseLost then return nil end return {vehicleId=foreignPose and "other" or "ship",inSublevel=true,frame="world",timestamp=now,identityAt=now,logicalPose={position={x=worldX,y=z,z=0},orientation=orientation()}} end}
+addon.inventory=function() return {{name="tx",types={"redstone_link_bridge"},set={sendLinkSignal=true},device={sendLinkSignal=function(first,_,value)
+ if first:find('minecraft:motor_',1,true)==1 then
+  local clutch=first:gsub('_gear$','_clutch'):gsub('_reverse$','_clutch')
+  if not first:find('_clutch',1,true) and motorSignals[first]~=value then assert(motorSignals[clutch]==15,'shift/reverse while clutch engaged') end
+  motorSignals[first]=value
+ else command=value end
+ if onTransmit then local callback=onTransmit onTransmit=nil callback() end return true end}}} end
+package.loaded["system.services.sabled"]={snapshot=function() return {timestamp=now} end,status=function() return {inSublevel=true} end,pose=function() if poseLost then return nil end return {vehicleId=foreignPose and "other" or "ship",inSublevel=true,frame="world",timestamp=now,identityAt=now,logicalPose={position={x=worldX,y=z,z=worldZ},orientation=orientation()}} end}
 package.loaded["system.services.avionicsd"]={flightTelemetry=function()
  local stamp=stale and now-1 or now
  return {timestamp=stamp,measurements={altitude={value=z,valid=true,observedAt=stamp,validUntil=stamp+0.5},
@@ -49,6 +58,7 @@ local bridge=require("system.services.vehiclebridged")
 local function sample()
  raw.revision=raw.revision+1
  for i,b in ipairs(raw.burners) do b.signal=(i==1 and stuckRescue and command==0) and 7 or ((i==1 and badReceiver) and 0 or command) b.gasOutput=b.signal*10 b.hasBalloon=b.signal>0 b.associationState=b.hasBalloon and "associated" or "no_balloon_reference" end
+ for _,r in ipairs(raw.links) do if r.motor then r.signal=motorSignals[r.first.item] or 0 end end
  bridge.acquire()
 end
 local process={pid=7,state="ready",meta={appId="navigation"},permissions={}}
@@ -76,7 +86,7 @@ local function prepare()
  z,v=55,0 sample()
 end
 local options=require("system.navigation.altitude_sweep").defaults()
-options.autoPrepare=false options.autoHold=false
+options.autoPrepare=false options.autoHold=false options.certify=false
 prepare()
 local verified=flight.configuration()
 local unverified=addon.copy(verified) unverified.manualValidated=false
@@ -178,6 +188,7 @@ local autoCfg=flight.configuration() autoCfg.manualValidated=false
 assert(flight.configure(actor,autoCfg))
 local autoOptions=require('system.navigation.altitude_sweep').defaults()
 assert(autoOptions.autoPrepare and autoOptions.autoHold)
+autoOptions.certify=false
 assert(flight.startSweep(actor,autoOptions,true,flight.configuration()))
 assert(not flight.status().calibration.initializationConfirmed and command==0)
 local autoTicks=0 local sawInit,sawRescue,sawMeasure=false,false,false
@@ -217,7 +228,7 @@ print('automatic sequence: actual all-burner initialization/rescue feedback, qua
 for _,fault in ipairs({'initialization','rescue','permission','owner','disk'}) do
  prepare()
  local c=flight.configuration() c.manualValidated=false assert(flight.configure(actor,c))
- local opts=require('system.navigation.altitude_sweep').defaults() opts.autoHold=false
+ local opts=require('system.navigation.altitude_sweep').defaults() opts.autoHold=false opts.certify=false
  if fault=='disk' then failWrite=true assert(not flight.startSweep(actor,opts,true) and command==0) failWrite=false
  else
   assert(flight.startSweep(actor,opts,true)) flight.step()
@@ -238,7 +249,7 @@ print('automatic preparation: wrong/missing receiver at initialization or rescue
 for _,fault in ipairs({'receiver','late-stop'}) do
  prepare()
  local c=flight.configuration() c.manualValidated=false assert(flight.configure(actor,c))
- local opts=require('system.navigation.altitude_sweep').defaults()
+ local opts=require('system.navigation.altitude_sweep').defaults() opts.certify=false
  assert(flight.startSweep(actor,opts,true))
  for i=1,20000 do
   now=now+0.1 v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
@@ -254,3 +265,84 @@ for _,fault in ipairs({'receiver','late-stop'}) do
  badReceiver=false assert(flight.disarm(actor))
 end
 print('measured hold: receiver loss cannot be hidden by fractional modulation, and STOP during a suspended write is rescued without rearming passed')
+
+prepare()
+local calibrationConfig=flight.configuration() calibrationConfig.manualValidated=false assert(flight.configure(actor,calibrationConfig))
+local completeOptions=require('system.navigation.altitude_sweep').defaults()
+assert(flight.startSweep(actor,completeOptions,true))
+local calibrationTicks=0
+while true do
+ calibrationTicks=calibrationTicks+1 assert(calibrationTicks<40000,'closed-loop calibration did not finish')
+ now=now+0.1 v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+ if calibrationTicks%10==0 then sample() end
+ flight.step()
+ local proof=flight.status().autoCalibration
+ assert(proof and proof.state~='aborted',proof and proof.reason or flight.status().reason)
+ if proof.state=='complete' then break end
+end
+local certificate=flight.status().autoCalibration
+for _,key in ipairs({'hover','down','up','return','rescue','priority'}) do assert(certificate.checks[key] and certificate.checks[key].passed,key..' has no observed evidence') end
+assert(flight.status().measuredHold and flight.status().calibrationSaved)
+assert(files['/system/config/navigation-calibration.cfg'].checks.priority.scope:find('physical switch not inferred',1,true))
+assert(not flight.configuration().manualValidated and not flight.configuration().rescueValidated,'certificate forged old manual flags')
+assert(flight.stopMission(actor)) flight.step()
+assert(command==0 and not flight.status().measuredHold,'pilot STOP did not stop vertical-only control')
+assert(flight.disarm(actor))
+print('closed-loop calibration: actual hover/down/up/return, physical rescue response, software STOP with receiver proof, durable evidence, no forged switch and vertical STOP regression passed')
+
+
+-- Exact user topology: two independent clutch / 16-state gearbox / reverser groups.
+motorSim=true worldZ,yaw=0,0
+prepare()
+local motorConfig=flight.configuration()
+motorConfig.manualValidated=false
+motorConfig.drivetrain={enabled=true,name='tx',clutchOff=15,left={},right={}}
+for _,side in ipairs({'left','right'}) do for i,role in ipairs({'clutch','gear','reverse'}) do
+ local name='minecraft:motor_'..side..'_'..role
+ motorSignals[name]=role=='clutch' and 15 or 0
+ motorConfig.drivetrain[side][role]={first=name,second='minecraft:iron_ingot'}
+ raw.links[#raw.links+1]={id=name,receiver=true,motor=true,position={x=side=='left' and -2 or 2,y=0,z=i},first={item=name},second={item='minecraft:iron_ingot'},signal=motorSignals[name]}
+end end
+raw.mass=65 raw.units.mass='kg'
+assert(flight.configure(actor,motorConfig)) sample()
+assert(flight.startSweep(actor,require('system.navigation.altitude_sweep').defaults(),true))
+local velocityX,velocityZ,yawVelocity=0,0,0
+local function plantTick(i)
+ local function force(side)
+  local prefix='minecraft:motor_'..side..'_'
+  if motorSignals[prefix..'clutch']~=0 then return 0 end
+  return (motorSignals[prefix..'gear'] or 0)/15*(motorSignals[prefix..'reverse']==15 and -1 or 1)
+ end
+ local l,r=force('left'),force('right') local a=math.rad(yaw)
+ velocityX=velocityX+(0.3*(l+r)*math.sin(a)-0.8*velocityX)*0.1
+ velocityZ=velocityZ+(0.3*(l+r)*math.cos(a)-0.8*velocityZ)*0.1
+ yawVelocity=yawVelocity+(2*(r-l)-1.2*yawVelocity)*0.1 yaw=(yaw+yawVelocity*0.1)%360
+ worldX=worldX+velocityX*0.1 worldZ=worldZ+velocityZ*0.1
+ now=now+0.1 v=v+(0.1*(30+5*command-z)-0.6*v)*0.1 z=z+v*0.1
+ if i%10==0 then sample() end
+ flight.step()
+end
+for i=1,40000 do
+ plantTick(i)
+ local proof=flight.status().autoCalibration
+ assert(proof and proof.state~='aborted',proof and proof.reason or flight.status().reason)
+ if proof.state=='complete' then break end
+ assert(i<40000,'motor calibration never finished: '..proof.phase..' '..proof.horizontal)
+end
+assert(flight.status().differentialReady,flight.status().autoCalibration.horizontal)
+local motorReport=files['/system/config/navigation-calibration.cfg']
+assert(motorReport.drivetrain and #motorReport.motorTests==60,'motor proof was not saved')
+assert(not flight.configuration().manualValidated,'motor qualification forged physical switch validation')
+local route=require('system.navigation.autopilot').defaults()
+route.points={{x=worldX+4,y=z,z=worldZ+4}} route.clearRouteConfirmed=true
+assert(flight.startMission(actor,route,true),'measured airship route rejected')
+for i=1,8000 do
+ plantTick(i)
+ assert(flight.status().state=='armed','differential route failed: '..flight.status().reason)
+ if flight.status().autopilot.state=='holding' then break end
+ assert(i<8000,'differential route never settled')
+end
+assert(flight.stopMission(actor)) flight.step()
+assert(command==0 and motorSignals['minecraft:motor_left_clutch']==15 and motorSignals['minecraft:motor_right_clutch']==15,'STOP did not disengage both motors')
+assert(not flight.status().measuredHold)
+print('two-motor automatic calibration: 60 gearbox/reverser modes, actual receiver feedback, neutral braking, disengage-shift-engage sequencing, service-owned differential route evidence, actual waypoint settling and STOP passed')

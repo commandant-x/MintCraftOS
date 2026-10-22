@@ -1,6 +1,7 @@
 local addon=require("system.libraries.addon")
 local M={}
-local runner
+local runner,hullRunner,hullScan,hullRequested
+local Hull=require("system.navigation.hull_geometry")
 local cached={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing",revision=0}
 local serial=0
 local function boundedVector(value)
@@ -105,6 +106,28 @@ function M.acquire()
   nextValue.status=nextValue.ok and (nextValue.complete and "Vehicle geometry ready" or "Partial vehicle inventory") or "Vehicle geometry stale"
   nextValue.revision=serial cached=nextValue
 end
+-- Hull reads run independently; they never block the burner/RX inventory worker.
+function M.requestGeometry()
+  hullRequested=true hullScan=nil
+  if hullRunner then hullRunner:rescan() end
+end
+function M.acquireGeometry()
+  if not hullRequested then return end
+  local api=rawget(_G,"mintcraft_vehicle")
+  if not cached.ok or type(api)~="table" or type(api.geometryPage)~="function" then return end
+  if not hullScan or hullScan.vehicleId~=cached.vehicleId then hullScan=Hull.new(cached.vehicleId) end
+  if hullScan.state~="scanning" then return end
+  local scan=hullScan
+  local values,errors=addon.read({page=function() return api.geometryPage(scan.nextPage,scan.token) end},{"page"},0.5,{priority="diagnostics"})
+  if hullScan~=scan then return end
+  local ok,issue=Hull.accept(scan,values.page)
+  if not ok then scan.state="partial" scan.reason=errors.page or issue end
+end
+function M.geometry()
+  if not hullScan or hullScan.vehicleId~=cached.vehicleId then return nil end
+  local out=addon.copy(hullScan) out.fresh=cached.ok==true
+  return out
+end
 function M.snapshot()
   local out=addon.copy(cached)
   if out.validUntil and os.clock()>out.validUntil then out.ok=false out.status="Vehicle geometry stale" end
@@ -168,7 +191,8 @@ function M.rescan() if runner then runner:rescan() end end
 function M.start(ctx)
   M.stop()
   runner=addon.periodic(ctx,"vehiclebridged",1,M.acquire)
+  hullRunner=addon.periodic(ctx,"vehicle-hull",0.25,M.acquireGeometry)
   runner.onError=function(err) cached.ok=false cached.error=tostring(err) cached.status="Vehicle bridge worker failed" end
 end
-function M.stop() if runner then runner:stop() runner=nil end end
+function M.stop() if runner then runner:stop() runner=nil end if hullRunner then hullRunner:stop() hullRunner=nil end hullRequested=false hullScan=nil end
 return M

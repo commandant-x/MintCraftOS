@@ -56,9 +56,9 @@ local function command(id) assert(app:handle({name="action",args={},navigationCo
 require("apps.navigation.main").run({pid=7,onCleanup=function() end,startTimer=function() return 1 end,
  windowManager={create=function(_,opts) app=opts.app win={closed=false} return win end},
  pullEvent=function()
-  app.sweepOptions.autoPrepare=false app.sweepOptions.autoHold=false
+  app.sweepOptions.autoPrepare=false app.sweepOptions.autoHold=false app.sweepOptions.certify=false
   local sections=require("system.navigation.sections")
-  assert(#sections.tabs==8 and #sections.pages()==17 and sections.parent("gains")=="sweep" and sections.parent("manual")=="mapping")
+  assert(#sections.tabs==8 and #sections.pages()==18 and sections.parent("gains")=="sweep" and sections.parent("manual")=="mapping")
   local Surface=require("system.graphics.surface")
   local palette={desktop=15,panel=7,button=15,text=0,muted=8,accent=9,ink=15,border=8}
   snapshot.complete=true snapshot.frame="body_plot" snapshot.centerOfMass={x=1,y=2,z=3}

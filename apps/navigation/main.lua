@@ -40,6 +40,10 @@ function M.run(ctx)
   local function refresh()
     app.av,app.sub,app.flight=avionics.snapshot(),sable.snapshot(),flight.status()
     app.bridge=vehicleBridge.snapshot()
+    if (app.page=="diagram" or app.page=="component") and vehicleBridge.geometry then
+      if not app.geometryRequested and vehicleBridge.requestGeometry then vehicleBridge.requestGeometry() app.geometryRequested=true end
+      app.bridge.hull=vehicleBridge.geometry()
+    end
     app.detectedVehicle=nil
     if not draft.vehicle.bridgeVehicleId or draft.vehicle.bridgeVehicleId==app.bridge.vehicleId then
       app.detectedVehicle=vehicle.import(draft.vehicle,app.bridge)
@@ -61,7 +65,7 @@ function M.run(ctx)
     pose=sable.pose,
     page=function(id) app.page=id app.form.scroll=1 app.scroll=1 end,
     devices=function() ctx.apps.launch("devices") end,
-    arm=function() if app.dirty then return false,"Save actuator changes first" end return flight.arm(actor) end,
+    arm=function() if app.dirty then return false,"Save actuator changes first" end local status=flight.status() if status.differentialReady and status.state=="armed" and status.ownerPid==ctx.pid then return true end return flight.arm(actor) end,
     start=function(plan) if app.dirty then return false,"Save actuator changes first" end return flight.startMission(actor,plan,true) end,
     stop=function() return flight.stopMission(actor) end,
     disarm=function() return flight.disarm(actor) end,
@@ -106,7 +110,34 @@ function M.run(ctx)
     local function measured(key,label,object)
       rows[#rows+1]={label=label.." (detected)",readOnly=true,get=function() return object[key] end}
     end
-    if app.page=="vehicle" then
+    if app.page=="drivetrain" then
+      draft.drivetrain=draft.drivetrain or {enabled=false,name="",clutchOff=15,left={},right={}}
+      local drive=draft.drivetrain
+      field(drive,"enabled","Two independent Link motor groups","boolean")
+      local names={} for _,endpoint in ipairs(flight.endpoints()) do if endpoint.backend=="frequency" then names[#names+1]=endpoint.name end end
+      if #names>0 then
+        local tx=field(drive,"name","Detected motor transmitter",nil,names)
+        tx.placeholder="Choose transmitter" tx.get=function() return drive.name~="" and drive.name or (#names==1 and names[1] or "") end
+      end
+      field(drive,"clutchOff","Clutch disengaged signal",nil,{15,0})
+      local pairs=frequencyPairs()
+      for _,side in ipairs({"left","right"}) do
+        drive[side]=drive[side] or {}
+        for _,role in ipairs({"clutch","gear","reverse"}) do
+          local side,role=side,role local options={}
+          for _,pair in ipairs(pairs) do options[#options+1]=pair.label end
+          if #options>0 then
+            rows[#rows+1]={label=side.." "..role.." receiver frequency",options=options,get=function()
+              local key=linkOutput.key({link=drive[side][role]})
+              for _,pair in ipairs(pairs) do if pair.key==key then return pair.label end end
+              return "Choose detected receiver"
+            end,set=function(value)
+              for _,pair in ipairs(pairs) do if pair.label==value then drive[side][role]=addon.copy(pair.spec) app.dirty=true return end end
+            end}
+          end
+        end
+      end
+    elseif app.page=="vehicle" then
       local name=field(draft.vehicle,"name","Vehicle name","string")
       name.get=function() return app.detectedVehicle and draft.vehicle.name=="Vehicle" and app.detectedVehicle.name or draft.vehicle.name end
       local kind=field(draft.vehicle,"type","Vehicle type",nil,vehicle.types)
@@ -213,6 +244,7 @@ function M.run(ctx)
       end
       rows[#rows+1]=forms.field(app.sweepOptions,"autoPrepare","Automatic initialization + rescue signal test","boolean")
       rows[#rows+1]=forms.field(app.sweepOptions,"autoHold","Enter vertical hold if measured model qualifies","boolean")
+      rows[#rows+1]=forms.field(app.sweepOptions,"certify","Automatic closed-loop calibration + configured motor tests","boolean")
     elseif app.page=="burnerGroup" and app.setup then
       for _,burner in ipairs(app.setup.detectedBurners) do
         local label=burner.id:match("(-?%d+:-?%d+:-?%d+)$") or burner.id
@@ -261,12 +293,13 @@ function M.run(ctx)
       local channel=(app.sweepPendingControl.channels or {})[1] or {}
       return {"MEASUREMENT FLIGHT: vessel will move.","Vehicle: "..tostring((app.sweepPendingControl.balloonSetup or {}).vehicleId),"First heat level: "..plan.first,"Last heat level: "..plan.last,
         "No per-level or total sweep deadline.","Operator travel limit: "..plan.maxTravel.." (0 = disabled)","Operator speed limit: "..plan.maxSpeed.." (0 = disabled)",
-        "Advance only after 8 fresh samples with |vertical speed| <= 0.1 m/s; record mean height.","Automatic initialization + rescue receiver test: "..tostring(plan.autoPrepare),"Automatic qualified vertical hold after sweep: "..tostring(plan.autoHold),"Rescue transmitted signal: "..tostring(channel.rescue),
+        "Advance only after 8 fresh samples with |vertical speed| <= 0.1 m/s; record mean height.","Automatic initialization + rescue receiver test: "..tostring(plan.autoPrepare),"Automatic qualified vertical hold after sweep: "..tostring(plan.autoHold),"Closed-loop calibration: "..tostring(plan.certify).."; actual hover, down/up, rescue response and software priority tests.","If motor groups are configured, 60 clutch/transmission/reverser probes and a short two-point route measure motion and braking. Clear the surrounding area.","Rescue transmitted signal: "..tostring(channel.rescue),
         "Tilt limit: 10 degrees. Fresh world pose required.","Shared frequency can affect other machines.","Area must be clear above and below.","F10 / STOP / physical input stops sweep.","Closing Navigation triggers rescue.",
-        "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","Automatic hold requires a qualified measured restoring/damping model and target within the measured range.","No physical manual/rescue behaviour flag is forged; no horizontal route is started."}
+        "Gas inertia can continue moving after cutoff.","No extrapolation outside measured range.","Automatic hold requires a qualified measured restoring/damping model and target within the measured range.","No physical manual/rescue behaviour flag is forged; only the confirmed short motor test route is automatic; further routes require confirmation."}
   end
   local function baseActions()
     if app.page=="autopilot" or app.page=="sublevel" then return app.routePanel:actions() end
+    if app.page=="drivetrain" then return {{id="save",label="Save motor mapping"},{id="rescan",label="Rescan"},{id="sweepResults",label="Automatic calibration"}} end
     if app.page=="mapping" or app.page=="manual" then return {{id="add",label="Add"},{id="save",label="Save"},{id="previous",label="Prev"},{id="next",label="Next"},{id="remove",label="Remove"}}
     elseif app.page=="vehicle" then return {{id="save",label="Save"},{id="rescan",label="Rescan"},{id="devices",label="Devices"}}
     elseif app.page=="sweep" or app.page=="sweepResults" then
@@ -280,7 +313,7 @@ function M.run(ctx)
       if app.setupStep==5 then return {{id="sweepResults",label="Automatic altitude"},{id="chooseGroup",label="Group"},{id="calibrationPage",label="Advanced tests"},{id="controlPage",label="Control"}} end
       return {{id="chooseGroup",label="Burner group"},{id="guideApply",label="Review + Save"},{id="guide",label="Detect again"},{id="rescan",label="Rescan"},{id="diagram",label="Diagram"}}
     elseif app.page=="context" then return {{id="guide",label="Setup guide"},{id="vehicle",label="Vehicle"},{id="outputs",label="Actuators"},{id="diagram",label="Diagram"}}
-    elseif app.page=="diagram" then return {{id="top",label="Top"},{id="side",label="Side"},{id="front",label="Front"},{id="iso",label="3D"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="inspect",label="Details"},{id="rescan",label="Rescan"}}
+    elseif app.page=="diagram" then return {{id="top",label="Top"},{id="side",label="Side"},{id="front",label="Front"},{id="iso",label="3D"},{id="rotate",label="Rotate"},{id="hullSlice",label="Cutaway"},{id="sliceDown",label="Layer-"},{id="sliceUp",label="Layer+"},{id="hullRescan",label="Scan hull"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="zoomIn",label="Zoom+"},{id="zoomOut",label="Zoom-"},{id="inspect",label="Details"},{id="rescan",label="Rescan"}}
     elseif app.page=="component" then return {{id="diagram",label="Diagram"},{id="componentPrev",label="Prev"},{id="componentNext",label="Next"},{id="rescan",label="Rescan"}}
     elseif app.page=="gains" then return {{id="previous",label="Prev axis"},{id="next",label="Next axis"},{id="save",label="Save"}}
     elseif app.page=="sensors" then return {{id="save",label="Save"},{id="rescan",label="Rescan"}}
@@ -412,12 +445,12 @@ function M.run(ctx)
     elseif self.page=="burnerGroup" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop("Choose group | local XYZ / signal / association",w),colors.cyan) end
-    elseif self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
+    elseif self.page=="drivetrain" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" then
       self.form:draw(w,h,fields())
       if not self.form.edit then renderer.writeAt(1,3,renderer.crop(self.page=="mapping" and ("Output "..self.index.."/"..#draft.channels.." | PC / Avionics / relay") or "Configuration draft",w),colors.cyan) end
     elseif self.page=="diagram" then
       local analysis=vehicle.analyze(draft.vehicle,draft.channels)
-      vehicleDiagram.draw(w,h,analysis,draft.vehicle,false,{snapshot=self.bridge,view=self.diagramView,index=self.componentIndex,zoom=self.diagramZoom})
+      vehicleDiagram.draw(w,h,analysis,draft.vehicle,false,{snapshot=self.bridge,view=self.diagramView,index=self.componentIndex,zoom=self.diagramZoom,turn=self.diagramTurn,slice=self.hullSlice})
     elseif self.page=="component" then
       local model=vehicleDiagram.model(vehicle.analyze(draft.vehicle,draft.channels),draft.vehicle,self.bridge)
       local rows={}
@@ -527,8 +560,7 @@ function M.run(ctx)
   end
   function app:handle(event)
     if event.name=="key" and keys.f10 and event.args[1]==keys.f10 then
-      local s=flight.status().sweep
-      if s and s.state=="running" then report(flight.stopSweep(actor)) else report(flight.stopMission(actor)) end
+      report(flight.disarm(actor))
       refresh() return true
     end
     if self.graphicsActive and self.nativePanel and self.page~="flight" and self.page~="autopilot" and self.page~="sublevel" then
@@ -562,7 +594,7 @@ function M.run(ctx)
     end
     if command and command:match("^route:") then self.routePanel:action(command) refresh() return true end
     if routePage then return self.routePanel:handleText(event) end
-    if event.name=="mouse_scroll" and not (self.page=="sweep" and self.sweepEditing) and self.page~="sweepConfirm" and self.page~="burnerGroup" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
+    if event.name=="mouse_scroll" and not (self.page=="sweep" and self.sweepEditing) and self.page~="sweepConfirm" and self.page~="burnerGroup" and self.page~="drivetrain" and self.page~="vehicle" and self.page~="mapping" and self.page~="manual" and self.page~="gains" and self.page~="sensors" and not (self.page=="setup" and self.setupStep==3) then self.scroll=self.scroll+event.args[1] return true end
     if event.name=="mouse_click" or command then
       local _,x,y=table.unpack(event.args)
       local id=command
@@ -590,6 +622,10 @@ function M.run(ctx)
             local measured=vehicle.import(draft.vehicle,latest)
             if measured then draft.vehicle=measured end
           end
+        end
+        if draft.drivetrain and (draft.drivetrain.name==nil or draft.drivetrain.name=="") then
+          local names={} for _,e in ipairs(flight.endpoints()) do if e.backend=="frequency" then names[#names+1]=e.name end end
+          if #names==1 then draft.drivetrain.name=names[1] end
         end
         local pairs=frequencyPairs()
         for _,channel in ipairs(draft.channels) do
@@ -709,6 +745,15 @@ function M.run(ctx)
           draft.vehicle.massKg=mass.value self.dirty=true self.message="Measured mass copied"
         else self.message="Fresh measured Sable mass unavailable" end return true
       elseif id=="analysis" then self.page="context" return true
+      elseif id=="hullRescan" then
+        if vehicleBridge.requestGeometry then vehicleBridge.requestGeometry() self.geometryRequested=true end return true
+      elseif id=="hullSlice" then
+        if self.hullSlice then self.hullSlice=nil else
+          local m=vehicleDiagram.model(vehicle.analyze(draft.vehicle,draft.channels),draft.vehicle,self.bridge)
+          self.hullSlice=math.floor((m.com or m.hullCenter or {y=0}).y)
+        end return true
+      elseif id=="sliceDown" or id=="sliceUp" then self.hullSlice=math.max(-1000000,math.min(1000000,(self.hullSlice or 0)+(id=="sliceUp" and 1 or -1))) return true
+      elseif id=="rotate" then self.diagramTurn=((self.diagramTurn or 0)+1)%4 return true
       elseif id=="diagram" then self.page="diagram" return true
       elseif id=="top" or id=="side" or id=="front" or id=="iso" then self.diagramView=id return true
       elseif id=="componentPrev" or id=="componentNext" then
@@ -774,7 +819,7 @@ function M.run(ctx)
         self.form.edit=forms.field(self.testValue,"value","Test signal","number") self.form.text=tostring(self.testValue.value) return true
       end
     end
-    if (self.page=="sweep" and self.sweepEditing) or self.page=="burnerGroup" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
+    if (self.page=="sweep" and self.sweepEditing) or self.page=="burnerGroup" or self.page=="drivetrain" or self.page=="vehicle" or self.page=="mapping" or self.page=="manual" or self.page=="gains" or self.page=="sensors" or (self.page=="setup" and self.setupStep==3) then return self.form:handle(event) end
     return false
   end
   local function nativePage(id)
@@ -800,7 +845,7 @@ function M.run(ctx)
     model.actions[1]={id="panelViews",label="Views"}
     for _,action in ipairs(actions()) do model.actions[#model.actions+1]=action end
     if app.form.edit then model.fields={app.form.edit} row("Edit field","Enter applies the field; flight commands remain separately confirmed.") return model end
-    if app.page=="vehicle" or app.page=="mapping" or app.page=="manual" or app.page=="gains" or app.page=="sensors" or app.page=="burnerGroup" or (app.page=="setup" and app.setupStep==3) or (app.page=="sweep" and app.sweepEditing) then model.fields=fields() end
+    if app.page=="drivetrain" or app.page=="vehicle" or app.page=="mapping" or app.page=="manual" or app.page=="gains" or app.page=="sensors" or app.page=="burnerGroup" or (app.page=="setup" and app.setupStep==3) or (app.page=="sweep" and app.sweepEditing) then model.fields=fields() end
     if app.page=="sweepConfirm" then
       model.page=model.page..":"..tostring(app.sweepPending)
       for _,text in ipairs(sweepWarnings()) do
@@ -811,8 +856,22 @@ function M.run(ctx)
     end
     row("State",tostring(app.flight.state).." | "..tostring(app.flight.reason))
     if not app.flight.measuredHold then for _,err in ipairs(app.flight.errors or {}) do row("Readiness",err) end end
-    if app.flight.measuredHold then row("Vertical autopilot","ACTIVE | target "..fmt(app.flight.measuredHold.target,"m").." | measured range only; no horizontal route") end
-    if app.page=="vehicle" then
+    if app.flight.measuredHold then row("Vertical autopilot","ACTIVE | target "..fmt(app.flight.measuredHold.target,"m").." | measured altitude range only") end
+    if app.flight.autoCalibration then
+      local proof=app.flight.autoCalibration
+      row("Automatic calibration",proof.state.." / "..proof.phase.." | "..proof.reason)
+      for _,key in ipairs({"hover","down","up","return","rescue","priority","horizontal"}) do
+        local check=(proof.checks or {})[key]
+        row("Measured "..key,check and ("PASSED | "..tostring(check.altitude or check.scope or check.observedAt)) or "Waiting for actual evidence")
+      end
+      row("Motor capability",proof.horizontal)
+      row("Differential route",app.flight.differentialReady and "READY | measured authority" or tostring(app.flight.differentialReason))
+      row("Physical switch",proof.manualSwitch.."; software priority test does not simulate wiring")
+    end
+    if app.page=="drivetrain" then
+      row("One-time wiring assignment","Select the six existing receiver frequencies: left/right clutch, 16-state transmission and reverser. Saved mapping sends no signal.")
+      row("Mechanical calibration","Actual receiver feedback, forward/reverse movement, yaw and neutral braking are measured. No RPM is guessed from the signal.")
+    elseif app.page=="vehicle" then
       row("Vehicle Bridge",tostring((app.bridge or {}).status or "Not detected").." | "..tostring((app.bridge or {}).vehicleId or "unknown vehicle"))
       row("Discovery",app.detectedVehicle and "Live measured geometry; Save records it. Outputs and physical checks are unchanged." or "No complete geometry for this vehicle. Manual override remains available.")
       local p=app.detectedSetup
@@ -899,8 +958,8 @@ function M.run(ctx)
     draw=function(surface,w,h,palette)
       if app.page=="diagram" and not app.confirm and not app.panelViews then
         local model=vehicleDiagram.model(vehicle.analyze(draft.vehicle,draft.channels),draft.vehicle,app.bridge)
-        app.equipmentHits=require("system.navigation.equipment_pixels").draw(surface,w,h,palette,model,{view=app.diagramView,index=app.diagramIndex,zoom=app.diagramZoom})
-      else app.equipmentHits=nil end
+        app.equipmentHits,app.hullPick=require("system.navigation.equipment_pixels").draw(surface,w,h,palette,model,{view=app.diagramView,index=app.diagramIndex,zoom=app.diagramZoom,turn=app.diagramTurn,block=app.hullBlock,slice=app.hullSlice})
+      else app.equipmentHits=nil app.hullPick=nil end
     end,
     pointer=function(event)
       if app.page=="diagram" and event.name=="mouse_click" and not app.confirm and not app.panelViews then
@@ -909,6 +968,11 @@ function M.run(ctx)
             app.diagramIndex=hit.index if event.args[1]==2 then app.page="component" end
             if win then win.dirty=true end return true
           end
+        end
+        if app.hullPick then
+          app.hullBlock=app.hullPick(event.args[2],event.args[3])
+          if app.hullBlock then app.message=app.hullBlock.material.state.." @ "..app.hullBlock.x..","..app.hullBlock.y..","..app.hullBlock.z end
+          if win then win.dirty=true end return app.hullBlock~=nil
         end
       end
     end,

@@ -34,7 +34,7 @@ function M.new(api)
       return {option(point,"x","World X","number"),option(point,"y","World Y (vehicle origin)","number"),option(point,"z","World Z","number")}
     end
     return {
-      option(self.plan,"driveMode","Translation method",nil,{"thrusters","tilt"}),
+      option(self.plan,"driveMode","Translation method",nil,{"thrusters","tilt","differential"}),
       option(self.plan,"maxSpeed","Maximum requested speed (blocks/s)","number"),
       option(self.plan,"maxTilt","Maximum tilt (degrees)","number"),
       option(self.plan,"positionGain","Position to speed gain","number"),
@@ -52,11 +52,14 @@ function M.new(api)
   end
   function self:refresh(state,pose,bridge,endpoints)
     self.state,self.pose,self.bridge,self.endpoints=state or {},pose or {},bridge or {},endpoints or {}
+    if self.state.differentialReady and self.pose.vehicleId then
+      self.plan.translationVerified=true self.plan.verifiedVehicleId=self.pose.vehicleId self.plan.driveMode="differential"
+    elseif self.plan.driveMode=="differential" then self.plan.translationVerified=false self.plan.verifiedVehicleId=nil end
   end
   function self:rows()
     if self.pending then
       local rows={{title=self.pending.kind=="arm" and "Arm stabilization?" or "Start world route?"},
-        {title="Obstacles: unchecked"},{title="Landing: manual"},{title="Manual input stops"},{title="Close app = rescue"}}
+        {title="CONFIRM asserts the route is clear; obstacles are not detected"},{title="Landing: manual"},{title="Manual input stops"},{title="Close app = rescue"}}
       for i,p in ipairs(self.pending.plan and self.pending.plan.points or {}) do
         for _,axis in ipairs({"x","y","z"}) do rows[#rows+1]={title="Point "..i.." / "..axis:upper(),description=number(p[axis])} end
       end
@@ -137,8 +140,11 @@ function M.new(api)
       self.plan.points[#self.plan.points+1]=p self.selected=#self.plan.points self.view="point"
     elseif id=="arm" then self.pending={kind="arm"} self.warningRead=false
     elseif id=="start" then
-      local valid,err=Route.validate(self.plan) if not valid then self.message=err return end
-      self.pending={kind="start",plan=addon.copy(self.plan)} self.warningRead=false
+      local candidate=addon.copy(self.plan)
+      -- The final read-through + Confirm is the explicit route-clearance claim.
+      candidate.clearRouteConfirmed=true
+      local valid,err=Route.validate(candidate) if not valid then self.message=err return end
+      self.pending={kind="start",plan=candidate} self.warningRead=false
     end
   end
   function self:select(id)

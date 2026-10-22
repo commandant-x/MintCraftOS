@@ -1,6 +1,7 @@
 local pixels=require("system.gui.subpixel")
 local renderer=require("system.gui.renderer")
 local addon=require("system.libraries.addon")
+local Hull=require("system.navigation.hull_geometry")
 local M={}
 local function finiteVector(v)
   local p=addon.vec(v)
@@ -18,6 +19,9 @@ function M.model(analysis,profile,snapshot)
     out.fresh=snapshot.ok==true
     out.complete=snapshot.inventoryComplete==true
     out.com=finiteVector(snapshot.centerOfMass)
+    out.hull=snapshot.hull
+    out.blocks={}
+    if out.hull then out.blocks,out.hullCenter,out.occupied=require("system.navigation.hull_pixels").blocks(out.hull) end
     for _,r in ipairs(snapshot.actuators or {}) do add("thruster",r,r.geometryValid and finiteVector(r.direction) or nil) end
     for _,r in ipairs(snapshot.burners or {}) do add("burner",r) end
     for _,r in ipairs(snapshot.links or {}) do add(r.receiver and "RX" or "TX",r) end
@@ -29,7 +33,8 @@ function M.model(analysis,profile,snapshot)
   table.sort(out.points,function(a,b) return a.kind==b.kind and tostring(a.id)<tostring(b.id) or a.kind<b.kind end)
   return out
 end
-function M.project(p,view)
+function M.project(p,view,turn)
+  if turn and turn~=0 then local x,z=p.x,p.z for _=1,turn do x,z=-z,x end p={x=x,y=p.y,z=z} end
   if view=="side" then return p.z,p.y end
   if view=="front" then return p.x,p.y end
   if view=="iso" then return (p.x-p.z)*0.70710678,p.y*0.81649658+(p.x+p.z)*0.40824829 end
@@ -37,7 +42,7 @@ function M.project(p,view)
 end
 function M.details(model,index)
   local p=model.points[index]
-  local rows={model.source,(model.fresh and "LIVE" or "STALE / saved; not live feedback"),"Equipment only: hull / shafts / nested sublevels unavailable."}
+  local rows={model.source,(model.fresh and "LIVE" or "STALE / saved; not live feedback"),Hull.label(model.hull)}
   if not p then rows[#rows+1]="No component selected" return rows end
   local r=p.row
   rows[#rows+1]=tostring(index).."/"..#model.points.." "..p.kind.." "..tostring(p.id)
@@ -66,32 +71,39 @@ end
 function M.draw(w,h,analysis,profile,side,options)
   options=options or {}
   local model=M.model(analysis,profile,options.snapshot)
+  if options.slice then
+    local filtered={} for _,b in ipairs(model.blocks or {}) do if b.y<=options.slice then filtered[#filtered+1]=b end end model.blocks=filtered
+    filtered={} for _,point in ipairs(model.points) do if point.position.y<options.slice+1 then filtered[#filtered+1]=point end end model.points=filtered
+  end
   local view=options.view or (side and "side" or "top")
+  local function project(p) return M.project(p,view,options.turn) end
   local height=math.max(2,h-7)
   local canvas=pixels.new(w,height,colors.black)
   local cx,cy=canvas.width/2,canvas.height/2
   local points,radius={},1
-  local center=model.com or {x=0,y=0,z=0}
+  local center=model.com or model.hullCenter or {x=0,y=0,z=0}
   -- Zoom follows the selected component so off-centre equipment remains inspectable.
   local selected=model.points[options.index or 1]
   if (options.zoom or 1)>1 and selected then center=selected.position end
-  local ox,oy=M.project(center,view)
+  local ox,oy=project(center)
   for i,p in ipairs(model.points) do
-    local x,y=M.project(p.position,view)
+    local x,y=project(p.position)
     x,y=x-ox,y-oy
     radius=math.max(radius,math.abs(x),math.abs(y))
     points[#points+1]={x=x,y=y,index=i,component=p}
   end
+  for _,b in ipairs(model.blocks or {}) do local x,y=project({x=b.x+.5,y=b.y+.5,z=b.z+.5}) radius=math.max(radius,math.abs(x-ox)+1,math.abs(y-oy)+1) end
   local scale=math.max(1,math.min(cx-4,cy-4))/radius*math.max(1,math.min(8,options.zoom or 1))
   canvas:line(cx,1,cx,canvas.height,colors.gray)
   canvas:line(1,cy,canvas.width,cy,colors.gray)
+  for _,b in ipairs(model.blocks or {}) do local x,y=project({x=b.x+.5,y=b.y+.5,z=b.z+.5}) canvas:rect(math.floor(cx+(x-ox)*scale),math.floor(cy-(y-oy)*scale),1,1,colors.lightGray) end
   for _,point in ipairs(points) do
     point.px=math.floor(cx+point.x*scale)
     point.py=math.floor(cy-point.y*scale)
     local p=point.component
     local color=({thruster=colors.lime,burner=colors.red,RX=colors.cyan,TX=colors.magenta})[p.kind]
     if p.force then
-      local dx,dy=M.project(p.force,view)
+      local dx,dy=project(p.force)
       canvas:line(point.px,point.py,point.px+dx*6,point.py-dy*6,color)
     end
     canvas:rect(point.px-1,point.py-1,3,3,color)
@@ -101,7 +113,7 @@ function M.draw(w,h,analysis,profile,side,options)
     end
   end
   if model.com then
-    local x,y=M.project(model.com,view)
+    local x,y=project(model.com)
     canvas:rect(math.floor(cx+(x-ox)*scale)-1,math.floor(cy-(y-oy)*scale)-1,3,3,colors.orange)
   end
   canvas:draw(1,4)
@@ -112,7 +124,7 @@ function M.draw(w,h,analysis,profile,side,options)
       renderer.writeAt(x,y,renderer.crop(tostring(point.index),w-x+1),colors.white,colors.black)
     end
   end
-  renderer.writeAt(1,3,renderer.crop(view.." | "..(model.fresh and (model.complete and "LIVE" or "LIVE partial") or "STALE/saved").." | equipment only; no hull",w),colors.cyan)
+  renderer.writeAt(1,3,renderer.crop(view.." | "..(model.fresh and (model.complete and "LIVE" or "LIVE partial") or "STALE/saved").." | "..Hull.label(model.hull),w),colors.cyan)
   local text=selected and (tostring(options.index or 1).."/"..#model.points.." "..selected.kind.." "..selected.id) or "No measured equipment; install bridge / Rescan"
   renderer.writeAt(1,h-3,renderer.crop(text,w),colors.white,colors.black)
   renderer.writeAt(1,h-2,renderer.crop("Lime thruster / red burner / cyan RX / magenta TX / orange COM",w),colors.lightGray,colors.black)

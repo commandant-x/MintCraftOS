@@ -9,12 +9,20 @@ function M.atan2(y, x)
 end
 
 -- Same convention as Avionics NavTable: rotate body +Z, atan2(world X,Z).
+local function quaternion(q)
+  if type(q)~="table" then return end
+  if q.a~=nil or q.v~=nil then
+    if type(q.v)~="table" then return end
+    return q.v.x,q.v.y,q.v.z,q.a
+  end
+  return q.x or q[1],q.y or q[2],q.z or q[3],q.w or q[4]
+end
 function M.heading(orientation)
   if type(orientation)~="table" then return nil end
-  local x,y,z,w=orientation.x or orientation[1],orientation.y or orientation[2],orientation.z or orientation[3],orientation.w or orientation[4]
+  local x,y,z,w=quaternion(orientation)
   if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil end
   local norm=x*x+y*y+z*z+w*w
-  if norm<1e-12 then return nil end
+  if not addon.finite(norm) or norm<1e-12 then return nil end
   local forwardX,forwardZ=2*(x*z+w*y)/norm,1-2*(x*x+y*y)/norm
   if forwardX*forwardX+forwardZ*forwardZ<1e-8 then return nil end
   return math.deg(M.atan2(forwardX,forwardZ))%360
@@ -35,10 +43,10 @@ function M.transform(point, pose)
   local origin = addon.vec(pose.position)
   local q = pose.orientation
   if not origin or type(q) ~= "table" then return nil, "unknown pose convention" end
-  local x, y, z, w = q.x or q[1], q.y or q[2], q.z or q[3], q.w or q[4]
+  local x, y, z, w = quaternion(q)
   if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil end
   local norm = math.sqrt(x*x + y*y + z*z + w*w)
-  if norm < 1e-9 then return nil end
+  if not addon.finite(norm) or norm < 1e-9 then return nil end
   x, y, z, w = x/norm, y/norm, z/norm, w/norm
   local pivot = addon.vec(pose.rotationPoint)
   local scale = addon.vec(pose.scale)

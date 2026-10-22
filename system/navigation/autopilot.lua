@@ -26,7 +26,7 @@ function M.validate(plan)
   if (plan.pitchSign~=1 and plan.pitchSign~=-1) or (plan.rollSign~=1 and plan.rollSign~=-1) then return false,"Translation signs must be +1 or -1" end
   if plan.translationVerified~=true then return false,"Physically verify hover, translation direction and braking first" end
   if type(plan.verifiedVehicleId)~="string" or #plan.verifiedVehicleId<1 or #plan.verifiedVehicleId>128 then return false,"Verify translation on this sublevel identity" end
-  if plan.driveMode~="tilt" and plan.driveMode~="thrusters" then return false,"Choose tilt or calibrated directional thrusters" end
+  if plan.driveMode~="tilt" and plan.driveMode~="thrusters" and plan.driveMode~="differential" then return false,"Choose tilt, directional thrusters or measured differential motors" end
   if plan.clearRouteConfirmed~=true then return false,"Confirm a clear route; no obstacle avoidance or automatic landing" end
   return true
 end
@@ -95,7 +95,16 @@ function M.new()
     local a=math.rad(t.heading) local ex,ez=desiredX-v.x,desiredZ-v.z
     local right=ex*math.cos(a)-ez*math.sin(a)
     local forward=ex*math.sin(a)+ez*math.cos(a)
-    if p.driveMode=="tilt" then
+    if p.driveMode=="differential" then
+      local heading=t.heading
+      if self.state~="climb" and d>p.radius then heading=math.deg(geometry.atan2(dx,dz))%360 self.course=heading
+      elseif self.state~="climb" then heading=self.course or heading end
+      local forward=dx*math.sin(math.rad(t.heading))+dz*math.cos(math.rad(t.heading))
+      local wanted=clamp(forward*p.positionGain,p.maxSpeed)
+      if math.abs(geometry.wrap(heading-t.heading))>35 then wanted=0 end
+      if self.state=="climb" then wanted=0 end
+      targets.drive={speed=wanted,heading=heading}
+    elseif p.driveMode=="tilt" then
       targets.pitch=clamp(forward*p.velocityGain*p.pitchSign,p.maxTilt)
       targets.roll=clamp(right*p.velocityGain*p.rollSign,p.maxTilt)
     else

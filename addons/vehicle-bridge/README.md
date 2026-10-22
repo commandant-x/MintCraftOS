@@ -1,9 +1,21 @@
-# MintCraft Vehicle Bridge 0.2.1
+# MintCraft Vehicle Bridge 0.2.2
 
 Standalone, read-only NeoForge addon. It exposes the containing Sable vehicle to
 ComputerCraft as the global `mintcraft_vehicle` API. No existing mod is patched.
 
-0.2.1 corrects burner association: `hasBalloon` means a positive-capacity balloon
+0.2.2 adds `geometryPage(page, token)` for lossless loaded parent-plot block surveys.
+Start with `(0, "")`, then pass the returned token and increasing page indexes.
+Each page reads at most one nonempty 16³ section, with a palette of block IDs and
+states, sparse runs `start:length:palette;` (cell index `x + 16*z + 256*y`) and an
+integer section origin relative to `originPlot`. Air is index zero and omitted.
+Block centers are origin + local cell + 0.5, consistent with equipment geometry.
+Coverage checks all chunks intersecting the plot bounds; unavailable chunks or
+limits mark coverage incomplete. Layout changes require restarting the survey.
+A paged survey is not atomic or live obstacle detection. Child sublevels and
+kinematic contraptions remain excluded; individual voxel shapes are not block
+render meshes. See [Navigation workflow](../../docs/NAVIGATION-0.18.72.md).
+
+0.2.1 corrected burner association: `hasBalloon` means a positive-capacity balloon
 reference whose heater collection contains this burner. Aeronautics 1.3.2
 `ServerBalloon.isValid()` actually tests filled/target gas amounts, so it is now
 exported only as `gasActive`, never used as proof of structural association.
@@ -16,7 +28,7 @@ This build also compiles against the profile's Sable 2.0.6 using
 
 1. Stop Minecraft/the server normally. Back up the world before trying a new mod.
    Remove the previous Vehicle Bridge JAR when replacing it; do not keep two versions.
-2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.1.jar` to the chosen profile's
+2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.2.jar` to the chosen profile's
    `mods` directory, alongside CC:Tweaked, Sable, Create and Aeronautics.
    For multiplayer, install on the server and clients using that modpack.
 3. Restart Minecraft. Place the computer on the assembled Sable vehicle.

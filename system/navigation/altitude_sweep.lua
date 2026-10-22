@@ -1,7 +1,7 @@
 -- Measurement-driven identification. No peripheral writes or physical-validation flags.
 local addon=require("system.libraries.addon")
 local M={}
-function M.defaults() return {first=7,last=15,maxSpeed=0,maxTravel=0,autoPrepare=true,autoHold=true} end
+function M.defaults() return {first=7,last=15,maxSpeed=0,maxTravel=0,autoPrepare=true,autoHold=true,certify=true} end
 function M.validate(value)
   if type(value)~="table" then return nil,"Sweep options missing" end
   local p={}
@@ -17,10 +17,11 @@ function M.validate(value)
     p[key]=v
   end
   if p.first%1~=0 or p.last%1~=0 or p.last-p.first<2 then return nil,"At least three integer heat levels required" end
-  for _,key in ipairs({"autoPrepare","autoHold"}) do
+  for _,key in ipairs({"autoPrepare","autoHold","certify"}) do
     if value[key]~=nil and type(value[key])~="boolean" then return nil,"Invalid sweep "..key end
     p[key]=value[key]==true
   end
+  if p.certify and not p.autoHold then return nil,"Closed-loop calibration requires automatic altitude hold" end
   if p.autoHold and not p.autoPrepare then return nil,"Automatic hold requires automatic receiver tests" end
   return p
 end

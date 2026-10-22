@@ -2,15 +2,24 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.71:
+This repository currently contains V0.18.72:
 
-V0.18.71 measures a settled height at each heat level only after eight fresh
-samples with absolute vertical speed <=0.1 m/s. There is no sweep/level/sample
-expiry. One confirmed sequence automatically checks every burner's initialization
-and rescue signal, then measures; qualified restoring/damping dynamics can start
-a session-only vertical hold using the actual altitude table and acknowledged
-fractional heat modulation. Physical validation flags and horizontal flight are
-not inferred. See [automatic altitude workflow](docs/ALTITUDE-0.18.71.md).
+V0.18.72 adds one confirmed calibration sequence: measured altitude sweep,
+closed-loop hover/down/up, rescue and software STOP checks, then optional real
+left/right clutch/transmission/reverser measurements and a short differential
+route test. Hardware roles are selected once from discovered Link frequencies.
+No physical switch, shaft connection or RPM is fabricated.
+
+Vehicle Bridge 0.2.2 adds paged, read-only loaded block surveys. Navigation's
+Diagram displays the actual block volume in top/side/front and rotating 3D views,
+with block selection and measured equipment/COM overlays. Missing chunks and
+nested sublevels are explicitly outside complete parent coverage. See
+[calibration, motors and geometry](docs/NAVIGATION-0.18.72.md).
+
+Previous altitude workflow:
+
+V0.18.71 introduced fresh-sample stability measurement, no sweep time limit and
+qualified vertical hold; see [altitude workflow](docs/ALTITUDE-0.18.71.md).
 
 Previous Navigation workflow stage:
 

@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.143'
 }
 group = 'io.github.commandantx.mintcraft'
-version = '0.2.1'
+version = '0.2.2'
 base { archivesName = 'mintcraft-vehicle-bridge-1.21.1' }
 java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
 neoForge { version = '21.1.244' }

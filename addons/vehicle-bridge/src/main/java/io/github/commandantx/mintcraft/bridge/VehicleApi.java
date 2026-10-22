@@ -36,13 +36,92 @@ public final class VehicleApi implements ILuaAPI {
     private static final Map<ServerSubLevel, Cached> CACHE = new WeakHashMap<>();
     private record Cached(long tick, Map<String, Object> data) {}
     private final IComputerSystem computer;
+    private HullScan hull;
+    private long lastHullTick = Long.MIN_VALUE;
+    private record Section(net.minecraft.world.level.chunk.LevelChunkSection data, int x, int y, int z) {}
+    private record HullScan(String token, String vehicle, long started, List<Section> sections,
+                            boolean coverage, Map<String,Object> bounds) {}
+
+    /** One loaded 16^3 section per call. No world/chunk loads and no output writes. */
+    @LuaFunction(mainThread = true)
+    public final Map<String,Object> geometryPage(int page, String token) {
+        try {
+            var containing = Sable.HELPER.getContaining(computer.getLevel(),computer.getPosition());
+            if (!(containing instanceof ServerSubLevel ship) || ship.isRemoved()) return unavailable("NOT_ON_SUBLEVEL","Computer is not on a sublevel");
+            long tick=computer.getLevel().getGameTime();
+            if (tick==lastHullTick) return unavailable("BUSY","One geometry page per game tick");
+            lastHullTick=tick;
+            if(page==0 && token.isEmpty()) hull=beginHull(ship,tick);
+            if(hull==null || !hull.vehicle.equals(ship.getUniqueId().toString()) || page<0 || page>=Math.max(1,hull.sections.size()) ||
+                (page!=0 || !token.isEmpty()) && !hull.token.equals(token) || tick<hull.started || tick-hull.started>24000)
+                return unavailable("SCAN_CHANGED","Restart geometry survey");
+            var current=beginHull(ship,tick);
+            if(current.sections.size()!=hull.sections.size() || !current.bounds.equals(hull.bounds) || current.coverage!=hull.coverage)
+                return unavailable("SCAN_CHANGED","Loaded geometry changed; restart survey");
+            for(int i=0;i<current.sections.size();i++) if(!current.sections.get(i).equals(hull.sections.get(i)))
+                return unavailable("SCAN_CHANGED","Section layout changed; restart survey");
+            var result=new LinkedHashMap<String,Object>();
+            result.put("schema",1); result.put("ok",true); result.put("readOnly",true);
+            result.put("vehicleId",hull.vehicle); result.put("token",hull.token); result.put("page",page);
+            result.put("pages",Math.max(1,hull.sections.size())); result.put("frame","body_plot");
+            result.put("units","block"); result.put("startedTick",hull.started); result.put("observedTick",tick);
+            result.put("coverageComplete",hull.coverage); result.put("nestedSublevelsIncluded",false);
+            result.put("bounds",hull.bounds); result.put("atomic",false);
+            var palette=new ArrayList<Map<String,String>>();
+            var indices=new LinkedHashMap<net.minecraft.world.level.block.state.BlockState,Integer>();
+            int[] cells=new int[4096];
+            if(!hull.sections.isEmpty()) {
+                Section section=hull.sections.get(page);
+                result.put("origin",BridgeMath.vector(section.x,section.y,section.z));
+                for(int n=0;n<4096;n++) {
+                    var state=section.data.getBlockState(n&15,n>>8,(n>>4)&15);
+                    if(!state.isAir()) {
+                        Integer id=indices.get(state);
+                        if(id==null) {
+                            id=indices.size()+1; indices.put(state,id);
+                            palette.add(Map.of("block",BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString(),"state",state.toString()));
+                        }
+                        cells[n]=id;
+                    }
+                }
+            } else result.put("origin",BridgeMath.vector(0,0,0));
+            result.put("palette",palette); result.put("runs",VoxelCodec.encode(cells));
+            return result;
+        } catch(RuntimeException | LinkageError error) { return unavailable("HULL_READ_FAILED",error.getClass().getSimpleName()); }
+    }
+    private static HullScan beginHull(ServerSubLevel ship,long tick) {
+        var origin=ship.getPlot().getCenterBlock();
+        var bounds=ship.getPlot().getBoundingBox();
+        var sections=new ArrayList<Section>();
+        var loaded=new java.util.HashSet<Long>();
+        int count=0; boolean coverage=true;
+        for(PlotChunkHolder holder:ship.getPlot().getLoadedChunks()) {
+            if(++count>MAX_CHUNKS) { coverage=false; break; }
+            var chunk=holder.getChunk(); var pos=chunk.getPos(); loaded.add(pos.toLong());
+            var data=chunk.getSections();
+            for(int i=0;i<data.length;i++) if(!data[i].hasOnlyAir()) {
+                if(sections.size()>=1024) { coverage=false; break; }
+                sections.add(new Section(data[i],pos.getMinBlockX()-origin.getX(),
+                    chunk.getSectionYFromSectionIndex(i)*16-origin.getY(),pos.getMinBlockZ()-origin.getZ()));
+            }
+        }
+        long needed=((long)(bounds.maxX()>>4)-(bounds.minX()>>4)+1)*((long)(bounds.maxZ()>>4)-(bounds.minZ()>>4)+1);
+        if(needed>MAX_CHUNKS || needed<0) coverage=false;
+        else for(int x=bounds.minX()>>4;x<=bounds.maxX()>>4;x++) for(int z=bounds.minZ()>>4;z<=bounds.maxZ()>>4;z++)
+            if(!loaded.contains(net.minecraft.world.level.ChunkPos.asLong(x,z))) coverage=false;
+        sections.sort(Comparator.comparingInt(Section::x).thenComparingInt(Section::y).thenComparingInt(Section::z));
+        var box=new LinkedHashMap<String,Object>();
+        box.put("min",BridgeMath.vector(bounds.minX()-origin.getX(),bounds.minY()-origin.getY(),bounds.minZ()-origin.getZ()));
+        box.put("max",BridgeMath.vector(bounds.maxX()-origin.getX(),bounds.maxY()-origin.getY(),bounds.maxZ()-origin.getZ()));
+        return new HullScan(java.util.UUID.randomUUID().toString(),ship.getUniqueId().toString(),tick,List.copyOf(sections),coverage,box);
+    }
 
     public VehicleApi(IComputerSystem computer) { this.computer = computer; }
     @Override public String[] getNames() { return new String[]{"mintcraft_vehicle"}; }
 
     @LuaFunction public final Map<String, Object> status() {
-        return Map.of("schema", 1, "version", "0.2.1", "readOnly", true,
-            "scope", "containing sublevel; loaded block entities only", "controlWrites", false);
+        return Map.of("schema", 1, "version", "0.2.2", "readOnly", true,
+            "scope", "containing sublevel; loaded blocks and block entities", "controlWrites", false);
     }
 
     @LuaFunction(mainThread = true)
@@ -101,7 +180,7 @@ public final class VehicleApi implements ILuaAPI {
         var links = new ArrayList<Map<String, Object>>();
         BlockPos origin = ship.getPlot().getCenterBlock();
         result.put("schema", 1); result.put("ok", true); result.put("readOnly", true);
-        result.put("bridgeVersion", "0.2.1"); result.put("features", Map.of("burners",true));
+        result.put("bridgeVersion", "0.2.2"); result.put("features", Map.of("burners",true,"hullPages",true));
         result.put("vehicleId", ship.getUniqueId().toString()); result.put("name", ship.getName());
         result.put("observedAtGameTick", tick); result.put("revision", tick);
         result.put("frame", "body_plot");

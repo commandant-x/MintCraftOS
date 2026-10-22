@@ -1,7 +1,7 @@
 -- Eight workspaces; specialist screens remain contextual tools, not global tabs.
 local M={}
 M.tabs={{id='flight',label='Flight'},{id='autopilot',label='Route'},{id='sublevel',label='Equipment'},{id='vehicle',label='Vehicle / setup'},{id='sweep',label='Altitude'},{id='mapping',label='Outputs'},{id='sensors',label='Sensors'},{id='control',label='Control'}}
-M.children={vehicle={{id='setup',label='Burner setup'},{id='diagram',label='Diagram'},{id='context',label='Analysis'},{id='estimates',label='Legacy estimates'},{id='frequencies',label='Legacy frequencies'}},sweep={{id='calibration',label='Output tests'},{id='gains',label='Advanced PID'}},mapping={{id='manual',label='Manual inputs'}},sensors={{id='environment',label='Environment'}}}
+M.children={vehicle={{id='drivetrain',label='Motor links'},{id='setup',label='Burner setup'},{id='diagram',label='Diagram'},{id='context',label='Analysis'},{id='estimates',label='Legacy estimates'},{id='frequencies',label='Legacy frequencies'}},sweep={{id='calibration',label='Output tests'},{id='gains',label='Advanced PID'}},mapping={{id='manual',label='Manual inputs'}},sensors={{id='environment',label='Environment'}}}
 function M.parent(id)
  if id=='component' then return 'vehicle' end
  if id=='burnerGroup' then return 'vehicle' end
