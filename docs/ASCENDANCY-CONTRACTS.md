@@ -15,12 +15,17 @@ these interfaces after the hardening stages.
 
 ## Real source broker
 
-`system.ascendancy.sources` provides four explicit, read-only adapters:
-`sable.pose`, `avionics.flight`, `vehicle.inventory`, `combat.contacts`.
+`system.ascendancy.sources` provides six explicit, read-only adapters:
+`sable.pose`, `avionics.flight`, `vehicle.inventory`, `combat.contacts`,
+`navigation.kinematics`, `navigation.commands`.
 They read existing service caches, never probe peripherals, start collection
 workers, publish messages or command actuators. Collection is explicit and bounded
 to 16 source IDs. Existing permissions (`sable.read`, `avionics.read`, `combat.read`)
-are checked before the service module/cache is read. A denied/missing/unready,
+are checked before the service module/cache is read. The two Navigation adapters
+require both `navigation.assist` and `sable.read`; `list()` exposes additional
+requirements in `requires`. They provide pose-derived observations and configured
+command metadata, not additional control certificates. See
+[A.2 observations](ASCENDANCY-A2-OBSERVATIONS.md). A denied/missing/unready,
 stale/future, cyclic, oversized or unserializable result has `available=false`,
 a reason and no invented payload. An unregistered `astral.cosmonautics` source
 returns that same explicit unavailable state, even if a mod might be installed.

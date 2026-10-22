@@ -2,7 +2,13 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.81:
+This repository currently contains V0.18.82:
+
+V0.18.82 adds the **partial Lot A.2 observation foundation**: pose-derived six-axis
+kinematics and a bounded read-only catalogue of configured commands, both available
+through authorized ASCENDANCY cache adapters. Native angular rates no longer claim
+an unverified world frame. These observations do not certify new flight axes or
+add automatic multirotor control. See [A.2 details](docs/ASCENDANCY-A2-OBSERVATIONS.md).
 
 V0.18.81 is the first **partial Lot A increment** of Autopilot Ascendancy:
 measured response-subspace diagnostics, predictive differential braking and a

@@ -17,6 +17,32 @@ local function quaternion(q)
   end
   return q.x or q[1],q.y or q[2],q.z or q[3],q.w or q[4]
 end
+-- Rotation utilities share the exact supported Sable quaternion encodings.
+function M.orientation(value)
+ local x,y,z,w=quaternion(value)
+ if not (addon.finite(x) and addon.finite(y) and addon.finite(z) and addon.finite(w)) then return nil end
+ local n=math.sqrt(x*x+y*y+z*z+w*w)
+ if not addon.finite(n) or n<1e-9 then return nil end
+ return {x=x/n,y=y/n,z=z/n,w=w/n}
+end
+function M.angularVelocity(previous,current,dt)
+ if not addon.finite(dt) or dt<=0 then return nil end
+ local a,b=M.orientation(previous),M.orientation(current) if not a or not b then return nil end
+ -- current * conjugate(previous): axis-angle in WORLD axes, radians/second.
+ local x=-b.w*a.x+b.x*a.w-b.y*a.z+b.z*a.y
+ local y=-b.w*a.y+b.x*a.z+b.y*a.w-b.z*a.x
+ local z=-b.w*a.z-b.x*a.y+b.y*a.x+b.z*a.w
+ local w=b.w*a.w+b.x*a.x+b.y*a.y+b.z*a.z
+ if w<0 then x,y,z,w=-x,-y,-z,-w end
+ if w<1e-3 then return nil,'Rotation interval near 180 degrees is ambiguous' end
+ local n=math.sqrt(x*x+y*y+z*z)
+ local factor=n<1e-9 and 2/dt or 2*M.atan2(n,w)/(n*dt)
+ return {x=x*factor,y=y*factor,z=z*factor}
+end
+function M.bodyVector(value,orientation)
+ local q=M.orientation(orientation) if not q then return nil end
+ return M.transform(value,{position={x=0,y=0,z=0},rotationPoint={x=0,y=0,z=0},scale={x=1,y=1,z=1},orientation={x=-q.x,y=-q.y,z=-q.z,w=q.w}})
+end
 function M.heading(orientation)
   if type(orientation)~="table" then return nil end
   local x,y,z,w=quaternion(orientation)

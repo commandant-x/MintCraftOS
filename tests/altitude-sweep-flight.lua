@@ -351,6 +351,8 @@ for _,side in ipairs({'left','right'}) do for i,role in ipairs({'clutch','gear',
  raw.links[#raw.links+1]={id=name,receiver=true,motor=true,position={x=side=='left' and -2 or 2,y=0,z=i},first={item=name},second={item='minecraft:iron_ingot'},signal=motorSignals[name]}
 end end
 raw.mass=65 raw.units.mass='kg'
+local duplicateId=addon.copy(motorConfig) duplicateId.channels[1].id='drive-left-clutch'
+assert(not flight.configure(actor,duplicateId),'logical command collision with motor chain accepted')
 assert(flight.configure(actor,motorConfig)) sample()
 assert(flight.startSweep(actor,require('system.navigation.altitude_sweep').defaults(),true))
 local velocityX,velocityZ,yawVelocity=0,0,0
@@ -381,6 +383,13 @@ end
 assert(flight.status().differentialReady,flight.status().autoCalibration.horizontal)
 assert(flight.status().authority.rank==2 and flight.status().authority.frame=='heading_horizontal','measured response authority not integrated')
 assert(flight.status().predictiveBraking and flight.status().predictiveBraking.samples>=2,'actual neutral-stop envelope missing')
+assert(flight.kinematics().available and flight.kinematics().response and not flight.status().authority.axes.roll,'six-axis observations either missing or falsely certified new axes')
+local catalogue=assert(flight.commands(actor))
+assert(catalogue.available and #catalogue.commands==7,'actual cached motor/burner inventory unavailable')
+catalogue.commands[1].neutral=-1 assert(flight.commands(actor).commands[1].neutral~=-1,'catalogue consumer modified configuration')
+allowed=false assert(not flight.commands(actor),'catalogue bypassed read permissions') allowed=true
+assert(not flight.commands({pid=99}),'foreign owner read private Navigation command API')
+
 local motorReport=files['/system/config/navigation-calibration.cfg']
 assert(motorReport.drivetrain and #motorReport.motorTests==60,'motor proof was not saved')
 assert(not flight.configuration().manualValidated,'motor qualification forged physical switch validation')
@@ -538,6 +547,15 @@ assert(flight.disarm(actor)) flight.step()
 assert(command==0 and secondBurnerCommand==0,'STOP did not rescue every burner frequency')
 print('multi-frequency burner service: automatic grouping includes added burner, real all-heater initialization, stable measurement/hold, collective fractional output and STOP on both frequencies passed')
 
+-- A custom channel beginning with drive- is still a configured output, not
+-- an internal gear/reverser role: its actual rescue must not be skipped.
+assert(flight.disarm(actor))
+local labelled=flight.configuration() labelled.channels[1].id='drive-custom-lift' labelled.altitudeModel=nil
+assert(flight.configure(actor,labelled))
+assert(flight.testOutput(actor,'drive-custom-lift',7,true,2)) flight.step()
+assert(command==7 and secondBurnerCommand==7)
+assert(flight.disarm(actor)) flight.step()
+assert(command==0 and secondBurnerCommand==0,'STOP classified a user channel by its name instead of actual motor membership')
 local savedReport=files['/system/config/navigation-calibration.cfg']
 assert(loadfile('tests/storage-fixture.lua'))()()
 local motorBytes=#textutils.serialize(motorReport,{compact=true})

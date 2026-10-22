@@ -20,6 +20,10 @@ local calibrationToken={}
 local Drive=require("system.navigation.drivetrain")
 local Trim=require("system.navigation.flight_trim")
 local Authority=require("system.navigation.authority")
+local Estimator=require("system.navigation.state_estimator")
+local Catalogue=require("system.navigation.command_catalogue")
+local kinematics=Estimator.new()
+local commandCatalogue,catalogueAt=nil,nil
 local horizontalIssue,horizontalMonitor=nil,Authority.monitor()
 local pilotDemand
 local driveDemand,driveValues,driveAppliedAt,drivePose,drivePrevious
@@ -62,6 +66,7 @@ end
 
 local function persist()
   cfg.control.enabled=false
+  commandCatalogue,catalogueAt=nil,nil
   return safeWrite.write("/system/config/navigation.cfg",textutils.serialize(cfg))
 end
 
@@ -144,6 +149,16 @@ local function channelValid(channel)
   return true
 end
 
+local function commandIdsValid(control)
+  if control.drivetrain~=nil and type(control.drivetrain)~="table" then return false,"Malformed drivetrain mapping" end
+  local reserved={}
+  for _,c in ipairs(Drive.channels(control.drivetrain)) do reserved[c.id]=true end
+  for _,c in ipairs(control.channels or {}) do
+    if type(c)=="table" and reserved[c.id] then return false,"Output ID collides with a motor chain: "..c.id end
+  end
+  return true
+end
+
 local function rank(matrix,columns)
   local n, pivot = #matrix,1
   for col=1,columns do
@@ -171,6 +186,7 @@ function M.validate()
   local c, errors, used, matrix = cfg.control,{}, {},{}
   if not c then return false,{"configuration missing"} end
   if type(c.channels)~="table" or type(c.gains)~="table" then return false,{"configuration malformed"} end
+  local distinct,conflict=commandIdsValid(c) if not distinct then errors[#errors+1]=conflict end
   local active=mode.axes(c)
   if c.balloonSetup then local valid,why=balloonStatus() if not valid then errors[#errors+1]=why end end
   if c.mode~=nil and c.mode~="full" and c.mode~="altitude" then errors[#errors+1]="unknown control mode" end
@@ -266,6 +282,7 @@ function M.configure(actor, value)
     if type(channel.mix)~="table" then return false,"mixer required" end
   end
   local driveValid,driveError=Drive.validate(value.drivetrain,value.channels) if not driveValid then return false,driveError end
+  local distinct,conflict=commandIdsValid(value) if not distinct then return false,conflict end
   if value.altitudeModel and (type(value.altitudeModel)~="table" or not same(value.altitudeModel.binding,altitudeBinding(value))) then
     value=addon.copy(value) value.altitudeModel=nil
   end
@@ -473,7 +490,7 @@ local function writeOutputs(values, force, results)
   local branches, failures={}, {}
   results=results or {}
   local channels={} for _,c in ipairs(cfg.control.channels) do channels[#channels+1]=c end
-  local motors=Drive.channels(cfg.control.drivetrain) local expected={}
+  local motors=Drive.channels(cfg.control.drivetrain) local expected={} local motorObjects={}
   if #motors>0 then
     local d=cfg.control.drivetrain local previous=driveValues or Drive.observed(d,vehicleBridge.snapshot())
     if force then expected=Drive.stop(d,previous)
@@ -483,12 +500,12 @@ local function writeOutputs(values, force, results)
       local ack=not driveAppliedAt or Drive.feedback(d,vehicleBridge.snapshot(),previous,driveAppliedAt)
       expected=ack and Drive.transition(d,previous,wanted) or previous
     end
-    for _,c in ipairs(motors) do if expected[c.id]~=nil then channels[#channels+1]=c end end
+    for _,c in ipairs(motors) do if expected[c.id]~=nil then channels[#channels+1]=c motorObjects[c]=true end end
   end
   for _,channel in ipairs(channels) do
     local key,value=endpoint(channel),expected[channel.id] or values[channel.id]
-    if force then value=expected[channel.id] or channel.rescue end
-    if (force and (not channel.id:match("^drive%-") or channel.id:match("clutch$"))) or (not force and value~=nil and last[key]~=value) then
+    if force then value=motorObjects[channel] and expected[channel.id] or channel.rescue end
+    if (force and (not motorObjects[channel] or channel.id:match("clutch$"))) or (not force and value~=nil and last[key]~=value) then
       local valid,why=channelValid(channel)
       local result={endpoint=key,value=value,state="unavailable",error=why}
       results[channel.id]=result outputResults[channel.id]=result
@@ -632,6 +649,7 @@ function M.startSweep(actor,options,confirmed,expectedControl)
   ok,err=authorize(actor,"navigation.control") if not ok then return false,err end
   if confirmed~=true or state~="disarmed" or rescuePending then return false,"Sweep needs idle state and explicit confirmation" end
   local c=cfg.control
+  local distinct,conflict=commandIdsValid(c) if not distinct then return false,conflict end
   if expectedControl and not same(c,expectedControl) then return false,"Control changed while reviewing sweep; review again" end
   if c.mode~="altitude" or not c.balloonSetup or #c.channels~=1 then return false,"One collective command channel required (it may control one burner)" end
   local channel=c.channels[1]
@@ -878,7 +896,12 @@ end
 function M.step(rescan)
   if rescan or inventoryDirty then inventory=addon.inventory() inventoryDirty=false end
   local now,t=os.clock(),M.telemetry()
-  if sable.pose then autopilot:observe(sable.pose(),now) end
+  if sable.pose then
+    local pose=sable.pose() autopilot:observe(pose,now) kinematics:observe(pose,now)
+  end
+  if not catalogueAt or now-catalogueAt>=1 then
+    commandCatalogue=Catalogue.build(cfg.control,vehicleBridge.snapshot(),M.endpoints(),now) catalogueAt=now
+  end
   local world=autopilot.sample
   if world and addon.finite(t.heading) and (not drivePose or drivePose.at~=world.at) then
     drivePrevious=drivePose
@@ -1262,11 +1285,25 @@ function M.step(rescan)
   if not ok then M.fail("actuator error: "..err) end
 end
 
+function M.kinematics() return kinematics:status(os.clock()) end
+function M.commandCatalogue()
+  local out=addon.copy(commandCatalogue or {schema=1,available=false,reason="Waiting for cached command inventory",commands={},equipment={}})
+  if out.validUntil and (os.clock()>out.validUntil or os.clock()<out.observedAt) then
+    out.available=false out.reason="Command feedback cache expired"
+    for _,row in ipairs(out.commands) do row.feedback={available=false,reason="Receiver cache expired"} end
+  end
+  return out
+end
+function M.commands(actor)
+  for _,permission in ipairs({"navigation.assist","sable.read"}) do local ok,why=authorize(actor,permission) if not ok then return nil,why end end
+  return M.commandCatalogue()
+end
 function M.status()
   local valid,errors=M.validate()
   local differentialReady,differentialReason=differentialCurrent()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=mode.axes(cfg.control),
+    kinematics=M.kinematics(),
     authority=calibration and calibration.driveModel and addon.copy(calibration.driveModel.authority) or nil,
     horizontalDiagnostic={issue=horizontalIssue,noResponseSamples=horizontalMonitor.samples},
     predictiveBraking=calibration and calibration.driveModel and addon.copy(calibration.driveModel.braking) or nil,
@@ -1290,6 +1327,7 @@ function M.start(context)
   if runner then runner:stop() end
   ctx=context
   autopilot=Autopilot.new() pilotDemand=nil
+  kinematics=Estimator.new() commandCatalogue,catalogueAt=nil,nil
   horizontalIssue,horizontalMonitor=nil,Authority.monitor()
   sweep,sweepChannel,sweepAppliedAt,sweepSource,sweepReport,sweepOrigin=nil,nil,nil,nil,nil,nil
   routeForward,routeRight=0,0

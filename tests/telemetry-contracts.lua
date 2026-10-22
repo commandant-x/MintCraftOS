@@ -54,6 +54,7 @@ now=11
 assert(not av.flightTelemetry(ids).heading,"expired value returned")
 package.loaded["system.libraries.log"]={warn=function() end}
 sublevel={isInPlotGrid=function() return true end,getLogicalPose=function() return {position={2,3,4}} end,
+  getAngularVelocity=function() return {1,2,3} end,
   getMass=function() return 5 end,getCenterOfMass=function() return {20,30,40} end}
 aero={getAirPressure=function(x,y,z) assert(x==2 and y==3 and z==4) return 0.7 end,getGravity=function() return {0,-9,0} end}
 local sable=require("system.services.sabled")
@@ -61,6 +62,7 @@ sable.acquire(true)
 sable.acquireDiagnostics() sable.acquire(false)
 local s=sable.snapshot()
 assert(s.aero.airPressure==0.7 and s.measurements.centerOfMass.frame=="unknown")
+assert(s.measurements.angularVelocity.valid and s.measurements.angularVelocity.frame=="unknown" and s.measurements.angularVelocity.frameReason,"native angular frame was assumed world")
 assert(s.measurements.mass.observedAt==11)
 now=11.2 sable.acquire(false)
 s=sable.snapshot()

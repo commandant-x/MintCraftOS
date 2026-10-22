@@ -228,7 +228,9 @@ function M.acquire(rescan)
     stamp=timing.startedAt or stamp
     local value=subData and subData[key]
     local valid=key=="mass" and addon.finite(value) or key~="mass" and addon.vec(value)~=nil
-    local m=addon.measure(valid and value or nil, unit, key == "centerOfMass" and "unknown" or "world", "CC:Sable", stamp or 0)
+    local frame=(key=="centerOfMass" or key=="angularVelocity") and "unknown" or "world"
+    local m=addon.measure(valid and value or nil, unit, frame, "CC:Sable", stamp or 0)
+    if key=="angularVelocity" then m.frameReason="Native angular frame is version-dependent; use pose-derived world rates" end
     local received=timing.receivedAt or (subData and ((key=="mass" or key=="centerOfMass") and subData.diagnosticsReceivedAt or subData.receivedAt))
     m.observedAt,m.receivedAt,m.validUntil=stamp,received,stamp and stamp+((key=="mass" or key=="centerOfMass") and 1 or 0.5)
     m.valid=m.valid and os.clock()<=m.validUntil

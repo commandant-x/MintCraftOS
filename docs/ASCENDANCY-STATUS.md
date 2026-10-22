@@ -5,7 +5,9 @@
 Le document utilisateur « PROJECT AUTOPILOT ASCENDANCY » demande de commencer
 par le lot A et d'étendre l'existant. `origin/main` a été récupéré et comparé :
 référence 0.18.80, commit `7947f2cf7ff31803691d4a6d735e1e31b9ecd947`.
-La version 0.18.81 livre un premier incrément **partiel** du lot A. Elle ne livre
+La version 0.18.81 livre un premier incrément **partiel** du lot A.
+0.18.82 ajoute [A.2, observations et catalogue](ASCENDANCY-A2-OBSERVATIONS.md),
+également partiel : pas de calibration universelle ou de nouveaux axes certifiés. Elle ne livre
 ni Autonomy 2.0 complète ni l'ensemble du lot A.
 
 ## Capacités constatées avant cet incrément
@@ -153,12 +155,12 @@ attendent leur caractérisation réelle. Aucune autonomie complète annoncée.
 - Mise à jour depuis 0.18.80, sauvegardes existantes conservées et récupération
   après interruption : tests réussis. Pas de validation Minecraft en jeu.
 
-### Prochaine étape de travail — A.2
+### Fondation A.2 livrée en 0.18.82 ; prochaine étape A.3
 
-Poursuivre le lot A, pas les lots terrain/atterrissage : inventorier les commandes
-et leur provenance puis produire des observations six axes correctement horodatées.
-Le cache Sable expose déjà `linearVelocity` en m/s et `angularVelocity` en rad/s
-avec fraîcheur et repère monde ; `sabled.pose()` fournit la pose/identité.
+Poursuivre le lot A, pas les lots terrain/atterrissage : relier les observations
+six axes à des expériences de commandes vérifiées et aux incertitudes mesurées.
+Le repère angulaire natif n'est plus déclaré monde sans preuve ; A.2 dérive les
+rotations depuis `sabled.pose()` et publie les frames/horodatages explicites.
 Vérifier leurs conventions dans les API réelles avant transformation vers le corps.
 Ne pas réécrire l'allocateur différentiel ni les calibrations déjà qualifiées.
 La matrice générique seule ne donne pas le droit d'actuer un multirotor.

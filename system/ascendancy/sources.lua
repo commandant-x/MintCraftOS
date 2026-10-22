@@ -2,6 +2,8 @@
 local contracts=require('system.ascendancy.contracts')
 local M={}
 local definitions={
+ ['navigation.kinematics']={module='system.services.flightd',method='kinematics',permission='navigation.assist',requires={'sable.read'},age=.5,stamp='observedAt',ready=function(d) return d.available==true and d.frame=='world' end},
+ ['navigation.commands']={module='system.services.flightd',method='commandCatalogue',permission='navigation.assist',requires={'sable.read'},age=2,stamp='observedAt',ready=function(d) return d.available==true and d.schema==1 end},
  ['sable.pose']={module='system.services.sabled',method='pose',permission='sable.read',age=0.5,stamp='timestamp',ready=function(d,now)
   local pose=d.logicalPose
   local position=type(pose)=='table' and require('system.libraries.addon').vec(pose.position or pose.pos)
@@ -15,7 +17,7 @@ local definitions={
  ['combat.contacts']={module='system.services.combatd',method='snapshot',permission='combat.read',age=1,stamp='timestamp',ready=function(d) return d.available==true and d.ok==true end},
 }
 function M.list()
- local out={} for id,d in pairs(definitions) do out[#out+1]={id=id,permission=d.permission,method=d.method} end
+ local out={} for id,d in pairs(definitions) do out[#out+1]={id=id,permission=d.permission,requires=contracts.clone(d.requires or {}),method=d.method} end
  table.sort(out,function(a,b) return a.id<b.id end) return out
 end
 function M.read(actor,id,now)
@@ -28,6 +30,10 @@ function M.read(actor,id,now)
  if not def then envelope.reason='No real source adapter registered' return envelope end
  local checked,allowed,denied=pcall(function() return require('system.security.permissions').require(actor,def.permission,id) end)
  if not checked or allowed~=true then envelope.reason=checked and denied or 'Source authorization unavailable' return envelope end
+ for _,permission in ipairs(def.requires or {}) do
+  local ok,granted,why=pcall(function() return require('system.security.permissions').require(actor,permission,id) end)
+  if not ok or granted~=true then envelope.reason=ok and why or 'Source authorization unavailable' return envelope end
+ end
  local ok,data=pcall(function() return require(def.module)[def.method]() end)
  if not ok or type(data)~='table' then envelope.reason='Source cache unavailable' return envelope end
  if data.synthetic==true then envelope.reason='Synthetic source cache refused' return envelope end
