@@ -118,7 +118,7 @@ local function restoreRaw(resumeOnly)
     for _, path in ipairs(manifest.paths) do
       if path ~= "/packages" then
         if manifest.kind == "files" and not manifest.existed[path] then
-          if fs.exists(path) then fs.delete(path) end
+          if path~="/system/libraries/packed_source_v2.lua" and fs.exists(path) then fs.delete(path) end
         else
           fs.makeDir(stage)
           writeConfig(stage .. "/target.cfg", path)
@@ -131,6 +131,10 @@ local function restoreRaw(resumeOnly)
             local target=stage.."/next/security/users.db"
             if fs.exists(target) then fs.delete(target) end
             fs.makeDir(fs.getDir(target)) fs.copy("/system/security/users.db",target)
+          end
+          if path=="/system" and fs.exists("/system/libraries/packed_source_v2.lua") and not fs.exists(stage.."/next/libraries/packed_source_v2.lua") then
+            local target=stage.."/next/libraries/packed_source_v2.lua"
+            fs.makeDir(fs.getDir(target)) fs.copy("/system/libraries/packed_source_v2.lua",target)
           end
           if path == "/apps" and fs.exists("/apps") then
             local core = {browser=true,combat=true,crafttube=true,devices=true,editor=true,files=true,logs=true,

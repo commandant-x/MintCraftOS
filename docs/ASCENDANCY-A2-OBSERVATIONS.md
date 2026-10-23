@@ -1,5 +1,9 @@
 # Ascendancy A.2 — observations et inventaire, 0.18.82
 
+Pour revenir depuis 0.18.87 ou plus récent, utiliser le
+[retour compatible avec le format 2](COMPACT-SOURCE-0.18.87.md) ;
+les commandes d'installateur ancien ci-dessous concernent le format précédent.
+
 Cet incrément reste **partiel au sein du lot A**. Il prépare la caractérisation
 universelle ; il ne réalise ni nouvelles impulsions, ni identification de gains,
 ni allocation six axes. Les contrôleurs altitude et différentiel restent les

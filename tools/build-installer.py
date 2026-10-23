@@ -20,7 +20,7 @@ for path in sorted(paths, key=lambda p: p.as_posix().lower()):
     parts.extend(['  ["' + path.as_posix() + '"] = [' + delimiter + '[\n',
                   content, ']' + delimiter + '],\n'])
 parts.extend(['}\n',
-              'local factory = assert(load(files["system/libraries/installer.lua"], "installer", "t", _ENV))\n',
+              'local factory = assert(load(files["system/libraries/installer_v2.lua"] or files["system/libraries/installer.lua"], "installer", "t", _ENV))\n',
               'factory().install(files, mintcraftInstallOptions)\n',
               'print("MintCraft OS installed. Reboot to start.")\n'])
 (root / 'install.lua').write_bytes(''.join(parts).encode('utf-8'))

@@ -91,7 +91,7 @@ function M.decode(text,length,digest)
   return result
 end
 local plain={['boot.lua']=true,['startup.lua']=true,['system/boot/recovery.lua']=true,
-  ['system/libraries/safe_write.lua']=true,['system/libraries/installer.lua']=true,['system/libraries/packed_source.lua']=true}
+  ['system/libraries/safe_write.lua']=true,['system/libraries/installer.lua']=true,['system/libraries/packed_source.lua']=true,['system/libraries/packed_source_v2.lua']=true,['system/libraries/installer_v2.lua']=true}
 function M.pack(path,source,tick)
   if plain[path] or not path:match('%.lua$') or source:sub(1,#M.prefix)==M.prefix then return source end
   local packed=M.prefix..'return assert(load(require("system.libraries.packed_source").decode([['..M.encode(source,tick)..']],'
@@ -99,6 +99,7 @@ function M.pack(path,source,tick)
   return #packed<#source and packed or source
 end
 function M.unpack(source)
+  if source:sub(1,#"-- MintCraft packed source 2\n")=="-- MintCraft packed source 2\n" then return require("system.libraries.packed_source_v2").unpack(source) end
   if source:sub(1,#M.prefix)~=M.prefix then return source end
   local encoded,length,digest=source:match('%.decode%(%[%[(.-)%]%],(%d+),"([0-9a-f]+)"%)')
   assert(encoded,"Invalid packed wrapper")

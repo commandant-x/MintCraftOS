@@ -92,6 +92,9 @@ Le Command Center complet reste à développer.
 - Les anciennes versions ignorent les champs supplémentaires ; une restauration
   du code n'efface pas les observations plus récentes.
 - Aucune modification du JAR 0.2.3. Aucun JAR serveur remplacé automatiquement.
+- Depuis 0.18.87, suivre le [retour compatible](COMPACT-SOURCE-0.18.87.md) :
+  0.18.86 avec correctif Cobalt est le retour qualifié. Les instructions anciennes
+  suivantes concernent les versions précédant le format 2.
 - Retour au code 0.18.80 : exécuter l'installateur épinglé au commit
   `7947f2cf7ff31803691d4a6d735e1e31b9ecd947`, après arrêt explicite du pilotage.
   Les profils, rapports, configurations et fichiers personnels sont conservés.
@@ -241,3 +244,41 @@ octets, anciens checkpoints conservés par défaut et interruptions récupérée
 Installateur reproductible octet pour octet. Aucun essai Minecraft effectué.
 La marge du scénario avec rollback conservé est désormais de 2 076 octets :
 optimiser/revalider le stockage avant une extension substantielle supplémentaire.
+
+### Stockage préalable A.7 — 0.18.87
+
+Le [format de source 2](COMPACT-SOURCE-0.18.87.md) et la préparation transactionnelle
+par fichier récupèrent de la place pour poursuivre le lot A. Aucune ligne de code
+ou donnée n'est retirée : égalité exacte des sources décompressées, autorisation
+avant préparation, conservation des champs personnalisés et du décodeur nécessaire
+aux applications préservées après rollback. Les checkpoints existants ne sont
+pas purgés implicitement. L'outil de retour compatible restaure le code 0.18.86
+sans devoir recopier tous les wrappers. Le lot A universel reste à implémenter.
+
+Résultats A.7 : 171 suites réussies sur sources et runtime compressé ; compilation
+376 fichiers source / 171 fichiers runtime. Cobalt 0.9.9 compile aussi les wrappers
+et décompresse/compare/compile les 170 modules installés. Cette vérification a
+révélé les chaînes longues imbriquées du premier alphabet et les 69 captures de
+la boucle de vol : corrections avant publication, alphabet final 118 symboles,
+variables privées regroupées, boucle à 55 captures. Aucun nouveau contrôleur.
+La comparaison avec le simulateur 0.18.86 sous Lua 5.2 conserve exactement les
+3 674 commandes Link, y compris calibration, moteurs, adaptation de masse et STOP.
+
+Installation : 888 594 octets avec 100 000 octets personnels, soit 42 343 octets
+récupérés par rapport à 0.18.86. Pic mise à jour/checkpoint/retour : 952 544 octets.
+Migration réelle 0.18.86 → 0.18.87 : 150 sources réencodées ; 888 082 octets après
+migration ; pic migration/retour compatible/remise à niveau : 980 856 octets.
+Le retour 0.18.86 conserve son correctif Cobalt épinglé ; ses 168 sources sont
+également compilées par Cobalt. Les autres fichiers et paramètres restent ceux
+du retour demandé. Le client ancien limité au callback final refuse proprement
+si l'espace manque ; la préparation autorisée puis le même callback passent
+avec un pic de 982 392 octets. Le client Update 0.18.86 possède le callback requis.
+Coupures : 55 points de préparation, 72 points de politique de stockage, plus
+les scénarios existants de sauvegarde/transaction/installateur et reprise.
+Checkpoints et données conservés par défaut. Aucun essai Minecraft effectué ;
+Bridge 0.2.3 inchangé.
+
+Reprendre ensuite le lot A : qualifier les liaisons de commande avec les états
+mécaniques observés pendant les essais existants, avant toute attribution d'une
+panne RPM à une banque ; continuer la caractérisation/allocation réellement
+multi-axes sans activer une architecture sur de simples diagnostics.

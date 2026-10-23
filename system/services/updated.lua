@@ -87,6 +87,11 @@ local function restoreTree(from, to)
     if fs.exists(path) then fs.delete(path) end
     fs.makeDir(fs.getDir(path)) fs.copy("/system/security/users.db",path)
   end
+  -- Preserved user/native modules may still use format 2 after a code rollback.
+  if to=="/system" and fs.exists("/system/libraries/packed_source_v2.lua") and not fs.exists(nextPath.."/libraries/packed_source_v2.lua") then
+    local target=nextPath.."/libraries/packed_source_v2.lua"
+    fs.makeDir(fs.getDir(target)) fs.copy("/system/libraries/packed_source_v2.lua",target)
+  end
   if to == "/apps" and fs.exists("/apps") then
     local core = {browser=true,combat=true,crafttube=true,devices=true,editor=true,files=true,logs=true,
       messenger=true,navigation=true,services=true,settings=true,store=true,taskmanager=true,terminal=true,update=true}
@@ -369,7 +374,7 @@ local function rollback(options)
     if path == "/packages" then
       ok = true -- Package databases and user-installed packages are not system rollback data.
     elseif manifest.kind=="files" and not manifest.existed[path] then
-      ok,err=pcall(function() if fs.exists(path) then assert(not fs.isDir(path),"Unexpected directory at "..path) fs.delete(path) end end)
+      ok,err=pcall(function() if path~="/system/libraries/packed_source_v2.lua" and fs.exists(path) then assert(not fs.isDir(path),"Unexpected directory at "..path) fs.delete(path) end end)
     else ok,err=restoreTree(backupDir..path,path) end
     if not ok then return false, err end
   end

@@ -1,5 +1,9 @@
 # Ascendancy A.4 — diagnostic de progression du sweep, 0.18.84
 
+Pour revenir depuis 0.18.87 ou plus récent, utiliser le
+[retour compatible avec le format 2](COMPACT-SOURCE-0.18.87.md) ;
+les commandes d'installateur ancien ci-dessous concernent le format précédent.
+
 Incrément **partiel du lot A**. Le sweep conserve sa qualification physique :
 huit observations fraîches, acquittées et contiguës, vitesse verticale absolue
 au plus 0,1 m/s et dispersion de hauteur au plus 0,5 m. Aucun délai maximal,

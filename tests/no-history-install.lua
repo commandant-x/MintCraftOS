@@ -26,11 +26,21 @@ local state,installer,peak=setup()
 local old=state.nodes['/var/backups/update/100/old']
 local ok=pcall(installer.install,files,{purgeHistory=true,beforeHistoryCleanup=function() error('denied') end})
 assert(not ok and state.nodes['/var/backups/update/100/old']==old,'denial deleted history')
-assert(installer.install(files,{purgeHistory=true,beforeInstall=function(plan)
+local callbacks={purgeHistory=true,beforeInstall=function(plan)
  assert(plan.retainRollback==false)
  -- Compatibility with an older installed Update that still creates a checkpoint.
  state.put('/var/backups/update/101/boot.lua','return "old"')
-end}))
+end}
+local installed,problem=pcall(installer.install,files,callbacks)
+if not installed then
+ assert(arg[1] and tostring(problem):find('INSTALL%-DISK:'),'unexpected legacy-client install failure: '..tostring(problem))
+ assert(state.nodes['/VERSION']=='0.18.62\n' and state.nodes['/boot.lua']=='return "old"','refused legacy preparation changed live code')
+ assert(state.nodes['/home/user/documents/witness']==string.rep('x',100000))
+ assert(not fs.exists('/var/tmp/mintcraft-install'))
+ callbacks.beforePreparation=function() end
+ assert(installer.install(files,callbacks))
+ print('callback-only legacy client refused safely when space was insufficient; authorized preparation retry passed')
+end
 assert(not fs.exists('/var/backups/update') and not fs.exists('/var/tmp/mintcraft-install'))
 assert(state.nodes['/home/user/documents/witness']==string.rep('x',100000))
 assert(textutils.unserialize(state.nodes['/system/config/update-storage.cfg']).retainRollback==false)

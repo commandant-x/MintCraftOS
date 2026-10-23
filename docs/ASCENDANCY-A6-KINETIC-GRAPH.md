@@ -1,5 +1,9 @@
 # Ascendancy A.6 — graphe cinétique réel, 0.18.86
 
+Pour revenir depuis 0.18.87 ou plus récent, utiliser le
+[retour compatible avec le format 2](COMPACT-SOURCE-0.18.87.md) ;
+les commandes d'installateur ancien ci-dessous concernent le format précédent.
+
 Incrément **partiel du lot A**, en lecture seule. Le catalogue de commandes A.2
 expose désormais `kineticGraph` : arêtes `sourceId` fournies par Create, racines
 correspondant aux hélices du snapshot, RPM signés réels et théoriques, surcharge

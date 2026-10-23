@@ -1,5 +1,9 @@
 # Ascendancy A.5 — vue native État, 0.18.85
 
+Pour revenir depuis 0.18.87 ou plus récent, utiliser le
+[retour compatible avec le format 2](COMPACT-SOURCE-0.18.87.md) ;
+les commandes d'installateur ancien ci-dessous concernent le format précédent.
+
 Incrément **partiel du lot A**, pas une annonce d'autonomie complète.
 
 Dans Navigation > Autopilot, cliquer **État** dans la barre supérieure du cockpit.

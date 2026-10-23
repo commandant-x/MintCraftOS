@@ -1,5 +1,9 @@
 # Ascendancy A.3 — observations des essais moteur, 0.18.83
 
+Pour revenir depuis 0.18.87 ou plus récent, utiliser le
+[retour compatible avec le format 2](COMPACT-SOURCE-0.18.87.md) ;
+les commandes d'installateur ancien ci-dessous concernent le format précédent.
+
 Cet incrément **partiel du lot A** relie les dérivées six axes de A.2 aux essais
 moteur déjà autorisés par `flightd`. Il ne change ni les impulsions, ni leur durée,
 ni l'allocateur différentiel, ni le maintien vertical. Il ne certifie aucun nouvel

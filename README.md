@@ -2,7 +2,16 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.86:
+This repository currently contains V0.18.87:
+
+V0.18.87 recovers storage for the next Ascendancy increments with **lossless
+source format 2** and transactional per-file preparation. Exact decoded source
+comparison preserves all code and comments; user data and existing checkpoints
+remain intact. The standalone decoder is compatible with preserved applications
+after rollback. This storage prerequisite does not add new flight authority.
+The flight loop also stays within Cobalt's 60-upvalue limit (55 after grouping
+private dependencies/state; control laws and permissions are unchanged).
+See [migration and compatible rollback](docs/COMPACT-SOURCE-0.18.87.md).
 
 V0.18.86 extends the authorized cached command catalogue with a bounded physical
 kinetic graph: actual Create source edges, signed/theoretical RPM, clutch state
@@ -517,6 +526,9 @@ shell.run("/boot.lua")
 ```
 
 ## Install From GitHub
+
+From 0.18.87, use the [compatible rollback tool](docs/COMPACT-SOURCE-0.18.87.md)
+when restoring earlier code on a small disk; avoid a bulk wrapper re-encoding.
 
 On a CC:Tweaked computer with HTTP enabled:
 

@@ -1,15 +1,16 @@
-"""Deterministic bounded LZSS + ASCII85 for installed Lua source only."""
+"""Deterministic LZSS + compact ASCII; retain the legacy ASCII85 encoder."""
 import base64
 from collections import defaultdict, deque
 
 CODEC = 'system/libraries/packed_source.lua'
 PLAIN = {CODEC, 'boot.lua', 'startup.lua', 'system/boot/recovery.lua',
-         'system/libraries/safe_write.lua', 'system/libraries/installer.lua'}
-PREFIX = '-- MintCraft packed source 1\n'
+         'system/libraries/safe_write.lua', 'system/libraries/installer.lua',
+         'system/libraries/packed_source_v2.lua', 'system/libraries/installer_v2.lua'}
+PREFIX = '-- MintCraft packed source 2\n'
 
 
-def encode(data):
- hits=defaultdict(lambda:deque(maxlen=32));out=bytearray();i=0;n=len(data)
+def encode(data, hit_limit=32):
+ hits=defaultdict(lambda:deque(maxlen=hit_limit));out=bytearray();i=0;n=len(data)
  while i<n:
   flag_at=len(out);out.append(0);flags=0
   for bit in range(8):
@@ -31,6 +32,22 @@ def encode(data):
  return base64.b85encode(out).decode()
 
 
+def compact_ascii(raw):
+    # 118 ASCII symbols, no NUL, whitespace controls, ESC, DEL or brackets.
+    alphabet = bytes(c for c in range(1, 127) if c not in (9, 10, 11, 12, 13, 27, 91, 93))
+    out = bytearray()
+    for i in range(0, len(raw), 6):
+        block = raw[i:i + 6]
+        value = int.from_bytes(block, 'big')
+        digits = []
+        for _ in range(len(block) + 1):
+            digits.append(alphabet[value % 118])
+            value //= 118
+        assert value == 0
+        out.extend(reversed(digits))
+    return out.decode('ascii')
+
+
 def checksum(data):
     import zlib
     return '%08x' % zlib.adler32(data)
@@ -40,7 +57,7 @@ def pack(path, source):
     if path in PLAIN or not path.endswith('.lua'):
         return source
     data = source.encode('utf-8')
-    result = (PREFIX + 'return assert(load(require("system.libraries.packed_source").decode([['
-              + encode(data) + ']],' + str(len(data)) + ',"' + checksum(data)
+    result = (PREFIX + 'return assert(load(require("system.libraries.packed_source_v2").decode([['
+              + compact_ascii(base64.b85decode(encode(data, 128))) + ']],' + str(len(data)) + ',"' + checksum(data)
               + '"),"@/' + path + '","t",_ENV))(...)\n')
     return result if len(result.encode('utf-8')) < len(data) else source

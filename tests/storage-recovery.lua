@@ -112,8 +112,12 @@ local manifest={id="1",kind="files",paths={"/VERSION","/apps/demo/new.lua"},exis
 state.config("/var/backups/update/1/manifest.cfg",manifest)
 state.put("/var/backups/update/1/VERSION","old")
 state.put("/VERSION","new") state.put("/apps/demo/new.lua","added")
+manifest.paths[#manifest.paths+1]="/system/libraries/packed_source_v2.lua" manifest.existed["/system/libraries/packed_source_v2.lua"]=false
+state.config("/var/backups/update/1/manifest.cfg",manifest)
+state.put("/system/libraries/packed_source_v2.lua","retained format decoder")
 assert(raw("--raw-rollback"))
 assert(state.nodes["/VERSION"]=="old" and not fs.exists("/apps/demo/new.lua"))
+assert(state.nodes["/system/libraries/packed_source_v2.lua"]=="retained format decoder")
 assert(state.nodes["/var/backups/update/1/VERSION"]=="old")
 for _, bad in ipairs({"/system/config/security.cfg","/system/./config/security.cfg","/system/config","/system//bad.lua","/system/../bad.lua","/home/user/data"}) do
   manifest.paths={"/VERSION",bad} manifest.existed[bad]=false
