@@ -36,7 +36,8 @@ end}
 local space=1000000
 fs={getFreeSpace=function() return space end,exists=function(p) return files[p]~=nil end}
 package.loaded["system.libraries.log"]={warn=function() end,error=function() end}
-package.loaded["system.security.permissions"]={require=function() return allowed,"denied" end}
+local requestedPermissions={}
+package.loaded["system.security.permissions"]={require=function(_,permission) requestedPermissions[permission]=true return allowed,"denied" end}
 redstone={getInput=function() return pressed end}
 addon.inventory=function() return {{name="tx",types={"redstone_link_bridge"},set={sendLinkSignal=true},device={sendLinkSignal=function(first,_,value)
  if first:find('minecraft:motor_',1,true)==1 then
@@ -66,6 +67,7 @@ end
 local process={pid=7,state="ready",meta={appId="navigation"},permissions={}}
 local ctx={scheduler={processes={[7]=process}}}
 local flight=require("system.services.flightd")
+assert(debug.getinfo(flight.step,"u").nups<=60,"flight control loop exceeds the actual Cobalt capture limit")
 local actor={pid=7}
 flight.start(ctx) flight.step(true) sample()
 local function prepare()
@@ -384,7 +386,9 @@ assert(flight.status().differentialReady,flight.status().autoCalibration.horizon
 assert(flight.status().authority.rank==2 and flight.status().authority.frame=='heading_horizontal','measured response authority not integrated')
 assert(flight.status().predictiveBraking and flight.status().predictiveBraking.samples>=2,'actual neutral-stop envelope missing')
 assert(flight.kinematics().available and flight.kinematics().response and not flight.status().authority.axes.roll,'six-axis observations either missing or falsely certified new axes')
+requestedPermissions={}
 local catalogue=assert(flight.commands(actor))
+assert(requestedPermissions["navigation.assist"] and requestedPermissions["sable.read"],"catalogue permission names changed during Cobalt compatibility refactor")
 assert(catalogue.available and #catalogue.commands==7,'actual cached motor/burner inventory unavailable')
 catalogue.commands[1].neutral=-1 assert(flight.commands(actor).commands[1].neutral~=-1,'catalogue consumer modified configuration')
 allowed=false assert(not flight.commands(actor),'catalogue bypassed read permissions') allowed=true
