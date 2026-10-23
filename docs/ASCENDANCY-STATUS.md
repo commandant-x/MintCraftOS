@@ -22,6 +22,11 @@ caractérisation des sorties connues, allocation bornée, essais de retour,
 inclinaison identifiée passivement et Bridge 0.3.0. Les lots A–E ne sont pas
 terminés ; les limites et essais non effectués sont documentés.
 
+0.18.90 ajoute [B.1, archives et recontrôles](ASCENDANCY-B1-MODEL-REUSE.md) :
+reconstruction depuis les preuves, nouvelle qualification, séparation des liaisons
+chauffe/moteur et surveillance des changements d’inertie/centre de masse.
+Le projet complet reste actif et incomplet.
+
 ## Capacités constatées avant cet incrément
 
 | Fonction | Contrat constaté | Limite réelle |

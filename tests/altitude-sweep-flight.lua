@@ -468,6 +468,17 @@ mintcraft_vehicle.geometryPage=function(page,token)
  return {schema=1,ok=true,readOnly=true,vehicleId='ship',frame='body_plot',units='block',token='automatic-survey',page=0,pages=1,
   origin={x=0,y=0,z=0},startedTick=100,observedTick=100,coverageComplete=true,palette={},runs='',structureHash=fingerprint}
 end
+-- Changing only a historical motor frequency cannot invalidate the unchanged
+-- burner/sensor binding, and cannot nominate the old motor response model.
+local independent=addon.copy(motorReport)
+independent.binding.drivetrain.left.gear.first='minecraft:previous_motor_frequency'
+files['/system/config/navigation-calibration.cfg']=independent
+flight.start(ctx) flight.step(true) sample()
+assert(flight.activateAutomatic(actor,true)) bridge.acquireGeometry() flight.step()
+local separate=flight.status().automatic.modelReuse
+assert(separate.vertical and not separate.motors,'motor mapping change either discarded valid vertical data or reused stale motor evidence')
+assert(flight.disarm(actor)) flight.step()
+files['/system/config/navigation-calibration.cfg']=addon.copy(motorReport)
 flight.start(ctx) flight.step(true) sample()
 assert(not flight.activateAutomatic(actor,false),'automatic activation ran without confirmation')
 allowed=false assert(not flight.activateAutomatic(actor,true)) allowed=true

@@ -2,7 +2,7 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.89:
+This repository currently contains V0.18.90:
 
 V0.18.88 adds **partial Lot A.8 motor source supervision**. Existing acknowledged
 calibration probes correlate physical clutches with actual kinetic source paths;
@@ -577,3 +577,5 @@ CraftTube uses `http://127.0.0.1:8787` by default. If Minecraft runs on another 
 - `BRW-008`: download/write failure.
 
 Autopilot Ascendancy : [contrôle local mesuré et limites de 0.18.89](docs/ASCENDANCY-A9-MEASURED-CONTROL.md).
+
+Réutilisation mesurée : [archives et recontrôles de 0.18.90](docs/ASCENDANCY-B1-MODEL-REUSE.md).

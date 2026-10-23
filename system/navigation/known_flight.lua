@@ -14,8 +14,13 @@ local function same(a,b)
 end
 function M.new(channels,vehicleId,duration,automatic)
  local self,why=Characterization.new(channels,vehicleId,duration) if not self then return nil,why end
- local measureStep,measureStatus,abort=self.step,self.status,self.abort
+ local measureStep,measureStatus,abort,measureReuse=self.step,self.status,self.abort,self.reuseCandidate
  self.automatic=automatic==true
+ function self:reuseCandidate(candidate,pose,k)
+  local controller,why=Controller.new(candidate.model,pose,k)
+  if not controller then return false,'Historical domain not applicable to current pose: '..tostring(why) end
+  return measureReuse(self,candidate)
+ end
  function self:abort(reason)
   abort(self,reason) self.active=false
   if self.qualification then self.qualification:abort(reason) end
@@ -102,14 +107,14 @@ function M.new(channels,vehicleId,duration,automatic)
    self.values=signals self.generation=self.generation+1 self.appliedAt=nil self.confirmedAt=nil
   end
  end
- function self:massChanged(mass,referenceMass,k)
+ function self:massChanged(mass,referenceMass,k,cause)
   if not self.active or not self.controller.axes.vertical or not k or not A.vec(k.position) then return false,'No qualified vertical hold available for passive mass adaptation' end
   self.progress=Progress.new()
   self.massAdaptation=self.massAdaptation or {referenceMass=referenceMass,target=self.controller.position.y}
-  self.massAdaptation.mass=mass self.phase='adaptation'
+  self.massAdaptation.mass=mass self.massAdaptation.cause=cause or 'Observed mass changed' self.phase='adaptation'
   self.controller.axes.forward=false self.controller.axes.right=false self.controller.axes.yaw=false self.controller.tiltSuspended=true
   self.controller.position.x=k.position.x self.controller.position.z=k.position.z
-  self.reason='Passive mass adaptation at unchanged altitude; horizontal guidance suspended, no new motion test'
+  self.reason=self.massAdaptation.cause..': passive adaptation at unchanged altitude; horizontal guidance suspended, no new motion test'
   return true
  end
  function self:setTargets(request)

@@ -35,6 +35,11 @@ function M.new(channels,vehicleId,duration)
   end
  end
  if #self.steps==0 then return nil,'All assigned outputs have a fixed domain' end
+ function self:reuseCandidate(candidate)
+  if self.appliedAt or self.index~=1 or self.phase~='baseline' or type(candidate)~='table' or not candidate.model or candidate.model.vehicleId~=self.vehicleId then return false end
+  self.model=A.copy(candidate.model) self.rows=A.copy(candidate.observations) self.reusedFrom={clockId=candidate.sourceClockId,archivedAt=candidate.archivedAt}
+  self.steps={} self.reason='Historical candidate: waiting for freshly confirmed stationary neutral' return true
+ end
  function self:abort(why) self.state,self.reason='aborted',why end
  function self:applied(generation,at)
   if self.state=='running' and generation==self.generation and not self.appliedAt and A.finite(at) and at>=0 then self.appliedAt=at end
@@ -90,7 +95,7 @@ function M.new(channels,vehicleId,duration)
    self.last=k.observedAt
    if self.baseline.n>=8 then
     if self.index>#self.steps then
-     self.model,self.modelError=Response.fit(self.channels,self.rows,{vehicleId=self.vehicleId,source='Sable logicalPose derivatives',clock='local_uptime',clockId=C.clockId(),frame='body_orientation_at_neutral_reference',translationUnit='block/s2',rotationUnit='deg/s2'})
+     if not self.reusedFrom then self.model,self.modelError=Response.fit(self.channels,self.rows,{vehicleId=self.vehicleId,source='Sable logicalPose derivatives',clock='local_uptime',clockId=C.clockId(),frame='body_orientation_at_neutral_reference',translationUnit='block/s2',rotationUnit='deg/s2'}) end
      self.state='complete' self.reason=self.model and 'Known-output response measured; closed-loop qualification still required' or self.modelError return
     end
     self.pulseBaseline=A.copy(self.baseline) self.pulse=stats() self.pulseReference=A.copy(self.reference)
@@ -122,7 +127,7 @@ function M.new(channels,vehicleId,duration)
  function self:status()
   return {state=self.state,phase=self.phase,reason=self.reason,index=self.index,count=#self.steps,measured=#self.rows,rejected=#self.rejected,
    neutralSamples=self.baseline.n,pulseSamples=self.pulse and self.pulse.n or 0,scope='known-output-characterization-not-flight-certificate',
-   axes=self.model and A.copy(self.model.axes) or nil}
+   reusedFrom=A.copy(self.reusedFrom),axes=self.model and A.copy(self.model.axes) or nil}
  end
  return self
 end

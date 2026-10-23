@@ -24,6 +24,7 @@ deps.Trim=require("system.navigation.flight_trim")
 deps.MotorHealth=require("system.navigation.motor_health")
 deps.Characterization=require("system.navigation.known_flight")
 deps.Contracts=require("system.ascendancy.contracts")
+deps.ResponseArchive=require("system.navigation.response_archive")
 local Authority=require("system.navigation.authority")
 local Estimator=require("system.navigation.state_estimator")
 deps.Catalogue=require("system.navigation.command_catalogue")
@@ -624,6 +625,13 @@ function M.startKnownOutputCalibration(actor,confirmed,duration,automatic)
   cfg.control.channels=channels cfg.control.sessionActive=true
   local saved,why=persist() if not saved then cfg.control.channels=previous cfg.control.sessionActive=previousSession return false,why end
   drive.characterization={job=job,owner=actor.pid,binding=deps.addon.copy(cfg.control.channels),vehicleId=k.vehicleId,mass=current.mass,massUnit=(current.units or {}).mass,structureFingerprint=deps.vehicleBridge.structureFingerprint(),hasFrequency=hasFrequency,selectedIds=selectedIds}
+  drive.characterization.inertia=deps.addon.copy(current.inertia) drive.characterization.inertiaUnit=(current.units or {}).inertia
+  drive.characterization.centerOfMass=deps.addon.copy(current.centerOfMass)
+  drive.characterization.physicalReference=deps.ResponseArchive.physicalReference(current)
+  local api=rawget(_G,"mintcraft_vehicle")
+  if automatic==true and type(api)=="table" and type(api.geometryPage)=="function" then
+    drive.characterization.awaitingGeometry=true deps.vehicleBridge.requestGeometry()
+  end
   if hasFrequency then drive.characterization.fast=deps.vehicleBridge.requestFeedback(k.vehicleId,selectedIds,drive.characterization)==true end
   calibration,calibrationSaved,activation=nil,false,nil
   drive.health,drive.healthJob=nil,nil
@@ -635,8 +643,10 @@ function M.characterizationReport(actor)
   local job=drive.characterization
   if job and (job.job.massAdaptation or job.job.degraded) then return nil,"Passive adaptation/degraded authority is not a full response-model recalibration" end
   if not job or (job.job.state~="complete" and not (job.job.qualification and job.job.qualification.state=="complete")) then return nil,"No complete known-output characterization in this session" end
-  return {schema=1,kind="known-output-characterization-not-flight-certificate",vehicleId=job.vehicleId,binding=deps.addon.copy(job.binding),
+  return {schema=2,kind="known-output-characterization-not-flight-certificate",vehicleId=job.vehicleId,binding=deps.addon.copy(job.binding),
     clock="local_uptime",clockId=deps.Contracts.clockId(),archivedAt=os.clock(),source="Sable logicalPose derivatives and confirmed assigned-output readback",
+    reusedFrom=deps.addon.copy(job.job.reusedFrom),observationClockId=job.job.model and job.job.model.provenance.clockId,qualificationClockId=deps.Contracts.clockId(),
+    inertia=deps.addon.copy(job.inertia),inertiaUnit=job.inertiaUnit,centerOfMass=deps.addon.copy(job.centerOfMass),
     structureFingerprint=job.structureFingerprint,mass=job.mass,massUnit=job.massUnit,model=deps.addon.copy(job.job.model),
     worldBounds=deps.addon.copy(job.job.worldBounds),observations=deps.addon.copy(job.job.rows),rejected=deps.addon.copy(job.job.rejected),
     qualification=job.job.qualification and job.job.qualification:status() or nil,
@@ -647,7 +657,7 @@ function M.saveCharacterizationReport(actor)
   local report,why=M.characterizationReport(actor) if not report then return false,why end
   local content=textutils.serialize(report,{compact=true})
   if #content>32768 or fs.getFreeSpace("/")<2*#content+2048 then return false,"No space for bounded response report; measurements remain in RAM" end
-  return safeWrite.write("/system/config/navigation-response.cfg",content)
+  return safeWrite.write("/system/config/navigation-response-v2.cfg",content)
 end
 -- Call only on the service worker. Accepted writes alone are not physical RX.
 deps.characterizationFeedback=function(job,now)
@@ -698,7 +708,30 @@ deps.characterizationStep=function(now)
       job.mass=current.mass
     else return fail("Mass observation changed/lost during output characterization") end
   end
+  local physical=deps.ResponseArchive.physicalChanged(job.physicalReference,current)
+  if physical then
+    if not job.job.active then return fail(physical.." during calibration; fresh physical measurements required") end
+    local ok,why=job.job:massChanged(current.mass,job.mass,kinematics:status(now),physical) if not ok then return fail(why) end
+    job.physicalReference=deps.ResponseArchive.physicalReference(current)
+  end
   for _,binding in ipairs(cfg.control.manualInputs or {}) do if sides[binding.side] and redstone.getInput(binding.side) then return fail("Physical manual input stopped output characterization") end end
+  if job.awaitingGeometry then
+    local api=rawget(_G,"mintcraft_vehicle")
+    local supported=type(api)=="table" and type(api.geometryPage)=="function"
+    local hull=supported and deps.vehicleBridge.geometryStatus() or {state="unavailable"}
+    if not hull or hull.state=="scanning" then job.job.reason="Surveying current structure before historical-model reuse; no output test started" reason=job.job.reason return true end
+    job.awaitingGeometry=nil job.structureFingerprint=deps.vehicleBridge.structureFingerprint()
+    job.mass=current.mass job.massUnit=(current.units or {}).mass job.inertia=deps.addon.copy(current.inertia)
+    job.inertiaUnit=(current.units or {}).inertia job.centerOfMass=deps.addon.copy(current.centerOfMass)
+    job.physicalReference=deps.ResponseArchive.physicalReference(current)
+    local report,why=deps.ResponseArchive.load("/system/config/navigation-response-v2.cfg")
+    local candidate,issue=deps.ResponseArchive.candidate(report,job.binding,current,job.structureFingerprint)
+    job.reuseDiagnostic=issue or why
+    if candidate then
+      local reused,why=job.job:reuseCandidate(candidate,deps.sable.pose(),kinematics:status(now))
+      if not reused then job.reuseDiagnostic=why end
+    end
+  end
   local ack,why,ackAt=deps.characterizationFeedback(job,now)
   if job.job.appliedAt and now-job.job.appliedAt>=2 and not ack then return fail(why) end
   job.job:step(kinematics:status(now),deps.sable.pose(),ack,now,ackAt)
@@ -714,6 +747,9 @@ deps.characterizationStep=function(now)
   if (state~="calibration" and state~="armed") or drive.characterization~=job or job.job.state~="running" then return true end
   if not ok then return fail("Known-output actuator error: "..problem) end
   job.job:applied(requestedGeneration,os.clock())
+  if job.job.active and not job.archiveAttempted then
+    job.archiveAttempted=true job.archiveSaved,job.archiveError=M.saveCharacterizationReport({pid=job.owner})
+  end
   return true
 end
 
@@ -1014,7 +1050,7 @@ local function prepareAutomatic()
     if not deps.addon.finite(job.target) then job.target=M.telemetry().altitude end
     local report=config.load("/system/config/navigation-calibration.cfg",{})
     local model,issue=require("system.navigation.automatic_setup").candidate(report,job.fingerprint,current)
-    if model and not same(report.binding,altitudeBinding(cfg.control)) then model,issue=nil,"Motor/sensor/output binding changed: full measurement required" end
+    if model and not deps.ResponseArchive.verticalBindingsEqual(report.binding,altitudeBinding(cfg.control)) then model,issue=nil,"Vertical sensor/output binding changed: fresh measurement required" end
     local horizontalReason=problem
     local options=deps.addon.copy(job.options)
     if model and (model.points[1].heat~=options.first or model.points[#model.points].heat~=options.last) then
@@ -1023,12 +1059,14 @@ local function prepareAutomatic()
     local ok,problem=M.startSweep({pid=job.owner},options,true,cfg.control)
     if not ok then M.fail(problem) return end
     if activation~=job or job.state~="running" then M.fail("Automatic preparation cancelled") return end
-    if model and cfg.control.drivetrain and cfg.control.drivetrain.enabled then
+    if model and cfg.control.drivetrain and cfg.control.drivetrain.enabled and deps.ResponseArchive.motorBindingsEqual(report.binding,altitudeBinding(cfg.control)) then
       calibration.motorCandidate=require("system.navigation.automatic_setup").motorCandidate(report)
       if calibration.motorCandidate then calibration.motorRows=deps.addon.copy(report.motorTests) calibration.motorExperiments=deps.Experiments.saved(report.motorExperiments,job.vehicleId) end
     end
     if not (cfg.control.drivetrain and cfg.control.drivetrain.enabled) then calibration.horizontal=horizontalReason end
     calibration.structureFingerprint=job.fingerprint
+    job.modelReuse={vertical=model~=nil,motors=calibration.motorCandidate~=nil,
+      verticalReason=issue,motorReason=calibration.motorCandidate and "Historical motor candidate; new response checks required" or "Motor binding/model unavailable or changed; new motor measurements required"}
     sweep.reusedModel=model job.reused=model~=nil job.phase="calibration" job.reason=issue or "Measuring current vessel"
   elseif job.phase=="calibration" then
     if calibration and calibration.state=="aborted" then job.state,job.reason="blocked",calibration.reason
@@ -1162,7 +1200,10 @@ function M.step(rescan)
       if drive.characterization.fast then deps.vehicleBridge.releaseFeedback(drive.characterization) end
       cfg.control.sessionActive=false
       local saved,why=persist()
-      if saved then state,owner,reason="disarmed",nil,drive.characterization.job.reason
+      if saved then
+        state,owner,reason="disarmed",nil,drive.characterization.job.reason
+        local run=drive.characterization
+        if not run.archiveAttempted then run.archiveAttempted=true run.archiveSaved,run.archiveError=M.saveCharacterizationReport({pid=run.owner}) end
       else cfg.control.sessionActive=true state,reason="failsafe","Characterization rescue applied; session save failed: "..tostring(why) end
     end
     if ok and calibration and calibration:running() and (calibration.phase=="rescue" or calibration.phase=="priority") then calibration.rescueAppliedAt=os.clock() end
@@ -1502,12 +1543,18 @@ function M.commands(actor)
   for _,permission in ipairs({"navigation.assist","sable.read"}) do local ok,why=authorize(actor,permission) if not ok then return nil,why end end
   return M.commandCatalogue()
 end
+deps.characterizationStatus=function()
+  local run=drive.characterization if not run then return end
+  local out=run.job:status() out.awaitingGeometry=run.awaitingGeometry==true out.reuseDiagnostic=run.reuseDiagnostic
+  out.archiveAttempted=run.archiveAttempted==true out.archiveSaved=run.archiveSaved==true out.archiveError=run.archiveError
+  return out
+end
 function M.status()
   local valid,errors=M.validate()
   local differentialReady,differentialReason=differentialCurrent()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=deps.addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=deps.mode.axes(cfg.control),
-    outputCharacterization=drive.characterization and drive.characterization.job:status() or nil,
+    outputCharacterization=deps.characterizationStatus(),
     knownOutputHold=state=="armed" and drive.characterization and drive.characterization.job.active and drive.characterization.job.controller:status() or nil,
     motorExperiments=calibration and calibration.experiments and calibration.experiments:summary((cfg.control.balloonSetup or {}).vehicleId) or nil,
     kinematics=M.kinematics(),

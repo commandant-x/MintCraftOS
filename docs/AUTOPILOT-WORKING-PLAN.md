@@ -1,4 +1,4 @@
-# Autopilot Ascendancy — travail actif après 0.18.89
+# Autopilot Ascendancy — travail actif après 0.18.90
 
 Objectif utilisateur : finir le périmètre du document joint le 23 octobre 2026,
 26979 octets, en suivant A → B → C → D → E. Ce fichier n'annonce pas une livraison
@@ -40,10 +40,12 @@ Minecraft. Le maintien local et ses diagnostics sont intégrés à Control/Calib
 L'ancien trim aérien reste intact. Le nouveau maintien local possède une correction
 intégrale bornée, sans balayage automatique, et suspend l'horizontal après une
 variation de masse. Il ne transforme pas cela en certificat de recalibration.
-Le rapport de réponse possède maintenant un stockage transactionnel borné et
-une provenance explicite. Restent : réutilisation des modèles, invalidation
-indépendante selon topologie/empreinte/inertie, recontrôles courts et adaptation
-passive qualifiée au domaine observé. Pas de réarmement au redémarrage.
+Le rapport de réponse possède un stockage transactionnel borné et une provenance
+explicite. B.1 ajoute la réutilisation après nouveau relevé et vrais essais,
+le contrôle d’inertie/COM, les liaisons chauffe/moteur indépendantes et un
+archivage de schéma séparé. Restent : réutilisation plus fine après changements
+structurels localisés, adaptation passive qualifiée des réponses horizontales et
+du freinage ; aucune recertification par simple trim. Pas de réarmement au redémarrage.
 
 ## C — terrain et planification
 

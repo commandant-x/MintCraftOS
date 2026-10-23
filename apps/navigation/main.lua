@@ -979,6 +979,9 @@ function M.run(ctx)
       if known then
         row("Sorties connues",known.state.." / "..known.phase.." | "..known.index.."/"..known.count.." | "..known.reason)
         if known.qualification then row("Essais physiques",known.qualification.index.."/"..known.qualification.count.." | "..known.qualification.reason) end
+        if known.reusedFrom then row("Modele historique","Candidat seulement ; essais physiques actuels requis | horloge source "..tostring(known.reusedFrom.clockId)) end
+        if known.reuseDiagnostic then row("Reutilisation",known.reuseDiagnostic) end
+        if known.archiveAttempted then row("Rapport",known.archiveSaved and "Enregistre sans autorite de rearmement" or tostring(known.archiveError or "Non enregistre")) end
         if known.tiltDiagnostic then row("Inclinaison",known.tiltDiagnostic) end
         local progress=known.progress or known.qualification and known.qualification.progress
         if progress then row("Convergence observee",progress.reason) end

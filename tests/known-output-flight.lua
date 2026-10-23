@@ -8,14 +8,14 @@ local allowed,pressed,receiverMissing,foreign,poseMissing,diskFull=true,false,fa
 local writes=0 local suspended
 local plantFactor,plantBias=1,0
 os.clock=function() return now end os.epoch=function() return now*1000 end
-local stored,serialized,reports={},nil,{}
-textutils={serialize=function(v) serialized=A.copy(v) return 'cfg' end}
+local stored,serialized,reports={},nil,{['/system/config/navigation-response.cfg']={schema=1,witness='retain old report'}}
+textutils={serialize=function(v) serialized=A.copy(v) return 'cfg' end,unserialize=function() return A.copy(reports['/system/config/navigation-response-v2.cfg']) end}
 package.loaded['system.libraries.config']={load=function() return A.copy(stored) end}
-package.loaded['system.libraries.safe_write']={write=function(path) if diskFull then return false,'disk full' end if path=='/system/config/navigation-response.cfg' then reports[path]=A.copy(serialized) else stored=A.copy(serialized) end return true end}
+package.loaded['system.libraries.safe_write']={recover=function() return true end,write=function(path) if diskFull then return false,'disk full' end if path=='/system/config/navigation-response-v2.cfg' then reports[path]=A.copy(serialized) else stored=A.copy(serialized) end return true end}
 package.loaded['system.libraries.log']={warn=function() end,error=function() end}
 package.loaded['system.security.permissions']={require=function() return allowed,'denied' end}
 redstone={getInput=function() return pressed end}
-fs={getFreeSpace=function() return 1000000 end,exists=function() return false end}
+fs={getFreeSpace=function() return 1000000 end,exists=function(path) return reports[path]~=nil end,isDir=function() return false end,getSize=function() return 100 end,open=function() return {readAll=function() return 'report' end,close=function() end} end}
 A.inventory=function() return {{name='tx',types={'redstone_link_bridge'},set={sendLinkSignal=true},device={sendLinkSignal=function(_,_,value)
  writes=writes+1 command=value if suspended then local fn=suspended suspended=nil fn() end return true
 end}}} end
@@ -27,7 +27,7 @@ end
 package.loaded['system.services.sabled']={pose=pose,snapshot=function() return {timestamp=now} end,status=function() return {inSublevel=true} end}
 package.loaded['system.services.avionicsd']={flightTelemetry=function() return {pitch=0,roll=0,heading=0,altitude=height,pitchRate=0,rollRate=0,headingRate=0,altitudeRate=rate,timestamp=now} end}
 local raw={schema=1,ok=true,complete=true,readOnly=true,frame='body_plot',vehicleId='ship',revision=0,ageTicks=0,
- units={position='block',mass='kg'},mass=65,centerOfMass={x=0,y=0,z=0},features={},actuators={},links={}}
+ units={position='block',mass='kg',inertia='kg*block^2'},inertia={{2,0,0},{0,3,0},{0,0,4}},mass=65,centerOfMass={x=0,y=0,z=0},features={},actuators={},links={}}
 mintcraft_vehicle={snapshot=function() return A.copy(raw) end}
 local B=require('system.services.vehiclebridged')
 local F=require('system.services.flightd')
@@ -78,7 +78,7 @@ report.model.axes.vertical.allocatable=false
 assert(F.characterizationReport(actor).model.axes.vertical.allocatable,'client mutated service-private response evidence')
 assert(report.clockId==require('system.ascendancy.contracts').clockId() and report.observations[1].clockId==report.clockId,'lost derivative clock provenance')
 assert(F.saveCharacterizationReport(actor))
-assert(reports['/system/config/navigation-response.cfg'].validity:find('never restores outputs',1,true))
+assert(reports['/system/config/navigation-response-v2.cfg'].validity:find('never restores outputs',1,true))
 diskFull=true assert(not F.saveCharacterizationReport(actor)) diskFull=false
 allowed=false assert(not F.characterizationReport(actor)) assert(not F.saveCharacterizationReport(actor)) allowed=true
 -- Every guard applies the actual configured rescue; no new pulse follows STOP.
@@ -116,6 +116,11 @@ assert(F.calibrate(actor,'manual',nil,true))
 assert(F.calibrate(actor,'rescue',nil,true))
 for _=1,5 do tick() end
 assert(F.calibrate(actor,'rescueConfirm',nil,true))
+local surveyed=false
+mintcraft_vehicle.geometryPage=function() end
+B.requestGeometry=function() surveyed=true end
+B.geometryStatus=function() return {state='complete',coverage=true} end
+B.structureFingerprint=function() return surveyed and string.rep('a',64) or nil end
 assert(F.activateAutomatic(actor,true))
 for i=1,10000 do
  tick()
@@ -144,3 +149,44 @@ assert(not F.characterizationReport(actor),'passive mass adaptation exported a f
 F.release(actor.pid,'closed during measured known-output hold') tick()
 assert(F.status().state=='failsafe' and command==7 and not F.status().knownOutputHold,'close did not apply actual configured rescue')
 print('Known-output automatic flight: measured signed columns, actual closed-loop up/down/return qualification, private local altitude hold and target, no unqualified axes and real close rescue passed')
+
+-- An archived model nominates coefficients only. This second service run must
+-- observe a new neutral and repeat actual closed-loop motion before holding.
+assert(reports['/system/config/navigation-response-v2.cfg'].qualification.state=='complete','automatic flight did not archive measured evidence')
+local historical=reports['/system/config/navigation-response-v2.cfg']
+historical.model.provenance.clockId='previous-boot' historical.observationClockId='previous-boot'
+for _,row in ipairs(historical.observations) do row.clockId='previous-boot' end
+raw.mass=65 plantFactor=1 plantBias=0 rate=0 command=7
+for _=1,8 do tick() end
+assert(F.disarm(actor))
+assert(F.activateAutomatic(actor,true))
+assert(not F.status().knownOutputHold,'archive armed before a new observation')
+local sawFreshQualification=false
+for i=1,10000 do
+ tick() local s=F.status() assert(s.state~='failsafe',s.reason)
+ if s.outputCharacterization.qualification and s.outputCharacterization.qualification.state=='running' then sawFreshQualification=true assert(not s.knownOutputHold) end
+ if s.knownOutputHold then break end
+ assert(i<10000,'historical requalification did not finish: '..s.reason)
+end
+local s=F.status()
+assert(sawFreshQualification and s.outputCharacterization.reusedFrom and s.outputCharacterization.reusedFrom.clockId=='previous-boot','historical model not reused as a candidate')
+assert(s.outputCharacterization.count==0 and #s.outputCharacterization.qualification.checks==3,'reused model skipped new motion checks or repeated isolated-output pulses')
+assert(F.characterizationReport(actor).observationClockId=='previous-boot','archive relabelled old derivatives as new')
+assert(F.characterizationReport(actor).qualificationClockId==require('system.ascendancy.contracts').clockId(),'new qualification lost current clock provenance')
+local sameAltitude=F.status().targets.altitude
+raw.inertia[1][1]=3 raw.centerOfMass.y=.2
+for _=1,100 do tick() assert(F.status().state=='armed' and F.status().targets.altitude==sameAltitude,'inertia/COM change rescued or moved vertical target') end
+assert(F.status().outputCharacterization.massAdaptation.cause:find('inertia',1,true),'same-mass inertia change was ignored')
+assert(not F.characterizationReport(actor),'inertia adaptation exported a false recalibration')
+F.release(actor.pid,'close after response reuse') tick()
+assert(command==7 and not F.status().knownOutputHold,'reused model bypassed close rescue')
+print('Historical response reuse: new structure survey, original derivative clock, refit raw evidence, new neutral/RX and positive/negative/return trials, automatic archival and real close rescue passed')
+
+local stopped=writes
+F.start(ctx)
+assert(not F.status().knownOutputHold and not F.status().outputCharacterization,'restart restored archived actuator authority')
+F.step(true) sample()
+assert(not F.status().knownOutputHold,'boot archive rearmed without explicit owner activation')
+print('Response archive restart: historical files retained, no controller/owner restoration and interrupted-session rescue retained')
+
+assert(reports['/system/config/navigation-response.cfg'].witness=='retain old report','new schema overwrote older report data')
