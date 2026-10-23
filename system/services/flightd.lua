@@ -22,6 +22,8 @@ local calibrationToken={}
 deps.Drive=require("system.navigation.drivetrain")
 deps.Trim=require("system.navigation.flight_trim")
 deps.MotorHealth=require("system.navigation.motor_health")
+deps.Characterization=require("system.navigation.known_flight")
+deps.Contracts=require("system.ascendancy.contracts")
 local Authority=require("system.navigation.authority")
 local Estimator=require("system.navigation.state_estimator")
 deps.Catalogue=require("system.navigation.command_catalogue")
@@ -106,6 +108,12 @@ function M.telemetry()
         t.altitude,t.altitudeRate=a.value,v.value t.timestamp=math.min(a.observedAt,v.observedAt)
       else t.altitude,t.altitudeRate,t.timestamp=nil,nil,0 end
     end
+    if drive.characterization and drive.characterization.job.controller then
+      local observed=kinematics:status(os.clock())
+      if observed.available and observed.position and observed.velocity then
+        t.altitude,t.altitudeRate,t.timestamp=observed.position.y,observed.velocity.y,observed.poseAt
+      end
+    end
     return t
   end
   local snap = avionics.snapshot()
@@ -187,6 +195,12 @@ local function balloonStatus()
   return deps.vehicleBridge.balloonStatus(cfg.control.balloonSetup,burnerInitialization,demand)
 end
 function M.validate()
+  if state=="armed" and drive.characterization and drive.characterization.job.active then
+    local job=drive.characterization local current=deps.vehicleBridge.snapshot() local k=kinematics:status(os.clock())
+    local process=ctx and ctx.scheduler.processes[job.owner]
+    local valid=process and process.state=="ready" and k.available and k.vehicleId==job.vehicleId and current.ok and current.inventoryComplete and current.vehicleId==job.vehicleId
+    return valid==true,valid and {} or {"Measured local hold observations/owner unavailable"}
+  end
   local c, errors, used, matrix = cfg.control,{}, {},{}
   if not c then return false,{"configuration missing"} end
   if type(c.channels)~="table" or type(c.gains)~="table" then return false,{"configuration malformed"} end
@@ -310,6 +324,10 @@ function M.configure(actor, value)
 end
 
 function M.fail(message,token)
+  if drive.characterization and drive.characterization.job.state=="running" then
+    drive.characterization.job:abort(message)
+    if drive.characterization.fast then deps.vehicleBridge.releaseFeedback(drive.characterization) end
+  end
   if activation and (activation.state=="running" or activation.state=="active") and token~=calibrationToken then activation.state,activation.reason="blocked",message end
   if calibration and calibration:running() and token~=calibrationToken then calibration:abort(message) end
   measuredHold=nil drive.demand=nil pilotDemand=nil
@@ -435,7 +453,7 @@ end
 function M.stopMission(actor,token)
   local ok,err=authorize(actor,"navigation.control") if not ok then return false,err end
   if owner~=actor.pid or state~="armed" then return false,"Flight owner mismatch" end
-  if measuredHold then M.fail("Pilot STOP: measured altitude rescue",token) return true end
+  if measuredHold or drive.characterization and drive.characterization.job.active then M.fail("Pilot STOP: measured hold rescue",token) return true end
   takeover("Pilot stopped mission; manual stabilization")
   return true
 end
@@ -444,6 +462,11 @@ end
 function M.setFlightTargets(actor,request)
   for _,permission in ipairs({"navigation.control","navigation.autopilot"}) do
     local ok,why=authorize(actor,permission) if not ok then return false,why end
+  end
+  if state=="armed" and owner==actor.pid and drive.characterization and drive.characterization.job.active then
+    local ok,why=drive.characterization.job:setTargets(request)
+    if ok then targets.altitude=request.altitude reason="Measured known-output altitude target applied" end
+    return ok,why
   end
   if state~="armed" or owner~=actor.pid or not measuredHold or not calibration or (calibration.state~="complete" and not (measuredHold.trim and measuredHold.trim.active)) then return false,"Finish automatic preparation with this Navigation window first" end
   if type(request)~="table" or not deps.addon.finite(request.altitude) then return false,"World altitude required" end
@@ -467,6 +490,10 @@ function M.setSetpoint(actor,axis,value,token)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
   if owner~=actor.pid or state~="armed" then return false,"not armed by this owner" end
+  if drive.characterization and drive.characterization.job.active then
+    if axis~="altitude" then return false,"Use the qualified known-output hold targets" end
+    return M.setFlightTargets(actor,{altitude=value})
+  end
   if calibration and calibration:running() and token~=calibrationToken then return false,"Automatic calibration running; STOP before changing targets" end
   if not deps.addon.finite(value) or not deps.mode.enabled(cfg.control,axis) then return false,"invalid or disabled setpoint" end
   if (axis=="pitch" or axis=="roll") and math.abs(value)>30 then return false,"attitude setpoint limited to 30 degrees" end
@@ -484,7 +511,7 @@ function M.manual(actor,axis,value)
   local ok,err=authorize(actor,"navigation.control")
   if not ok then return false,err end
   if state~="armed" or owner~=actor.pid or not deps.mode.enabled(cfg.control,axis) or not deps.addon.finite(value) then return false,"manual override unavailable" end
-  if measuredHold then M.fail("Manual takeover stopped measured altitude hold") return true end
+  if measuredHold or drive.characterization and drive.characterization.job.active then M.fail("Manual takeover stopped measured hold") return true end
   takeover("Manual pilot override")
   manual[axis]={value=math.max(-1,math.min(1,value)),expires=os.clock()+0.3}
   return true
@@ -553,6 +580,141 @@ local function writeOutputs(values, force, results)
     drive.values=deps.addon.copy(expected)
   end
   return #failures==0,table.concat(failures,"; "),results
+end
+
+-- Generic measurements use assigned outputs only. No additional writer exists.
+function M.startKnownOutputCalibration(actor,confirmed,duration,automatic)
+  for _,permission in ipairs({"navigation.calibrate","navigation.control"}) do local ok,err=authorize(actor,permission) if not ok then return false,err end end
+  if automatic==true then local ok,why=authorize(actor,"navigation.autopilot") if not ok then return false,why end end
+  if confirmed~=true then return false,"Confirm known-output tests, neutral hover and a clear test area" end
+  if state~="disarmed" or rescuePending then return false,"Disarm and finish pending rescue before known-output calibration" end
+  if cfg.control.balloonSetup or cfg.control.drivetrain and cfg.control.drivetrain.enabled then return false,"Use the existing collective burner/differential sequence for this configuration" end
+  if cfg.control.hoverValidated~=true then return false,"Confirm the assigned neutral outputs physically support hover first; no neutral thrust is invented" end
+  if automatic==true and (cfg.control.rescueValidated~=true or cfg.control.manualValidated~=true) then return false,"Verify configured rescue behaviour and physical manual takeover once before automatic flight; software readback cannot prove them" end
+  local pose=deps.sable.pose and deps.sable.pose() local k=kinematics:status(os.clock())
+  local current=deps.vehicleBridge.snapshot()
+  if not k.available or not pose or pose.vehicleId~=k.vehicleId or not current.ok or not current.inventoryComplete or current.vehicleId~=k.vehicleId then return false,"Fresh world derivatives and matching containing vehicle inventory required" end
+  local used={} local selectedIds,selectedSeen={},{} local hasFrequency=false
+  for _,c in ipairs(cfg.control.channels) do
+    local ok,err=channelValid(c) if not ok then return false,err end
+    local keys=c.backend=="frequency" and linkOutput.keys(c) or {endpoint(c)}
+    if #keys==0 then return false,"No assigned output frequency" end
+    for _,key in ipairs(keys) do
+      local physical=c.backend=="frequency" and "frequency:"..key or key
+      if used[physical] then return false,"Shared physical output cannot be characterized independently: "..c.id end used[physical]=true
+    end
+    if c.backend=="frequency" then
+      hasFrequency=true
+      local signal,why=linkOutput.received(c,current,c.neutral) if signal==nil then return false,"Establish the saved neutral hover signal before characterization: "..tostring(why) end
+      local frequencies={} for _,key in ipairs(keys) do frequencies[key]=true end
+      for _,receiver in ipairs(current.links or {}) do
+        if receiver.receiver and frequencies[linkOutput.receiverKey(receiver)] and not selectedSeen[receiver.id] then
+          selectedSeen[receiver.id]=true selectedIds[#selectedIds+1]=receiver.id
+        end
+      end
+    end
+    if c.backend=="avionics" and not deviceFor(c).set.getSignal then return false,"Readback unavailable for assigned Avionics output "..c.id end
+    if c.backend=="relay" and not deviceFor(c).set.getAnalogOutput then return false,"Readback unavailable for assigned relay output "..c.id end
+  end
+  for _,binding in ipairs(cfg.control.manualInputs or {}) do if sides[binding.side] and redstone.getInput(binding.side) then return false,"Release physical manual input before calibration" end end
+  local channels=deps.addon.copy(cfg.control.channels)
+  for _,c in ipairs(channels) do c.validated=false end
+  local job,err=deps.Characterization.new(channels,k.vehicleId,duration or 2,automatic) if not job then return false,err end
+  local previous,previousSession=cfg.control.channels,cfg.control.sessionActive
+  cfg.control.channels=channels cfg.control.sessionActive=true
+  local saved,why=persist() if not saved then cfg.control.channels=previous cfg.control.sessionActive=previousSession return false,why end
+  drive.characterization={job=job,owner=actor.pid,binding=deps.addon.copy(cfg.control.channels),vehicleId=k.vehicleId,mass=current.mass,massUnit=(current.units or {}).mass,structureFingerprint=deps.vehicleBridge.structureFingerprint(),hasFrequency=hasFrequency,selectedIds=selectedIds}
+  if hasFrequency then drive.characterization.fast=deps.vehicleBridge.requestFeedback(k.vehicleId,selectedIds,drive.characterization)==true end
+  calibration,calibrationSaved,activation=nil,false,nil
+  drive.health,drive.healthJob=nil,nil
+  M.test=nil owner,state,reason=actor.pid,"calibration",job.reason
+  return true
+end
+function M.characterizationReport(actor)
+  for _,permission in ipairs({"navigation.calibrate","navigation.assist"}) do local ok,why=authorize(actor,permission) if not ok then return nil,why end end
+  local job=drive.characterization
+  if job and (job.job.massAdaptation or job.job.degraded) then return nil,"Passive adaptation/degraded authority is not a full response-model recalibration" end
+  if not job or (job.job.state~="complete" and not (job.job.qualification and job.job.qualification.state=="complete")) then return nil,"No complete known-output characterization in this session" end
+  return {schema=1,kind="known-output-characterization-not-flight-certificate",vehicleId=job.vehicleId,binding=deps.addon.copy(job.binding),
+    clock="local_uptime",clockId=deps.Contracts.clockId(),archivedAt=os.clock(),source="Sable logicalPose derivatives and confirmed assigned-output readback",
+    structureFingerprint=job.structureFingerprint,mass=job.mass,massUnit=job.massUnit,model=deps.addon.copy(job.job.model),
+    worldBounds=deps.addon.copy(job.job.worldBounds),observations=deps.addon.copy(job.job.rows),rejected=deps.addon.copy(job.job.rejected),
+    qualification=job.job.qualification and job.job.qualification:status() or nil,
+    attitudeQualification=job.job.attitudeQualification and job.job.attitudeQualification:status() or nil,tilt=deps.addon.copy(job.job.tiltModel),
+    validity="Historical measured domain only; fresh identity, structure, bindings, mass and closed-loop checks required; never restores outputs"}
+end
+function M.saveCharacterizationReport(actor)
+  local report,why=M.characterizationReport(actor) if not report then return false,why end
+  local content=textutils.serialize(report,{compact=true})
+  if #content>32768 or fs.getFreeSpace("/")<2*#content+2048 then return false,"No space for bounded response report; measurements remain in RAM" end
+  return safeWrite.write("/system/config/navigation-response.cfg",content)
+end
+-- Call only on the service worker. Accepted writes alone are not physical RX.
+deps.characterizationFeedback=function(job,now)
+  local run=job.job
+  if not run.appliedAt then return false,"Waiting for assigned output application" end
+  local current=deps.vehicleBridge.snapshot()
+  if not current.ok or not current.inventoryComplete or current.vehicleId~=job.vehicleId then return false,"Fresh containing-vehicle inventory required" end
+  local receivers=current
+  if job.fast then
+    local ok,why=deps.vehicleBridge.requestFeedback(job.vehicleId,job.selectedIds,job) if not ok then return false,why end
+    receivers=deps.vehicleBridge.selectedSnapshot()
+  end
+  if job.hasFrequency and (not receivers.ok or receivers.vehicleId~=job.vehicleId or not receivers.observedAt or receivers.observedAt<=run.appliedAt) then return false,"Fresh containing-vehicle receiver observations required" end
+  local confirmed=job.hasFrequency and receivers.observedAt or run.appliedAt
+  for _,c in ipairs(job.binding) do
+    local wanted=run.values[c.id]
+    if last[endpoint(c)]~=wanted then return false,"Assigned output not yet written" end
+    if c.backend=="frequency" then
+      local signal,why=linkOutput.received(c,receivers,wanted) if signal==nil then return false,why end
+    else
+      local ok,signal=deps.addon.bounded(function()
+        if c.backend=="redstone" then return redstone.getAnalogOutput(c.side) end
+        local row=deviceFor(c) if not row then return nil end
+        local value,problem
+        if c.backend=="relay" then value,problem=deps.addon.call(row.device,"getAnalogOutput",c.side)
+        else value,problem=deps.addon.call(row.device,"getSignal") end
+        if problem then return nil end return value
+      end,.15)
+      if not ok or signal~=wanted then return false,"Assigned output readback mismatch: "..c.id end
+      confirmed=math.max(confirmed,os.clock())
+    end
+  end
+  if os.clock()-now>.5 then return false,"Assigned output readback interval stale" end
+  return true,nil,confirmed
+end
+
+deps.characterizationStep=function(now)
+  local job=drive.characterization
+  if not job or (state~="calibration" and not (state=="armed" and job.job.active)) or job.job.state~="running" then return false end
+  local function fail(why) M.fail(why) return true end
+  for _,permission in ipairs(job.job.automatic and {"navigation.calibrate","navigation.control","navigation.autopilot"} or {"navigation.calibrate","navigation.control"}) do local ok,why=authorize({pid=job.owner},permission) if not ok then return fail(why) end end
+  if not same(job.binding,cfg.control.channels) then return fail("Assigned outputs changed during characterization") end
+  local current=deps.vehicleBridge.snapshot()
+  if not current.ok or not current.inventoryComplete or current.vehicleId~=job.vehicleId then return fail("Characterization vehicle inventory lost/changed") end
+  if job.mass and (not deps.addon.finite(current.mass) or (current.units or {}).mass~=job.massUnit or math.abs(current.mass-job.mass)>math.abs(job.mass)*.02) then
+    if job.job.active and deps.addon.finite(current.mass) and current.mass>0 and (current.units or {}).mass==job.massUnit then
+      local ok,why=job.job:massChanged(current.mass,job.mass,kinematics:status(now)) if not ok then return fail(why) end
+      job.mass=current.mass
+    else return fail("Mass observation changed/lost during output characterization") end
+  end
+  for _,binding in ipairs(cfg.control.manualInputs or {}) do if sides[binding.side] and redstone.getInput(binding.side) then return fail("Physical manual input stopped output characterization") end end
+  local ack,why,ackAt=deps.characterizationFeedback(job,now)
+  if job.job.appliedAt and now-job.job.appliedAt>=2 and not ack then return fail(why) end
+  job.job:step(kinematics:status(now),deps.sable.pose(),ack,now,ackAt)
+  if (state~="calibration" and state~="armed") or drive.characterization~=job then return true end
+  if job.job.state=="aborted" then return fail(job.job.reason) end
+  reason=job.job.reason
+  if job.job.active then state="armed" targets.altitude=job.job.controller.position.y end
+  if job.job.state=="complete" then
+    job.finished=true reason="Known-output characterization complete; returning to configured rescue" rescuePending=true return true
+  end
+  local requestedGeneration=job.job.generation
+  local ok,problem=writeOutputs(job.job.values)
+  if (state~="calibration" and state~="armed") or drive.characterization~=job or job.job.state~="running" then return true end
+  if not ok then return fail("Known-output actuator error: "..problem) end
+  job.job:applied(requestedGeneration,os.clock())
+  return true
 end
 
 function M.endpoints()
@@ -802,6 +964,10 @@ function M.activateAutomatic(actor,confirmed,options)
     local ok,err=authorize(actor,permission) if not ok then return false,err end
   end
   if confirmed~=true then return false,"Confirm automatic preparation, movement tests and clear area" end
+  local detected=deps.vehicleBridge.snapshot()
+  if not cfg.control.balloonSetup and #(detected.burners or {})==0 and not (cfg.control.drivetrain and cfg.control.drivetrain.enabled) then
+    return M.startKnownOutputCalibration(actor,true,2,true)
+  end
   local plan,problem=Sweep.validate(options or Sweep.defaults())
   if not plan then return false,problem end
   if not plan.autoPrepare or not plan.autoHold or not plan.certify then return false,"Automatic pilot requires initialization, hold and certification enabled in Options; use Start sequence for measurement-only options" end
@@ -923,6 +1089,12 @@ function M.step(rescan)
     local ack,issue=deps.Drive.feedback(cfg.control.drivetrain,deps.vehicleBridge.snapshot(),drive.values,drive.appliedAt)
     if not ack and now-drive.appliedAt>=2 then M.fail(issue) end
   end
+  if state=="armed" and drive.characterization and drive.characterization.job.active then
+    if deps.characterizationStep(now) then
+      if rescuePending then return M.step(false) end
+      return
+    end
+  end
   if state=="armed" then
     local process=ctx and ctx.scheduler.processes[owner]
     if measuredHold then
@@ -986,6 +1158,13 @@ function M.step(rescan)
       end
     end
     M.test=nil
+    if ok and drive.characterization and drive.characterization.finished and state=="calibration" then
+      if drive.characterization.fast then deps.vehicleBridge.releaseFeedback(drive.characterization) end
+      cfg.control.sessionActive=false
+      local saved,why=persist()
+      if saved then state,owner,reason="disarmed",nil,drive.characterization.job.reason
+      else cfg.control.sessionActive=true state,reason="failsafe","Characterization rescue applied; session save failed: "..tostring(why) end
+    end
     if ok and calibration and calibration:running() and (calibration.phase=="rescue" or calibration.phase=="priority") then calibration.rescueAppliedAt=os.clock() end
     if sweep and sweep.state~="running" and cfg.control.sessionActive then
       if ok then
@@ -1004,6 +1183,10 @@ function M.step(rescan)
         else cfg.control.sessionActive=true state,reason="failsafe","Sweep rescue applied but session save failed: "..tostring(problem) end
       end
     end
+    return
+  end
+  if deps.characterizationStep(now) then
+    if rescuePending then return M.step(false) end
     return
   end
   if calibration and calibration:running() then
@@ -1324,6 +1507,8 @@ function M.status()
   local differentialReady,differentialReason=differentialCurrent()
   return {state=state=="disarmed" and valid and "ready" or state,reason=reason,ownerPid=owner,ready=valid,errors=errors,targets=deps.addon.copy(targets),
     mode=cfg.control and cfg.control.mode or "full",axes=deps.mode.axes(cfg.control),
+    outputCharacterization=drive.characterization and drive.characterization.job:status() or nil,
+    knownOutputHold=state=="armed" and drive.characterization and drive.characterization.job.active and drive.characterization.job.controller:status() or nil,
     motorExperiments=calibration and calibration.experiments and calibration.experiments:summary((cfg.control.balloonSetup or {}).vehicleId) or nil,
     kinematics=M.kinematics(),
     authority=calibration and calibration.driveModel and deps.addon.copy(calibration.driveModel.authority) or nil,
@@ -1358,6 +1543,7 @@ function M.start(context)
   calibration,calibrationSaved=nil,false activation=nil
   drive.demand,drive.values,drive.appliedAt,drive.pose,drive.previous=nil,nil,nil,nil,nil
   drive.health,drive.healthJob=nil,nil
+  drive.characterization=nil
   migrate()
   state,owner,rescuePending="disarmed",nil,false
   reason="not armed; calibration required"

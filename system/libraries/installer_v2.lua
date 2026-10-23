@@ -1,4 +1,4 @@
-local M = {equivalentSourcePreparation=true}
+local M = {equivalentSourcePreparation=true,retainsEquivalentPackedSources=true}
 local root = "/var/tmp/mintcraft-install"
 
 local function write(path, content)
@@ -32,7 +32,7 @@ end
 local function transact(files,paths,upgrading,packedCodec,progress,options)
   assert(not fs.exists(root),"Pending installation; recover before preparing files")
   local ordered={} for i,path in ipairs(paths) do ordered[i]=path end
-  local priority={["system/libraries/packed_source_v2.lua"]=1,["system/libraries/installer_v2.lua"]=2}
+  local priority={["system/libraries/packed_source_v3.lua"]=1,["system/libraries/packed_source_v2.lua"]=1,["system/libraries/installer_v2.lua"]=2}
   table.sort(ordered,function(a,b) local x,y=priority[a] or 3,priority[b] or 3 return x==y and a<b or x<y end)
   paths=ordered
   local changed, touched = {}, {}
@@ -64,10 +64,21 @@ local function transact(files,paths,upgrading,packedCodec,progress,options)
     for index, entry in ipairs(entries) do
       progress("install",entry.path,index-1,#entries)
       table.insert(touched, entry)
-      write("/" .. entry.path, files[entry.path])
-      -- The durable journal/backup, not the validated staging copy, drives undo.
-      -- Reclaim each consumed copy so a fresh install fits a standard CC disk.
-      fs.delete(root .. "/stage/" .. entry.path)
+      local staged=root.."/stage/"..entry.path
+      if not upgrading and not entry.existed and fs.move then
+        local target="/"..entry.path local dir=fs.getDir(target)
+        if not fs.exists(dir) then fs.makeDir(dir) end
+        -- Same-filesystem promotion consumes the validated file without a second
+        -- payload allocation. The durable journal still drives crash recovery.
+        fs.move(staged,target)
+      else write("/" .. entry.path, files[entry.path]) end
+      fs.delete(staged)
+      if fs.list then
+        local dir=fs.getDir(staged)
+        while dir~=root.."/stage" and dir:sub(1,#root+7)==root.."/stage/" and fs.exists(dir) and #fs.list(dir)==0 do
+          fs.delete(dir) dir=fs.getDir(dir)
+        end
+      end
     end
     write(root .. "/committed", "committed")
   end)
@@ -103,11 +114,11 @@ function M.install(files,options)
   local function progress(phase,path,done,total)
     if options and type(options.onProgress)=="function" then pcall(options.onProgress,phase,path,done,total) end
   end
-  local compactPath="system/libraries/packed_source_v2.lua"
+  local compactPath=files["system/libraries/packed_source_v3.lua"] and "system/libraries/packed_source_v3.lua" or "system/libraries/packed_source_v2.lua"
   local compactSource=files[compactPath]
   local compactCodec=compactSource and assert(load(compactSource,"compact codec","t",_ENV))()
   local environment=setmetatable({require=function(name)
-    if name=="system.libraries.packed_source_v2" and compactCodec then return compactCodec end
+    if name==compactPath:gsub("/","."):gsub("%.lua$","") and compactCodec then return compactCodec end
     return require(name)
   end},{__index=_ENV})
   local packedCodec=files["system/libraries/packed_source.lua"]
@@ -124,6 +135,15 @@ function M.install(files,options)
   local function unpackSource(source)
     if compactCodec and source:sub(1,#compactCodec.prefix)==compactCodec.prefix then return compactCodec.unpack(source) end
     return packedCodec and packedCodec.unpack(source) or source
+  end
+  -- The installed additive decoder may be newer than a rollback payload.
+  local installedV3
+  if fs.exists("/system/libraries/packed_source_v3.lua") then
+    installedV3=assert(loadfile("/system/libraries/packed_source_v3.lua"))()
+  end
+  local function existingSource(source)
+    if installedV3 and source:sub(1,#installedV3.prefix)==installedV3.prefix then return installedV3.unpack(source) end
+    return unpackSource(source)
   end
   -- Preparation may change only representation; keep the caller's bundle immutable.
   local payload={} for path,data in pairs(files) do payload[path]=data end files=payload
@@ -147,8 +167,17 @@ function M.install(files,options)
             fn,problem=load(source,"@"..path,"t",_ENV) assert(fn,tostring(problem))
           end
         end
-        plan.changed[#plan.changed+1]=path plan.stageBytes=plan.stageBytes+#files[path]
-        if fs.exists(target) and fs.getSize then plan.backupBytes=plan.backupBytes+fs.getSize(target) end
+        local equivalent=false
+        if path:match("%.lua$") and not preserved(path) and fs.exists(target) and fs.getSize and fs.getSize(target)<=#files[path] then
+          local h=assert(fs.open(target,"r")) local old=h.readAll() h.close()
+          local decoded,source=pcall(existingSource,old)
+          equivalent=decoded and source==unpackSource(files[path])
+          if equivalent then files[path]=old end
+        end
+        if not equivalent then
+          plan.changed[#plan.changed+1]=path plan.stageBytes=plan.stageBytes+#files[path]
+          if fs.exists(target) and fs.getSize then plan.backupBytes=plan.backupBytes+fs.getSize(target) end
+        end
       end
     end
     return plan
@@ -203,7 +232,9 @@ function M.install(files,options)
         local free=fs.getFreeSpace and fs.getFreeSpace("/")
         local old=fs.exists("/"..compactPath) and fs.getSize("/"..compactPath) or 0
         assert(free=="unlimited" or type(free)=="number" and free>=old+#files[compactPath]+32768,"INSTALL-DISK: compact decoder preparation needs recovery space")
-        transact(files,{compactPath},true,packedCodec,function() progress("compact",compactPath,0,#candidates) end)
+        local bootstrap={compactPath}
+        if compactPath=="system/libraries/packed_source_v3.lua" and files["system/libraries/packed_source.lua"] then bootstrap[#bootstrap+1]="system/libraries/packed_source.lua" end
+        transact(files,bootstrap,true,packedCodec,function() progress("compact",compactPath,0,#candidates) end)
       end
     end
     local prepared=0

@@ -13,11 +13,12 @@ function M.rows(state,t,pose,now)
  local world=type(pose.vehicleId)=='string' and #pose.vehicleId>0 and #pose.vehicleId<=128 and pose.frame=='world' and pose.inSublevel==true and fresh(pose.timestamp,now,.5)
  local armed=live and state.state=='armed'
  local hold=state.measuredHold
+ local known=state.knownOutputHold
  local measured=fresh(t.timestamp,now,.5)
  local altitude=measured and t.altitude or nil local heading=measured and t.heading or nil
  row('AUTOPILOT | etat actuel',(live and tostring(state.state or 'inconnu') or 'Etat du service perime')..' | '..tostring(state.reason or ''))
  row('Vaisseau',world and tostring(pose.vehicleId or 'inconnu') or 'Pose monde fraiche indisponible')
- row('Maintien vertical automatique',not live and 'Etat perime | attendre le service' or armed and hold and hold.active and 'ACTIF | modele mesure et protections du service' or 'Inactif | initialiser et qualifier si necessaire')
+ row('Maintien vertical automatique',not live and 'Etat perime | attendre le service' or armed and hold and hold.active and 'ACTIF | modele mesure et protections du service' or armed and known and known.axes and known.axes.vertical and 'ACTIF | sorties mesurees et qualification locale en boucle fermee' or 'Inactif | initialiser et qualifier si necessaire')
  row('Guidage differentiel',not live and 'Etat perime | attendre le service' or armed and state.differentialReady and 'DISPONIBLE | avant/arriere et lacet mesures' or state.differentialReason or 'Non qualifie actuellement')
  row('Consignes altitude',num(altitude)..' m mesuree | '..num((state.targets or {}).altitude)..' m demandee')
  row('Consignes vitesse / cap',num(live and world and state.groundSpeed or nil)..' m/s mesuree | '..num(heading)..' deg mesure | '..num((state.pilot or {}).speed)..' m/s et '..num((state.pilot or {}).heading)..' deg demandes')
@@ -26,13 +27,20 @@ function M.rows(state,t,pose,now)
   local trim=hold.adaptation
   if trim then row('Adaptation de masse',tostring(trim.phase or 'apprentissage')..' | correction '..num(trim.bias)..' | '..tostring(trim.reason or '')..' | ne recertifie pas les moteurs') end
  end
- row('Translation laterale / attitude','Automatique non qualifie | aucune nouvelle autorite droite, tangage ou roulis certifiee par ces diagnostics')
+ if armed and known then
+  local available={} for _,axis in ipairs({'forward','right','vertical','pitch','yaw','roll'}) do if known.axes and known.axes[axis] then available[#available+1]=axis end end
+  row('Axes qualifies localement',table.concat(available,' / ')..' | '..tostring(known.strategy)..' | domaine observe uniquement')
+  local progress=state.outputCharacterization and state.outputCharacterization.progress
+  if progress then row('Convergence physique',progress.reason) end
+ else row('Translation laterale / attitude','Automatique non qualifie | aucune nouvelle autorite droite, tangage ou roulis certifiee par ces diagnostics') end
  local proof=state.autoCalibration or {}
+ local outputs=state.outputCharacterization
+ if outputs then proof=outputs.qualification or outputs end
  row('Calibration',tostring(proof.state or 'non effectuee')..' / '..tostring(proof.phase or '')..' | '..tostring(proof.reason or 'Initialiser dans une zone libre'))
  local checks={} for _,name in ipairs({'hover','down','up','return','rescue','priority','horizontal'}) do
   local c=(proof.checks or {})[name] checks[#checks+1]=name..'='..(c and c.passed and 'mesure' or 'non valide')
  end
- row('Tests observes dans la session',table.concat(checks,' | '))
+ if outputs and outputs.qualification then row('Tests observes dans la session',tostring(#(outputs.qualification.checks or {}))..' deplacements/retours qualifies | '..tostring(outputs.qualification.reason)) else row('Tests observes dans la session',table.concat(checks,' | ')) end
  row('Reprise manuelle',proof.manualSwitch or 'Le test logiciel ne prouve pas un interrupteur materiel')
  if state.sweep then row('Mesure altitude',state.sweep.state..' | '..tostring(state.sweep.reason or '')) end
  local k=state.kinematics or {}

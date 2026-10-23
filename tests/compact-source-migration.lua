@@ -98,14 +98,16 @@ if arg[1] then
  local prepared
  assert(core.install(nextFiles,{beforeHistoryCleanup=function() end,beforeInstall=function(p) prepared=p.compactedFiles end}))
  assert(prepared~=nil,'real release migration did not report preparation')
- if previous.VERSION:match('^0%.18%.86%s*$') then
-  assert(prepared>100,'format-1 release migration did not compact equivalent modules')
+ if not previous['system/libraries/packed_source_v3.lua'] then
+  assert(prepared>100,'older release migration did not compact equivalent modules')
  else
   -- Already compact releases need only their real changed/new modules.
   assert(prepared==0,'format-2 release unexpectedly re-encoded unchanged source')
  end
  local after=used()
  local restored={} for path,data in pairs(previous) do restored[path]=data end
+ -- Match rollback-compatible: additive loaders remain able to read compact code.
+ for _,path in ipairs({'system/libraries/packed_source.lua','system/libraries/packed_source_v3.lua','system/libraries/installer_v2.lua'}) do restored[path]=nextFiles[path] end
  if previous.VERSION:match('^0%.18%.86%s*$') then restored['system/services/flightd.lua']=read('tools/compat/flightd-0.18.86.packed') end
  assert(core.install(restored))
  assert(state.nodes['/VERSION']==previous.VERSION and state.nodes['/home/user/witness']==string.rep('p',100000))

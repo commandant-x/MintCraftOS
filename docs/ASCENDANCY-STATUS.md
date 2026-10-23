@@ -17,6 +17,11 @@ associations clutch/source observées pendant les essais existants, preuve priv�
 de session et maintien vertical lors d'une panne horizontale qualifiée. Le lot A
 et Autopilot 2 restent incomplets.
 
+0.18.89 ajoute [A.9, contrôle local mesuré](ASCENDANCY-A9-MEASURED-CONTROL.md) :
+caractérisation des sorties connues, allocation bornée, essais de retour,
+inclinaison identifiée passivement et Bridge 0.3.0. Les lots A–E ne sont pas
+terminés ; les limites et essais non effectués sont documentés.
+
 ## Capacités constatées avant cet incrément
 
 | Fonction | Contrat constaté | Limite réelle |

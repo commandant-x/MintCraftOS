@@ -1,7 +1,21 @@
-# MintCraft Vehicle Bridge 0.2.3
+# MintCraft Vehicle Bridge 0.3.0
 
 Standalone, read-only NeoForge addon. It exposes the containing Sable vehicle to
 ComputerCraft as the global `mintcraft_vehicle` API. No existing mod is patched.
+
+0.3.0 adds `feedback(vehicleId, ids)` for selected known parent nodes. It reads
+1–64 explicitly selected IDs already present in the inventory, at most once per
+two game ticks per computer and 256 nodes per server tick across callers. Global
+budget exhaustion returns BUSY; fleet throughput is not guaranteed. Only already
+loaded parent chunk/block-entity maps are read, with no chunk loads or writes.
+Samples include game tick, UUID, missing IDs and the explicit
+`selected-known-nodes-not-inventory` scope. They do not certify complete geometry,
+refresh mass or provide terrain/contact sensors. MintCraftOS 0.18.89 consumes this
+separate cache through a short owner-bound lease; old bridge versions keep the
+slower inventory fallback. See [A.9](../../docs/ASCENDANCY-A9-MEASURED-CONTROL.md).
+To revert, stop the server normally, replace only the 0.3.0 JAR with the retained
+0.2.3 JAR and restart. Never keep both JAR versions in mods. Lua updates do not
+install or replace server JARs. Checksums are in `dist/SHA256SUMS`.
 
 0.2.3 adds read-only Create mechanical telemetry (signed actual/theoretical RPM,
 overstress, source IDs, powered state and Create clutch disengagement) plus stable
@@ -36,7 +50,7 @@ This build also compiles against the profile's Sable 2.0.6 using
 
 1. Stop Minecraft/the server normally. Back up the world before trying a new mod.
    Remove the previous Vehicle Bridge JAR when replacing it; do not keep two versions.
-2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.2.3.jar` to the chosen profile's
+2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.3.0.jar` to the chosen profile's
    `mods` directory, alongside CC:Tweaked, Sable, Create and Aeronautics.
    For multiplayer, install on the server and clients using that modpack.
 3. Restart Minecraft. Place the computer on the assembled Sable vehicle.

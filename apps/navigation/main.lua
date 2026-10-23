@@ -53,6 +53,8 @@ function M.run(ctx)
       app.detectedVehicle=vehicle.import(draft.vehicle,app.bridge)
     end
     if automatic and automatic.state=="active" and app.lastAutomaticState=="running" and app.page=="sweep" and not app.confirm then app.page="control" end
+    if app.flight.knownOutputHold and not app.lastKnownHold and (app.page=="sweep" or app.page=="calibration") and not app.confirm then app.page="control" end
+    app.lastKnownHold=app.flight.knownOutputHold~=nil
     app.lastAutomaticState=automatic and automatic.state
     if app.page=="vehicle" then app.detectedSetup,app.discoveryError=balloonSetup.plan(app.bridge,draft,flight.endpoints()) end
     if app.page=="setup" and not app.setup and app.bridge.ok and guide then guide() end
@@ -366,7 +368,8 @@ function M.run(ctx)
       return {{id="applyPilot",label="Appliquer les consignes"},{id="activateAutomatic",label="Preparation automatique"},{id="disarm",label="STOP / secours"},{id="sweepResults",label="Calibration"}}
     elseif app.page=="calibration" then
       local out={{id="previous",label="Prev"},{id="next",label="Next"},{id="test",label="Test"}}
-      if draft.balloonSetup then out[#out+1]={id="initializeBalloon",label="Initialize (2s)"} end
+      if draft.balloonSetup then out[#out+1]={id="initializeBalloon",label="Initialize (2s)"}
+      elseif not (draft.drivetrain and draft.drivetrain.enabled) then out[#out+1]={id="characterizeOutputs",label="Mesurer les sorties"} out[#out+1]={id="saveResponseReport",label="Enregistrer les mesures"} end
       out[#out+1]={id="sweepOptions",label="Auto altitude"}
       for _,item in ipairs({{id="channel",label="Verify direction"},{id="hover",label="Hover OK"},{id="manual",label="Manual OK"},{id="rescue",label="Test rescue"},{id="rescueConfirm",label="Rescue OK"},{id="disarm",label="Acknowledge"},{id="rescan",label="Rescan"}}) do out[#out+1]=item end
       return out
@@ -721,6 +724,12 @@ function M.run(ctx)
         if not plan then report(false,problem) return true end
         if not plan.autoPrepare or not plan.autoHold or not plan.certify then report(false,"Enable automatic initialization, hold and calibration in Options; use Start sequence for measurement only") return true end
         self.page="sweep" self.sweepEditing=false
+        if not draft.balloonSetup and #((self.bridge or {}).burners or {})==0 and not (draft.drivetrain and draft.drivetrain.enabled) then
+          confirm("Characterize ONLY assigned outputs, at saved neutral +/-1 for up to 2s, then test closed-loop motion and local hold? Confirm the neutral hover and a clear test area. STOP/F10 stays available.",function()
+            report(flight.activateAutomatic(actor,true))
+            draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) refresh()
+          end) return true
+        end
         confirm("Burner heat "..plan.first.." to "..plan.last.." /15. Activate automatic pilot? The vessel will move: initialization, rescue, altitude calibration if needed, motor tests and a short route. Confirm a clear area. F10 stops; keep Navigation open.",function()
           app.autoConfigSynced=false
           report(flight.activateAutomatic(actor,true,plan))
@@ -828,6 +837,13 @@ function M.run(ctx)
       elseif id=="disarm" then report(flight.disarm(actor)) refresh() return true
       elseif id=="altDown" or id=="altUp" then report(flight.manual(actor,"altitude",id=="altUp" and 1 or -1)) return true
       elseif id=="yawLeft" or id=="yawRight" then report(flight.manual(actor,"heading",id=="yawRight" and 1 or -1)) return true
+      elseif id=="saveResponseReport" then report(flight.saveCharacterizationReport(actor)) return true
+      elseif id=="characterizeOutputs" then
+        if self.dirty then report(false,"Save assigned outputs before measurement") return true end
+        confirm("Measure ONLY saved outputs at neutral +/-1, maximum 2 seconds per pulse, then configured rescue? Confirm neutral hover, known wiring and a clear test area. No new flight mode is armed. STOP/F10 remains available.",function()
+          report(flight.startKnownOutputCalibration(actor,true,2))
+          draft=flight.configuration() draft.vehicle=vehicle.profile(draft.vehicle) refresh()
+        end) return true
       elseif id=="initializeBalloon" then
         if self.dirty then report(false,"Save changes first") return true end
         local channel=draft.channels[self.index]
@@ -959,6 +975,18 @@ function M.run(ctx)
       local c=app.flight.calibration or {}
       row("Physical calibration","Initialize: "..tostring(c.initializationConfirmed).." | direction: "..tostring(channel and channel.validated).." | manual: "..tostring(draft.manualValidated).." | rescue applied: "..tostring(c.rescueTested).." | rescue verified: "..tostring(draft.rescueValidated))
       if c.test then row("Burner feedback",tostring(c.test.burnerFeedback).." | "..tostring(c.test.feedbackError)) end
+      local known=app.flight.outputCharacterization
+      if known then
+        row("Sorties connues",known.state.." / "..known.phase.." | "..known.index.."/"..known.count.." | "..known.reason)
+        if known.qualification then row("Essais physiques",known.qualification.index.."/"..known.qualification.count.." | "..known.qualification.reason) end
+        if known.tiltDiagnostic then row("Inclinaison",known.tiltDiagnostic) end
+        local progress=known.progress or known.qualification and known.qualification.progress
+        if progress then row("Convergence observee",progress.reason) end
+        for _,axis in ipairs({"forward","right","vertical","pitch","yaw","roll"}) do
+          local result=(known.axes or {})[axis]
+          if result then row(axis,known.active and known.controller and known.controller.axes[axis] and "Qualifie physiquement dans le domaine local mesure" or result.reason.." | qualification en boucle fermee requise") end
+        end
+      end
     elseif app.page=="sweep" or app.page=="sweepResults" then
       local _,label=sweepNext() row("Next",label)
       local c=flight.configuration() local progress=app.flight.calibration or {} local channel=(c.channels or {})[1] or {}

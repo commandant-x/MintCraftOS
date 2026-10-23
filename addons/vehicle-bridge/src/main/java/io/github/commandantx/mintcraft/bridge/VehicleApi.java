@@ -36,6 +36,8 @@ public final class VehicleApi implements ILuaAPI {
     private static final Map<ServerSubLevel, Cached> CACHE = new WeakHashMap<>();
     private record Cached(long tick, Map<String, Object> data) {}
     private final IComputerSystem computer;
+    private static final FeedbackBudget FEEDBACK_BUDGET = new FeedbackBudget(256);
+    private long lastFeedbackTick = Long.MIN_VALUE;
     private HullScan hull;
     private final Map<Integer,String> hullHashes=new LinkedHashMap<>();
     private long lastHullTick = Long.MIN_VALUE;
@@ -137,7 +139,7 @@ public final class VehicleApi implements ILuaAPI {
     @Override public String[] getNames() { return new String[]{"mintcraft_vehicle"}; }
 
     @LuaFunction public final Map<String, Object> status() {
-        return Map.of("schema", 1, "version", "0.2.3", "readOnly", true,
+        return Map.of("schema", 1, "version", "0.3.0", "readOnly", true,
             "scope", "containing sublevel; loaded blocks and block entities", "controlWrites", false);
     }
 
@@ -159,6 +161,68 @@ public final class VehicleApi implements ILuaAPI {
         } catch (RuntimeException | LinkageError error) {
             return unavailable("BRIDGE_READ_FAILED", error.getClass().getSimpleName());
         }
+    }
+
+    /** At most 64 explicitly selected known nodes, once per two game ticks.
+     * The global inventory remains on its existing one-second cache. */
+    @LuaFunction(mainThread = true)
+    public final Map<String,Object> feedback(String expectedVehicle, Map<?,?> requested) {
+        try {
+            var containing = Sable.HELPER.getContaining(computer.getLevel(), computer.getPosition());
+            if (!(containing instanceof ServerSubLevel ship) || ship.isRemoved() || !ship.getUniqueId().toString().equals(expectedVehicle))
+                return unavailable("VEHICLE_CHANGED", "Feedback belongs to the containing vehicle only");
+            long tick = computer.getLevel().getGameTime();
+            if (lastFeedbackTick != Long.MIN_VALUE && tick >= lastFeedbackTick && tick - lastFeedbackTick < 2)
+                return unavailable("BUSY", "Selected feedback is limited to once per two game ticks");
+            lastFeedbackTick = tick;
+            Cached inventory = CACHE.get(ship);
+            if (inventory == null || tick < inventory.tick || tick - inventory.tick > 40)
+                return unavailable("INVENTORY_REQUIRED", "Read a fresh containing-vehicle inventory first");
+            var known = new java.util.HashSet<String>();
+            for (String field : List.of("links", "burners", "mechanics", "actuators")) {
+                if (inventory.data.get(field) instanceof List<?> rows)
+                    for (Object row : rows) if (row instanceof Map<?,?> data && data.get("id") instanceof String id) known.add(id);
+            }
+            var selection = FeedbackSelection.parse(expectedVehicle, requested, known);
+            if (!FEEDBACK_BUDGET.claim(tick, selection.size()))
+                return unavailable("BUSY", "Server-wide selected-node observation budget exhausted");
+            var loaded = new java.util.HashMap<Long,net.minecraft.world.level.chunk.LevelChunk>();
+            int chunks = 0;
+            for (PlotChunkHolder holder : ship.getPlot().getLoadedChunks()) {
+                if (++chunks > MAX_CHUNKS) break;
+                var chunk = holder.getChunk(); loaded.put(chunk.getPos().toLong(), chunk);
+            }
+            var origin = ship.getPlot().getCenterBlock();
+            var links = new ArrayList<Map<String,Object>>();
+            var burners = new ArrayList<Map<String,Object>>();
+            var mechanics = new ArrayList<Map<String,Object>>();
+            var actuators = new ArrayList<Map<String,Object>>();
+            var missing = new ArrayList<String>();
+            for (var target : selection) {
+                var pos = new BlockPos(Math.addExact(origin.getX(),target.x()),Math.addExact(origin.getY(),target.y()),Math.addExact(origin.getZ(),target.z()));
+                var chunk = loaded.get(net.minecraft.world.level.ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4));
+                // Map access only: do not instantiate a pending block entity or load a chunk.
+                var entity = chunk == null ? null : chunk.getBlockEntities().get(pos);
+                if (entity == null || entity.isRemoved()) { missing.add(target.id()); continue; }
+                boolean read = false;
+                if (entity instanceof RedstoneLinkBlockEntity linkEntity) {
+                    var row = link(ship,linkEntity,origin); if (row != null) { links.add(row); read = true; }
+                }
+                if (entity instanceof HotAirBurnerBlockEntity burnerEntity) { burners.add(burner(ship,burnerEntity,origin)); read = true; }
+                if (entity instanceof com.simibubi.create.content.kinetics.base.KineticBlockEntity kinetic) { mechanics.add(mechanical(ship,kinetic,origin)); read = true; }
+                if (entity instanceof PropellerBearingBlockEntity || entity instanceof BasePropellerBlockEntity) { actuators.add(propeller(ship,entity,origin,inventory.data)); read = true; }
+                if (!read) missing.add(target.id());
+            }
+            var result = new LinkedHashMap<String,Object>();
+            result.put("schema",1); result.put("ok",true); result.put("readOnly",true); result.put("bridgeVersion","0.3.0");
+            result.put("scope","selected-known-nodes-not-inventory"); result.put("vehicleId",expectedVehicle); result.put("frame","body_plot");
+            result.put("units",Map.of("position","block")); result.put("revision",tick); result.put("observedAtGameTick",tick); result.put("ageTicks",0);
+            result.put("inventoryObservedTick",inventory.tick); result.put("selectionComplete",missing.isEmpty()); result.put("requested",selection.size());
+            result.put("links",links); result.put("burners",burners); result.put("mechanics",mechanics); result.put("actuators",actuators); result.put("missing",missing);
+            result.put("limits",Map.of("nodes",FeedbackSelection.MAX,"minimumIntervalTicks",2,"globalNodesPerTick",256));
+            return result;
+        } catch (IllegalArgumentException error) { return unavailable("INVALID_SELECTION",error.getMessage()); }
+        catch (RuntimeException | LinkageError error) { return unavailable("FEEDBACK_READ_FAILED",error.getClass().getSimpleName()); }
     }
 
     private static Map<String, Object> unavailable(String code, String message) {
@@ -198,7 +262,7 @@ public final class VehicleApi implements ILuaAPI {
         var mechanics = new ArrayList<Map<String,Object>>();
         BlockPos origin = ship.getPlot().getCenterBlock();
         result.put("schema", 1); result.put("ok", true); result.put("readOnly", true);
-        result.put("bridgeVersion", "0.2.3"); result.put("features", Map.of("burners",true,"hullPages",true,"mechanics",true,"structureHash",true));
+        result.put("bridgeVersion", "0.3.0"); result.put("features", Map.of("burners",true,"hullPages",true,"mechanics",true,"structureHash",true,"selectedFeedback",true));
         result.put("vehicleId", ship.getUniqueId().toString()); result.put("name", ship.getName());
         result.put("observedAtGameTick", tick); result.put("revision", tick);
         result.put("frame", "body_plot");

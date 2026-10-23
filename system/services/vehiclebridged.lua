@@ -1,6 +1,7 @@
 local addon=require("system.libraries.addon")
 local M={}
-local runner,hullRunner,hullScan,hullRequested
+local runner,hullRunner,hullScan,hullRequested,feedbackRunner,feedbackRequest,feedbackCache
+local Selected=require("system.navigation.selected_feedback")
 local Hull=require("system.navigation.hull_geometry")
 local cached={available=false,ok=false,status="Vehicle bridge not installed",error="mintcraft_vehicle API missing",revision=0}
 local serial=0
@@ -217,12 +218,54 @@ function M.burnerFeedback(setup,expected,after,proof)
   end
   return #errors==0,table.concat(errors,"; ")
 end
+-- Only the worker acquires; consumers receive isolated caches. The lease
+-- expires when a flight job stops refreshing it, including after STOP/crash.
+function M.requestFeedback(vehicleId,ids,ownerToken)
+  if type(ownerToken)~="table" then return false,"Selected feedback needs a private flight-job lease" end
+  if feedbackRequest and os.clock()<=feedbackRequest.expiresAt and feedbackRequest.ownerToken~=ownerToken then return false,"Selected feedback lease belongs to another flight job" end
+  local api=rawget(_G,"mintcraft_vehicle")
+  if type(api)~="table" or type(api.feedback)~="function" then return false,"Selected feedback unavailable; Vehicle Bridge 0.3.0 required" end
+  if cached.vehicleId~=vehicleId or not cached.ok then return false,"Containing vehicle inventory unavailable/changed" end
+  local selection,why=Selected.selection(cached,ids) if not selection then return false,why end
+  local key=table.concat(selection,"|")
+  if not feedbackRequest or feedbackRequest.key~=key or feedbackRequest.vehicleId~=vehicleId or feedbackRequest.ownerToken~=ownerToken then
+    feedbackRequest={key=key,vehicleId=vehicleId,ids=selection,ownerToken=ownerToken} feedbackCache=nil
+  end
+  feedbackRequest.expiresAt=os.clock()+2
+  return true
+end
+function M.acquireFeedback()
+  local request=feedbackRequest local now=os.clock()
+  if not request or now>request.expiresAt then feedbackRequest=nil feedbackCache=nil return end
+  local api=rawget(_G,"mintcraft_vehicle")
+  if not cached.ok or cached.vehicleId~=request.vehicleId or type(api)~="table" or type(api.feedback)~="function" then feedbackCache=nil return end
+  local values,errors=addon.read({selected=function() return api.feedback(request.vehicleId,request.ids) end},{"selected"},.5,{priority="diagnostics"})
+  if feedbackRequest~=request then return end
+  local nextValue,why=Selected.normalize(values.selected,request.ids,request.vehicleId,M.normalize,now,os.clock(),request.previous)
+  if nextValue then feedbackCache=nextValue request.previous=nextValue
+  elseif not (type(values.selected)=="table" and values.selected.code=="BUSY") then
+    feedbackCache={ok=false,scope="selected-known-nodes-not-inventory",reason=errors.selected or why}
+  end
+end
+function M.selectedSnapshot()
+  local out=addon.copy(feedbackCache or {ok=false,reason="Waiting for selected feedback"})
+  if not feedbackRequest or os.clock()>feedbackRequest.expiresAt or not out.observedAt or os.clock()<out.observedAt or os.clock()>(out.validUntil or 0) then out.ok=false end
+  return out
+end
+function M.releaseFeedback(ownerToken)
+  if feedbackRequest and feedbackRequest.ownerToken~=ownerToken then return false end
+  feedbackRequest=nil feedbackCache=nil return true
+end
 function M.rescan() if runner then runner:rescan() end end
 function M.start(ctx)
   M.stop()
   runner=addon.periodic(ctx,"vehiclebridged",1,M.acquire)
   hullRunner=addon.periodic(ctx,"vehicle-hull",0.25,M.acquireGeometry)
+  feedbackRunner=addon.periodic(ctx,"vehicle-feedback",.1,M.acquireFeedback)
   runner.onError=function(err) cached.ok=false cached.error=tostring(err) cached.status="Vehicle bridge worker failed" end
 end
-function M.stop() if runner then runner:stop() runner=nil end if hullRunner then hullRunner:stop() hullRunner=nil end hullRequested=false hullScan=nil end
+function M.stop()
+  if feedbackRunner then feedbackRunner:stop() feedbackRunner=nil end
+  feedbackRequest,feedbackCache=nil,nil
+  if runner then runner:stop() runner=nil end if hullRunner then hullRunner:stop() hullRunner=nil end hullRequested=false hullScan=nil end
 return M

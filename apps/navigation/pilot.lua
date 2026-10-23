@@ -103,7 +103,7 @@ function M.new(api)
   local head=math.floor((w-20)/4)
   button('back','Flight',4,3,head) button('stop',w<300 and 'STOP' or 'STOP / F10',8+head,3,head)
   button('prepare','Calibrer',12+2*head,3,head) button('status','Etat',16+3*head,3,head)
-  label(32,'AUTOPILOT | '..(state.measuredHold and 'Maintien actif' or 'Calibration requise'),p.accent)
+  label(32,'AUTOPILOT | '..((state.measuredHold or state.knownOutputHold) and 'Maintien actif' or 'Calibration requise'),p.accent)
   self.maxScroll=math.max(0,330-h) self.scroll=math.max(0,math.min(self.maxScroll,self.scroll or 0))
   local fullHeight=math.max(330,h)
   offset=46+self.scroll body=true s=View.new(screen,0,46,w,math.max(1,h-68))
@@ -142,12 +142,22 @@ function M.new(api)
    button('apply','Maintenir cette altitude',4,208,w-8)
    local hold=state.measuredHold or {}
    label(239,'Consigne active '..num((state.targets or {}).altitude)..' m')
+   if state.knownOutputHold then
+    local known=state.knownOutputHold local available={}
+    for _,axis in ipairs({'forward','right','vertical','pitch','yaw','roll'}) do if known.axes[axis] then available[#available+1]=axis end end
+    label(254,'Sorties mesurees | allocation couplee sur 16 niveaux')
+    label(269,'Axes qualifies : '..table.concat(available,', '))
+    local bounds=(state.outputCharacterization or {}).worldBounds
+    label(284,bounds and ('Domaine observe '..num(bounds.minY)..' a '..num(bounds.maxY)..' m') or 'Domaine local observe')
+    label(299,(state.outputCharacterization or {}).massAdaptation and 'Adaptation de masse | horizontal suspendu' or 'Qualification en boucle fermee effectuee')
+   else
    label(254,'Chauffe '..num(hold.requestedHeat)..'/15 | signal '..tostring(hold.heat or '?'))
    local heat=hold.requestedHeat
    label(269,addon.finite(heat) and ('Alternance '..math.floor(heat)..' / '..math.ceil(heat)..' | haut '..math.floor((heat-math.floor(heat))*100+0.5)..'%') or 'Alternance : disponible apres calibration')
    if hold.range then label(284,(hold.adaptation and 'Ancienne plage ' or 'Plage ')..num(hold.range.minAltitude)..' a '..num(hold.range.maxAltitude)..' m') end
    if hold.adaptation then label(299,'Adaptation masse | correction '..num(hold.adaptation.bias)..' | '..(hold.adaptation.phase=='holding' and 'stable' or 'apprentissage'))
    else label(299,state.differentialReady and ('Cap '..num(t.heading)..' deg | vitesse '..num(state.groundSpeed)..' m/s') or 'Altitude seule | direction non calibree') end
+   end
   end
   s=screen offset=0 body=false
   local adaptation=state.measuredHold and state.measuredHold.adaptation

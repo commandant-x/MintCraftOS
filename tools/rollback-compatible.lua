@@ -44,6 +44,15 @@ if sha=='623e07685788b15b811440da3474ca440191fe6e' then
  captured['system/services/flightd.lua']=compatible
  print('Keeping the Cobalt-compatible 0.18.86 flight loop.')
 end
+-- Format-3 code retains compatible additive loaders and the transaction engine.
+-- Application bodies revert; decoder support must survive their compact wrappers.
+if fs.exists('/system/libraries/packed_source_v3.lua') then
+ assert(installer.retainsEquivalentPackedSources==true,'Use the current MintCraft installer before this rollback')
+ for _,path in ipairs({'system/libraries/packed_source.lua','system/libraries/packed_source_v3.lua','system/libraries/installer_v2.lua'}) do
+  local h=assert(fs.open('/'..path,'r')) captured[path]=h.readAll() h.close()
+ end
+ print('Keeping compatible compact-source loaders and recovery transactions.')
+end
 print('Restoring code '..captured.VERSION:gsub('%s+$','')..'; personal files are preserved.')
 local phase
 assert(installer.install(captured,{onProgress=function(name)

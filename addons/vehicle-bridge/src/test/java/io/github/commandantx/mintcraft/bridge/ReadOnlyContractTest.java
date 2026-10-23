@@ -32,7 +32,7 @@ class ReadOnlyContractTest {
                 }
             },0);
         }
-        assertEquals(Set.of("<init>","getNames","status","snapshot","geometryPage"),Set.copyOf(methods));
+        assertEquals(Set.of("<init>","getNames","status","snapshot","geometryPage","feedback"),Set.copyOf(methods));
         assertTrue(calls.stream().anyMatch(s->s.endsWith("#getLoadedChunks")));
         assertFalse(calls.stream().anyMatch(s->s.contains("#setReceivedStrength")));
     }
@@ -41,7 +41,7 @@ class ReadOnlyContractTest {
         try(var stream=getClass().getResourceAsStream("VehicleApi.class")) {
             new ClassReader(stream).accept(new ClassVisitor(Opcodes.ASM9) {
                 @Override public MethodVisitor visitMethod(int access,String name,String desc,String sig,String[] exceptions) {
-                    if(!name.equals("snapshot") && !name.equals("geometryPage")) return null;
+                    if(!name.equals("snapshot") && !name.equals("geometryPage") && !name.equals("feedback")) return null;
                     return new MethodVisitor(Opcodes.ASM9) {
                         @Override public AnnotationVisitor visitAnnotation(String descriptor,boolean visible) {
                             if(!descriptor.equals("Ldan200/computercraft/api/lua/LuaFunction;")) return null;
@@ -53,6 +53,6 @@ class ReadOnlyContractTest {
                 }
             },0);
         }
-        assertEquals(List.of(true,true),found);
+        assertEquals(List.of(true,true,true),found);
     }
 }

@@ -5,8 +5,8 @@ from collections import defaultdict, deque
 CODEC = 'system/libraries/packed_source.lua'
 PLAIN = {CODEC, 'boot.lua', 'startup.lua', 'system/boot/recovery.lua',
          'system/libraries/safe_write.lua', 'system/libraries/installer.lua',
-         'system/libraries/packed_source_v2.lua', 'system/libraries/installer_v2.lua'}
-PREFIX = '-- MintCraft packed source 2\n'
+         'system/libraries/packed_source_v2.lua', 'system/libraries/packed_source_v3.lua', 'system/libraries/installer_v2.lua'}
+PREFIX = '-- MintCraft packed source 3\n'
 
 
 def encode(data, hit_limit=32):
@@ -57,7 +57,10 @@ def pack(path, source):
     if path in PLAIN or not path.endswith('.lua'):
         return source
     data = source.encode('utf-8')
-    result = (PREFIX + 'return assert(load(require("system.libraries.packed_source_v2").decode([['
-              + compact_ascii(base64.b85decode(encode(data, 128))) + ']],' + str(len(data)) + ',"' + checksum(data)
+    import zlib
+    compressor = zlib.compressobj(9, wbits=-15)
+    raw = compressor.compress(data) + compressor.flush()
+    result = (PREFIX + 'return assert(load(require("system.libraries.packed_source_v3").decode([['
+              + compact_ascii(raw) + ']],' + str(len(data)) + ',"' + checksum(data)
               + '"),"@/' + path + '","t",_ENV))(...)\n')
     return result if len(result.encode('utf-8')) < len(data) else source

@@ -57,7 +57,7 @@ for _,phase in ipairs({'stage','live'}) do
  local originalHook=state.hook local interrupted=false
  state.hook=function(action,path)
   originalHook(action,path)
-  if not interrupted and action=='write' and (phase=='stage' and path:match('/stage/apps/') or phase=='live' and path:match('^/apps/')) then
+  if not interrupted and (phase=='stage' and action=='write' and path:match('/stage/apps/') or phase=='live' and (action=='write' or action=='move') and path:match('^/apps/')) then
    interrupted=true coroutine.yield('power loss')
   end
  end
@@ -86,7 +86,7 @@ if arg[1] then
  assert(installer.install(files))
  assert(require('system.services.updated').rollback())
  assert(state.nodes['/VERSION']==previousFiles.VERSION)
- assert(state.nodes['/apps/terminal/main.lua']==previousFiles['apps/terminal/main.lua'])
+ assert(codec.unpack(state.nodes['/apps/terminal/main.lua'])==codec.unpack(previousFiles['apps/terminal/main.lua']))
  assert(state.nodes['/home/user/documents/witness']==string.rep('user data\n',10000))
  print(string.format('actual release upgrade/rollback: %s -> %s; peak %d of 1000000 bytes with 100000-byte witness',previousFiles.VERSION:gsub('%s+',''),files.VERSION:gsub('%s+',''),peak()))
  local candidates={}
@@ -112,7 +112,8 @@ if arg[1] then
   assert(installer.recover())
   assert(state.nodes['/VERSION']==previousFiles.VERSION)
   for path,content in pairs(previousFiles) do
-   if not path:match('^system/config/') and not path:match('^home/') and not path:match('^packages/') then assert(state.nodes['/'..path]==content,'power-loss recovery changed '..path) end
+   if path=='system/libraries/packed_source.lua' then assert(state.nodes['/'..path]==files[path],'compatible decoder bootstrap lost')
+   elseif not path:match('^system/config/') and not path:match('^home/') and not path:match('^packages/') then assert(path:match('%.lua$') and codec.unpack(state.nodes['/'..path])==codec.unpack(content) or state.nodes['/'..path]==content,'power-loss recovery changed '..path) end
   end
   assert(state.nodes['/home/user/documents/witness']==string.rep('user data\n',10000))
  end
