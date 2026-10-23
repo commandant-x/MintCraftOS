@@ -12,6 +12,11 @@ La version 0.18.81 livre un premier incrément **partiel** du lot A.
 sans impulsion supplémentaire ni certification de nouveaux axes. Elle ne livre
 ni Autonomy 2.0 complète ni l'ensemble du lot A.
 
+0.18.88 ajoute [A.8, surveillance mécanique](ASCENDANCY-A8-MOTOR-HEALTH.md) :
+associations clutch/source observées pendant les essais existants, preuve privée
+de session et maintien vertical lors d'une panne horizontale qualifiée. Le lot A
+et Autopilot 2 restent incomplets.
+
 ## Capacités constatées avant cet incrément
 
 | Fonction | Contrat constaté | Limite réelle |
@@ -110,8 +115,8 @@ Le Command Center complet reste à développer.
 **Lot A encore en cours** : inventaire générique complet des commandes et
 provenances ; caractérisation réellement six axes avec bruit et couplages ;
 calibration/allocation des propulseurs et multirotors détectés ; identification
-des gains par architecture ; surveillance RPM/surcharge reliée aux seules
-chaînes concernées ; dérive, oscillation et évolution du freinage ; diagnostic
+des gains par architecture ; extension de la surveillance partielle RPM/surcharge aux architectures
+réellement identifiées ; dérive, oscillation et évolution du freinage ; diagnostic
 borné de l'absence de progrès d'un sweep ; interface des capacités courantes.
 Ne pas activer ces modes sur les seules matrices algébriques de test.
 

@@ -21,6 +21,7 @@ local activation
 local calibrationToken={}
 deps.Drive=require("system.navigation.drivetrain")
 deps.Trim=require("system.navigation.flight_trim")
+deps.MotorHealth=require("system.navigation.motor_health")
 local Authority=require("system.navigation.authority")
 local Estimator=require("system.navigation.state_estimator")
 deps.Catalogue=require("system.navigation.command_catalogue")
@@ -1050,6 +1051,11 @@ function M.step(rescan)
         local wanted=drive.demand or deps.Drive.commands(cfg.control.drivetrain)
         if job.driveProbe.phase=="pulse" and not job.driveProbe.appliedAt and same(drive.values,wanted) then job.driveProbe.appliedAt=drive.appliedAt end
         local motorAck=drive.values and drive.appliedAt and same(drive.values,wanted) and deps.Drive.feedback(cfg.control.drivetrain,current,drive.values,drive.appliedAt)
+        if drive.healthJob~=job then
+          drive.health=deps.MotorHealth.new((cfg.control.balloonSetup or {}).vehicleId,cfg.control.drivetrain)
+          drive.healthJob=job
+        end
+        drive.health:learn(current,cfg.control.drivetrain,drive.values,drive.appliedAt,motorAck,now)
         job.experiments=job.experiments or deps.Experiments.new()
         local phase=job.driveProbe.phase
         job.experiments:observe(job.driveProbe,drive.pose,kinematics:status(now),motorAck,measuredHold.heat,measuredHold.ackAt,current.observedAt)
@@ -1062,6 +1068,7 @@ function M.step(rescan)
           drive.demand=nil
           if job.motorCandidate and not deps.Drive.referencesMatch(job.motorCandidate,job.driveProbe.rows) then
             job.motorCandidate,job.motorRows,job.motorExperiments=nil,nil,nil job.driveProbe=deps.Drive.newProbe() job.experiments=deps.Experiments.new()
+            drive.health,drive.healthJob=nil,nil
             job.horizontal="Saved motor response changed; automatically measuring all 60 modes"
           else
           if job.motorCandidate then job.driveModel=deps.addon.copy(job.motorCandidate) job.freshMotorChecks=deps.addon.copy(job.driveProbe.rows)
@@ -1208,8 +1215,11 @@ function M.step(rescan)
     local ready,issue=differentialCurrent(calibration.phase=="routeCheck" and calibrationToken or nil) if not ready then M.fail(issue) return M.step(false) end
     if calibration.state=="complete" then
       local values=deps.addon.copy(drive.values or {}) values.engaged=15-cfg.control.drivetrain.clutchOff
-      local ack=drive.appliedAt and deps.Drive.feedback(cfg.control.drivetrain,deps.vehicleBridge.snapshot(),values,drive.appliedAt)
-      local problem=horizontalMonitor:observe(drive.pose,deps.Drive.expected(calibration.driveModel,values),ack)
+      local snapshot=deps.vehicleBridge.snapshot()
+      local ack=drive.appliedAt and deps.Drive.feedback(cfg.control.drivetrain,snapshot,values,drive.appliedAt)
+      local expected=deps.Drive.expected(calibration.driveModel,values)
+      local problem=drive.healthJob==calibration and drive.health:check(snapshot,cfg.control.drivetrain,values,drive.appliedAt,ack,now,expected)
+      problem=problem or horizontalMonitor:observe(drive.pose,expected,ack)
       if problem then
         local target,controller=targets.altitude,controllers.altitude
         takeover(problem,t) autopilot:cancel(problem)
@@ -1318,6 +1328,7 @@ function M.status()
     kinematics=M.kinematics(),
     authority=calibration and calibration.driveModel and deps.addon.copy(calibration.driveModel.authority) or nil,
     horizontalDiagnostic={issue=horizontalIssue,noResponseSamples=horizontalMonitor.samples},
+    mechanicalDiagnostic=drive.healthJob==calibration and drive.health and drive.health:status(state=="armed" and os.clock() or nil) or nil,
     predictiveBraking=calibration and calibration.driveModel and deps.addon.copy(calibration.driveModel.braking) or nil,
     groundSpeed=drive.pose and drive.pose.velocity and math.sqrt(drive.pose.velocity.x^2+drive.pose.velocity.z^2) or nil,
     pilot=pilotDemand and deps.addon.copy(pilotDemand) or nil,
@@ -1346,6 +1357,7 @@ function M.start(context)
   sweepOwner,measuredHold=nil,nil
   calibration,calibrationSaved=nil,false activation=nil
   drive.demand,drive.values,drive.appliedAt,drive.pose,drive.previous=nil,nil,nil,nil,nil
+  drive.health,drive.healthJob=nil,nil
   migrate()
   state,owner,rescuePending="disarmed",nil,false
   reason="not armed; calibration required"

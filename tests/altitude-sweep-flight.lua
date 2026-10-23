@@ -6,6 +6,7 @@ parallel={waitForAll=function(...) for _,f in ipairs({...}) do f() end end}
 local worldX,tilt,poseLost,foreignPose=0,0,false,false
 local motorSim,worldZ,yaw=false,0,0
 local motorSignals={}
+local mechanicalFault
 local orientationFormat="sable"
 local function orientation()
  if motorSim then return {a=math.cos(math.rad(yaw)/2),v={x=0,y=math.sin(math.rad(yaw)/2),z=0}} end
@@ -62,6 +63,18 @@ local function sample()
  raw.revision=raw.revision+1
  for i,b in ipairs(raw.burners) do b.signal=(i==1 and stuckRescue and command==0) and 7 or ((i==1 and badReceiver) and 0 or (i==2 and separateBurners and secondBurnerCommand or command)) b.gasOutput=b.signal*10 b.hasBalloon=b.signal>0 b.associationState=b.hasBalloon and "associated" or "no_balloon_reference" end
  for _,r in ipairs(raw.links) do if r.motor then r.signal=motorSignals[r.first.item] or 0 end end
+ if motorSim and raw.features.mechanics then
+  raw.mechanics={}
+  for _,side in ipairs({'left','right'}) do
+   local prefix='minecraft:motor_'..side..'_'
+   local on=motorSignals[prefix..'clutch']==0 and (motorSignals[prefix..'gear'] or 0)>0
+   local rpm=on and (motorSignals[prefix..'gear'] or 0)*8 or 0
+   local x=side=='left' and -2 or 2
+   raw.mechanics[#raw.mechanics+1]={id=side..'-prop',position={x=x,y=0,z=2},block='create:mechanical_bearing',role='other',sourceId=on and side..'-clutch' or nil,rpm=rpm,theoreticalRPM=rpm}
+   raw.mechanics[#raw.mechanics+1]={id=side..'-clutch',position={x=x,y=0,z=1},block='create:clutch',role='clutch',sourceId=side..'-engine',disengaged=not on,rpm=rpm,theoreticalRPM=rpm}
+   raw.mechanics[#raw.mechanics+1]={id=side..'-engine',position={x=x,y=0,z=0},block='create:creative_motor',role='other',rpm=256,theoreticalRPM=256,overstressed=mechanicalFault==side}
+  end
+ end
  bridge.acquire()
 end
 local process={pid=7,state="ready",meta={appId="navigation"},permissions={}}
@@ -352,6 +365,9 @@ for _,side in ipairs({'left','right'}) do for i,role in ipairs({'clutch','gear',
  motorConfig.drivetrain[side][role]={first=name,second='minecraft:iron_ingot'}
  raw.links[#raw.links+1]={id=name,receiver=true,motor=true,position={x=side=='left' and -2 or 2,y=0,z=i},first={item=name},second={item='minecraft:iron_ingot'},signal=motorSignals[name]}
 end end
+raw.features.mechanics=true
+raw.actuators={}
+for _,side in ipairs({'left','right'}) do raw.actuators[#raw.actuators+1]={id=side..'-prop',position={x=side=='left' and -2 or 2,y=0,z=2},direction={x=0,y=0,z=1},active=false,thrust=0} end
 raw.mass=65 raw.units.mass='kg'
 local duplicateId=addon.copy(motorConfig) duplicateId.channels[1].id='drive-left-clutch'
 assert(not flight.configure(actor,duplicateId),'logical command collision with motor chain accepted')
@@ -361,7 +377,7 @@ local velocityX,velocityZ,yawVelocity=0,0,0
 local motorBlocked=false
 local function plantTick(i)
  local function force(side)
-  if motorBlocked then return 0 end
+  if motorBlocked or mechanicalFault==side then return 0 end
   local prefix='minecraft:motor_'..side..'_'
   if motorSignals[prefix..'clutch']~=0 then return 0 end
   return (motorSignals[prefix..'gear'] or 0)/15*(motorSignals[prefix..'reverse']==15 and -1 or 1)
@@ -383,6 +399,8 @@ for i=1,40000 do
  assert(i<40000,'motor calibration never finished: '..proof.phase..' '..proof.horizontal)
 end
 assert(flight.status().differentialReady,flight.status().autoCalibration.horizontal)
+local mechanics=flight.status().mechanicalDiagnostic
+assert(mechanics and mechanics.qualifiedRoots==2 and mechanics.banks.left.clutches==1 and mechanics.banks.right.clutches==1,'existing motor probes failed to qualify actual physical source paths')
 assert(flight.status().authority.rank==2 and flight.status().authority.frame=='heading_horizontal','measured response authority not integrated')
 assert(flight.status().predictiveBraking and flight.status().predictiveBraking.samples>=2,'actual neutral-stop envelope missing')
 assert(flight.kinematics().available and flight.kinematics().response and not flight.status().authority.axes.roll,'six-axis observations either missing or falsely certified new axes')
@@ -396,6 +414,7 @@ assert(not flight.commands({pid=99}),'foreign owner read private Navigation comm
 
 local motorReport=files['/system/config/navigation-calibration.cfg']
 assert(motorReport.drivetrain and #motorReport.motorTests==60,'motor proof was not saved')
+assert(not motorReport.mechanicalDiagnostic,'physical session qualification was persisted')
 assert(motorReport.motorExperiments and #motorReport.motorExperiments.groups<=4 and #motorReport.motorExperiments.axes==6,'bounded six-axis experiment record missing')
 local usableExperiments=0
 for _,experiment in ipairs(motorReport.motorExperiments.groups) do
@@ -487,6 +506,40 @@ assert(command>0 and motorSignals['minecraft:motor_left_clutch']==15 and motorSi
 assert(not flight.setFlightTargets(actor,{altitude=active.targets.altitude,speed=.2,heading=yaw}),'stalled motor model could be reused without revalidation')
 motorBlocked=false
 assert(flight.disarm(actor)) flight.step()
+-- A fresh mechanical qualification can isolate source overload from electrical
+-- receiver health. Retain altitude instead of invoking the global rescue path.
+sample() assert(flight.activateAutomatic(actor,true)) bridge.acquireGeometry() flight.step()
+for i=1,40000 do
+ plantTick(i)
+ local status=flight.status()
+ assert(status.automatic.state~='blocked',status.automatic.reason)
+ if status.automatic.state=='active' then break end
+ assert(i<40000,'mechanical requalification never finished')
+end
+local healthy=flight.status()
+assert(healthy.mechanicalDiagnostic and healthy.mechanicalDiagnostic.qualifiedRoots==2,'fresh reference tests did not requalify observed motor paths')
+local fixedAltitude=healthy.targets.altitude
+assert(flight.setFlightTargets(actor,{altitude=fixedAltitude,speed=.2,heading=yaw}))
+for i=1,80 do plantTick(i) end
+mechanicalFault='left'
+velocityX,velocityZ,yawVelocity=0,0,0
+for i=1,800 do
+ plantTick(i)
+ local status=flight.status()
+ assert(status.state=='armed' and status.measuredHold and not status.rescuePending,'mechanical overload cut vertical hold')
+ assert(status.targets.altitude==fixedAltitude,'mechanical overload changed altitude target')
+ if status.horizontalDiagnostic.issue then break end
+ assert(i<800,'qualified overload never suspended horizontal control')
+end
+local failed=flight.status()
+assert(failed.mechanicalDiagnostic.fault.kind=='overstress' and failed.mechanicalDiagnostic.fault.side=='left','wrong physical fault attributed')
+assert(not failed.pilot and not failed.differentialReady and command>0,'mechanical fault did not preserve vertical-only hold')
+assert(motorSignals['minecraft:motor_left_clutch']==15 and motorSignals['minecraft:motor_right_clutch']==15,'overstress did not disengage motors')
+assert(not flight.setFlightTargets(actor,{altitude=fixedAltitude,speed=.2,heading=yaw}),'mechanical fault silently rearmed')
+assert(not flight.saveCalibration(actor),'mechanical fault exported a false valid motor model')
+mechanicalFault=nil
+assert(flight.disarm(actor)) flight.step()
+print('mechanical source health: existing acknowledged probes, session-only physical clutch correlation, source overload with healthy receivers, unchanged vertical target and STOP passed')
 -- Explicit burner options are immutable, and a different range cannot reuse old data.
 local selected=require('system.navigation.altitude_sweep').defaults() selected.first=8 selected.last=12
 local invalid=addon.copy(selected) invalid.autoHold=false

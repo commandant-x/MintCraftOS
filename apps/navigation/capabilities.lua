@@ -52,6 +52,9 @@ function M.rows(state,t,pose,now)
  row('Donnees moteur',usable..'/'..count..' groupes exploitables dans la session | diagnostic, pas un certificat de controle')
  local brake=state.predictiveBraking
  row('Freinage observe',brake and ('deceleration '..num(brake.deceleration)..' blocs/s2 | delai '..num(brake.reactionTime)..' s | vitesse observee '..num(brake.maxObservedSpeed)..' blocs/s ; domaine empirique'..(armed and state.differentialReady and '' or ' | reference, guidage indisponible')) or 'Enveloppe de freinage indisponible')
+ local mechanical=state.mechanicalDiagnostic or {}
+ local currentMechanical=armed and mechanical.available and fresh(mechanical.observedAt,now,2) and A.finite(mechanical.validUntil) and now<=mechanical.validUntil
+ row('Retour mecanique moteur',currentMechanical and (tostring(mechanical.qualifiedRoots or 0)..' sources observees | '..tostring(mechanical.reason or '')..' | couverture partielle') or 'Indisponible/perime | aucune liaison mecanique supposee')
  local issue=(state.horizontalDiagnostic or {}).issue
  if issue then row('Navigation suspendue',issue) end
  local mission=state.autopilot or {}

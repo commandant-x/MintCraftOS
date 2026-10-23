@@ -36,5 +36,8 @@ state.horizontalDiagnostic={issue='Moteur bloque'}
 r=C.rows(state,telemetry,pose,10)
 assert(text(r,'Adaptation de masse'):find('ne recertifie pas',1,true))
 assert(text(r,'Navigation suspendue')=='Moteur bloque')
+state.mechanicalDiagnostic={available=true,observedAt=10,validUntil=12,qualifiedRoots=2,reason='Observe'}
+assert(text(C.rows(state,telemetry,pose,10),'Retour mecanique moteur'):find('couverture partielle',1,true))
+assert(text(C.rows(state,telemetry,pose,13),'Retour mecanique moteur'):find('perime',1,true))
 assert(#C.rows(nil,nil,nil,10)>0)
 print('Navigation capabilities: cache-only bounded presentation, vertical-only readiness, stale/foreign/unit guards, diagnostics do not certify axes and terrain/landing limitations passed')

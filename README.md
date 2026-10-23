@@ -2,7 +2,15 @@
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
 
-This repository currently contains V0.18.87:
+This repository currently contains V0.18.88:
+
+V0.18.88 adds **partial Lot A.8 motor source supervision**. Existing acknowledged
+calibration probes correlate physical clutches with actual kinetic source paths;
+qualified overload/disconnection/rotation faults suspend horizontal guidance
+while retaining verified altitude hold. Associations stay private to the session,
+without extra test impulses or inferred wiring. The native Etat view distinguishes
+this partial coverage from whole-bank health. Autopilot 2 remains in development.
+See [A.8 evidence and limits](docs/ASCENDANCY-A8-MOTOR-HEALTH.md).
 
 V0.18.87 recovers storage for the next Ascendancy increments with **lossless
 source format 2** and transactional per-file preparation. Exact decoded source
