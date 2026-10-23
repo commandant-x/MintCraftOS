@@ -27,6 +27,10 @@ reconstruction depuis les preuves, nouvelle qualification, séparation des liais
 chauffe/moteur et surveillance des changements d’inertie/centre de masse.
 Le projet complet reste actif et incomplet.
 
+0.18.91 ajoute [C.1, terrain chargé](ASCENDANCY-C1-TERRAIN.md) : lecture réelle
+du monde sur autorisation serveur, cache conservateur borné et affichage Atlas
+natif. Les routes existantes ne deviennent pas des routes avec évitement.
+
 ## Capacités constatées avant cet incrément
 
 | Fonction | Contrat constaté | Limite réelle |

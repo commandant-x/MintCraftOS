@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="mintcraft_vehicle_bridge"
-version="0.3.0"
+version="0.4.0"
 displayName="MintCraft Vehicle Bridge"
 description='''Read-only ComputerCraft access to the containing Sable vehicle's mass and Aeronautics propellers. No output controls or automatic flight.'''
 

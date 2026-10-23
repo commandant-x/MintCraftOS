@@ -139,7 +139,7 @@ public final class VehicleApi implements ILuaAPI {
     @Override public String[] getNames() { return new String[]{"mintcraft_vehicle"}; }
 
     @LuaFunction public final Map<String, Object> status() {
-        return Map.of("schema", 1, "version", "0.3.0", "readOnly", true,
+        return Map.of("schema", 1, "version", "0.4.0", "readOnly", true,
             "scope", "containing sublevel; loaded blocks and block entities", "controlWrites", false);
     }
 
@@ -214,7 +214,7 @@ public final class VehicleApi implements ILuaAPI {
                 if (!read) missing.add(target.id());
             }
             var result = new LinkedHashMap<String,Object>();
-            result.put("schema",1); result.put("ok",true); result.put("readOnly",true); result.put("bridgeVersion","0.3.0");
+            result.put("schema",1); result.put("ok",true); result.put("readOnly",true); result.put("bridgeVersion","0.4.0");
             result.put("scope","selected-known-nodes-not-inventory"); result.put("vehicleId",expectedVehicle); result.put("frame","body_plot");
             result.put("units",Map.of("position","block")); result.put("revision",tick); result.put("observedAtGameTick",tick); result.put("ageTicks",0);
             result.put("inventoryObservedTick",inventory.tick); result.put("selectionComplete",missing.isEmpty()); result.put("requested",selection.size());
@@ -262,7 +262,7 @@ public final class VehicleApi implements ILuaAPI {
         var mechanics = new ArrayList<Map<String,Object>>();
         BlockPos origin = ship.getPlot().getCenterBlock();
         result.put("schema", 1); result.put("ok", true); result.put("readOnly", true);
-        result.put("bridgeVersion", "0.3.0"); result.put("features", Map.of("burners",true,"hullPages",true,"mechanics",true,"structureHash",true,"selectedFeedback",true));
+        result.put("bridgeVersion", "0.4.0"); result.put("features", Map.of("burners",true,"hullPages",true,"mechanics",true,"structureHash",true,"selectedFeedback",true));
         result.put("vehicleId", ship.getUniqueId().toString()); result.put("name", ship.getName());
         result.put("observedAtGameTick", tick); result.put("revision", tick);
         result.put("frame", "body_plot");

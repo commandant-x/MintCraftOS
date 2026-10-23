@@ -1,7 +1,28 @@
-# MintCraft Vehicle Bridge 0.3.0
+# MintCraft Vehicle Bridge 0.4.0
 
 Standalone, read-only NeoForge addon. It exposes the containing Sable vehicle to
 ComputerCraft as the global `mintcraft_vehicle` API. No existing mod is patched.
+
+0.4.0 adds the separate read-only `mintcraft_terrain` API. Server policy defaults
+to denied: enable `terrainReadsEnabled` and explicitly list Computer IDs in
+`terrainComputerIds` in the world's `serverconfig/mintcraft_vehicle_bridge-server.toml`.
+The API observes the actual parent dimension and computer world position, then
+reads one already-loaded aligned 16³ world section within 128 blocks. It uses
+`getChunkNow` and direct chunk states, never requests chunks, queries collision
+shapes or writes the world. Non-air is conservatively occupied; dynamic coverage
+is explicitly unavailable. Requests and source clocks are bounded independently
+from the fast actuator-feedback path. See [C.1 setup and limits](../../docs/ASCENDANCY-C1-TERRAIN.md).
+
+`mintcraft_terrain.context()` returns authorized actual world context and source
+episode/ticks. `terrainPage(vehicleId, namespace, x, y, z)` requires that context
+and returns actual world occupancy with explicit scope; it never returns the
+vehicle plot as world terrain. `status()` describes the server policy and Computer
+ID without exposing the allowlist of other Computers. Old OS versions keep their
+existing vehicle/RX interfaces and do not call this separate terrain API.
+
+To revert the addon, stop the server normally, replace 0.4.0 with the retained
+0.3.0 JAR and restart. Do not keep multiple JAR versions. SHA-256 sums are in
+`dist/SHA256SUMS`; the OS installer changes no server mods/configuration.
 
 0.3.0 adds `feedback(vehicleId, ids)` for selected known parent nodes. It reads
 1–64 explicitly selected IDs already present in the inventory, at most once per
@@ -50,7 +71,7 @@ This build also compiles against the profile's Sable 2.0.6 using
 
 1. Stop Minecraft/the server normally. Back up the world before trying a new mod.
    Remove the previous Vehicle Bridge JAR when replacing it; do not keep two versions.
-2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.3.0.jar` to the chosen profile's
+2. Add `dist/mintcraft-vehicle-bridge-1.21.1-0.4.0.jar` to the chosen profile's
    `mods` directory, alongside CC:Tweaked, Sable, Create and Aeronautics.
    For multiplayer, install on the server and clients using that modpack.
 3. Restart Minecraft. Place the computer on the assembled Sable vehicle.

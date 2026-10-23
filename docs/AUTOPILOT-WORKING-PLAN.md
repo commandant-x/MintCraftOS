@@ -1,4 +1,4 @@
-# Autopilot Ascendancy — travail actif après 0.18.90
+# Autopilot Ascendancy — travail actif après 0.18.91
 
 Objectif utilisateur : finir le périmètre du document joint le 23 octobre 2026,
 26979 octets, en suivant A → B → C → D → E. Ce fichier n'annonce pas une livraison
@@ -49,8 +49,10 @@ du freinage ; aucune recertification par simple trim. Pas de réarmement au red�
 
 ## C — terrain et planification
 
-À développer : lecture de terrain réellement chargé avec dimension et permission,
-cache Atlas borné, volume du véhicule, inconnu/âge/incertitude, planification 3D
+C.1 ajoute la lecture de terrain chargé sur permission serveur et OS, le cache
+conservateur borné, l’âge/inconnu, les archives par dimension et le rendu Atlas
+natif sans acquisition. Restent : volume complet du véhicule, capteurs d’obstacles
+mobiles lorsqu’observables, planification 3D
 compatible avec les vitesses/freinages mesurés, contrôle de chaque segment et
 recalcul. La coque du véhicule ne sera jamais utilisée comme obstacles du monde.
 

@@ -14,6 +14,7 @@ local definitions={
   for _,m in pairs(d.measurements or {}) do if m.valid==true and type(m.validUntil)=='number' and now<=m.validUntil then return true end end return false
  end},
  ['vehicle.inventory']={module='system.services.vehiclebridged',method='snapshot',permission='sable.read',age=2,stamp='observedAt',ready=function(d) return d.available==true and d.ok==true end},
+ ['atlas.terrain']={module='system.services.atlasd',method='snapshot',actor=true,permission='navigation.terrain',requires={'sable.read'},age=.5,stamp='observedAt',ready=function(d) return d.available==true and d.frame=='world' and type(d.map)=='table' and d.map.type=='atlas-static-terrain' end},
  ['combat.contacts']={module='system.services.combatd',method='snapshot',permission='combat.read',age=1,stamp='timestamp',ready=function(d) return d.available==true and d.ok==true end},
 }
 function M.list()
@@ -34,7 +35,7 @@ function M.read(actor,id,now)
   local ok,granted,why=pcall(function() return require('system.security.permissions').require(actor,permission,id) end)
   if not ok or granted~=true then envelope.reason=ok and why or 'Source authorization unavailable' return envelope end
  end
- local ok,data=pcall(function() return require(def.module)[def.method]() end)
+ local ok,data=pcall(function() local module=require(def.module) if def.actor then return module[def.method](actor) end return module[def.method]() end)
  if not ok or type(data)~='table' then envelope.reason='Source cache unavailable' return envelope end
  if data.synthetic==true then envelope.reason='Synthetic source cache refused' return envelope end
  local observed=data[def.stamp]

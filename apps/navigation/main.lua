@@ -8,6 +8,7 @@ local attitude=require("system.navigation.attitude")
 local vehicle=require("system.navigation.vehicle")
 local vehicleDiagram=require("system.navigation.vehicle_diagram")
 local vehicleBridge=require("system.services.vehiclebridged")
+local atlas=require("system.services.atlasd")
 local balloonSetup=require("system.navigation.balloon_setup")
 local altitudeSweep=require("system.navigation.altitude_sweep")
 local controlMode=require("system.navigation.control_mode")
@@ -63,7 +64,13 @@ function M.run(ctx)
       app.setup.endpoints=names
       if app.setupOptions.transmitter=="" and #names==1 then app.setupOptions.transmitter=names[1] end
     end
-    if app.pilotPanel then app.pilotPanel:refresh(app.flight,flight.telemetry(),sable.pose()) end
+    if app.pilotPanel then
+      if app.page=="control" and app.pilotPanel.mode=="map" then
+        local ok,why=atlas.request(actor,{viewY=app.pilotPanel.draft.altitude})
+        app.atlas=atlas.snapshot(actor) or {available=false,reason=why or "Terrain cache unavailable"}
+      else atlas.release(ctx.pid) app.atlas=nil end
+      app.pilotPanel:refresh(app.flight,flight.telemetry(),sable.pose(),app.atlas)
+    end
     if app.routePanel then app.routePanel:refresh(app.flight,sable.pose(),app.bridge,flight.endpoints()) end
     app.nativeFlight,app.nativeLastAttitude=pixel.sample(app.av,app.sub,app.flight,flight.telemetry(),app.nativeLastAttitude,os.clock())
     if win then win.dirty=true end
@@ -81,6 +88,7 @@ function M.run(ctx)
     disarm=function() return flight.disarm(actor) end,
   })
   app.pilotPanel=require("apps.navigation.pilot").new({
+    saveMap=function() return atlas.save(actor) end,
     apply=function(request) return flight.setFlightTargets(actor,request) end,
     stop=function() report(flight.disarm(actor)) refresh() end,
     page=function(id) app.page=id end,
@@ -1122,7 +1130,7 @@ function M.run(ctx)
   local w,h=term.getSize()
   win=ctx.windowManager:create({title="Navigation",w=math.min(110,w-2),h=math.min(36,h-2),x=2,y=2,
     minPixelWidth=156,minPixelHeight=180,app=app})
-  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end flight.release(ctx.pid,"Navigation closed/crashed/killed") end)
+  ctx.onCleanup(function() if timer then os.cancelTimer(timer) end atlas.release(ctx.pid) flight.release(ctx.pid,"Navigation closed/crashed/killed") end)
   timer=ctx.startTimer(0.2)
   while not win.closed do
     local event=ctx.pullEvent()

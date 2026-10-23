@@ -4,11 +4,12 @@ local fonts=require('system.graphics.fonts')
 local View=require('system.graphics.view')
 local addon=require('system.libraries.addon')
 local Capabilities=require('apps.navigation.capabilities')
+local Contract=require('system.ascendancy.contracts')
 local M={}
 local function num(v) return addon.finite(v) and string.format('%.1f',v) or '?' end
 function M.new(api)
  local self={mode='hold',draft={},dirty=false,hits={},scale=1}
- local state,t,pose={},{},{}
+ local state,t,pose,atlas={},{},{},{}
  local function changed() self.dirty=true end
  local function field(key,label)
   return {label=label,kind='number',get=function() return self.draft[key] end,set=function(value) self.draft[key]=value changed() end}
@@ -49,8 +50,8 @@ function M.new(api)
     if ok then self.mode='map' self.pending=nil end
    end
   end})
- function self:refresh(s,telemetry,p)
-  state,t,pose=s or {},telemetry or {},p or {}
+ function self:refresh(s,telemetry,p,terrain)
+  state,t,pose,atlas=s or {},telemetry or {},p or {},terrain or {}
   local adaptation=state.measuredHold and state.measuredHold.adaptation
   if adaptation and adaptation.mass~=self.adaptationMass then self.message=nil end
   self.adaptationMass=adaptation and adaptation.mass
@@ -76,6 +77,10 @@ function M.new(api)
   elseif id=='zoomOut' then self.scale=math.min(16,self.scale*2)
   elseif id=='apply' then apply()
   elseif id=='here' then if addon.finite(t.altitude) then self.draft.altitude=t.altitude changed() end
+  elseif id=='saveMap' then
+   local ok,why=false,'Enregistrement indisponible'
+   if api.saveMap then ok,why=api.saveMap() end
+   self.message=ok and 'Carte enregistree' or tostring(why)
   elseif id=='go' then
    if not state.differentialReady then self.message=state.differentialReason or 'Direction motorisee non calibree' return end
    if not self.destination then self.message='Cliquez une destination sur la carte' return end
@@ -113,8 +118,26 @@ function M.new(api)
    s:rect(r.x,r.y,r.w,r.h,p.desktop)
    for x=r.x+32,r.x+r.w-1,32 do s:rect(x,r.y,1,r.h,p.panel) end
    for y=r.y+32,r.y+r.h-1,32 do s:rect(r.x,y,r.w,1,p.panel) end
-   local origin=self.origin
+   local origin=self.origin local terrainLive=atlas.available and Contract.fresh(atlas,os.clock())
    if origin then
+    local data=atlas.map local viewY=self.draft.altitude
+    if terrainLive and data and data.type=='atlas-static-terrain' and data.frame=='world' and data.unit=='block' and addon.finite(viewY) then
+     local now=os.clock()
+     for _,page in pairs(data.pages or {}) do
+      local o=addon.vec(page.origin)
+      if o and not page.invalidated and page.namespace==data.namespace and Contract.fresh(page,now) and type(page.cells)=='string' and #page.cells==64 and viewY>=o.y and viewY<o.y+16 then
+       local iy=math.floor((viewY-o.y)/4)
+       for iz=0,3 do for ix=0,3 do
+        local x=math.floor(r.x+r.w/2+(o.x+ix*4-origin.x)/self.scale)
+        local y=math.floor(r.y+r.h/2+(o.z+iz*4-origin.z)/self.scale)
+        local edge=math.max(1,math.ceil(4/self.scale))
+        local left,top=math.max(r.x,x),math.max(r.y,y)
+        local right,bottom=math.min(r.x+r.w,x+edge),math.min(r.y+r.h,y+edge)
+        if right>left and bottom>top then s:rect(left,top,right-left,bottom-top,page.cells:byte(ix+iz*4+iy*16+1)==1 and (p.danger or 14) or p.panel) end
+       end end
+      end
+     end
+    end
     local function dot(point,color)
      local x=math.floor(r.x+r.w/2+(point.x-origin.x)/self.scale)
      local y=math.floor(r.y+r.h/2+(point.z-origin.z)/self.scale)
@@ -126,10 +149,11 @@ function M.new(api)
     if current and fresh then dot(current,p.accent) end
     if self.destination then dot(self.destination,p.text) end
    else ui.label(s,r.x+3,r.y+3,'Position monde indisponible',r.w-6,p.text,p.desktop) end
-   label(76,'ATLAS X/Z | +Z bas | sans terrain')
+   label(76,terrainLive and 'ATLAS X/Z | statique 4m | hors releve inconnu' or 'ATLAS X/Z | terrain inconnu')
    label(fullHeight-83,self.destination and ('X '..num(self.destination.x)..' Z '..num(self.destination.z)) or 'Cliquez la destination')
    label(fullHeight-70,'Altitude '..num(self.draft.altitude)..' m | '..num(self.scale)..' m/pixel')
-   button('go','Suivre destination',4,fullHeight-53,w-8)
+   local gw=math.floor((w-12)*.67)
+   button('go','Suivre',4,fullHeight-53,gw) button('saveMap','Enreg.',8+gw,fullHeight-53,w-12-gw)
   else
    label(51,'Altitude mesuree / vitesse verticale')
    fonts.drawText(s,6,65-offset,w-12,28,num(t.altitude)..' m',p.text,p.panel,{scale=w>=260 and 3 or 2,wrap=false})
@@ -161,7 +185,9 @@ function M.new(api)
   end
   s=screen offset=0 body=false
   local adaptation=state.measuredHold and state.measuredHold.adaptation
-  label(h-18,(state.state~='armed' and state.reason) or self.message or adaptation and adaptation.reason or state.reason or '',p.muted)
+  local alert=state.state=='failsafe' or adaptation or state.outputCharacterization and (state.outputCharacterization.massAdaptation or state.outputCharacterization.degraded)
+  local footer=alert and state.reason or self.mode=='map' and (self.message or atlas.reason) or (state.state~='armed' and state.reason) or self.message or state.reason
+  label(h-18,footer or '',p.muted)
  end
  function self:handlePixels(event)
   if self.mode=='edit' or self.mode=='confirm' or self.mode=='status' then return self.editor:handlePixels(event) end
