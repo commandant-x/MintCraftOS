@@ -30,7 +30,16 @@ function M.pressure(y)
 end
 function M.rpm(source,signal)
  if not finite(source) or source<=0 or not finite(signal) or signal<0 or signal>15 then return nil end
+ -- Actual propagation bypasses the ratio at signal 0 (full source RPM).
+ -- Fractional 0..1 denotes a blend of adjacent INTEGER commands, not a
+ -- fractional redstone level sent to the mod. There is no 240-RPM state.
+ if signal<1 then return source*(1-signal/8) end
  return source*(15-signal)/16
+end
+function M.signal(source,rpm)
+ if not finite(source) or source<=0 or not finite(rpm) or rpm<0 or rpm>source then return nil end
+ if rpm>=source*14/16 then return (source-rpm)/(source/8) end
+ return 15-16*rpm/source
 end
 function M.force(rpm,pressure,axialVelocity,thrust,airflow)
  if not finite(rpm) or rpm<0 or not finite(pressure) or pressure<0 or not finite(axialVelocity) or not finite(thrust) or thrust<=0 or not finite(airflow) or airflow<=0 then return nil end
@@ -67,10 +76,10 @@ function M.rows(spec,pose,velocity)
   local required=pose.mass*spec.gravity/4
   if not maximum or required>=maximum then return nil,'Insufficient lift at this mass/altitude/inflow',diagnostics end
   local equilibriumRPM=required/(spec.thrust*pressure)+math.max(0,v)/spec.airflow
-  local trim=15-16*equilibriumRPM/spec.source
+  local trim=M.signal(spec.source,equilibriumRPM)
   if trim<=0 or trim>=15 then return nil,'No interior lift margin' end
   diagnostics.rotors[i].trim=trim
-  local slope=-spec.thrust*pressure*spec.source/16
+  local slope=-spec.thrust*pressure*spec.source/(trim<1 and 8 or 16)
   rows[i]={trim,0,15,slope/pose.mass,math.deg(-z*slope/pose.ix),math.deg(x*slope/pose.iz),clamp(math.floor(trim+.5),0,14)}
  end
  return rows,diagnostics

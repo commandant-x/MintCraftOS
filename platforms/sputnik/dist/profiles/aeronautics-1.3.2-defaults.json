@@ -19,13 +19,16 @@
     "airflowCoefficient": 0.1,
     "rotorLerpPerTick": 0.15,
     "sourceRPM": 256,
-    "transmissionAtZero": "15/16",
+    "transmissionAtZero": "1 (bypass in propagateRotationTo)",
     "seaLevel": 63,
     "minY": -64,
-    "logicalHeight": 384
+    "logicalHeight": 384,
+    "transmissionSignals1To15": "(15-signal)/16",
+    "transmissionDirection": "source on parent shaft, output on extra cogwheel; inverse direction can oversaturate"
   },
   "methods": [
     "AnalogTransmissionBlockEntity.getRotationModifier",
+    "AnalogTransmissionBlockEntity.propagateRotationTo",
     "BasePropellerBlockEntity.getThrust/getAirflow/updateRotationSpeed",
     "BlockEntityPropeller.getScaledThrust/getAirflowScaling",
     "DimensionPhysics.createDefault",

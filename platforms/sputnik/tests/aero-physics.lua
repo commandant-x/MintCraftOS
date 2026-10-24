@@ -4,7 +4,14 @@ local Q=assert(loadfile('platforms/sputnik/src/quad_control.lua'))() Q.Physics=P
 for line in io.lines('platforms/sputnik/tests/fixtures/sable-pressure.csv') do
  local y,v=line:match('([^,]+),([^,]+)') assert(math.abs(P.pressure(tonumber(y))-tonumber(v))<1e-12,'Sable pressure mismatch at '..y)
 end
-assert(P.rpm(256,0)==240 and P.rpm(256,15)==0 and P.rpm(256,7)==128)
+assert(P.rpm(256,0)==256 and P.rpm(256,15)==0 and P.rpm(256,7)==128)
+local levels={256,224,208,192,176,160,144,128,112,96,80,64,48,32,16,0}
+for signal=0,15 do assert(P.rpm(256,signal)==levels[signal+1],'wrong transmission state '..signal) end
+for rpm=0,256 do
+ local signal=assert(P.signal(256,rpm))
+ assert(math.abs(P.rpm(256,signal)-rpm)<1e-9,'bypass inverse mismatch')
+end
+assert(P.rpm(256,.5)==240 and P.rpm(256,1)==224,'fractional mix does not match adjacent integer RPM')
 assert(P.force(240,1,0,1,.1)==240)
 assert(P.force(240,1,12,1,.1)==120 and P.force(240,1,-12,1,.1)==240)
 assert(P.force(240,1,30,1,.1)==0 and P.force(0,1,0,1,.1)==0)
@@ -30,7 +37,7 @@ local function step(command)
  for i,loc in ipairs(locations) do
   -- Independent plant: steady transmission, actual 0.15 spool interpolation,
   -- local air inflow, density at each rotor, moment arms and actual mass/inertia.
-  local target=256*(1-(signals[i]+1)/16)
+  local target=signals[i]==0 and 256 or 256*(1-(signals[i]+1)/16)
   rpm[i]=rpm[i]+.15*(target-rpm[i])
   local vy=rates.x*up[1]+rates.y*up[2]+rates.z*up[3]+math.rad(rates.roll)*loc[1]-math.rad(rates.pitch)*loc[2]
   local pressure=P.pressure(pose.y+loc[1]*math.sin(math.rad(pose.roll))*math.cos(math.rad(pose.pitch))-loc[2]*math.sin(math.rad(pose.pitch)))
@@ -54,4 +61,17 @@ pose.mass=60;pose.ix=230;pose.iz=230
 for _=1,600 do step(neutral) end
 assert(math.abs(pose.y-81)<.3 and math.abs(rates.y)<.15,'mass/inertia adaptation lost target')
 assert(core.diagnostics.required==660 and core.target.y>80.99 and core.target.y<81.01)
-print('Audited Aero physics: actual Sable pressure oracle, 15/16 transmission, velocity-dependent thrust, mass/inertia/geometry auto model, spool-lag altitude/tilt/braking and in-flight mass update passed; simulated plant only')
+print('Audited Aero physics: actual Sable pressure oracle, zero bypass and 1..15 transmission states, velocity-dependent thrust, mass/inertia/geometry auto model, spool-lag altitude/tilt/braking and in-flight mass update passed; simulated plant only')
+
+-- Heavy aircraft hovers between physical states 0 (256) and 1 (224 RPM).
+pose={tick=1000,mass=85,ix=350,iz=350,x=0,y=64,z=0,pitch=0,roll=0,yaw=0,dimension='minecraft:overworld'}
+rates={x=0,y=0,z=0,pitch=0,roll=0};rpm={}
+local heavyRows=assert(P.rows(spec,pose))
+assert(heavyRows[1][1]>0 and heavyRows[1][1]<1,'zero-bypass blend domain not exercised')
+for i,r in ipairs(heavyRows) do rpm[i]=P.rpm(spec.source,r[1]) end
+core=assert(Q.new(nil,pose,config))
+for _=1,100 do step(neutral) end
+for _=1,20 do step({forward=0,left=0,vertical=1}) end
+for _=1,800 do step(neutral) end
+assert(math.abs(pose.y-64.5)<.3 and math.abs(rates.y)<.2,'zero-bypass interpolation destabilized heavy quad')
+print('Zero bypass regression: heavy quad between actual 256/224-RPM states climbs and holds in the lagged simulation')

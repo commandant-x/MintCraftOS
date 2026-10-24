@@ -1,4 +1,4 @@
-# Quad natif Sputnik 0.1.12 — contrôleur expérimental
+# Quad natif Sputnik 0.1.13 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
@@ -37,9 +37,11 @@ Le calcul automatique utilise :
    réelles `getShipMass` et `getInertiaTensor`, sans inventer un tenseur complet.
 2. La pression au niveau de chaque rotor, avec la courbe cubique Hermite utilisée
    par Sable, y compris son raccordement vers pression nulle à Y=320.
-3. La transmission `RPM = RPM_entrée × (15 − signal) / 16` : **à signal 0,
-   256 RPM d'entrée donnent 240 RPM sur l'arbre**, et 15 donne zéro. Ce n'est pas
-   la relation supposée 256 × (15−signal)/15.
+3. La propagation effective de la transmission : **signal 0 = passage direct**,
+   donc 256 RPM d'entrée donnent 256 RPM. Pour les signaux 1 à 15,
+   `RPM = RPM_entrée × (15 − signal) / 16` dans le sens réducteur. Le cas spécial
+   de `propagateRotationTo` prime sur `getRotationModifier`. Il n'y a pas d'état
+   entier à 240 RPM : un mélange temporel entre 0 et 1 peut en approcher la moyenne.
 4. La poussée statique des petits rotors `F = coefficient × RPM × pression`,
    réduite par l'écoulement axial lorsque le rotor monte dans l'air :
    `F = coefficient × RPM × pression × clamp(1 − vitesse_axiale/(coefficient_air × RPM), 0, 1)`.
@@ -233,3 +235,73 @@ Lire le panneau après l'incident avant de réarmer. Une autorisation éteinte a
 une configuration valide pendant deux nouvelles observations acquitte ensuite
 la faute. La correction ne supprime pas les conditions d'arrêt ni ne certifie
 la stabilisation du montage.
+
+## Sens mécanique de la transmission — 0.1.13
+
+Le modèle suppose **moteur sur l'arbre principal de la transmission**, puis
+**hélice entraînée par son engrenage supplémentaire** (rapport extérieur 1:1).
+Deux appareils sur le même arbre principal ne forment pas cette chaîne de
+réduction. En entraînant l'engrenage supplémentaire et en sortant par l'arbre,
+la transmission applique l'inverse du rapport : elle multiplie la vitesse.
+
+À 256 RPM d'entrée, le sens multiplicateur demande environ 292,6 RPM au signal 1.
+Si la limite Create est 256, `AnalogTransmissionBlockEntity.propagateRotationTo`
+marque alors la transmission comme `oversaturated` et interrompt la propagation.
+Le tooltip des lunettes d'ingénieur peut indiquer une vitesse excessive. Une
+hélice arrêtée dans ce cas ne peut pas être remise en marche par un réglage PID.
+Le blocage exact doit être confirmé sur le montage : une commande radio réussie
+ne prouve ni l'alimentation mécanique ni l'absence de surcharge.
+
+Avec le quad posé et le pilote désactivé, vérifier la vitesse réelle sur la
+chaîne réductrice avant d'armer :
+
+| Signal | RPM attendus pour 256 RPM à l'entrée |
+| --- | --- |
+| 0 | 256 (bypass) |
+| 1 | 224 |
+| 7 | 128 |
+| 14 | 16 |
+| 15 | 0 |
+
+La version précédente de ce guide annonçait à tort 240 RPM au signal zéro :
+le calcul ignorait le bypass de propagation. Le modèle, son inverse et les tests
+sont corrigés. L'interpolation 0..1 est un mélange des deux commandes matérielles
+entières 0 et 1, jamais l'envoi d'une valeur redstone fractionnaire.
+
+## Reprise sans redémarrage et commandes moteur visibles
+
+Le levier à zéro acquitte désormais un défaut après deux nouvelles observations
+serveur même si le modèle doit être réparé. Les anciennes fréquences continuent
+de recevoir le repli figé ; elles ne sont pas abandonnées à un zéro radio qui
+ferait repartir les hélices à pleine vitesse. Une configuration invalide reste
+interdite à l'armement. Une fois le modèle valide et le quad redressé, l'état
+`LEVEL_WAIT` attend un départ à +/-10 degrés sans créer une nouvelle faute ni
+exiger un redémarrage du script. La limite de fonctionnement n'est pas retirée.
+
+Le clavier peut également attendre le relâchement des touches après un vrai
+passage du levier à zéro, sans rester bloqué après une commutation rapide. Il
+ne s'arme jamais sur une touche tenue ou au démarrage avec autorisation haute.
+
+Pendant la boucle, le panneau `quad-status` affiche `RUN m=... K=... F=... L=...
+Y=... R=a/b/c/d h=actuelle>cible`. `R` représente les quatre **signaux demandés**,
+pas une mesure des RPM ou un accusé de réception des hélices. Ces valeurs
+séparent une réception clavier correcte d'une transmission qui ne tourne pas.
+
+### Un levier allumé n'est pas une puissance de 1
+
+Un levier allumé émet **15/15**, pas 1/15 : il est normal qu'il arrête l'hélice.
+Ce test seul ne prouve pas que la transmission est branchée en multiplicateur.
+Vérifier une puissance analogique réellement égale à 1 avant cette conclusion.
+
+Create retient la plus forte valeur des émetteurs Link d'une fréquence. Un
+émetteur d'essai resté à 15 peut donc l'emporter sur une commande du pilote
+à 3 ou 4. Une source redstone directement adjacente à la transmission peut
+également imposer 15 via `getBestNeighborSignal`. Désactiver les commandes
+d'essai des moteurs avant le vol, conserver l'autorisation sur sa fréquence
+séparée et éviter tout autre auteur sur les canaux des rotors.
+
+Le contrôleur affiche `RADIO_n: demande X reseau Y` si sa lecture du réseau
+indique une valeur supérieure à sa demande. C'est un indice d'émetteur concurrent,
+**pas un capteur de RPM ni une preuve de réception du Link physique**. Une source
+directement posée à côté de la transmission ne peut pas être détectée ainsi.
+Une lecture nulle/manquante ne prouve pas que la transmission reçoit le signal.

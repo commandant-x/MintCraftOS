@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -13,8 +13,8 @@
   "nodeModifiedUtf8Bytes": {
     "flight-telemetry": 1772,
     "link-test": 2188,
-    "quad-control": 26106,
-    "typewriter": 4292,
+    "quad-control": 27801,
+    "typewriter": 4713,
     "vehicle-mixer": 6745,
     "bank-test": 15545,
     "test-sequencer": 4454,
@@ -46,8 +46,8 @@
   },
   "artifacts": {
     "profiles/aeronautics-1.3.2-defaults.json": {
-      "bytes": 1265,
-      "sha256": "4a53e0b85af2bac2d0b1a45f5431e01022e43548f789e172b32a779b3258029c"
+      "bytes": 1517,
+      "sha256": "77690c67604a546ac738fc76df94e1423c6eb0ef81082cad52c8f81bd5617003"
     },
     "profiles/venator.json": {
       "bytes": 1803,
@@ -74,20 +74,20 @@
       "sha256": "85eeff4abc1a6dfeb6e910d5bf23f4df7c2209bb8b516d65bbeefcc047f2b23e"
     },
     "mintcraft-quad-control.lua": {
-      "bytes": 26106,
-      "sha256": "ae7d23de6a90ec82d8a1c097fd15850123e1d31248b0b0d73d8b624b0e813c66"
+      "bytes": 27801,
+      "sha256": "dbdcf7635648cabc4ac5bacaf2e6dd92af2718a463d7651ba3c9c556aa0e5706"
     },
     "mintcraft-quad-control.clipboard.txt": {
-      "bytes": 37168,
-      "sha256": "241bd5b026672588aef5b52cf1e275e40d57174ebd1bdfa9ddc1ce66e6410b77"
+      "bytes": 39428,
+      "sha256": "eddeb0f9b7008bae7bfb0672d98460bbf837ca9bd016b4727f5e83ab2a0202c8"
     },
     "mintcraft-typewriter.lua": {
-      "bytes": 4292,
-      "sha256": "92e28bf47462f9a1a3a3f63da7e43eed7c15fca4935cad57e36bc2b84270ffaa"
+      "bytes": 4713,
+      "sha256": "88d3bab76fa896a8c6ac581c4cbb0ebffd2e4010ea83cf1b3a00a17843dbce14"
     },
     "mintcraft-typewriter.clipboard.txt": {
-      "bytes": 6984,
-      "sha256": "731439e6f57e0c3201784c38292d23e9f94bb5f1f7006efe7ce8abf92ac9ed68"
+      "bytes": 7544,
+      "sha256": "f908330daa0775b46ba9e43b3ac477e8e2106ef33b955c54c341b9d7f3a73513"
     },
     "mintcraft-vehicle-mixer.lua": {
       "bytes": 6745,
@@ -139,11 +139,11 @@
     },
     "mintcraft-dashboard.lua": {
       "bytes": 3755,
-      "sha256": "79a5458a635f7f1c458cc4567804f0b28716657d0480a0495592eb9d6820f06f"
+      "sha256": "525ceee75e61831c67ac1a269fa4cad741362abaef6b639965c5a579dab3b480"
     },
     "mintcraft-dashboard.clipboard.txt": {
       "bytes": 5888,
-      "sha256": "fada09275686a8b5fe0e6433fc7595d8e3637c903ec2a280b6e2304fcf5411b5"
+      "sha256": "d9750ab574ce93373519ae0712d8ec0be5f373d851a2a00beb83aefd48f4026d"
     },
     "mintcraft-link-gateway.lua": {
       "bytes": 3012,
@@ -170,8 +170,8 @@
       "sha256": "67e503b6bdb771f213873912ffe564a2348188a78d4d735da2dbc3d75da60aad"
     },
     "mintcraft-quad-flight.clipboard.txt": {
-      "bytes": 52916,
-      "sha256": "d0311b164209b3ea9cea0a203f358a875ae7641d2f6a9880b7cd80678ef626f1"
+      "bytes": 55740,
+      "sha256": "417ab3db3d1735e4a81f39dc3f9b590b27e6496121645b6d10a30d169ac5a814"
     }
   }
 }

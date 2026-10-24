@@ -39,14 +39,19 @@ local sig=table.concat(signature,'|')
 local advancing=server and (not s.tick or tick>s.tick)
 local gap=server and s.tick and (tick<s.tick or tick-s.tick>10)
 local changed=s.signature and s.signature~=sig
-if not server or not valid or gap or changed or not finite(enabled) or enabled<0 or enabled>15 then s.low=0 s.armed=false end
+if not server or not valid or gap or changed or not finite(enabled) or enabled<0 or enabled>15 then s.low=0 s.neutral=0 s.permit=false s.armed=false end
 local released=true for _,name in ipairs(names) do if values[name]~=0 then released=false end end
 if server and valid and advancing and not gap and not changed then
  if enabled==0 then
-  s.armed=false
-  if released then s.low=s.low+1 else s.low=0 end
+  s.armed=false s.permit=true
+  if released then s.low=s.low+1 s.neutral=(s.neutral or 0)+1 else s.low=0 s.neutral=0 end
  elseif finite(enabled) and enabled>0 and enabled<=15 then
-  if s.low>=2 and released then s.armed=true end
+  -- After a real OFF was observed, allow a late neutral acknowledgement.
+  -- Holding a key never arms; boot-high without OFF never arms either.
+  if not s.armed then
+   if s.permit and released then s.neutral=(s.neutral or 0)+1 else s.neutral=0 end
+   if s.permit and (s.neutral or 0)>=2 then s.armed=true end
+  end
   s.low=0
  end
 end
@@ -58,7 +63,7 @@ if active then
  forward=values.W-values.S left=values.Q-values.D vertical=values.Space-values.Shift
  local norm=math.max(1,math.sqrt(forward*forward+left*left)) forward,left=forward/norm,left/norm
 end
-s.label.setText(not server and 'Configuration client; etat serveur via Display Link' or not valid and 'Configurer 6 paires uniques et verifier le relachement' or active and 'Clavier actif: commandes relatives au vehicule' or 'Enable=0 et touches relachees, puis Enable>0 sans touche')
+s.label.setText(not server and 'Configuration client; etat serveur via Display Link' or not valid and 'Configurer 6 paires uniques et verifier le relachement' or active and 'Clavier actif: commandes relatives au vehicule' or s.permit and 'Relacher toutes les touches pour activer le clavier' or 'Enable=0 et touches relachees, puis Enable>0 sans touche')
 -- Client evaluation must not overwrite authoritative server outputs.
 if not server then
  if s.wasServer then

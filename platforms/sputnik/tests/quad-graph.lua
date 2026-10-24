@@ -57,7 +57,7 @@ local function step()
  local up={-math.sin(r),math.cos(p)*math.cos(r),math.sin(p)*math.cos(r)}
  for i,loc in ipairs({{-3,3},{3,3},{-3,-3},{3,-3}}) do
   local signal=assert(w.bus[rotorChannels[i]],'rotor request missing')
-  local target=256*(15-signal)/16
+  local target=signal==0 and 256 or 256*(15-signal)/16
   w.rpm[i]=w.rpm[i] or w.mass*11/(4*P.pressure(w.y))
   w.rpm[i]=w.rpm[i]+.15*(target-w.rpm[i])
   local axial=w.rates.x*up[1]+w.rates.y*up[2]+w.rates.z*up[3]+math.rad(w.rates.roll)*loc[1]-math.rad(w.rates.pitch)*loc[2]

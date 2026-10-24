@@ -158,3 +158,23 @@ inputs['Flight Enable']=0;tick();tick();tick()
 assert(outputs['Last fault']=='' and s.phase=='ready','explicit low rearm did not clear acknowledged failure')
 inputs['Flight Enable']=15;tick();assert(outputs.Active==1)
 print('Failure latch regression: original attitude error and measurements survive held-high Enable, later faults and BASELINE logic; explicit low rearm clears it; prior target/weight retained')
+-- Disarm must work after configuration/model failure; no restart required.
+pose.pitch=30;tick();assert(outputs.Active==0 and outputs.Status:find('FAULT:',1,true))
+s.physicalFields.source.value.value='0' -- invalid model after the incident
+inputs['Flight Enable']=0;tick();tick();tick()
+assert(s.fault==nil and outputs['Last fault']=='' and outputs.Active==0,'invalid model trapped fault acknowledgment')
+assert(outputs.Status:find('MODEL',1,true),'bad configuration was silently armed')
+local stoppedOwner=s.owner
+for i=1,4 do assert(sends[#sends-4+i][3]==stoppedOwner.rows[i][7],'disarm abandoned measured fallback') end
+-- Fix configuration with authority OFF. Remaining tilt is a wait, not a new fault.
+s.physicalFields.source.value.value='256';tick();tick();tick()
+inputs['Flight Enable']=15;tick()
+assert(outputs.Active==0 and s.fault==nil and outputs.Status:find('LEVEL_WAIT:',1,true),'tilted recovery required another fault/restart')
+pose.pitch=0;tick();assert(outputs.Active==1,'level/neutral recovery failed without script restart')
+print('Recovery regression: explicit low acknowledges fault despite invalid model, frozen fallback stays refreshed, invalid configuration cannot arm, tilted aircraft waits for level then rearms without a script restart')
+
+receiveWirelessRedstone=function() return 15 end
+tick();assert(outputs.Active==1 and outputs.Status:find('RADIO_1:',1,true),'stronger competing TX not exposed')
+receiveWirelessRedstone=function() return 0 end
+tick();assert(not outputs.Status:find('RADIO_',1,true),'stale radio warning not cleared')
+print('Competing TX diagnostic: stronger network strength reported as a warning, never treated as physical ACK and never bypasses control guards')

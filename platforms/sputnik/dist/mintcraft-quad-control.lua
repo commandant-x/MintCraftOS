@@ -31,7 +31,16 @@ function M.pressure(y)
 end
 function M.rpm(source,signal)
  if not finite(source) or source<=0 or not finite(signal) or signal<0 or signal>15 then return nil end
+ -- Actual propagation bypasses the ratio at signal 0 (full source RPM).
+ -- Fractional 0..1 denotes a blend of adjacent INTEGER commands, not a
+ -- fractional redstone level sent to the mod. There is no 240-RPM state.
+ if signal<1 then return source*(1-signal/8) end
  return source*(15-signal)/16
+end
+function M.signal(source,rpm)
+ if not finite(source) or source<=0 or not finite(rpm) or rpm<0 or rpm>source then return nil end
+ if rpm>=source*14/16 then return (source-rpm)/(source/8) end
+ return 15-16*rpm/source
 end
 function M.force(rpm,pressure,axialVelocity,thrust,airflow)
  if not finite(rpm) or rpm<0 or not finite(pressure) or pressure<0 or not finite(axialVelocity) or not finite(thrust) or thrust<=0 or not finite(airflow) or airflow<=0 then return nil end
@@ -68,10 +77,10 @@ function M.rows(spec,pose,velocity)
   local required=pose.mass*spec.gravity/4
   if not maximum or required>=maximum then return nil,'Insufficient lift at this mass/altitude/inflow',diagnostics end
   local equilibriumRPM=required/(spec.thrust*pressure)+math.max(0,v)/spec.airflow
-  local trim=15-16*equilibriumRPM/spec.source
+  local trim=M.signal(spec.source,equilibriumRPM)
   if trim<=0 or trim>=15 then return nil,'No interior lift margin' end
   diagnostics.rotors[i].trim=trim
-  local slope=-spec.thrust*pressure*spec.source/16
+  local slope=-spec.thrust*pressure*spec.source/(trim<1 and 8 or 16)
   rows[i]={trim,0,15,slope/pose.mass,math.deg(-z*slope/pose.ix),math.deg(x*slope/pose.iz),clamp(math.floor(trim+.5),0,14)}
  end
  return rows,diagnostics
@@ -338,6 +347,16 @@ local function send(values)
   local good=pcall(transmitWirelessRedstone,pair[1],pair[2],values[i]) if not good then ok=false end
  end
  s.lastRequested={} for i,value in ipairs(values) do s.lastRequested[i]=value end
+ s.radioOverride=nil
+ if type(receiveWirelessRedstone)=='function' then
+  for i,pair in ipairs(s.owner.pairs) do
+   local good,value=pcall(receiveWirelessRedstone,pair[1],pair[2])
+   if good and finite(value) and value%1==0 and value>values[i] and value<=15 then
+    s.radioOverride='RADIO_'..i..': demande '..values[i]..' reseau '..value
+    break
+   end
+  end
+ end
  return ok
 end
 local function fallback(why)
@@ -346,7 +365,7 @@ local function fallback(why)
   local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
   s.fault={cause=tostring(why),tick=tick,mass=mass,pitch=pitch,roll=roll,requested=s.lastRequested,
    target=s.core and s.core.target.y or nil,diagnostics=s.core and s.core.diagnostics or nil}
-  s.fault.message='FAULT: '..tostring(why)..' | pitch='..n(pitch)..' roll='..n(roll)..' m='..n(mass)
+  s.fault.message='FAULT: '..tostring(why)..' | pitch='..n(pitch)..' roll='..n(roll)..' m='..n(mass)..(s.radioOverride and ' | '..s.radioOverride or '')
  end
  if s.owner then
   local values={} for i,r in ipairs(s.owner.rows) do values[i]=r[7] end
@@ -356,7 +375,7 @@ local function fallback(why)
 end
 local advancing=server and (not s.tick or tick>s.tick)
 local gap=server and s.tick and (tick<s.tick or tick-s.tick>10)
-if s.owner and (not server or not valid or s.signature~=signature or gap or not finite(enabled) or enabled<0 or enabled>15) then
+if s.owner and s.phase=='active' and (not server or not valid or s.signature~=signature or gap or not finite(enabled) or enabled<0 or enabled>15) then
  local cause
  if not finite(tick) or tick<=0 then cause='CLOCK: horloge serveur absente/invalide'
  elseif not finite(mass) or mass<=0 then cause='MASS: masse serveur absente/invalide'
@@ -371,16 +390,23 @@ if server then
   if not s.owner and not s.fault then s.reason='ENABLE_VALUE: autorisation non numerique ou hors 0..15' end
  elseif enabled==0 then
   if s.owner and s.phase=='active' then fallback('Desactive: repli configure, pas de coupure des pales') end
-  if advancing and valid and not gap then s.low=s.low+1 else s.low=0 end
-  if s.low>=2 then s.fault=nil s.phase='ready' s.reason='Pret: activer sans touche' end
+  -- Disarming acknowledges a fault even if configuration now needs repair.
+  -- Keep refreshing the frozen fallback channels; zero radio is full RPM here.
+  if advancing and not gap then s.low=s.low+1 else s.low=0 end
+  if s.low>=2 then
+   s.fault=nil s.phase=valid and 'ready' or 'off'
+   s.reason=valid and 'Pret: activer sans touche' or rejection or 'Configuration incomplete'
+  end
  elseif finite(enabled) and enabled>0 and enabled<=15 and valid and not gap then
+  local level=finite(pitch) and finite(roll) and math.abs(pitch)<=10 and math.abs(roll)<=10
   if s.phase~='active' then
    if s.fault then s.reason=s.fault.message
    elseif s.phase~='ready' then s.reason='BASELINE: mettre levier a 0 puis activer sans touche'
    elseif keys~=1 then s.reason='KEYS_WAIT: clavier pas encore arme (Commands valid ~= 1)'
-   elseif forward~=0 or left~=0 or vertical~=0 then s.reason='KEYS_HELD: relacher touches F='..tostring(forward)..' L='..tostring(left)..' Y='..tostring(vertical) end
+   elseif forward~=0 or left~=0 or vertical~=0 then s.reason='KEYS_HELD: relacher touches F='..tostring(forward)..' L='..tostring(left)..' Y='..tostring(vertical)
+   elseif not level then s.reason='LEVEL_WAIT: remettre le quad a plat (pitch='..tostring(pitch)..' roll='..tostring(roll)..'; depart +/-10 deg)' end
   end
-  if s.phase=='ready' and keys==1 and forward==0 and left==0 and vertical==0 then
+  if s.phase=='ready' and keys==1 and forward==0 and left==0 and vertical==0 and level then
    local core,why=Quad.new(rows,pose,config)
    if core then
     s.info=nil s.core=core s.owner={pairs=pairs_,rows=core.model.rows} s.phase='active' s.reason='Boucle experimentale en cours'
@@ -394,7 +420,12 @@ if server then
    local values,info=s.core:step(pose,command)
    if not values then fallback(info)
    elseif not send(values) then fallback('Echec transmission Link; reprise physique')
-   else s.owner.rows=s.core.model.rows s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Boucle experimentale en cours' end
+   else
+    s.owner.rows=s.core.model.rows s.info=info
+    local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
+    -- Requests, not actuator ACKs: expose the whole path on the existing panel.
+    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
+   end
   end
  end
 elseif not s.owner and not s.fault then

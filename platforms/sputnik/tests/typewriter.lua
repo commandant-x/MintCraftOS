@@ -38,3 +38,17 @@ arm();mass=0;step();assert(out['Commands valid']==0 and out['Forward demand']==0
 mass=100;arm();tick=tick-5;node();assert(out['Commands valid']==0)
 assert(out['Flight qualified']==0)
 print('Typewriter: six unique receivers, diagonal normalization, opposites, vertical intent, release, low-before-enable, remap/malformed/clock/mass refusal; no actuator writes passed')
+
+-- Fast OFF/ON while holding a key must wait for neutral, not require reboot.
+arm();bus[controls.W]=15;enable=0;step();enable=15;step()
+assert(out['Commands valid']==0,'held key armed during recovery')
+bus={};step();step();assert(out['Commands valid']==1,'late neutral could not rearm after a real OFF')
+bus[controls.W]=15;step();assert(out['Forward demand']==1,'recovered keyboard ignored subsequent input')
+print('Keyboard recovery: actual OFF followed by held-key ON waits for release and resumes at neutral; no held-key auto-arm or startup-high bypass')
+
+_G.MintCraftTypewriter=nil;enable=15;bus={};node()
+s=_G.MintCraftTypewriter;s.verified.v=true
+for i,name in ipairs(names) do s.keys[name].a.v='minecraft:stone';s.keys[name].b.v='minecraft:item_'..i end
+step();step();step();step()
+assert(out['Commands valid']==0,'fresh boot-high at neutral bypassed physical OFF')
+enable=0;step();enable=15;step();step();assert(out['Commands valid']==1)
