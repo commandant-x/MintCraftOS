@@ -1,4 +1,10 @@
-# MintCraft Sputnik 0.1.15
+# MintCraft Sputnik 0.1.16
+
+**0.1.16 : correction de la résonance et réponse plus rapide.** L'amortissement
+aérodynamique est conservé et les gains d'attitude s'adaptent aux inerties lues.
+Voir [les essais de résonance](https://github.com/commandant-x/MintCraftOS/blob/main/platforms/sputnik/reports/resonance-0.1.16/README.md).
+L'audit `Ixyz` montre les trois inerties natives. Le fichier à importer reste
+`mintcraft-quad-flight.clipboard.txt`.
 
 **0.1.15 : amortissement d'attitude corrigé après essais 3D indépendants.**
 Le banc numérique expose les réussites et les échecs restants ; voir
@@ -16,7 +22,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.15.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.16.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

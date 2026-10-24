@@ -25,6 +25,7 @@ parser.add_argument('--iy', type=float, default=400)
 parser.add_argument('--iz', type=float, default=230)
 parser.add_argument('--controller-file', type=Path, help='Explicit alternate controller for before/after comparison')
 parser.add_argument('--controller-version', help='Required label for alternate controller')
+parser.add_argument('--cases', help='Comma-separated scenario names; omit for the whole suite')
 args = parser.parse_args()
 profile = dict(mass=args.mass, armX=args.arm_x, armZ=args.arm_z, height=args.height, ix=args.ix, iy=args.iy, iz=args.iz)
 assert all(math.isfinite(v) for v in profile.values())
@@ -52,7 +53,8 @@ with tempfile.TemporaryDirectory(prefix='sputnik-twin-') as tmp:
     bootstrap = folder / 'bootstrap.lua'
     bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT=' + json.dumps(str(args.output)) + '\n'
                          + 'MINTCRAFT_TWIN_PROFILE={' + ','.join(k + '=' + repr(v) for k, v in profile.items()) + '}\n'
-                         + 'MINTCRAFT_TWIN_CONTROLLER=' + json.dumps(str(controller)) + '\n')
+                         + 'MINTCRAFT_TWIN_CONTROLLER=' + json.dumps(str(controller)) + '\n'
+                         + ('MINTCRAFT_TWIN_CASES={' + ','.join(json.dumps(n) for n in args.cases.split(',')) + '}\n' if args.cases else ''))
     command = [str(args.java_home / 'bin/java'), '-cp', str(folder) + os.pathsep + str(runtime),
                'VerifySputnikLua', str(bootstrap), 'tools/sputnik-digital-twin.lua']
     with (args.output / 'runtime.log').open('w') as log:
@@ -79,7 +81,7 @@ metadata = {
     },
     'criteria': {'active_throughout': True, 'final_altitude_error_m_lt': .3,
                  'final_speed_ms_lt': .2, 'final_horizontal_error_m_lt': .3,
-                 'maximum_tilt_deg_lt': 25},
+                 'maximum_tilt_deg_lt': 25, 'last_10s_tilt_rms_deg_lt': 2, 'last_10s_speed_rms_ms_lt': .2},
     'limitations': ['Mass and dimensions are user parameters; inertia/COM/rotor response not measured',
                     'No collision, terrain, joints, constraints or Create stress network solver',
                     'No full inertia tensor, rotor gyroscopic torques or ground effect',
@@ -100,19 +102,25 @@ text = [f'# Sputnik {version} — banc numérique 3D', '',
         'La plante continue après un défaut : le repli ne fige pas le véhicule.', '',
         'Critères : actif tout le long, erreur finale altitude < 0,3 m, vitesse finale < 0,2 m/s, '
         'erreur horizontale finale < 0,3 m et inclinaison maximale < 25°. '
+        'Sur les dix dernières secondes : inclinaison RMS < 2° et vitesse RMS < 0,2 m/s. '
         'Une réussite ne borne pas les excursions transitoires : elles sont indiquées séparément.', '',
-        '| Scénario | Stress | Résultat | Erreur finale (m) | Erreur max (m) | Inclinaison max (°) | Défaut |',
-        '| --- | --- | --- | ---: | ---: | ---: | --- |']
+        '| Scénario | Stress | Résultat | Erreur finale (m) | Inclinaison max (°) | RMS angle (°) | RMS vitesse (m/s) | T50 (s) | Défaut |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |']
 for r in rows:
     text.append(f'| {r["scenario"]} | {r["stress"]} | {r["status"]} | '
-                f'{float(r["final_altitude_error_m"]):.3f} | {float(r["max_altitude_error_m"]):.3f} | '
-                f'{float(r["max_tilt_deg"]):.2f} | {r["first_fault"].replace("|", "/") or "—"} |')
+                f'{float(r["final_altitude_error_m"]):.3f} | '
+                f'{float(r["max_tilt_deg"]):.2f} | {float(r["tail_tilt_rms_deg"]):.3f} | '
+                f'{float(r["tail_speed_rms_ms"]):.3f} | {float(r["response50_s"]):.2f} | '
+                f'{r["first_fault"].replace("|", "/") or "—"} |')
 text += ['', f'Paramètres de base : {args.mass:g} kg, inerties diagonales supposées {args.ix:g}/{args.iy:g}/{args.iz:g} kg·m², '
          f'demi-largeur {args.arm_x:g} m, demi-longueur {args.arm_z:g} m, rotors à {args.height:+g} m de Sputnik, altitude initiale Y=80, centre de masse centré, '
          'petits rotors identiques vers le haut, 256 RPM, gravité 11, retard radio 1 tick. '
          'Les amortissements 0,05 s⁻¹ sont hypothétiques ; un cas les supprime complètement.', '',
          'Les signaux 0..15 sont des réductions : 0 = 256 RPM, 1 = 224 RPM et 15 = arrêt. '
          'Les traces CSV contiennent les signaux réellement appliqués par la plante et les quatre régimes.', '',
+         'RMS : moyenne quadratique sur les dix dernières secondes. T50 : délai depuis l’appui W '
+         'pour atteindre 1 m/s vers l’avant (50 % de la consigne de 2 m/s) ; −1 signifie non atteint '
+         'pendant l’appui ou non applicable. L’erreur maximale transitoire reste disponible dans le CSV.', '',
          'La masse et les dimensions sont des paramètres déclarés ; les inerties, le centre de masse et la mécanique ne sont pas mesurés. '
          'Le moteur physique Sable et le réseau cinétique Create ne sont pas lancés. '
          'Aucune certitude de vol en jeu ni qualification autopilote ne résulte de ce rapport.', '',

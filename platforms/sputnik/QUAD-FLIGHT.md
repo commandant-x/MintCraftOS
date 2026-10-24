@@ -1,10 +1,41 @@
-# Quad natif Sputnik 0.1.15 — contrôleur expérimental
+# Quad natif Sputnik 0.1.16 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
 dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
 masse, de la pression et de la géométrie confirmée. Le mode manuel historique
 reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Réponse et résonance — 0.1.16
+
+La version précédente pouvait encore entrer en oscillation avec de faibles
+inerties. Son inversion de l'écoulement axial dû à la rotation cherchait à
+annuler un amortissement aérodynamique utile, mais les hélices répondaient avec
+retard. Le contrôleur conserve désormais cet amortissement passif. La plante
+de test continue bien à appliquer l'écoulement complet, rotation comprise :
+la difficulté physique n'a pas été retirée du banc.
+
+Le retour d'attitude utilise l'angle mesuré récent, la vitesse angulaire filtrée
+et une accélération angulaire filtrée séparément. Les gains proportionnels du
+mode physique dépendent de la pression, des bras de levier, du coefficient
+d'écoulement et des inerties réellement lues, avec des bornes 4..40. Les retours
+de vitesse et d'accélération ont des gains 4,5 et 0,6. La translation utilise
+des gains position/vitesse de 0,3/0,9 pour une réponse plus rapide.
+
+Le contrôle reste à la cadence du bloc Sputnik, nominalement 20 Hz : aucune
+attente artificielle n'est ajoutée entre les corrections. Les champs et les
+fréquences restent les mêmes. Le panneau d'audit expose maintenant `Ixyz` et
+les trois inerties natives, pour rapprocher le prochain banc du véhicule réel.
+
+Le banc ajoute des inversions toutes les 0,5/1 s, des efforts périodiques, du
+bruit d'attitude et des inerties divisées jusqu'à huit. Une réussite exige aussi
+une inclinaison RMS < 2° et une vitesse RMS < 0,2 m/s sur les dix dernières
+secondes ; atteindre la cible sur le seul dernier échantillon ne suffit plus.
+La suite standard exécute trois de ces tests de résonance avec assertions.
+
+Les résultats complets, temps de réponse et limites figurent dans le
+[rapport de résonance](https://github.com/commandant-x/MintCraftOS/blob/main/platforms/sputnik/reports/resonance-0.1.16/README.md).
+Les gains sont éprouvés sur un banc paramétré ; cela ne certifie pas un vol réel.
 
 ## Stabilisation éprouvée sur un banc 3D indépendant — 0.1.15
 

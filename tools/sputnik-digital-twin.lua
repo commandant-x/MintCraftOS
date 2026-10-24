@@ -64,6 +64,15 @@ local cases={
  {name='gust_1ms',gust=true,seconds=40},
  {name='inertia_quarter',inertiaScale=.25,pitch=4,roll=-3,seconds=35},
  {name='inertia_fourfold',inertiaScale=4,pitch=4,roll=-3,seconds=35},
+ {name='sustained_forward',command='W',duration=8,seconds=40},
+ {name='reverse_every_second',alternating=1,seconds=40},
+ {name='reverse_every_half_second',alternating=.5,seconds=40},
+ {name='periodic_pitch_05hz',torqueHz=.5,seconds=40},
+ {name='periodic_roll_1hz',torqueHz=1,torqueAxis=3,seconds=40},
+ {name='attitude_noise_01deg',angleNoise=.1,pitch=4,roll=-3,seconds=35},
+ {name='inertia_eighth',inertiaScale=.125,pitch=4,roll=-3,seconds=35},
+ {name='inertia_quarter_delay2',inertiaScale=.25,delay=2,pitch=4,roll=-3,seconds=35},
+ {name='slow_spool',spool=.08,pitch=4,roll=-3,seconds=40,stress=true},
  {name='com_offset_10cm',com={.1,0,0},seconds=30,stress=true},
  {name='com_offset_25cm',com={.25,0,0},seconds=30,stress=true},
  {name='rotor_weak_10percent',weak=.9,seconds=30,stress=true},
@@ -71,8 +80,17 @@ local cases={
  {name='competing_tx_15',jam=true,seconds=15,stress=true},
  {name='reversed_transmission',reverse=true,seconds=15,stress=true},
 }
+if MINTCRAFT_TWIN_CASES then
+ local selected={}
+ for _,name in ipairs(MINTCRAFT_TWIN_CASES) do
+  local found=false
+  for _,case in ipairs(cases) do if case.name==name then selected[#selected+1]=case;found=true end end
+  assert(found,'Unknown twin scenario: '..tostring(name))
+ end
+ cases=selected
+end
 local summary=assert(io.open(outDir..'/summary.csv','w'))
-summary:write('scenario,stress,status,final_altitude_error_m,max_altitude_error_m,min_altitude_m,max_tilt_deg,final_speed_ms,final_horizontal_error_m,max_rotor_spread,first_fault\n')
+summary:write('scenario,stress,status,final_altitude_error_m,max_altitude_error_m,min_altitude_m,max_tilt_deg,final_speed_ms,final_horizontal_error_m,max_rotor_spread,first_fault,tail_tilt_rms_deg,tail_speed_rms_ms,response50_s\n')
 for _,case in ipairs(cases) do
  local w={tick=100,pos={0,80,0},v={0,0,0},q=orientation(case.pitch or 0,case.yaw or 0,case.roll or 0),omega={0,0,0},
  mass=case.mass or profile.mass,I={profile.ix*(case.inertiaScale or 1),profile.iy*(case.inertiaScale or 1),profile.iz*(case.inertiaScale or 1)},bus={},tx={},queue={},rpm={},requested={},actual={},com=case.com or {0,0,0},time=0}
@@ -90,7 +108,10 @@ for _,case in ipairs(cases) do
    itempicker=function() local c={v='minecraft:air'};c.getItem=function() return c.v end;return c end}
   e.addElement=function() end;e.display=function() end
   e.getShipMass=function() return w.mass end;e.getInertiaTensor=function() return w.I[1],w.I[2],w.I[3] end
-  e.getPosition=sensorPosition;e.getOrientation=function() return euler(w.q) end
+  e.getPosition=sensorPosition;e.getOrientation=function()
+   local p,y,r=euler(w.q);local n=case.angleNoise or 0
+   return p+n*math.sin(w.tick*1.31),y,r+n*math.sin(w.tick*1.93)
+  end
   e.getUniverseTime=function() return w.tick end;e.getDimension=function() return 'minecraft:overworld' end
   e.receiveWirelessRedstone=function(a,b)
    local id=a..','..b;local tx=w.tx[id]
@@ -130,6 +151,7 @@ for _,case in ipairs(cases) do
  w.v[2]=case.drop or 0
  local maxTilt,maxError,minHeight,maxSpread=0,0,80,0
  local firstFault,lastTarget,activeLost=nil,80,false
+ local tailTilt,tailSpeed,tailCount,response50=0,0,0,-1
  local lastTargetX,lastTargetZ=quad.MintCraftQuad.core.target.x,quad.MintCraftQuad.core.target.z
  local trace=assert(io.open(outDir..'/'..case.name..'.csv','w'))
  trace:write('time,x,y,z,target_y,vx,vy,vz,pitch,yaw,roll,tilt,active,mass,r1,r2,r3,r4,rpm1,rpm2,rpm3,rpm4\n')
@@ -138,7 +160,11 @@ for _,case in ipairs(cases) do
   w.tick=w.tick+1;w.time=frame/20
   if case.massLoss and frame==120 then w.mass=w.mass*.85;for j=1,3 do w.I[j]=w.I[j]*.85 end end
   for i,name in ipairs(keyNames) do
-   local on=case.command and w.time>=4 and w.time<6 and ((case.command=='WQ' and (name=='W' or name=='Q')) or case.command==name)
+   local on=case.command and w.time>=4 and w.time<4+(case.duration or 2) and ((case.command=='WQ' and (name=='W' or name=='Q')) or case.command==name)
+   if case.alternating and w.time>=4 and w.time<12 then
+    local forward=math.floor((w.time-4)/case.alternating)%2==0
+    on=forward and name=='W' or not forward and name=='S'
+   end
    w.bus['minecraft:stick,minecraft:'..keyItems[i]]=on and 15 or 0
   end
   if case.jam then w.bus[channels[1]]=15 end
@@ -158,7 +184,7 @@ for _,case in ipairs(cases) do
    local target=signal==0 and 256 or 256*(15-signal)/16
    if case.reverse and signal>0 then target=signal==15 and 0 or 256*16/(15-signal);if target>256 then target=0 end end
    -- Aeronautics updates propeller rotation once per Minecraft tick (not physics substep).
-   w.rpm[i]=w.rpm[i]+.15*(target-w.rpm[i])
+   w.rpm[i]=w.rpm[i]+(case.spool or .15)*(target-w.rpm[i])
   end
   maxSpread=math.max(maxSpread,high-low)
   -- Ten 5ms rigid-body substeps per graph tick; no Euler-angle plant integration.
@@ -173,6 +199,10 @@ for _,case in ipairs(cases) do
     force=force+f;local tau=cross(r,{0,f,0});for j=1,3 do torque[j]=torque[j]+tau[j] end
    end
    local iw={w.I[1]*w.omega[1],w.I[2]*w.omega[2],w.I[3]*w.omega[3]};local gyro=cross(w.omega,iw)
+   if case.torqueHz and w.time>=4 and w.time<16 then
+    local axis=case.torqueAxis or 1
+    torque[axis]=torque[axis]+w.I[axis]*math.rad(20)*math.sin(2*math.pi*case.torqueHz*(w.time-4))
+   end
    for j=1,3 do
     local gust=case.gust and w.time>=5 and w.time<6 and j==1 and 1 or 0
     local acc=up[j]*force/w.mass-(j==2 and 11 or 0)-(case.drag==nil and .05 or case.drag)*w.v[j]+gust
@@ -185,6 +215,8 @@ for _,case in ipairs(cases) do
   end
   local p,y,r=euler(w.q);local tilt=math.deg(math.acos(clamp(rotate(w.q,{0,1,0})[2],-1,1)))
   maxTilt=math.max(maxTilt,tilt);maxError=math.max(maxError,math.abs(w.pos[2]-lastTarget));minHeight=math.min(minHeight,w.pos[2])
+  if w.time>case.seconds-10 then tailTilt=tailTilt+tilt^2;tailSpeed=tailSpeed+dot(w.v,w.v);tailCount=tailCount+1 end
+  if case.command=='W' and response50<0 and w.time>=4 and w.time<4+(case.duration or 2) and w.v[3]>=1 then response50=w.time-4 end
   local values={w.time,w.pos[1],w.pos[2],w.pos[3],lastTarget,w.v[1],w.v[2],w.v[3],p,y,r,tilt,quad.outputs.Active,w.mass}
   for i=1,4 do values[#values+1]=w.actual[i] end;for i=1,4 do values[#values+1]=w.rpm[i] end
   for j,v in ipairs(values) do values[j]=string.format('%.6f',v) end
@@ -194,10 +226,13 @@ for _,case in ipairs(cases) do
  trace:close()
  local finalError=math.abs(w.pos[2]-lastTarget);local speed=math.sqrt(dot(w.v,w.v))
  local horizontal=math.sqrt((w.pos[1]-lastTargetX)^2+(w.pos[3]-lastTargetZ)^2)
- local pass=not activeLost and finalError<.3 and speed<.2 and horizontal<.3 and maxTilt<25
+ local tiltRms=tailCount>0 and math.sqrt(tailTilt/tailCount) or math.huge
+ local speedRms=tailCount>0 and math.sqrt(tailSpeed/tailCount) or math.huge
+ local pass=not activeLost and finalError<.3 and speed<.2 and horizontal<.3 and maxTilt<25 and tiltRms<2 and speedRms<.2
  local status=pass and 'PASS' or 'FAIL'
+ if MINTCRAFT_TWIN_ASSERT then assert(pass,'Independent twin regression failed: '..case.name) end
  local function csv(s) return '"'..tostring(s):gsub('"','""')..'"' end
- summary:write(string.format('%s,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s\n',case.name,tostring(case.stress or false),status,finalError,maxError,minHeight,maxTilt,speed,horizontal,maxSpread,csv(firstFault or '')))
+ summary:write(string.format('%s,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s,%.6f,%.6f,%.6f\n',case.name,tostring(case.stress or false),status,finalError,maxError,minHeight,maxTilt,speed,horizontal,maxSpread,csv(firstFault or ''),tiltRms,speedRms,response50))
  summary:flush()
  print(string.format('%s: %s error=%.3fm tilt=%.2fdeg speed=%.3fm/s fault=%s',case.name,status,finalError,maxTilt,speed,firstFault or 'none'))
 end

@@ -172,7 +172,7 @@ function M.new(rows,pose,config)
  if pose.mass<=0 or type(pose.dimension)~='string' or pose.dimension=='' then return nil,'Server mass/dimension required' end
  if math.abs(pose.pitch)>10 or math.abs(pose.roll)>10 then return nil,'Start near level' end
  local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0,
-  lastAttitude={pitch=pose.pitch,roll=pose.roll},rates={pitch=0,roll=0}}
+  lastAttitude={pitch=pose.pitch,roll=pose.roll},rates={pitch=0,roll=0},angularAcceleration={pitch=0,roll=0}}
  s.physics=config.physics s.gravity=s.physics and s.physics.gravity or 9.81 s.diagnostics=diagnostics
  s.speed=config.speed or 2 s.climb=config.climb or 1 s.tilt=config.tilt or 8
  s.noise=config.noise or .0025 s.process=config.process or 4
@@ -194,7 +194,11 @@ function M.new(rows,pose,config)
   -- with a 50ms low-pass; these are near-level Euler rates, not body gyroscopes.
   for _,key in ipairs({'pitch','roll'}) do
    local measured=wrap(p[key]-self.lastAttitude[key])/dt
+   local previousRate=self.rates[key]
    self.rates[key]=self.rates[key]+dt/(.05+dt)*(measured-self.rates[key])
+   -- Filter acceleration separately: damping the actuator lag must not amplify
+   -- a single noisy angular sample into a large motor command.
+   self.angularAcceleration[key]=self.angularAcceleration[key]+dt/(.05+dt)*((self.rates[key]-previousRate)/dt-self.angularAcceleration[key])
    self.lastAttitude[key]=p[key]
   end
   local measurement={x=p.x,y=p.y,z=p.z,pitch=p.pitch,roll=p.roll}
@@ -205,6 +209,11 @@ function M.new(rows,pose,config)
   end
   if self.physics then
    local velocity={} for _,key in ipairs({'x','y','z','pitch','roll'}) do velocity[key]=self.filters[key].v end
+   -- Keep passive rotational airflow damping. Feeding an inverse of that
+   -- damping through delayed propellers can sustain an attitude oscillation.
+   -- Translation/vertical inflow and per-rotor altitude remain in the model;
+   -- the independent plant still applies the full rotational airflow.
+   velocity.pitch=0;velocity.roll=0
    local rows,info=M.Physics.rows(self.physics,p,velocity)
    if not rows then return nil,info end
    local model,why=M.model(rows,true) if not model then return nil,why end
@@ -218,11 +227,11 @@ function M.new(rows,pose,config)
   if command.forward~=0 or command.left~=0 then self.target.x=k.x.x self.target.z=k.z.x end
   if command.vertical~=0 then self.target.y=self.target.y+command.vertical*self.climb*dt end
   local desiredX=command.forward~=0 or command.left~=0
-  -- Keep the translation loop slower than attitude/rotor response. An aggressive
-  -- velocity loop fights the delayed tilt correction and sustains oscillation.
-  local ux=desiredX and vx or clip(.25*(self.target.x-k.x.x),-self.speed,self.speed)
-  local uz=desiredX and vz or clip(.25*(self.target.z-k.z.x),-self.speed,self.speed)
-  local ax=clip(.6*(ux-k.x.v),-3,3) local az=clip(.6*(uz-k.z.v),-3,3)
+  -- Translation remains slower than the damped attitude loop, while responding
+  -- sooner than the previous 0.25/0.6 position/velocity gains.
+  local ux=desiredX and vx or clip(.3*(self.target.x-k.x.x),-self.speed,self.speed)
+  local uz=desiredX and vz or clip(.3*(self.target.z-k.z.x),-self.speed,self.speed)
+  local ax=clip(.9*(ux-k.x.v),-3,3) local az=clip(.9*(uz-k.z.v),-3,3)
   local bodyRight=ax*math.cos(yaw)-az*math.sin(yaw)
   local bodyForward=ax*math.sin(yaw)+az*math.cos(yaw)
   local pitchTarget=clip(math.deg(math.atan(bodyForward/self.gravity)),-self.tilt,self.tilt)
@@ -232,7 +241,17 @@ function M.new(rows,pose,config)
   local vertical=2*(desiredY-k.y.v)+self.integral
   local up=math.cos(math.rad(k.pitch.x))*math.cos(math.rad(k.roll.x))
   vertical=(vertical+self.gravity)/math.max(.8,up)-self.gravity
-  local demand={vertical,2.5*(pitchTarget-k.pitch.x)-3*self.rates.pitch,2.5*(rollTarget-k.roll.x)-3*self.rates.roll}
+  local pitchGain,rollGain=10,10
+  if self.physics then
+   -- Approximate the two rising rotors' passive airflow damping per inertia.
+   -- More damping requires more proportional authority to track a tilt promptly.
+   local spec=self.physics;local flowSlope=spec.thrust*self.diagnostics.pressure/spec.airflow
+   pitchGain=clip(3+6*spec.armZ^2*flowSlope/p.ix,4,40)
+   rollGain=clip(3+6*spec.armX^2*flowSlope/p.iz,4,40)
+  end
+  -- Fresh measured angles avoid another position-estimator delay. Rate and
+  -- acceleration feedback damp the lagged rotors; all actuator bounds remain.
+  local demand={vertical,pitchGain*(pitchTarget-p.pitch)-4.5*self.rates.pitch-.6*self.angularAcceleration.pitch,rollGain*(rollTarget-p.roll)-4.5*self.rates.roll-.6*self.angularAcceleration.roll}
   local values,scale=M.allocate(self.model,demand)
   -- Anti-windup: adapt hover bias in flight, never run a mass-triggered sweep.
   if scale>.99 then self.integral=clip(self.integral+.2*errorY*dt,-3,3) end

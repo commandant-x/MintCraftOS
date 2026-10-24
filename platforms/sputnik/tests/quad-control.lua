@@ -11,10 +11,12 @@ local rateCore=assert(Q.new(rows,ratePose))
 ratePose.tick=101;ratePose.pitch=1
 assert(rateCore:step(ratePose,{forward=0,left=0,vertical=0}))
 assert(math.abs(rateCore.rates.pitch-10)<1e-9 and rateCore.rates.roll==0,'fresh attitude rate did not reach damping loop')
+assert(math.abs(rateCore.angularAcceleration.pitch-100)<1e-9,'acceleration damping did not use the new rate')
 assert(rateCore.rates.pitch>rateCore.filters.pitch.v,'rate damping still waits for Kalman velocity')
 ratePose.tick=102
 assert(rateCore:step(ratePose,{forward=0,left=0,vertical=0}))
 assert(math.abs(rateCore.rates.pitch-5)<1e-9,'rate low-pass did not decay on a stopped tilt')
+assert(math.abs(rateCore.angularAcceleration.pitch)<1e-9,'acceleration low-pass retained a stopped angular acceleration')
 local model=assert(Q.model(rows))
 local values,scale=Q.allocate(model,{.4,0,0})
 local actual=0 for i,r in ipairs(rows) do actual=actual+r[4]*(values[i]-r[1]) end

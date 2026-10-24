@@ -83,7 +83,7 @@ w.bus[enable]=15
 for _=1,10 do step() end
 assert(quad.outputs.Active==1 and keyboard.outputs['Commands valid']==1,'complete graph did not activate: '..tostring(quad.outputs.Status))
 assert(consent.outputs.Enable==1 and w.bus[enable]==15,'physical ON strength was not isolated from controller permission')
-assert(audit.outputs.Mass==65 and audit.outputs['Inertia X']==250 and audit.outputs['Pose valid']==1,'audit lost native mass/inertia')
+assert(audit.outputs.Mass==65 and audit.outputs['Inertia X']==250 and audit.outputs['Inertia Y']==500 and audit.outputs['Pose valid']==1,'audit lost native mass/inertia')
 local start=w.y;local initialTarget=quad.outputs['Target altitude']
 w.bus[keyChannels.Space]=15
 for _=1,40 do step() end
@@ -109,4 +109,4 @@ print('Complete quad graph: native enable/6-key receiver/controller/audit, one-t
 -- Missing telemetry remains unknown, not a made-up positive mass.
 w.mass=0;audit.run();assert(audit.outputs.Mass==0 and audit.outputs['Pose valid']==0)
 audit.getInertiaTensor=function() error('sensor unavailable') end
-audit.run();assert(audit.outputs.Telemetry:find('I=?/?',1,true) and audit.outputs['Pose valid']==0)
+audit.run();assert(audit.outputs.Telemetry:find('Ixyz=?/?/?',1,true) and audit.outputs['Pose valid']==0)

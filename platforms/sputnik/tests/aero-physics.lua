@@ -25,6 +25,15 @@ assert(not P.rows(spec,bad),'impossible lift accepted')
 local lower=rows[1][1];bad.mass=pose.mass;bad.y=100
 assert(P.rows(spec,bad)[1][1]<lower,'thin air did not increase RPM')
 local config={physics=spec,speed=1,climb=.5,tilt=6}
+-- Preserve passive rotational damping; don't invert it through lagged rotors.
+local originalRows=P.rows;local sampledVelocity
+P.rows=function(s,p,v) if v then sampledVelocity=v end return originalRows(s,p,v) end
+local dampingPose={} for key,value in pairs(pose) do dampingPose[key]=value end
+local dampingCore=assert(Q.new(nil,dampingPose,config))
+dampingPose.tick=dampingPose.tick+1;dampingPose.pitch=1;dampingPose.roll=-1
+assert(dampingCore:step(dampingPose,{forward=0,left=0,vertical=0}))
+assert(dampingCore.rates.pitch~=0 and sampledVelocity.pitch==0 and sampledVelocity.roll==0,'rotational airflow damping was cancelled')
+P.rows=originalRows
 local core=assert(Q.new(nil,pose,config))
 local rates={x=0,y=0,z=0,pitch=0,roll=0}
 local rpm={} for i,r in ipairs(rows) do rpm[i]=P.rpm(spec.source,r[1]) end
