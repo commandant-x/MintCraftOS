@@ -136,3 +136,25 @@ assert(#sends==0,'diagnostics bypassed activation guards')
 _G.MintCraftQuad=nil;pose.mass=0;node()
 assert(outputs.Status:find('MASS:',1,true),'missing mass silently hid Status output')
 print('Detailed refusal diagnostics: confirmation, missing typed bindings, 0/6 keyboard channels, cross-role frequency collision, missing rotor, noise/geometry fields, held key/unarmed keyboard and absent server mass all reported without bypassing guards')
+-- Regression: after a real control failure, high Enable must not hide it as BASELINE.
+_G.MintCraftQuad=nil;pose.mass=65;pose.pitch=0;pose.roll=0;inputs['Flight Enable']=0;inputs['Commands valid']=1;inputs['Vertical demand']=0
+node();s=_G.MintCraftQuad;s.checked.value=true;s.physical.value=true
+s.physicalFields.armX.value.value='3';s.physicalFields.armZ.value.value='3'
+for i,r in ipairs(s.rotors) do r.a.value='minecraft:stone';r.b.value='minecraft:item_'..i;r.row.value='' end
+tick();tick();tick();inputs['Flight Enable']=15;tick();tick()
+assert(outputs.Active==1)
+local targetBeforeFault=outputs['Target altitude']
+pose.pitch=30;tick()
+local firstFault=outputs.Status
+assert(firstFault:find('Near-level attitude envelope exceeded',1,true) and firstFault:find('pitch=30.0',1,true))
+assert(outputs.Active==0 and outputs['Last fault']==firstFault)
+pose.pitch=0
+for _=1,6 do tick();assert(outputs.Status==firstFault and outputs.Active==0,'failure was hidden as BASELINE/rearmed itself') end
+assert(outputs['Target altitude']==targetBeforeFault and outputs.Weight==715,'failure erased last target/weight diagnostics')
+-- Further faults cannot destroy the original evidence.
+s.rotors[1].b.value='minecraft:key_1';tick();assert(outputs.Status==firstFault)
+s.rotors[1].b.value='minecraft:item_1';tick();assert(outputs.Status==firstFault)
+inputs['Flight Enable']=0;tick();tick();tick()
+assert(outputs['Last fault']=='' and s.phase=='ready','explicit low rearm did not clear acknowledged failure')
+inputs['Flight Enable']=15;tick();assert(outputs.Active==1)
+print('Failure latch regression: original attitude error and measurements survive held-high Enable, later faults and BASELINE logic; explicit low rearm clears it; prior target/weight retained')

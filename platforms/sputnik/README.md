@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.11
+# MintCraft Sputnik 0.1.12
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.11.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.12.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -167,7 +167,7 @@ L'option `--minecraft-classpath` ajoute la validation du presse-papiers par le
 vrai parseur SNBT Minecraft 1.21.1 mappé. Ces JAR ne sont pas redistribués dans
 le paquet utilisateur. Les tests de physique restent des simulations.
 
-## Clavier Linked Typewriter — 0.1.11
+## Clavier Linked Typewriter — 0.1.12
 
 Importer `mintcraft-typewriter.clipboard.txt` dans le fond du graphe : ce nouveau
 nœud est un récepteur, sans commande moteur. Sauvegarder, fermer puis rouvrir le
@@ -216,7 +216,7 @@ indiscernable d'un relâchement, ou laisser temporairement un signal en cache.
 Ces sorties ne certifient donc pas une liaison de vol ni un autopilote ;
 `Flight qualified` reste zéro. Aucun signal n'est transmis par ce nœud.
 
-## Contrôleur quad avec sorties moteur — 0.1.11
+## Contrôleur quad avec sorties moteur — 0.1.12
 
 Importer `mintcraft-quad-flight.clipboard.txt` pour obtenir le graphe complet
 levier + clavier + contrôleur. Les quatre fréquences des transmissions se
@@ -226,7 +226,7 @@ la stabilisation, l'activation et le repli. Cette version émet réellement des
 signaux après configuration et autorisation ; elle reste expérimentale, avec
 calibration manuelle et sans vol Minecraft validé.
 
-## Poussée et masse automatiques — 0.1.11
+## Poussée et masse automatiques — 0.1.12
 
 Le contrôleur propose maintenant un mode physique pour un quad symétrique à
 quatre petits rotors verticaux identiques, avec Aeronautics/Simulated 1.3.2 et
@@ -237,7 +237,7 @@ dimensions et hypothèses matérielles sont à confirmer. Lire
 [le mode physique du guide](QUAD-FLIGHT.md) avant activation. Le résultat reste
 expérimental et n'a pas été testé en jeu.
 
-## Diagnostic Link indépendant — 0.1.11
+## Diagnostic Link indépendant — 0.1.12
 
 `mintcraft-link-test.clipboard.txt` ajoute un seul nœud de test radio. Ce test
 utilise l'API native `transmitWirelessRedstone` sans contrôleur de vol, sans masse
@@ -264,7 +264,7 @@ sauvegardée, ce résultat oriente vers la fréquence, le mode récepteur, la po
 l'exécution du graphe ou l'intégration Create/Cosmonautics ; la cause exacte reste
 à établir. Les essais automatisés ne remplacent pas ce test physique.
 
-## Motifs de refus détaillés — 0.1.11
+## Motifs de refus détaillés — 0.1.12
 
 Le contrôleur ne se limite plus à « Configurer les fréquences et paramètres ».
 Sa sortie `Status` donne les conditions réellement refusées côté exécution :
@@ -287,7 +287,7 @@ l'autorisation à zéro, puis remplacer l'ancien graphe quad par le nouveau.
 Reconfigurer les fréquences et dimensions ; ne pas garder deux contrôleurs qui
 émettent sur les mêmes rotors. L'ancien graphe sauvegardé reste réimportable.
 
-## Masse et commandes observables — 0.1.11
+## Masse et commandes observables — 0.1.12
 
 Le message « Boucle expérimentale en cours » indique une boucle exécutée, **pas
 une stabilisation physiquement validée**. Le mode physique lit déjà la masse via
@@ -333,3 +333,26 @@ le modèle reste fractionnaire en interne, seules les sorties matérielles sont
 entières. Les essais de bout en bout couvrent levier, clavier, propagation du
 graphe, contrôleur et audit dans une plante simulée avec inertie, densité et
 retard de régime ; cela ne reproduit pas le serveur du joueur.
+
+## Premier défaut conservé après arrêt — 0.1.12
+
+Une erreur de diagnostic pouvait remplacer le motif d'un arrêt par `BASELINE`
+dès la mise à jour suivante. Le contrôleur était bien en défaut, mais son
+message invitait à recommencer l'activation au lieu d'expliquer l'échec.
+
+La sortie `Status` conserve maintenant **le premier défaut**, préfixé `FAULT`,
+avec le tangage, le roulis et la masse observés à cet instant. Une sortie texte
+`Last fault` fournit aussi ce message. Les défauts ultérieurs ne l'effacent pas.
+La dernière cible d'altitude et le diagnostic de poids restent consultables
+après arrêt ; ce sont les dernières données du contrôleur, pas un maintien actif.
+
+La faute est effacée après une séquence explicite d'autorisation à zéro, au
+moins deux observations serveur nouvelles et configuration de nouveau valide.
+Garder le levier allumé ne redémarre pas le contrôleur. Les gardes d'attitude,
+de modèle, de contexte et le repli ne sont pas supprimés. Les causes de perte
+d'horloge, masse ou changement de configuration sont distinguées.
+
+Le test de régression force un dépassement d'inclinaison après activation et
+vérifie que cette première cause reste affichée pendant plusieurs mises à jour,
+y compris après une deuxième faute. Cela corrige le diagnostic ; la cause de
+l'instabilité réelle du véhicule reste à établir avec les observations serveur.

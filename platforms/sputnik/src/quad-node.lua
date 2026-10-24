@@ -20,7 +20,7 @@ for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do addElement(s[key]) end
 for _,r in ipairs(s.rotors) do addElement(r.label) addElement(r.a) addElement(r.b) addElement(r.row) end
 local emit=output
-if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) end
+if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') end
 local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
@@ -97,7 +97,7 @@ local model,modelWhy=Quad.model(rows,physical)
 modelWhy=physicsWhy or modelWhy
 if not model then reject('MODEL',tostring(modelWhy)) end
 local rejection=#problems>0 and table.concat(problems,' | ') or nil
-if not valid and not s.owner then s.reason=rejection or 'Configuration incomplete' s.phase='off' s.low=0 end
+if not valid and not s.owner and not s.fault then s.reason=rejection or 'Configuration incomplete' s.phase='off' s.low=0 end
 local signature=table.concat(parts,'|')
 local function send(values)
  if not s.owner then return false end
@@ -106,30 +106,46 @@ local function send(values)
  for i,pair in ipairs(s.owner.pairs) do
   local good=pcall(transmitWirelessRedstone,pair[1],pair[2],values[i]) if not good then ok=false end
  end
+ s.lastRequested={} for i,value in ipairs(values) do s.lastRequested[i]=value end
  return ok
 end
 local function fallback(why)
+ -- Capture the first failure BEFORE sending fallback or discarding the controller.
+ if not s.fault then
+  local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
+  s.fault={cause=tostring(why),tick=tick,mass=mass,pitch=pitch,roll=roll,requested=s.lastRequested,
+   target=s.core and s.core.target.y or nil,diagnostics=s.core and s.core.diagnostics or nil}
+  s.fault.message='FAULT: '..tostring(why)..' | pitch='..n(pitch)..' roll='..n(roll)..' m='..n(mass)
+ end
  if s.owner then
   local values={} for i,r in ipairs(s.owner.rows) do values[i]=r[7] end
   send(values)
  end
- s.core=nil s.phase='fault' s.low=0 s.reason=why
+ s.core=nil s.phase='fault' s.low=0 s.reason=s.fault.message
 end
 local advancing=server and (not s.tick or tick>s.tick)
 local gap=server and s.tick and (tick<s.tick or tick-s.tick>10)
 if s.owner and (not server or not valid or s.signature~=signature or gap or not finite(enabled) or enabled<0 or enabled>15) then
- fallback(rejection or 'Configuration/contexte/horloge perdu; repli mesure, reprise physique')
+ local cause
+ if not finite(tick) or tick<=0 then cause='CLOCK: horloge serveur absente/invalide'
+ elseif not finite(mass) or mass<=0 then cause='MASS: masse serveur absente/invalide'
+ elseif not valid then cause=rejection or 'CONFIG: parametres invalides'
+ elseif s.signature~=signature then cause='CONFIG_CHANGED: reglages/frequences modifies en vol'
+ elseif gap then cause=(tick<s.tick and 'CLOCK_REGRESSION: ' or 'CLOCK_GAP: ')..tostring(s.tick)..' -> '..tostring(tick)
+ else cause='ENABLE_VALUE: autorisation hors 0..15' end
+ fallback(cause)
 end
 if server then
  if not finite(enabled) or enabled<0 or enabled>15 then
-  if not s.owner then s.reason='ENABLE_VALUE: autorisation non numerique ou hors 0..15' end
+  if not s.owner and not s.fault then s.reason='ENABLE_VALUE: autorisation non numerique ou hors 0..15' end
  elseif enabled==0 then
   if s.owner and s.phase=='active' then fallback('Desactive: repli configure, pas de coupure des pales') end
   if advancing and valid and not gap then s.low=s.low+1 else s.low=0 end
-  if s.low>=2 then s.phase='ready' s.reason='Pret: activer sans touche' end
+  if s.low>=2 then s.fault=nil s.phase='ready' s.reason='Pret: activer sans touche' end
  elseif finite(enabled) and enabled>0 and enabled<=15 and valid and not gap then
   if s.phase~='active' then
-   if s.phase~='ready' then s.reason='BASELINE: mettre levier a 0 puis activer sans touche'
+   if s.fault then s.reason=s.fault.message
+   elseif s.phase~='ready' then s.reason='BASELINE: mettre levier a 0 puis activer sans touche'
    elseif keys~=1 then s.reason='KEYS_WAIT: clavier pas encore arme (Commands valid ~= 1)'
    elseif forward~=0 or left~=0 or vertical~=0 then s.reason='KEYS_HELD: relacher touches F='..tostring(forward)..' L='..tostring(left)..' Y='..tostring(vertical) end
   end
@@ -150,7 +166,7 @@ if server then
    else s.owner.rows=s.core.model.rows s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Boucle experimentale en cours' end
   end
  end
-elseif not s.owner then
+elseif not s.owner and not s.fault then
  s.reason=finite(tick) and tick>0 and ('MASS: masse serveur absente ('..tostring(mass)..'); verifier assemblage simule') or 'CLIENT/CLOCK: contexte client ou horloge serveur absente'
 end
 if s.owner and s.phase~='active' then
@@ -162,14 +178,16 @@ s.signature=signature
 s.label.setText(s.reason or modelWhy or 'Configurer les quatre sorties et le modele mesure')
 if not server and not s.owner then
  -- Keep a typed reason available even when mass/clock prerequisites fail.
+ emit('Last fault',s.fault and s.fault.message or '')
  emit('Status',s.reason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0)
  return
 end
+emit('Last fault',s.fault and s.fault.message or '')
 local active=s.phase=='active'
 emit('Active',active and 1 or 0) emit('Flight qualified',0)
 emit('Kalman ready',active and s.info and s.info.ready and 1 or 0)
-emit('Altitude',s.info and s.info.altitude or 0) emit('Target altitude',s.core and s.core.target.y or 0)
-local diagnostics=s.core and s.core.diagnostics
+emit('Altitude',s.info and s.info.altitude or 0) emit('Target altitude',s.core and s.core.target.y or s.fault and s.fault.target or 0)
+local diagnostics=s.core and s.core.diagnostics or s.fault and s.fault.diagnostics
 emit('Maximum thrust',diagnostics and diagnostics.maxThrust or 0) emit('Weight',diagnostics and diagnostics.required or 0) emit('Pressure',diagnostics and diagnostics.pressure or 0)
 emit('Status',s.reason or modelWhy or 'Inactif')
 if type(display)=='function' and server then

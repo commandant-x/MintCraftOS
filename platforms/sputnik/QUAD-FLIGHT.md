@@ -1,4 +1,4 @@
-# Quad natif Sputnik 0.1.11 — contrôleur expérimental
+# Quad natif Sputnik 0.1.12 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
@@ -223,3 +223,13 @@ les quatre rotors correspondent au repérage +X/+Z ni que le centre de masse ré
 est centré. La masse et les inerties sont lues, mais l'API stock n'expose pas
 la position du centre de masse ; une erreur de cette hypothèse demande de
 revoir l'allocation/identification, pas de prétendre que le Kalman la corrige.
+
+## Un arrêt ne revient plus silencieusement à BASELINE
+
+La 0.1.12 garde le premier défaut sur `Status` et `Last fault`, avec les angles et
+la masse du dernier incident. Le message `BASELINE` désigne uniquement un
+démarrage sans état neutre préalable ; il ne remplace plus un défaut en vol.
+Lire le panneau après l'incident avant de réarmer. Une autorisation éteinte avec
+une configuration valide pendant deux nouvelles observations acquitte ensuite
+la faute. La correction ne supprime pas les conditions d'arrêt ni ne certifie
+la stabilisation du montage.
