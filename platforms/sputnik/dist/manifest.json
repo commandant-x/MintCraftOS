@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -11,8 +11,9 @@
   "nativeNodeModifiedUtf8Budget": 60000,
   "developerLibraryImportableAsSingleNode": false,
   "nodeModifiedUtf8Bytes": {
+    "flight-telemetry": 1772,
     "link-test": 2188,
-    "quad-control": 24715,
+    "quad-control": 24755,
     "typewriter": 4292,
     "vehicle-mixer": 6745,
     "bank-test": 15545,
@@ -56,6 +57,14 @@
       "bytes": 109218,
       "sha256": "1e830563d9f7379ca50c2103182d86078e7abe59fab56b6848fad3edf0d82bc7"
     },
+    "mintcraft-flight-telemetry.lua": {
+      "bytes": 1772,
+      "sha256": "83096d1daae9d81ec2f101e8814588fe24fcd0d9c588f91e6be66a634915fd75"
+    },
+    "mintcraft-flight-telemetry.clipboard.txt": {
+      "bytes": 3984,
+      "sha256": "198af18b79c1d50389cac55426fec9bf1684675f421425329970ff1124fd5785"
+    },
     "mintcraft-link-test.lua": {
       "bytes": 2188,
       "sha256": "a0190b8d65a31882c1433f959c4cd2a44ec32f3ea44545986f7f9df569263041"
@@ -65,12 +74,12 @@
       "sha256": "85eeff4abc1a6dfeb6e910d5bf23f4df7c2209bb8b516d65bbeefcc047f2b23e"
     },
     "mintcraft-quad-control.lua": {
-      "bytes": 24715,
-      "sha256": "aa215bfa353f62e82c13942069ca549c196fac8a03c296a2026a96a12a2c669f"
+      "bytes": 24755,
+      "sha256": "44fcde3e5cd28bfe37044ec6bc0b43eeffb94a041d6cd67c8b670821b9a368da"
     },
     "mintcraft-quad-control.clipboard.txt": {
-      "bytes": 35192,
-      "sha256": "86f4b1641f66a2c2cba953f61f8e5c91c8770481d15c19349cf6b7530830aabb"
+      "bytes": 35244,
+      "sha256": "e4f7398320808a65b5d644b041712ff56184dc696d1df5f6ae9459a3ea4c5c64"
     },
     "mintcraft-typewriter.lua": {
       "bytes": 4292,
@@ -130,11 +139,11 @@
     },
     "mintcraft-dashboard.lua": {
       "bytes": 3755,
-      "sha256": "df0cfb9d5abd33671ace66c3b80e49706c5cd847f3bd5b684680f60f299496f8"
+      "sha256": "698282027b2861e05e6bf97a6e94ac9875d22bd5d6bdefdd105d979f3d33667e"
     },
     "mintcraft-dashboard.clipboard.txt": {
       "bytes": 5888,
-      "sha256": "28ec8c4b7595fbd60b3da59ec4f908d13c8c0969b0841b0e2c2babdf5a4ed1d9"
+      "sha256": "e6ef66f222fc7b0cbe55e0536e4810d07ffdfb853dfb41668f6eda2957eb9f72"
     },
     "mintcraft-link-gateway.lua": {
       "bytes": 3012,
@@ -152,13 +161,17 @@
       "bytes": 2932,
       "sha256": "6b7efd7843439efe6fc64b866893c1828e2983dd9564296a350f9d3f0425c9fd"
     },
+    "mintcraft-flight-audit.clipboard.txt": {
+      "bytes": 4536,
+      "sha256": "4fdacccd7b2f3b057f1382ea05829f4081bb10f690ace937bc2e2a537fc66168"
+    },
     "mintcraft-two-bank-tests.clipboard.txt": {
       "bytes": 61108,
       "sha256": "67e503b6bdb771f213873912ffe564a2348188a78d4d735da2dbc3d75da60aad"
     },
     "mintcraft-quad-flight.clipboard.txt": {
-      "bytes": 45460,
-      "sha256": "e32c395d0855a839385347c26e04fa17967f1e09ba2f6577b1feb87b02c2abbd"
+      "bytes": 50996,
+      "sha256": "82dbbb5929848a5fc0bdaa71f6e1da3a0be9cb0dc377f7eebe02ef61a1b6a655"
     }
   }
 }

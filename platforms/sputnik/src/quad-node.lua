@@ -136,8 +136,8 @@ if server then
   if s.phase=='ready' and keys==1 and forward==0 and left==0 and vertical==0 then
    local core,why=Quad.new(rows,pose,config)
    if core then
-    s.info=nil s.core=core s.owner={pairs=pairs_,rows=core.model.rows} s.phase='active' s.reason='Stabilisation experimentale active'
-    local trims={} for i,r in ipairs(model.rows) do trims[i]=r[1] end
+    s.info=nil s.core=core s.owner={pairs=pairs_,rows=core.model.rows} s.phase='active' s.reason='Boucle experimentale en cours'
+    local trims={} for i,r in ipairs(core.model.rows) do trims[i]=math.max(r[2],math.min(r[3],math.floor(r[1]+.5))) end
     if not send(trims) then fallback('Echec transmission initiale') end
    else fallback(why) end
   end
@@ -147,7 +147,7 @@ if server then
    local values,info=s.core:step(pose,command)
    if not values then fallback(info)
    elseif not send(values) then fallback('Echec transmission Link; reprise physique')
-   else s.owner.rows=s.core.model.rows s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Stabilisation experimentale active' end
+   else s.owner.rows=s.core.model.rows s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Boucle experimentale en cours' end
   end
  end
 elseif not s.owner then

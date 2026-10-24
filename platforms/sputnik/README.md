@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.10
+# MintCraft Sputnik 0.1.11
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.10.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.11.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -167,7 +167,7 @@ L'option `--minecraft-classpath` ajoute la validation du presse-papiers par le
 vrai parseur SNBT Minecraft 1.21.1 mappé. Ces JAR ne sont pas redistribués dans
 le paquet utilisateur. Les tests de physique restent des simulations.
 
-## Clavier Linked Typewriter — 0.1.10
+## Clavier Linked Typewriter — 0.1.11
 
 Importer `mintcraft-typewriter.clipboard.txt` dans le fond du graphe : ce nouveau
 nœud est un récepteur, sans commande moteur. Sauvegarder, fermer puis rouvrir le
@@ -216,7 +216,7 @@ indiscernable d'un relâchement, ou laisser temporairement un signal en cache.
 Ces sorties ne certifient donc pas une liaison de vol ni un autopilote ;
 `Flight qualified` reste zéro. Aucun signal n'est transmis par ce nœud.
 
-## Contrôleur quad avec sorties moteur — 0.1.10
+## Contrôleur quad avec sorties moteur — 0.1.11
 
 Importer `mintcraft-quad-flight.clipboard.txt` pour obtenir le graphe complet
 levier + clavier + contrôleur. Les quatre fréquences des transmissions se
@@ -226,7 +226,7 @@ la stabilisation, l'activation et le repli. Cette version émet réellement des
 signaux après configuration et autorisation ; elle reste expérimentale, avec
 calibration manuelle et sans vol Minecraft validé.
 
-## Poussée et masse automatiques — 0.1.10
+## Poussée et masse automatiques — 0.1.11
 
 Le contrôleur propose maintenant un mode physique pour un quad symétrique à
 quatre petits rotors verticaux identiques, avec Aeronautics/Simulated 1.3.2 et
@@ -237,7 +237,7 @@ dimensions et hypothèses matérielles sont à confirmer. Lire
 [le mode physique du guide](QUAD-FLIGHT.md) avant activation. Le résultat reste
 expérimental et n'a pas été testé en jeu.
 
-## Diagnostic Link indépendant — 0.1.10
+## Diagnostic Link indépendant — 0.1.11
 
 `mintcraft-link-test.clipboard.txt` ajoute un seul nœud de test radio. Ce test
 utilise l'API native `transmitWirelessRedstone` sans contrôleur de vol, sans masse
@@ -264,7 +264,7 @@ sauvegardée, ce résultat oriente vers la fréquence, le mode récepteur, la po
 l'exécution du graphe ou l'intégration Create/Cosmonautics ; la cause exacte reste
 à établir. Les essais automatisés ne remplacent pas ce test physique.
 
-## Motifs de refus détaillés — 0.1.10
+## Motifs de refus détaillés — 0.1.11
 
 Le contrôleur ne se limite plus à « Configurer les fréquences et paramètres ».
 Sa sortie `Status` donne les conditions réellement refusées côté exécution :
@@ -286,3 +286,50 @@ Pour cette mise à jour, sauvegarder le graphe et les réglages existants, mettr
 l'autorisation à zéro, puis remplacer l'ancien graphe quad par le nouveau.
 Reconfigurer les fréquences et dimensions ; ne pas garder deux contrôleurs qui
 émettent sur les mêmes rotors. L'ancien graphe sauvegardé reste réimportable.
+
+## Masse et commandes observables — 0.1.11
+
+Le message « Boucle expérimentale en cours » indique une boucle exécutée, **pas
+une stabilisation physiquement validée**. Le mode physique lit déjà la masse via
+`getShipMass()` et les inerties diagonales via `getInertiaTensor()` : il refuse
+l'activation si elles ne sont pas positives. Cela n'identifie ni le centre de
+masse ni l'emplacement réel des hélices.
+
+Pour conserver un graphe déjà configuré, importer uniquement
+`mintcraft-flight-audit.clipboard.txt`. Ce complément ajoute un lecteur sans
+actionneur et un `String Display` raccordé. Aucun réglage de fréquence à saisir.
+Brancher les six entrées du lecteur :
+
+| Source existante | Entrée de `flight-telemetry` |
+| --- | --- |
+| `quad-keyboard` → Commands valid | Keyboard valid |
+| `quad-keyboard` → Forward demand | Forward demand |
+| `quad-keyboard` → Left demand | Left demand |
+| `quad-keyboard` → Vertical demand | Vertical demand |
+| `quad-controller` → Active | Controller active |
+| `quad-controller` → Target altitude | Target altitude |
+
+Sauvegarder et fermer, puis choisir **Node: MintCraft flight-screen** dans le
+Display Link. Lire le panneau physique : `m` est la masse native (kg), `I` les
+inerties X/Z, `A` le contrôleur actif, `K` le clavier valide, `F/L/Y` les consignes
+reçues du clavier, `h` l'altitude native suivie de sa cible. Une entrée non câblée
+vaut zéro dans Sputnik : connecter les six fils avant d'interpréter ces zéros.
+L'éditeur représente souvent le client et peut y montrer une masse nulle ; le
+panneau physique lit le graphe serveur. Le complément ne certifie pas la source
+ni la bonne réception physique d'une commande moteur.
+
+Exemple de diagnostic pendant un appui Espace : `K=1 Y=1` doit être suivi d'une
+cible d'altitude qui augmente. Si `Y` reste zéro, examiner Typewriter/fréquences ;
+si `Y=1` mais la cible reste fixe alors que `A=1`, examiner le fil et l'exécution
+du contrôleur ; si la cible augmente mais pas le véhicule, examiner réserve de
+poussée, mécanique et modèle. Un centre de masse déplacé (par exemple par un
+panneau ajouté d'un côté) ou une association avant/arrière erronée peut dégrader
+la stabilisation malgré une masse totale correctement lue.
+
+Le graphe complet destiné à une installation neuve contient ces deux nœuds en
+plus : **six nœuds, seize connexions**. Une correction séparée arrondit la toute
+première consigne rotor, qui pouvait être fractionnaire dans le mode physique ;
+le modèle reste fractionnaire en interne, seules les sorties matérielles sont
+entières. Les essais de bout en bout couvrent levier, clavier, propagation du
+graphe, contrôleur et audit dans une plante simulée avec inertie, densité et
+retard de régime ; cela ne reproduit pas le serveur du joueur.

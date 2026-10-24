@@ -1,4 +1,4 @@
-# Quad natif Sputnik 0.1.10 — contrôleur expérimental
+# Quad natif Sputnik 0.1.11 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
@@ -83,7 +83,7 @@ revenir à la version précédente.
 ## Import et branchement
 
 Sauvegarder le graphe actuel. Importer `mintcraft-quad-flight.clipboard.txt` dans
-le fond vide de l'éditeur Sputnik puis F pour cadrer les quatre nœuds. Sauvegarder,
+le fond vide de l'éditeur Sputnik puis F pour cadrer les six nœuds. Sauvegarder,
 fermer et rouvrir avant de configurer les widgets. Ce graphe **ajoute** un lecteur
 de levier, un clavier et un contrôleur : ne pas conserver un autre émetteur qui
 commande les mêmes rotors. L'ancien graphe Venator n'est pas modifié.
@@ -94,7 +94,7 @@ commande les mêmes rotors. L'ancien graphe Venator n'est pas modifié.
   avant gauche, avant droite, arrière gauche, arrière droite. Ce sont les
   fréquences des récepteurs qui commandent vos quatre transmissions.
 
-Les neuf fils logiques sont déjà raccordés : levier vers les deux autorisations,
+Les seize fils logiques sont déjà raccordés : levier vers les deux autorisations,
 puis trois axes du clavier et son indicateur de validité vers le contrôleur.
 Deux liaisons de description des fréquences permettent de refuser les collisions
 entre le clavier, le levier et les quatre sorties.
@@ -208,3 +208,18 @@ mais reçue décochée au serveur produit `CONFIRM` ; une liaison de description
 manquante produit `ENABLE_BIND` ou `KEY_COUNT: 0/6`, sans supposer que les
 fréquences radio elles-mêmes sont défaillantes. Les défauts de masse restent
 visibles sur `Status`, y compris lorsque le contrôleur ne peut pas s'armer.
+
+## Diagnostic de masse et commandes sur un graphe existant
+
+Le complément `mintcraft-flight-audit.clipboard.txt` ajoute une télémétrie en
+lecture seule. Ses six entrées et le choix Display Link sont détaillés dans
+README, section 0.1.11. Il permet d'observer les mesures serveur et la consigne
+qui atteint le contrôleur sans remplacer un graphe déjà configuré. Son fichier
+Lua n'appelle aucun émetteur ni API d'actionnement. Les nouveaux graphes complets
+le raccordent automatiquement.
+
+L'état « actif » signifie que le code de boucle s'exécute. Il ne prouve pas que
+les quatre rotors correspondent au repérage +X/+Z ni que le centre de masse réel
+est centré. La masse et les inerties sont lues, mais l'API stock n'expose pas
+la position du centre de masse ; une erreur de cette hypothèse demande de
+revoir l'allocation/identification, pas de prétendre que le Kalman la corrige.
