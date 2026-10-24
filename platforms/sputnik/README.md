@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.8
+# MintCraft Sputnik 0.1.9
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.8.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.9.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -167,7 +167,7 @@ L'option `--minecraft-classpath` ajoute la validation du presse-papiers par le
 vrai parseur SNBT Minecraft 1.21.1 mappé. Ces JAR ne sont pas redistribués dans
 le paquet utilisateur. Les tests de physique restent des simulations.
 
-## Clavier Linked Typewriter — 0.1.8
+## Clavier Linked Typewriter — 0.1.9
 
 Importer `mintcraft-typewriter.clipboard.txt` dans le fond du graphe : ce nouveau
 nœud est un récepteur, sans commande moteur. Sauvegarder, fermer puis rouvrir le
@@ -216,7 +216,7 @@ indiscernable d'un relâchement, ou laisser temporairement un signal en cache.
 Ces sorties ne certifient donc pas une liaison de vol ni un autopilote ;
 `Flight qualified` reste zéro. Aucun signal n'est transmis par ce nœud.
 
-## Contrôleur quad avec sorties moteur — 0.1.8
+## Contrôleur quad avec sorties moteur — 0.1.9
 
 Importer `mintcraft-quad-flight.clipboard.txt` pour obtenir le graphe complet
 levier + clavier + contrôleur. Les quatre fréquences des transmissions se
@@ -226,7 +226,7 @@ la stabilisation, l'activation et le repli. Cette version émet réellement des
 signaux après configuration et autorisation ; elle reste expérimentale, avec
 calibration manuelle et sans vol Minecraft validé.
 
-## Poussée et masse automatiques — 0.1.8
+## Poussée et masse automatiques — 0.1.9
 
 Le contrôleur propose maintenant un mode physique pour un quad symétrique à
 quatre petits rotors verticaux identiques, avec Aeronautics/Simulated 1.3.2 et
@@ -236,3 +236,30 @@ anciennes lignes `trim,min,max,dY,dPitch,dRoll,repli` restent vides. Seules les
 dimensions et hypothèses matérielles sont à confirmer. Lire
 [le mode physique du guide](QUAD-FLIGHT.md) avant activation. Le résultat reste
 expérimental et n'a pas été testé en jeu.
+
+## Diagnostic Link indépendant — 0.1.9
+
+`mintcraft-link-test.clipboard.txt` ajoute un seul nœud de test radio. Ce test
+utilise l'API native `transmitWirelessRedstone` sans contrôleur de vol, sans masse
+et sans calibration : Sputnik peut tester la radio même hors structure simulée.
+Il ne remplace pas l'assemblage nécessaire au contrôleur de vol.
+
+1. Garder le contrôleur du quad désactivé. Placer un Redstone Link **récepteur**
+   sur un bloc ordinaire à côté de Sputnik, avec une lampe ou une sortie visible.
+2. Réserver une paire d'objets entièrement différente des canaux moteur/clavier.
+   L'ordre des deux objets doit être le même sur le récepteur et le nœud test.
+3. Importer le nouveau nœud, sauvegarder, fermer et rouvrir, puis configurer la
+   paire. Laisser sa case décochée, sauvegarder/fermer une fois.
+4. Cocher « Émettre 15 ... TEST LAMPE », puis sauvegarder/fermer. Le serveur
+   rafraîchit une demande de signal 15 ; la lampe constitue la preuve physique
+   de réception. Décocher et sauvegarder pour envoyer zéro et terminer le test.
+5. Répéter avec le récepteur sur le véhicule si le test dans le monde fonctionne.
+
+Ne jamais employer une fréquence de transmission/hélice pour ce test : 15 peut
+arrêter une transmission. Le test est conçu uniquement pour une lampe séparée.
+`Requested signal` ou `MC_LINK_TEST` confirment un appel logiciel, **pas la réception**.
+Si la lampe fonctionne, le blocage est dans l'activation/configuration du quad ;
+lire `MC_QUAD` via Display Link. Si elle ne fonctionne pas malgré la configuration
+sauvegardée, ce résultat oriente vers la fréquence, le mode récepteur, la portée,
+l'exécution du graphe ou l'intégration Create/Cosmonautics ; la cause exacte reste
+à établir. Les essais automatisés ne remplacent pas ce test physique.
