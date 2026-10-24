@@ -54,9 +54,13 @@ for _=1,100 do step(neutral) end
 for _=1,40 do step({forward=0,left=0,vertical=1}) end
 for _=1,600 do step(neutral) end
 assert(math.abs(pose.y-81)<.25,'physics altitude did not settle: '..pose.y)
-for _=1,40 do step({forward=.5,left=0,vertical=0}) end
-for _=1,600 do step(neutral) end
-assert(pose.z>.2 and math.abs(rates.z)<.2 and math.abs(pose.y-81)<.3,'physics forward/brake lost stability')
+local startZ=pose.z;local maxZ=startZ
+for _=1,40 do step({forward=.5,left=0,vertical=0});maxZ=math.max(maxZ,pose.z) end
+for _=1,600 do step(neutral);maxZ=math.max(maxZ,pose.z) end
+-- The slower translation loop may capture a release position below 0.2m, then
+-- return there after braking. Check actual movement AND return to that target,
+-- rather than requiring a minimum final displacement away from the hold point.
+assert(maxZ-startZ>.2 and math.abs(pose.z-core.target.z)<.2 and math.abs(rates.z)<.2 and math.abs(pose.y-81)<.3,'physics forward/brake lost stability')
 pose.mass=60;pose.ix=230;pose.iz=230
 for _=1,600 do step(neutral) end
 assert(math.abs(pose.y-81)<.3 and math.abs(rates.y)<.15,'mass/inertia adaptation lost target')

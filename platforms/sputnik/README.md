@@ -1,4 +1,8 @@
-# MintCraft Sputnik 0.1.14
+# MintCraft Sputnik 0.1.15
+
+**0.1.15 : amortissement d'attitude corrigé après essais 3D indépendants.**
+Le banc numérique expose les réussites et les échecs restants ; voir
+[le rapport](https://github.com/commandant-x/MintCraftOS/blob/main/platforms/sputnik/reports/digital-twin/README.md). Aucun vol réel n'est certifié.
 
 **0.1.14 : autorisation binaire et maintien autonome au neutre.** Le levier
 1..15 devient `Enable=1`, sans transmission de sa puissance aux moteurs.
@@ -12,7 +16,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.14.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.15.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

@@ -1,10 +1,43 @@
-# Quad natif Sputnik 0.1.14 — contrôleur expérimental
+# Quad natif Sputnik 0.1.15 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
 dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
 masse, de la pression et de la géométrie confirmée. Le mode manuel historique
 reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Stabilisation éprouvée sur un banc 3D indépendant — 0.1.15
+
+Un nouveau banc exécute les véritables nœuds Lua livrés dans le LuaJ de
+Cosmonautics, face à une plante rigide indépendante à quaternion et forces
+appliquées aux quatre hélices. Le modèle continue après un défaut du pilote.
+Il inclut la quantification des transmissions, la montée en régime à 0,15 par
+tick, le délai radio et des variations de masse, d'inertie et de centre de masse.
+
+Ce banc a révélé des oscillations masquées par les anciens essais simplifiés.
+Le taux angulaire utilisé pour amortir l'attitude est désormais calculé sur
+les angles mesurés récents, puis filtré avec une constante de 50 ms. Ce n'est
+pas un gyroscope inventé : ce sont des différences d'angles Euler près du niveau.
+Le Kalman reste utilisé pour la position, la vitesse et l'attitude filtrée.
+La correction d'attitude utilise des gains P=2,5 et D=3 ; la boucle de translation
+est ralentie (gain position 0,25 et vitesse 0,6) pour ne plus combattre la
+réponse retardée des hélices. Ces gains sont testés sur ce banc, pas calibrés
+sur le véhicule réel du joueur.
+
+Avec la masse et les dimensions déclarées par le joueur (**32 kg, demi-largeur
+3 m, demi-longueur 5 m**), sur 20 cas de référence identiques la 0.1.14 en
+réussissait 12 ; la correction en réussit 19. Le cas avec des inerties quatre
+fois plus faibles que les valeurs supposées conserve une oscillation excessive.
+Les six cas supplémentaires de mauvaise mécanique, fréquences concurrentes,
+rotor affaibli ou centre de masse mal renseigné restent des échecs ; ils ne sont
+pas cachés. Les inerties réelles ne sont pas connues. Une chute déjà rapide peut
+perdre plusieurs mètres avant de récupérer, même quand le critère final de
+stationnaire est atteint.
+
+Voir le [rapport numérique](https://github.com/commandant-x/MintCraftOS/blob/main/platforms/sputnik/reports/digital-twin/README.md) pour les résultats,
+traces, hypothèses, critères et commande de reproduction. Ce banc n'est pas
+une réplique mesurée du véhicule et ne lance pas le solveur Minecraft/Sable.
+Il ne délivre aucune qualification de vol.
 
 ## Autorisation et puissance séparées — 0.1.14
 

@@ -4,6 +4,17 @@ for i=1,200 do assert(Q.update(k,i*.05,.05)) assert(k.a>=0 and k.c>=0) end
 assert(math.abs(k.v-1)<.01,'Kalman constant velocity estimate failed')
 assert(not Q.update(k,0/0,.05) and not Q.update(k,0,.6))
 local rows={{8,4,12,.4,-8,8,8},{8,4,12,.4,-8,-8,8},{8,4,12,.4,8,8,8},{8,4,12,.4,8,-8,8}}
+-- Rate damping must react to the latest attitude sample instead of waiting
+-- for the slower Kalman position/velocity estimator to converge.
+local ratePose={tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'}
+local rateCore=assert(Q.new(rows,ratePose))
+ratePose.tick=101;ratePose.pitch=1
+assert(rateCore:step(ratePose,{forward=0,left=0,vertical=0}))
+assert(math.abs(rateCore.rates.pitch-10)<1e-9 and rateCore.rates.roll==0,'fresh attitude rate did not reach damping loop')
+assert(rateCore.rates.pitch>rateCore.filters.pitch.v,'rate damping still waits for Kalman velocity')
+ratePose.tick=102
+assert(rateCore:step(ratePose,{forward=0,left=0,vertical=0}))
+assert(math.abs(rateCore.rates.pitch-5)<1e-9,'rate low-pass did not decay on a stopped tilt')
 local model=assert(Q.model(rows))
 local values,scale=Q.allocate(model,{.4,0,0})
 local actual=0 for i,r in ipairs(rows) do actual=actual+r[4]*(values[i]-r[1]) end

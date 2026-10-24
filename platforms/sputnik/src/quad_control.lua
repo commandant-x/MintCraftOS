@@ -80,7 +80,8 @@ function M.new(rows,pose,config)
  for _,k in ipairs({'tick','x','y','z','pitch','roll','yaw','mass'}) do if not finite(pose[k]) then return nil,'Finite server pose required' end end
  if pose.mass<=0 or type(pose.dimension)~='string' or pose.dimension=='' then return nil,'Server mass/dimension required' end
  if math.abs(pose.pitch)>10 or math.abs(pose.roll)>10 then return nil,'Start near level' end
- local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0}
+ local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0,
+  lastAttitude={pitch=pose.pitch,roll=pose.roll},rates={pitch=0,roll=0}}
  s.physics=config.physics s.gravity=s.physics and s.physics.gravity or 9.81 s.diagnostics=diagnostics
  s.speed=config.speed or 2 s.climb=config.climb or 1 s.tilt=config.tilt or 8
  s.noise=config.noise or .0025 s.process=config.process or 4
@@ -97,6 +98,14 @@ function M.new(rows,pose,config)
   if dt<=0 or dt>.5 then return nil,'Clock repeated/regressed/gapped' end
   if math.abs(p.pitch)>25 or math.abs(p.roll)>25 then return nil,'Near-level attitude envelope exceeded' end
   for _,key in ipairs({'forward','left','vertical'}) do if not finite(command[key]) or math.abs(command[key])>1 then return nil,'Invalid movement command' end end
+  -- The position Kalman velocity lags too much to damp attitude through rotor
+  -- spool/radio delays. Derive wrapped Euler rates from fresh measured angles,
+  -- with a 50ms low-pass; these are near-level Euler rates, not body gyroscopes.
+  for _,key in ipairs({'pitch','roll'}) do
+   local measured=wrap(p[key]-self.lastAttitude[key])/dt
+   self.rates[key]=self.rates[key]+dt/(.05+dt)*(measured-self.rates[key])
+   self.lastAttitude[key]=p[key]
+  end
   local measurement={x=p.x,y=p.y,z=p.z,pitch=p.pitch,roll=p.roll}
   for key,k in pairs(self.filters) do
    local z=measurement[key] if key=='pitch' or key=='roll' then z=k.x+wrap(z-k.x) end
@@ -118,9 +127,11 @@ function M.new(rows,pose,config)
   if command.forward~=0 or command.left~=0 then self.target.x=k.x.x self.target.z=k.z.x end
   if command.vertical~=0 then self.target.y=self.target.y+command.vertical*self.climb*dt end
   local desiredX=command.forward~=0 or command.left~=0
-  local ux=desiredX and vx or clip(.5*(self.target.x-k.x.x),-self.speed,self.speed)
-  local uz=desiredX and vz or clip(.5*(self.target.z-k.z.x),-self.speed,self.speed)
-  local ax=clip(1.2*(ux-k.x.v),-3,3) local az=clip(1.2*(uz-k.z.v),-3,3)
+  -- Keep the translation loop slower than attitude/rotor response. An aggressive
+  -- velocity loop fights the delayed tilt correction and sustains oscillation.
+  local ux=desiredX and vx or clip(.25*(self.target.x-k.x.x),-self.speed,self.speed)
+  local uz=desiredX and vz or clip(.25*(self.target.z-k.z.x),-self.speed,self.speed)
+  local ax=clip(.6*(ux-k.x.v),-3,3) local az=clip(.6*(uz-k.z.v),-3,3)
   local bodyRight=ax*math.cos(yaw)-az*math.sin(yaw)
   local bodyForward=ax*math.sin(yaw)+az*math.cos(yaw)
   local pitchTarget=clip(math.deg(math.atan(bodyForward/self.gravity)),-self.tilt,self.tilt)
@@ -130,7 +141,7 @@ function M.new(rows,pose,config)
   local vertical=2*(desiredY-k.y.v)+self.integral
   local up=math.cos(math.rad(k.pitch.x))*math.cos(math.rad(k.roll.x))
   vertical=(vertical+self.gravity)/math.max(.8,up)-self.gravity
-  local demand={vertical,6*(pitchTarget-k.pitch.x)-4*k.pitch.v,6*(rollTarget-k.roll.x)-4*k.roll.v}
+  local demand={vertical,2.5*(pitchTarget-k.pitch.x)-3*self.rates.pitch,2.5*(rollTarget-k.roll.x)-3*self.rates.roll}
   local values,scale=M.allocate(self.model,demand)
   -- Anti-windup: adapt hover bias in flight, never run a mass-triggered sweep.
   if scale>.99 then self.integral=clip(self.integral+.2*errorY*dt,-3,3) end
