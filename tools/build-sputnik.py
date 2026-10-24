@@ -66,7 +66,7 @@ def main():
  consent=source(BASE/'src/test-enable.lua')
  mixer="local Mixer=(function()\n"+source(BASE/'src/drive_mixer.lua')+"\nend)()\n"+source(BASE/'src/drive-console.lua')
  vehicle="local Mixer=(function()\n"+source(BASE/'src/drive_mixer.lua')+"\nend)()\n"+source(BASE/'src/vehicle-console.lua')
- scripts={'vehicle-mixer':vehicle,'bank-test':bank,'test-sequencer':sequencer,'test-enable':consent,'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
+ scripts={'typewriter':source(BASE/'src/typewriter.lua'),'vehicle-mixer':vehicle,'bank-test':bank,'test-sequencer':sequencer,'test-enable':consent,'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
  artifacts={}
  (out/'sdk').mkdir(exist_ok=True)
  (out/'profiles').mkdir(exist_ok=True)
@@ -91,14 +91,14 @@ def main():
  path=out/'mintcraft-two-bank-tests.clipboard.txt'
  path.write_text(graph_clipboard(graph_nodes,graph_edges),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.5','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
+ manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.6','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
- archive=out/'mintcraft-sputnik-0.1.5.zip'
+ archive=out/'mintcraft-sputnik-0.1.6.zip'
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16

@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.5
+# MintCraft Sputnik 0.1.6
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.5.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.6.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -166,3 +166,52 @@ python3 tools/test-sputnik.py --cosmonautics-jar /chemin/cosmonautics-26.08.307.
 L'option `--minecraft-classpath` ajoute la validation du presse-papiers par le
 vrai parseur SNBT Minecraft 1.21.1 mappé. Ces JAR ne sont pas redistribués dans
 le paquet utilisateur. Les tests de physique restent des simulations.
+
+## Clavier Linked Typewriter — 0.1.6
+
+Importer `mintcraft-typewriter.clipboard.txt` dans le fond du graphe : ce nouveau
+nœud est un récepteur, sans commande moteur. Sauvegarder, fermer puis rouvrir le
+graphe avant de configurer ses widgets. Pour W, S, Q, D, Space et Shift, choisir
+les deux mêmes objets que sur la fréquence correspondante du Linked Typewriter.
+Les six paires doivent être distinctes et réservées au clavier, différentes des
+fréquences des quatre transmissions. Le logiciel ne peut pas inventorier les
+fréquences employées ailleurs par les joueurs.
+
+Brancher une autorisation physique sur `Enable` (0 = désactivé, 1–15 = autorisé).
+Le nœud `mintcraft-test-enable.clipboard.txt` peut lire une septième fréquence
+Link dédiée à un levier et fournir ce signal. Cette autorisation n'est pas une
+coupure matérielle des pales. Ne pas la partager avec les essais de propulsion.
+Avec un Display Link sur Sputnik, lire `MC_KEYS_RAW` sur un Display Board pour
+vérifier les touches au serveur. Chaque touche doit passer de 0 à 1 durant
+l'appui puis revenir à 0 au relâchement. Cocher la confirmation seulement après
+cette vérification. Si le Typewriter émet des impulsions ou mémorise un état,
+ce mode maintenu n'est pas compatible : aucune durée de maintien n'est inventée.
+
+Après configuration : Enable à zéro avec toutes les touches relâchées pendant
+au moins deux mises à jour serveur, puis Enable positif sans touche appuyée.
+Les commandes peuvent ensuite être utilisées simultanément :
+
+| Sortie | Touches / plage |
+| --- | --- |
+| `Forward demand` | W − S, de -1 à +1 |
+| `Left demand` | Q − D, de -1 à +1 |
+| `Vertical demand` | Space − Shift, de -1 à +1 |
+| `Commands valid` | 1 seulement lorsque le clavier est activé et configuré |
+| `Hold requested` | 1 lorsque le clavier actif ne demande aucun mouvement |
+
+W+Q donne une diagonale avant-gauche normalisée, sans lacet. Les opposés
+s'annulent. Les consignes sont relatives au véhicule. `Forward demand` et
+`Left demand` peuvent alimenter les entrées homonymes du `vehicle-mixer` en
+profil 2, sous réserve de vérifier `Commands valid` et de qualifier l'inclinaison.
+**Ne pas brancher `Vertical demand` sur `Collective demand`** : monter/descendre
+est une consigne de vitesse verticale que la future boucle altitude devra
+intégrer, puis maintenir lorsque la touche est relâchée. Cette boucle n'est pas
+encore fournie ; `Hold requested` ne prouve pas un maintien de position.
+
+Une modification de configuration, une perte de contexte serveur, une valeur
+Link invalide ou une rupture d'horloge invalide les commandes et exige une
+nouvelle activation au neutre. Un Link ne fournit ni identité de l'émetteur ni
+battement de connexion authentifié : une déconnexion du Typewriter peut être
+indiscernable d'un relâchement, ou laisser temporairement un signal en cache.
+Ces sorties ne certifient donc pas une liaison de vol ni un autopilote ;
+`Flight qualified` reste zéro. Aucun signal n'est transmis par ce nœud.

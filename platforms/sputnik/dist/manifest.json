@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -11,6 +11,7 @@
   "nativeNodeModifiedUtf8Budget": 60000,
   "developerLibraryImportableAsSingleNode": false,
   "nodeModifiedUtf8Bytes": {
+    "typewriter": 4104,
     "vehicle-mixer": 6745,
     "bank-test": 15545,
     "test-sequencer": 4454,
@@ -48,6 +49,14 @@
     "sdk/mintcraft-library.lua": {
       "bytes": 109218,
       "sha256": "1e830563d9f7379ca50c2103182d86078e7abe59fab56b6848fad3edf0d82bc7"
+    },
+    "mintcraft-typewriter.lua": {
+      "bytes": 4104,
+      "sha256": "2f7f529b5f1eac87684d948249caa649063e1fa6696218aef0d92b64847f61a5"
+    },
+    "mintcraft-typewriter.clipboard.txt": {
+      "bytes": 6616,
+      "sha256": "8d3656c2f100012b9ceb946e7c52a96cfc4844c44af004f148cfa45ce9af7d19"
     },
     "mintcraft-vehicle-mixer.lua": {
       "bytes": 6745,
@@ -99,11 +108,11 @@
     },
     "mintcraft-dashboard.lua": {
       "bytes": 3753,
-      "sha256": "2cce2292fe73f19e30f2cc4e7d6b4b82ff96ca0f21ca68959c13cdeac4a351a4"
+      "sha256": "2f3978ca202ad6a49a05f74c99274c08ed8308135d0a5f7b66728d6038329b06"
     },
     "mintcraft-dashboard.clipboard.txt": {
       "bytes": 5884,
-      "sha256": "e4510b307587ca7ab92d91eee4ec19ba23b3ab8514bf85d20d90524259346d6d"
+      "sha256": "ade56b412895fcff224599f510a8a51b23ae394654a896d7536c2b4921782f3f"
     },
     "mintcraft-link-gateway.lua": {
       "bytes": 3012,

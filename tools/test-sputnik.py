@@ -17,9 +17,9 @@ spec=importlib.util.spec_from_file_location('sputnik_build',ROOT/'tools/build-sp
 assert builder.nbt_utf8_size('a')==1 and builder.nbt_utf8_size('\0')==2 and builder.nbt_utf8_size('é')==2 and builder.nbt_utf8_size('😀')==6
 dist=ROOT/'platforms/sputnik/dist'; manifest=json.loads((dist/'manifest.json').read_text())
 assert hashlib.sha256(args.cosmonautics_jar.read_bytes()).hexdigest()==manifest['hostJarSha256'],'Different Cosmonautics JAR: audit its APIs before claiming compatibility'
-first=(dist/'mintcraft-sputnik-0.1.5.zip').read_bytes()
+first=(dist/'mintcraft-sputnik-0.1.6.zip').read_bytes()
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
-assert first==(dist/'mintcraft-sputnik-0.1.5.zip').read_bytes(),'Non-deterministic distribution'
+assert first==(dist/'mintcraft-sputnik-0.1.6.zip').read_bytes(),'Non-deterministic distribution'
 for name,record in manifest['artifacts'].items():
  data=(dist/name).read_bytes();assert len(data)==record['bytes'] and hashlib.sha256(data).hexdigest()==record['sha256']
  if name.endswith('.lua') and not name.startswith('sdk/'):
@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
    if name.startswith('dev/devce/rocketnautics/shaded/luaj/') and name.endswith('.class'):target.writestr(name,src.read(name))
  execute([javac,'-cp',runtime,'-d',folder,ROOT/'tools/VerifySputnikLua.java'])
  cp=str(folder)+os.pathsep+str(runtime)
- execute([java,'-cp',cp,'VerifySputnikLua','platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua'])
+ execute([java,'-cp',cp,'VerifySputnikLua','platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua'])
  bootstrap=folder/'bootstrap.lua'
  text="getUniverseTime=function() return 0 end\nlocal sdk=assert(loadfile('platforms/sputnik/dist/sdk/mintcraft-library.lua'))()\nlocal host=require\nlocal included={\n"
  text+=''.join('['+json.dumps(name)+']=true,\n' for name in manifest['modules'])
@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  if args.minecraft_classpath:
   execute([javac,'-proc:none','-cp',args.minecraft_classpath,'-d',folder,ROOT/'tools/VerifySputnikClipboard.java'])
   pairs=[]
-  for name in ('import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
+  for name in ('typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
    base='platforms/sputnik/dist/mintcraft-'+name;pairs.extend([base+'.clipboard.txt',base+'.lua'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-two-bank-tests.clipboard.txt','@graph'])
   execute([java,'-Dmintcraft.sputnik.payload=true','-cp',str(folder)+os.pathsep+args.minecraft_classpath+os.pathsep+str(args.cosmonautics_jar),'VerifySputnikClipboard',*pairs])
