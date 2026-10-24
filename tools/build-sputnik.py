@@ -29,11 +29,11 @@ def clipboard(name,code):
  ident=uuid.uuid5(uuid.NAMESPACE_URL,'https://github.com/commandant-x/MintCraftOS/sputnik/'+name)
  numbers=','.join(str(v) for v in struct.unpack('>4i',ident.bytes))
  node='{id:[I;'+numbers+'],typeId:"rocketnautics:lua_script",title:'+quote('MintCraft '+name)+',x:40,y:40,inputs:[],outputs:[],elements:[],customData:{code:'+quote(code)+'}}'
- return base64.b64encode(('{nodes:['+node+'],conns:[]}').encode()).decode()+'\n'
+ return base64.b64encode(('{nodes:['+node+'],conns:[]}').encode()).decode()
 def main():
  out=BASE/'dist';out.mkdir(exist_ok=True)
  prefix,modules=bundle()
- scripts={'dashboard':prefix+source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
+ scripts={'import-test':source(BASE/'src/import-test.lua'),'dashboard':prefix+source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
  artifacts={}
  library=prefix+'return makePortableModules()\n';(out/'mintcraft-library.lua').write_text(library)
  artifacts['mintcraft-library.lua']={'bytes':len(library.encode()),'sha256':hashlib.sha256(library.encode()).hexdigest()}
@@ -42,13 +42,13 @@ def main():
   for suffix,text in [('.lua',code),('.clipboard.txt',clipboard(name,code))]:
    path=out/('mintcraft-'+name+suffix);path.write_text(text,encoding='utf-8')
    artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.0','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
+ manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.1','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.iterdir() if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
- archive=out/'mintcraft-sputnik-0.1.0.zip'
+ archive=out/'mintcraft-sputnik-0.1.1.zip'
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16

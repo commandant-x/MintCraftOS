@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -31,29 +31,37 @@
       "bytes": 104732,
       "sha256": "fc290abc7814bd0d5d5ec2a78c4d6039a584b07f2c06aec5c98426dac88b3942"
     },
+    "mintcraft-import-test.lua": {
+      "bytes": 102,
+      "sha256": "f7cf6999f7e798f178fff3b45bd7e27611203c3ad775b7856429f341caff84bc"
+    },
+    "mintcraft-import-test.clipboard.txt": {
+      "bytes": 404,
+      "sha256": "4db13688adfbd94e871caffcb3a75cc52c28a56001ffa4bbde591300c4d37441"
+    },
     "mintcraft-dashboard.lua": {
       "bytes": 108508,
-      "sha256": "8e6f89625f84ab8a7bad8147cfe4c84af885b952c2f5928fa8653979e29344ab"
+      "sha256": "4756ae7ffb2e4bcfdc78905cf59c8d4535cfcf17a24a54e073b10bbab3568ab8"
     },
     "mintcraft-dashboard.clipboard.txt": {
-      "bytes": 145305,
-      "sha256": "6345fc79e5013da33706e6f70ab5a4941d127969fb908013af63c45d972eb4d1"
+      "bytes": 145304,
+      "sha256": "ead4c46c85d89eb68fd0b588f9fb46a7cebe0bb142283217c3f46aa2f6ffd42c"
     },
     "mintcraft-link-gateway.lua": {
       "bytes": 3012,
       "sha256": "d50e3d7f1ada57da314436199ef3635815a3712409471c73eeb2a09c74327d14"
     },
     "mintcraft-link-gateway.clipboard.txt": {
-      "bytes": 4285,
-      "sha256": "8ab83dc9cdd2536c1b01d9140158a105c6ac9f7357efd2d6c5aaa971bb9decf0"
+      "bytes": 4284,
+      "sha256": "89ce4bcf9e07d5cac75018628502727031cdc3b761da6e4c7ed8a8a7c25b0905"
     },
     "mintcraft-numeric-radio.lua": {
       "bytes": 1269,
       "sha256": "a54cf3b54cb32dc40db65860b021ec06c07b9a7e79beaa745921e731909a0226"
     },
     "mintcraft-numeric-radio.clipboard.txt": {
-      "bytes": 1965,
-      "sha256": "24fbabb5da2440da76524c37a6737eab424a1eb253920ec4f8da23f7161747c3"
+      "bytes": 1964,
+      "sha256": "541292b15284f33d1e41b8c93f5da02d6fed529288f654062c3a4b2d0908f797"
     }
   }
 }

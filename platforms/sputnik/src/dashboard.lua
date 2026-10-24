@@ -7,13 +7,13 @@ end
 local function number(v) return finite(v) and string.format('%.2f',v) or '?' end
 if not _G.MintCraftSputnik then
  local require=makePortableModules()
- local state={version='0.1.0',require=require,actuation=false,flightQualified=false,clockAvailable=false}
+ local state={version='0.1.1',require=require,actuation=false,flightQualified=false,clockAvailable=false}
  -- No vehicle UUID, RX association or ownership API is present in the audited host.
  state.capabilities={telemetry=true,numericNavigation=true,wirelessLinks=true,numericRadio=true,
   filesystem=false,http=false,authentication=false,completeGeometry=false,qualifiedAutopilot=false}
  _G.MintCraftSputnik=state
  if type(ui)=='table' and type(addElement)=='function' then
-  state.title=ui.label('MintCraft Sputnik 0.1.0 | lecture seule')
+  state.title=ui.label('MintCraft Sputnik 0.1.1 | lecture seule')
   state.position=ui.label('Position ?') state.motion=ui.label('Vitesse ?')
   state.attitude=ui.label('Attitude ?') state.physical=ui.label('Masse ?')
   state.notice=ui.label('Pilotage qualifie indisponible: identite/RX non exposes')

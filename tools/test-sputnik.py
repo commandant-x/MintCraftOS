@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Test the native distribution in the exact shaded LuaJ runtime from an audited JAR."""
-import argparse, hashlib, json, os, pathlib, shutil, subprocess, tempfile, zipfile
+import base64, argparse, hashlib, json, os, pathlib, shutil, subprocess, tempfile, zipfile
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser()
 parser.add_argument('--cosmonautics-jar',type=pathlib.Path,required=True)
@@ -14,11 +14,14 @@ assert java and javac,'Java 21 JDK required'
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
 dist=ROOT/'platforms/sputnik/dist'; manifest=json.loads((dist/'manifest.json').read_text())
 assert hashlib.sha256(args.cosmonautics_jar.read_bytes()).hexdigest()==manifest['hostJarSha256'],'Different Cosmonautics JAR: audit its APIs before claiming compatibility'
-first=(dist/'mintcraft-sputnik-0.1.0.zip').read_bytes()
+first=(dist/'mintcraft-sputnik-0.1.1.zip').read_bytes()
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
-assert first==(dist/'mintcraft-sputnik-0.1.0.zip').read_bytes(),'Non-deterministic distribution'
+assert first==(dist/'mintcraft-sputnik-0.1.1.zip').read_bytes(),'Non-deterministic distribution'
 for name,record in manifest['artifacts'].items():
  data=(dist/name).read_bytes();assert len(data)==record['bytes'] and hashlib.sha256(data).hexdigest()==record['sha256']
+ if name.endswith('.clipboard.txt'):
+  assert not any(chr(c).isspace() for c in data),'Whitespace rejected by Sputnik native decoder'
+  assert base64.b64decode(data,validate=True).startswith(b'{nodes:[')
 with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  folder=pathlib.Path(tmp); runtime=folder/'runtime.jar'
  # Strip unrelated compiler services; every interpreter class remains byte-exact.
@@ -37,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  if args.minecraft_classpath:
   execute([javac,'-proc:none','-cp',args.minecraft_classpath,'-d',folder,ROOT/'tools/VerifySputnikClipboard.java'])
   pairs=[]
-  for name in ('dashboard','link-gateway','numeric-radio'):
+  for name in ('import-test','dashboard','link-gateway','numeric-radio'):
    base='platforms/sputnik/dist/mintcraft-'+name;pairs.extend([base+'.clipboard.txt',base+'.lua'])
   execute([java,'-cp',str(folder)+os.pathsep+args.minecraft_classpath,'VerifySputnikClipboard',*pairs])
 print('Sputnik distribution, deterministic build, hashes, actual LuaJ runtime and portable physics passed; no Minecraft world test performed')

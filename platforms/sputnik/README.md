@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.0
+# MintCraft Sputnik 0.1.1
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,11 +7,12 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.0.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.1.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
-3. Copier **tout le contenu** de `mintcraft-dashboard.clipboard.txt`, sans ajouter
+3. Dans la fenêtre **Flight Computer**, cliquer le fond vide du graphe puis
+   fermer toute recherche ou champ de texte actif. Copier **tout le contenu** de `mintcraft-dashboard.clipboard.txt`, sans ajouter
    de guillemets, dans le presse-papiers de votre système.
 4. Revenir dans l'éditeur de graphe Sputnik et faire **Ctrl+V**. Le collage ajoute
    un nœud Lua ; il ne supprime pas le graphe existant. Fermer/sauvegarder l'éditeur
@@ -20,10 +21,25 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 5. Le tableau de bord démarre en lecture seule. Aucune chauffe, mise en marche de
    moteur ou transmission radio automatique.
 
-Alternative : ajouter un nœud **Programming → Lua Script**, ouvrir son éditeur,
-y coller `mintcraft-dashboard.lua`, appliquer puis sauvegarder le graphe.
+Alternative : dans le fond du graphe, **Maj+A**, chercher **Lua Script**, puis
+valider. **Double-cliquer dans le corps du nœud, sous son titre** pour ouvrir
+l’éditeur Lua : le double-clic sur le titre sert à renommer. Dans la zone de code,
+Ctrl+A puis Ctrl+V pour y coller `mintcraft-dashboard.lua`, appliquer puis sauvegarder le graphe.
 Les fichiers `.clipboard.txt` sont du **Base64 de SNBT**, pas des JSON ni des URL.
 Pas de `wget`, de shell CraftOS ni d'installateur CC dans Sputnik.
+
+### Si le collage ne fait rien
+
+La 0.1.1 corrige un retour à la ligne final dans les anciens fichiers Base64.
+Sputnik le rejetait silencieusement. Utiliser les nouveaux fichiers sans espace,
+sans guillemets et sans retour à la ligne ajouté. `mintcraft-import-test.clipboard.txt`
+est un tout petit graphe de test : le nœud doit apparaître et afficher la sortie
+`MintCraft test` égale à 1. Aucun actionneur n'est commandé.
+
+Pour vérifier l'éditeur Lua sans importer de graphe, créer le nœud comme indiqué
+ci-dessus et y saisir simplement `output("MintCraft test", 1)`, puis **Run (▶)**.
+Fermer l'éditeur pour revenir au graphe et sauvegarder.
+
 
 ## Contenu
 
