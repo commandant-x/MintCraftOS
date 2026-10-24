@@ -53,8 +53,8 @@ def main():
   for path in files:
    entry=zipfile.ZipInfo(path.name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
    z.writestr(entry,path.read_bytes())
-  for name in ('README.md','COMPATIBILITY.md'):
-   path=BASE/name
+  for name in ('README.md','COMPATIBILITY.md','LICENSE'):
+   path=ROOT/name if name=='LICENSE' else BASE/name
    if path.exists():
     entry=zipfile.ZipInfo(name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
  sums=''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file() and p.name!='SHA256SUMS')
