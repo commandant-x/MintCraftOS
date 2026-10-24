@@ -30,8 +30,11 @@ public final class VerifySputnikClipboard {
    catch(IllegalArgumentException expected) { }
    var tag=TagParser.parseTag(new String(Base64.getDecoder().decode(encoded),StandardCharsets.UTF_8));
    var nodes=tag.getList("nodes",10);
-   boolean multi=args[i+1].equals("@graph");
-   if(nodes.size()!=(multi?4:1)||tag.getList("conns",10).size()!=(multi?20:0)) throw new AssertionError("Unexpected graph shape");
+   boolean multi=args[i+1].startsWith("@graph");
+   String[] shape=args[i+1].split(":");
+   int expectedNodes=multi?(shape.length==3?Integer.parseInt(shape[1]):4):1;
+   int expectedEdges=multi?(shape.length==3?Integer.parseInt(shape[2]):20):0;
+   if(nodes.size()!=expectedNodes||tag.getList("conns",10).size()!=expectedEdges) throw new AssertionError("Unexpected graph shape");
    var ids=new HashMap<UUID,CompoundTag>();
    for(int n=0;n<nodes.size();n++) {
     var part=nodes.getCompound(n);

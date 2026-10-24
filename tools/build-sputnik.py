@@ -66,7 +66,8 @@ def main():
  consent=source(BASE/'src/test-enable.lua')
  mixer="local Mixer=(function()\n"+source(BASE/'src/drive_mixer.lua')+"\nend)()\n"+source(BASE/'src/drive-console.lua')
  vehicle="local Mixer=(function()\n"+source(BASE/'src/drive_mixer.lua')+"\nend)()\n"+source(BASE/'src/vehicle-console.lua')
- scripts={'typewriter':source(BASE/'src/typewriter.lua'),'vehicle-mixer':vehicle,'bank-test':bank,'test-sequencer':sequencer,'test-enable':consent,'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
+ quad="local Quad=(function()\n"+source(BASE/'src/quad_control.lua')+"\nend)()\n"+source(BASE/'src/quad-node.lua')
+ scripts={'quad-control':quad,'typewriter':source(BASE/'src/typewriter.lua'),'vehicle-mixer':vehicle,'bank-test':bank,'test-sequencer':sequencer,'test-enable':consent,'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
  artifacts={}
  (out/'sdk').mkdir(exist_ok=True)
  (out/'profiles').mkdir(exist_ok=True)
@@ -91,19 +92,27 @@ def main():
  path=out/'mintcraft-two-bank-tests.clipboard.txt'
  path.write_text(graph_clipboard(graph_nodes,graph_edges),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.6','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
+ # Separate keyboard/quad graph; consent and outputs remain unconfigured.
+ quad_nodes=[('quad-enable',consent,20,40),('quad-keyboard',scripts['typewriter'],350,40),('quad-controller',quad,1100,40)]
+ quad_edges=[('quad-enable','Binding','quad-controller','Enable binding'),('quad-keyboard','Bindings','quad-controller','Keyboard bindings'),('quad-enable','Enable','quad-keyboard','Enable'),('quad-enable','Enable','quad-controller','Flight Enable')]
+ for pin in ('Forward demand','Left demand','Vertical demand','Commands valid'):
+  quad_edges.append(('quad-keyboard',pin,'quad-controller',pin))
+ path=out/'mintcraft-quad-flight.clipboard.txt'
+ path.write_text(graph_clipboard(quad_nodes,quad_edges),encoding='utf-8')
+ artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+ manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.7','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
- archive=out/'mintcraft-sputnik-0.1.6.zip'
+ archive=out/'mintcraft-sputnik-0.1.7.zip'
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
    z.writestr(entry,path.read_bytes())
-  for name in ('README.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','LICENSE'):
+  for name in ('README.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','LICENSE'):
    path=ROOT/name if name=='LICENSE' else BASE/name
    if path.exists():
     entry=zipfile.ZipInfo(name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())

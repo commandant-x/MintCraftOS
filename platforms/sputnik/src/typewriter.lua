@@ -12,6 +12,7 @@ addElement(s.label) addElement(s.verified)
 for _,name in ipairs(names) do local k=s.keys[name] addElement(k.label) addElement(k.a) addElement(k.b) end
 local emit=output
 if false then
+ output('Bindings','string')
  output('Forward demand',0) output('Left demand',0) output('Vertical demand',0)
  output('Commands valid',0) output('Hold requested',0) output('Flight qualified',0)
 end
@@ -61,12 +62,15 @@ s.label.setText(not server and 'Configuration client; etat serveur via Display L
 -- Client evaluation must not overwrite authoritative server outputs.
 if not server then
  if s.wasServer then
+  emit('Bindings','')
   emit('Forward demand',0) emit('Left demand',0) emit('Vertical demand',0)
   emit('Commands valid',0) emit('Hold requested',0) emit('Flight qualified',0)
  end
  s.wasServer=false return
 end
 s.wasServer=true
+-- Describe configured channels even if a sample is invalid; movement validity is separate.
+emit('Bindings',#signature==6 and sig or '')
 emit('Forward demand',forward)
 emit('Left demand',left)
 emit('Vertical demand',vertical)

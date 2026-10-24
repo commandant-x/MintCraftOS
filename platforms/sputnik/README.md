@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.6
+# MintCraft Sputnik 0.1.7
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.6.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.7.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -167,7 +167,7 @@ L'option `--minecraft-classpath` ajoute la validation du presse-papiers par le
 vrai parseur SNBT Minecraft 1.21.1 mappé. Ces JAR ne sont pas redistribués dans
 le paquet utilisateur. Les tests de physique restent des simulations.
 
-## Clavier Linked Typewriter — 0.1.6
+## Clavier Linked Typewriter — 0.1.7
 
 Importer `mintcraft-typewriter.clipboard.txt` dans le fond du graphe : ce nouveau
 nœud est un récepteur, sans commande moteur. Sauvegarder, fermer puis rouvrir le
@@ -215,3 +215,13 @@ battement de connexion authentifié : une déconnexion du Typewriter peut être
 indiscernable d'un relâchement, ou laisser temporairement un signal en cache.
 Ces sorties ne certifient donc pas une liaison de vol ni un autopilote ;
 `Flight qualified` reste zéro. Aucun signal n'est transmis par ce nœud.
+
+## Contrôleur quad avec sorties moteur — 0.1.7
+
+Importer `mintcraft-quad-flight.clipboard.txt` pour obtenir le graphe complet
+levier + clavier + contrôleur. Les quatre fréquences des transmissions se
+configurent **dans `quad-controller`**, pas dans le clavier. Lire
+[QUAD-FLIGHT.md](QUAD-FLIGHT.md) pour le modèle local obligatoire, le Kalman,
+la stabilisation, l'activation et le repli. Cette version émet réellement des
+signaux après configuration et autorisation ; elle reste expérimentale, avec
+calibration manuelle et sans vol Minecraft validé.
