@@ -52,4 +52,20 @@ function M.quadLift(collective,frontBias,rightBias)
  for i,name in ipairs(names) do out[name]=collective+scale*delta[i] end
  return out
 end
+-- Body axes: forward and left are normalized acceleration intentions, not m/s.
+-- Conversion to pitch/roll is only enabled after measured tilt authority.
+function M.quadIntent(forward,left,maxTilt,qualified)
+ if not finite(forward) or not finite(left) or math.abs(forward)>1 or math.abs(left)>1 or
+  not finite(maxTilt) or maxTilt<=0 or maxTilt>30 then return nil,'Invalid body movement/tilt envelope' end
+ if qualified~=true then return nil,'Measured roll/pitch and horizontal response required' end
+ local scale=math.max(1,math.sqrt(forward*forward+left*left))
+ return {forwardTilt=forward/scale*maxTilt,leftTilt=left/scale*maxTilt,
+  yawAvailable=false,physicalFeedback=false}
+end
+function M.balloon(drive,turn,lift)
+ if not finite(drive) or not finite(turn) or math.abs(drive)>1 or math.abs(turn)>1 or
+  not finite(lift) or lift<0 or lift>1 then return nil,'Invalid balloon demand' end
+ return {drive=drive,reverseRequested=drive<0,steerLeft=math.max(0,turn),
+  steerRight=math.max(0,-turn),lift=lift,physicalFeedback=false}
+end
 return M

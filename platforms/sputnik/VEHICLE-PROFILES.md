@@ -110,3 +110,51 @@ exposés par les nœuds/capteurs du serveur ou une intégration serveur dédiée
 aller des demandes de ce mixer à un pilote qualifié. Les limites de taille NBT
 restent appliquées à chaque nœud téléversable ; la grosse bibliothèque ne retourne
 pas dans le tableau de bord.
+
+## Ballon cinq fréquences et quad sans propulsion — 0.1.5
+
+Le nouveau nœud `mintcraft-vehicle-mixer.clipboard.txt` est **séparé** du mixer
+Venator et du graphe d'essai des banques. Il ne commande aucun Link. Ne jamais
+brancher ses demandes normalisées directement sur un émetteur analogique.
+
+`Profile = 1` : ballon. `Forward demand` et `Left demand` sont compris entre -1
+et +1, `Collective demand` entre 0 et 1. Cinq fréquences physiques à associer :
+sustentation, transmission de propulsion (15 = blocage), inverseur mécanique,
+spring gauche, spring droite. La sortie `Reverse requested` est une intention,
+pas une autorisation de changer le gearshift en rotation. Les deux demandes
+spring sont exclusives ; position centrale et retour doivent être mesurés.
+Le signal de sustentation reste indépendant de l'arrêt horizontal.
+Le nœud ne suppose aucune courbe de poussée ni valeur de sustentation neutre.
+
+`Profile = 2` : quad sans moteur horizontal. Les quatre sorties correspondent à
+avant gauche, avant droite, arrière gauche, arrière droite. Il avance en inclinant
+la résultante de poussée, sans inventer un cinquième moteur. Les intentions
+`Forward demand` et `Left demand` produisent des **cibles d'inclinaison relatives
+au véhicule** seulement si `Tilt response qualified = 1` et si une enveloppe
+`Measured tilt limit deg` positive, au plus 30°, est fournie après mesures.
+Ce plafond est une enveloppe du prototype, pas une limite physique identifiée.
+La norme de la cible diagonale reste dans cette enveloppe. Aucun cap absolu ou
+lacet rotor n'est supposé : `Yaw available` reste zéro.
+
+Chaîne prévue : consignes de mouvement → cibles d'inclinaison → **boucle de
+stabilisation mesurée** → `Front correction` / `Right correction` → quatre
+courbes de poussée mesurées → sorties Link. Les cibles ne sont PAS des corrections
+à brancher directement : sens, gains et bras de levier ne sont pas encore
+qualifiés. La conservation de la moyenne des demandes ne garantit pas la force
+verticale réelle pendant une inclinaison. Il faudra compenser la composante
+verticale avec une réponse mesurée, sans supposer une courbe signal/poussée.
+
+Pour la mise en service : relever la géométrie des quatre rotors et leurs sens ;
+valider d'abord le maintien vertical ; identifier ensuite de petites réponses
+roulis/tangage avec reprise physique disponible ; mesurer le déplacement et le
+freinage avant d'autoriser une consigne horizontale. Un yaw indépendant nécessite
+sa propre preuve de couple. Pas de test automatique de propulsion A/B sur les
+sustentateurs, car leur arrêt peut faire tomber le véhicule.
+
+`Horizontal STOP` demande zéro propulsion/spring pour le ballon et une attitude
+à plat pour le quad, en conservant le collectif. Ce n'est ni un arrêt mécanique
+des pales, ni une preuve de freinage/maintien de position. Une consigne
+horizontale non qualifiée invalide `Profile valid` sans invalider `Lift valid`.
+Un consommateur doit vérifier ces sorties de validité. `Flight qualified` reste
+zéro : cette livraison prépare les profils ; elle ne fournit pas encore la boucle
+d'attitude, la calibration verticale ou l'autopilote natif complet.

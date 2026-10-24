@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.4
+# MintCraft Sputnik 0.1.5
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.4.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.5.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -30,7 +30,7 @@ Pas de `wget`, de shell CraftOS ni d'installateur CC dans Sputnik.
 
 ### Si le collage ne fait rien
 
-La 0.1.4 corrige un retour à la ligne final dans les anciens fichiers Base64.
+Depuis la 0.1.1, la distribution corrige un retour à la ligne final dans les anciens fichiers Base64.
 Sputnik le rejetait silencieusement. Utiliser les nouveaux fichiers sans espace,
 sans guillemets et sans retour à la ligne ajouté. `mintcraft-import-test.clipboard.txt`
 est un tout petit graphe de test : le nœud doit apparaître et afficher la sortie
@@ -51,6 +51,12 @@ Il gère marche arrière, pivot, rotation sur place et STOP horizontal laissant 
 demandes de sustentation inchangées. Ces demandes **ne sont pas** des niveaux
 redstone 0–15 : la table de transmission mesurée et les retours physiques restent
 nécessaires avant tout actionnement. Le niveau 15 coupe les pales du Venator.
+
+Le nouveau `mintcraft-vehicle-mixer.clipboard.txt` ajoute les profils ballon
+(cinq fréquences) et quad sans propulsion (quatre sustentations). `Profile = 1`
+choisit le ballon, `Profile = 2` le quad. Voir le guide des groupes pour les
+entrées, la qualification nécessaire et la boucle d’attitude restant à intégrer.
+Ce nœud produit uniquement des demandes et ne commande aucun Link.
 
 ## Câblage et tests automatiques des moteurs
 
