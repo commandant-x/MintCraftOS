@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "edition": "MintCraft Sputnik",
+  "version": "0.1.0",
+  "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
+  "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
+  "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
+  "testedInMinecraft": false,
+  "qualifiedAutopilot": false,
+  "defaultActuation": false,
+  "modules": {
+    "system.libraries.addon": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
+    "system.ascendancy.contracts": "bdc7466cb6a538bed085efa8c18860c7fc4c0bbefd2fc4c25b80255c769b9c1a",
+    "system.navigation.geometry": "bc8d120343b44488954532ab1ee28aee80bf1094f624133ab0bcfbb43a4d52cd",
+    "system.navigation.state_estimator": "dffed28f0c58cd20488e5498754a4bed707442f0a5c72fdeff5b46f1c3a70c14",
+    "system.navigation.authority": "176dded383106c5aef275ec7ff352ff4ca6e064c1090d92a39e4f558ba09482d",
+    "system.navigation.response_model": "5843348978aba76d09d59c65ca61df006d7729bcf1ca57e843b4bcd0692325b5",
+    "system.navigation.measured_controller": "912f129c722a65f4fc248f1d00e5dba64291bee989edbec2015962b669dea696",
+    "system.navigation.closed_loop_qualification": "3b1425638dab67654c0f0e659a0138bd537a515aa85d055d701cb2e959782343",
+    "system.navigation.output_characterization": "ddd325eb69c14d7043150ea21314455b3b993379eee8bffd3c157cfa963375d4",
+    "system.navigation.tilt_response": "78435d6aff3ac1287a4819735ecda3f507591eaeeacd53cf4dc9f9b48bfd6c1a",
+    "system.navigation.known_flight": "ed1a45e35ba3cb6f91247ecac504b18cfe94108429030c886966da14264bb4f0",
+    "system.navigation.motion_progress": "f348d0cf8843cbc5d93c1e832e32a05e89b9bc99fcdb1e9f1e642c9e1d4dc6a3",
+    "system.navigation.altitude_model": "a919f935f501b23d73c239956ba502aaddd32a82a39ead6857c154928f0344da",
+    "system.navigation.altitude_sweep": "a1bf31b674f6e2986f20d4803fa52d80cb800c31320e06551b6256d379145100",
+    "system.navigation.sweep_progress": "6a5f8fc4b7c5c57656db87f9d37fc42895bad45af021f2aa2ea74e1070ed0b59",
+    "system.navigation.autopilot": "f933a275d507104478ad9560bd9af24b5876e565ef3151c6ac692f9e26142769"
+  },
+  "artifacts": {
+    "mintcraft-library.lua": {
+      "bytes": 104732,
+      "sha256": "fc290abc7814bd0d5d5ec2a78c4d6039a584b07f2c06aec5c98426dac88b3942"
+    },
+    "mintcraft-dashboard.lua": {
+      "bytes": 108508,
+      "sha256": "8e6f89625f84ab8a7bad8147cfe4c84af885b952c2f5928fa8653979e29344ab"
+    },
+    "mintcraft-dashboard.clipboard.txt": {
+      "bytes": 145305,
+      "sha256": "6345fc79e5013da33706e6f70ab5a4941d127969fb908013af63c45d972eb4d1"
+    },
+    "mintcraft-link-gateway.lua": {
+      "bytes": 3012,
+      "sha256": "d50e3d7f1ada57da314436199ef3635815a3712409471c73eeb2a09c74327d14"
+    },
+    "mintcraft-link-gateway.clipboard.txt": {
+      "bytes": 4285,
+      "sha256": "8ab83dc9cdd2536c1b01d9140158a105c6ac9f7357efd2d6c5aaa971bb9decf0"
+    },
+    "mintcraft-numeric-radio.lua": {
+      "bytes": 1269,
+      "sha256": "a54cf3b54cb32dc40db65860b021ec06c07b9a7e79beaa745921e731909a0226"
+    },
+    "mintcraft-numeric-radio.clipboard.txt": {
+      "bytes": 1965,
+      "sha256": "24fbabb5da2440da76524c37a6737eab424a1eb253920ec4f8da23f7161747c3"
+    }
+  }
+}

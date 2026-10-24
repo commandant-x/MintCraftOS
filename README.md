@@ -581,3 +581,14 @@ Autopilot Ascendancy : [contrôle local mesuré et limites de 0.18.89](docs/ASCE
 Réutilisation mesurée : [archives et recontrôles de 0.18.90](docs/ASCENDANCY-B1-MODEL-REUSE.md).
 
 ATLAS : [terrain chargé, permissions et limites de 0.18.91](docs/ASCENDANCY-C1-TERRAIN.md).
+
+## Édition Sputnik / Cosmonautics sans CC:Tweaked
+
+Le port natif est dans [platforms/sputnik](platforms/sputnik/README.md).
+[Paquet téléversable 0.1.0](platforms/sputnik/dist/mintcraft-sputnik-0.1.0.zip) :
+import du presse-papiers Sputnik, tableau de bord, bibliothèque de navigation,
+passerelles Link/radio optionnelles désactivées au démarrage. Aucune installation
+CraftOS ou modification automatique de mod serveur. Cible auditée : Cosmonautics
+26.08.307 ; [capacités et limites](platforms/sputnik/COMPATIBILITY.md), notamment
+l'absence de qualification automatique de vol, de géométrie complète et de
+protection par mot de passe d'un graphe éditable. L'édition CC demeure disponible.
