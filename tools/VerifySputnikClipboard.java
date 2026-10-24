@@ -5,6 +5,11 @@ import net.minecraft.nbt.CompoundTag;
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import net.minecraft.nbt.TagParser;
+import java.util.*;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.core.BlockPos;
+import io.netty.buffer.Unpooled;
 /** Parse generated clipboard with the actual mapped Minecraft 1.21.1 SNBT parser. */
 public final class VerifySputnikClipboard {
  public static void main(String[] args) throws Exception {
@@ -25,7 +30,21 @@ public final class VerifySputnikClipboard {
    catch(IllegalArgumentException expected) { }
    var tag=TagParser.parseTag(new String(Base64.getDecoder().decode(encoded),StandardCharsets.UTF_8));
    var nodes=tag.getList("nodes",10);
-   if(nodes.size()!=1||!tag.getList("conns",10).isEmpty()) throw new AssertionError("Unexpected graph shape");
+   boolean multi=args[i+1].equals("@graph");
+   if(nodes.size()!=(multi?4:1)||tag.getList("conns",10).size()!=(multi?20:0)) throw new AssertionError("Unexpected graph shape");
+   var ids=new HashMap<UUID,CompoundTag>();
+   for(int n=0;n<nodes.size();n++) {
+    var part=nodes.getCompound(n);
+    if(!part.hasUUID("id")||!part.getString("typeId").equals("rocketnautics:lua_script")||ids.put(part.getUUID("id"),part)!=null) throw new AssertionError("Invalid native node");
+    new DataOutputStream(new ByteArrayOutputStream()).writeUTF(part.getCompound("customData").getString("code"));
+   }
+   var links=tag.getList("conns",10);
+   for(int n=0;n<links.size();n++) {
+    var link=links.getCompound(n);var src=ids.get(link.getUUID("src"));var tgt=ids.get(link.getUUID("tgt"));
+    if(src==null||tgt==null||link.getInt("srcP")<0||link.getInt("tgtP")<0||link.getInt("srcP")>=src.getList("outputs",10).size()||link.getInt("tgtP")>=tgt.getList("inputs",10).size()) throw new AssertionError("Broken graph connection");
+    var a=src.getList("outputs",10).getCompound(link.getInt("srcP"));var b=tgt.getList("inputs",10).getCompound(link.getInt("tgtP"));
+    if(!a.getString("valueType").equals(b.getString("valueType"))) throw new AssertionError("Pin type mismatch");
+   }
    var node=nodes.getCompound(0);
    if(!node.hasUUID("id")||!node.getString("typeId").equals("rocketnautics:lua_script")) throw new AssertionError("Wrong native node identity");
    // Parsing text alone misses StringTag.writeUTF's hard 65535-byte bound.
@@ -33,8 +52,16 @@ public final class VerifySputnikClipboard {
    NbtIo.writeAnyTag(tag,new DataOutputStream(bytes));
    var restored=(CompoundTag)NbtIo.readAnyTag(new DataInputStream(new ByteArrayInputStream(bytes.toByteArray())),net.minecraft.nbt.NbtAccounter.unlimitedHeap());
    if(!restored.equals(tag)) throw new AssertionError("Binary NBT round-trip changed graph");
-   if(!node.getCompound("customData").getString("code").equals(Files.readString(Path.of(args[i+1])))) throw new AssertionError("SNBT changed Lua source");
+   if(!multi&&!node.getCompound("customData").getString("code").equals(Files.readString(Path.of(args[i+1])))) throw new AssertionError("SNBT changed Lua source");
+   if(Boolean.getBoolean("mintcraft.sputnik.payload")) {
+    Class<?> type=Class.forName("dev.devce.rocketnautics.network.SputnikNodeSyncPayload");
+    Object message=type.getConstructor(BlockPos.class,CompoundTag.class).newInstance(BlockPos.ZERO,tag);
+    @SuppressWarnings("unchecked") var codec=(StreamCodec<FriendlyByteBuf,Object>)type.getField("CODEC").get(null);
+    var buffer=new FriendlyByteBuf(Unpooled.buffer());
+    try { codec.encode(buffer,message);Object decoded=codec.decode(buffer);if(!tag.equals(type.getMethod("graphData").invoke(decoded))) throw new AssertionError("Actual Sputnik payload changed graph"); }
+    finally { buffer.release(); }
+   }
   }
-  System.out.println("Minecraft SNBT: "+args.length/2+" native clipboard nodes parsed AND binary-serialized; old 108508-byte failure reproduced, UUID and Lua round-trips exact");
+  System.out.println("Minecraft SNBT: "+args.length/2+" clipboard artifacts parsed AND binary-serialized; old 108508-byte failure reproduced, UUID/Lua/pin links round-trip exact; optional actual Sputnik CODEC");
  }
 }

@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.3
+# MintCraft Sputnik 0.1.4
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.3.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.4.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -30,7 +30,7 @@ Pas de `wget`, de shell CraftOS ni d'installateur CC dans Sputnik.
 
 ### Si le collage ne fait rien
 
-La 0.1.3 corrige un retour à la ligne final dans les anciens fichiers Base64.
+La 0.1.4 corrige un retour à la ligne final dans les anciens fichiers Base64.
 Sputnik le rejetait silencieusement. Utiliser les nouveaux fichiers sans espace,
 sans guillemets et sans retour à la ligne ajouté. `mintcraft-import-test.clipboard.txt`
 est un tout petit graphe de test : le nœud doit apparaître et afficher la sortie
@@ -51,6 +51,16 @@ Il gère marche arrière, pivot, rotation sur place et STOP horizontal laissant 
 demandes de sustentation inchangées. Ces demandes **ne sont pas** des niveaux
 redstone 0–15 : la table de transmission mesurée et les retours physiques restent
 nécessaires avant tout actionnement. Le niveau 15 coupe les pales du Venator.
+
+## Câblage et tests automatiques des moteurs
+
+Le [guide complet de câblage](WIRING-AND-TESTS.md) décrit le graphe à deux banques
+préconnecté `mintcraft-two-bank-tests.clipboard.txt` : un levier physique, un
+séquenceur, deux nœuds moteur. Il effectue les essais A/B séquentiellement après
+configuration explicite et réception de la rotation réelle via Speedometer /
+comparateur / Link. Les clutches utilisent une autorisation à état absent=arrêt.
+Aucun canal de sustentation n'est commandé. Le résultat est une expérience de
+propulsion en session, pas une qualification automatique d'autopilote.
 
 ## Contenu
 

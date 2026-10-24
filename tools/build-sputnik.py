@@ -29,16 +29,43 @@ def nbt_utf8_size(text):
  # DataOutput.writeUTF encodes UTF-16 units with modified UTF-8, not UTF-8.
  raw=text.encode('utf-16-be','surrogatepass')
  return sum(1 if 1<=v<=127 else 2 if v<=2047 else 3 for v in struct.unpack('>'+str(len(raw)//2)+'H',raw))
-def clipboard(name,code):
- ident=uuid.uuid5(uuid.NAMESPACE_URL,'https://github.com/commandant-x/MintCraftOS/sputnik/'+name)
- numbers=','.join(str(v) for v in struct.unpack('>4i',ident.bytes))
- node='{id:[I;'+numbers+'],typeId:"rocketnautics:lua_script",title:'+quote('MintCraft '+name)+',x:40,y:40,inputs:[],outputs:[],elements:[],customData:{code:'+quote(code)+'}}'
- return base64.b64encode(('{nodes:['+node+'],conns:[]}').encode()).decode()
+def pins(code):
+ found={'input':[], 'output':[]}
+ pattern=re.compile(r"(input|output)\(\s*[\"']([^\"']+)[\"']\s*(?:,\s*[\"']([^\"']+)[\"'])?")
+ for line in code.splitlines():
+  for match in pattern.finditer(line.split('--',1)[0]):
+   kind,name,raw=match.groups()
+   assert name not in [v[0] for v in found[kind]],'Duplicate native pin '+name
+   typ='STRING' if raw and raw.lower() in ('string','str','text') else 'ANY' if raw=='any' else 'NUMBER'
+   found[kind].append((name,typ))
+ return found
+def pin_tags(values,kind):
+ return '['+','.join('{name:'+quote(name)+',valueType:'+quote(typ)+',pinType:'+quote(kind)+',color:-1,value:0.0d,stringValue:""}' for name,typ in values)+']'
+def uuid_tag(ident): return '[I;'+','.join(str(v) for v in struct.unpack('>4i',ident.bytes))+']'
+def graph_clipboard(nodes,edges):
+ identifiers={name:uuid.uuid5(uuid.NAMESPACE_URL,'https://github.com/commandant-x/MintCraftOS/sputnik/'+name) for name,code,x,y in nodes}
+ metadata={name:pins(code) for name,code,x,y in nodes}
+ records=[]
+ for name,code,x,y in nodes:
+  assert nbt_utf8_size(code)<=60000,'Unsafe native node size'
+  records.append('{id:'+uuid_tag(identifiers[name])+',typeId:"rocketnautics:lua_script",title:'+quote('MintCraft '+name)+',x:'+str(x)+',y:'+str(y)+',inputs:'+pin_tags(metadata[name]['input'],'INPUT')+',outputs:'+pin_tags(metadata[name]['output'],'OUTPUT')+',elements:[],customData:{code:'+quote(code)+'}}')
+ connections=[]
+ for src,out,tgt,inp in edges:
+  source_index=[v[0] for v in metadata[src]['output']].index(out)
+  target_index=[v[0] for v in metadata[tgt]['input']].index(inp)
+  connections.append('{src:'+uuid_tag(identifiers[src])+',srcP:'+str(source_index)+',tgt:'+uuid_tag(identifiers[tgt])+',tgtP:'+str(target_index)+'}')
+ text='{nodes:['+','.join(records)+'],conns:['+','.join(connections)+']}'
+ return base64.b64encode(text.encode()).decode()
+def clipboard(name,code): return graph_clipboard([(name,code,40,40)],[])
 def main():
  out=BASE/'dist';out.mkdir(exist_ok=True)
  prefix,modules=bundle()
+ probe='local Probe=(function()\n'+source(BASE/'src/bank_probe.lua')+'\nend)()\n'
+ bank=probe+'local BANK_DEFAULT=1\n'+source(BASE/'src/bank-test-node.lua')
+ sequencer=source(BASE/'src/test-sequencer.lua')
+ consent=source(BASE/'src/test-enable.lua')
  mixer="local Mixer=(function()\n"+source(BASE/'src/drive_mixer.lua')+"\nend)()\n"+source(BASE/'src/drive-console.lua')
- scripts={'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
+ scripts={'bank-test':bank,'test-sequencer':sequencer,'test-enable':consent,'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
  artifacts={}
  (out/'sdk').mkdir(exist_ok=True)
  (out/'profiles').mkdir(exist_ok=True)
@@ -52,19 +79,30 @@ def main():
   for suffix,text in [('.lua',code),('.clipboard.txt',clipboard(name,code))]:
    path=out/('mintcraft-'+name+suffix);path.write_text(text,encoding='utf-8')
    artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.3','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
+ # A complete two-bank graph: all logical ports connected, physical frequencies blank.
+ graph_nodes=[('test-enable',consent,20,40),('test-sequencer',sequencer,360,40),('bank-1',bank,900,40),('bank-2',bank.replace('local BANK_DEFAULT=1','local BANK_DEFAULT=2'),1500,40)]
+ graph_edges=[('test-enable','Enable','test-sequencer','Enable'),('test-enable','Binding','test-sequencer','Enable binding')]
+ for i in (1,2):
+  target='bank-'+str(i)
+  graph_edges.extend([('test-enable','Enable',target,'Enable'),('test-enable','Binding',target,'Enable binding'),('test-sequencer','Selected group',target,'Selected group'),('test-sequencer','Session',target,'Session')])
+  for output_pin,inp in [('Group index','Group'),('Ready','Ready'),('Bindings','Bindings'),('Done session','Done'),('Failed session','Failed')]:
+   graph_edges.append((target,output_pin,'test-sequencer',inp+' '+str(i)))
+ path=out/'mintcraft-two-bank-tests.clipboard.txt'
+ path.write_text(graph_clipboard(graph_nodes,graph_edges),encoding='utf-8')
+ artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+ manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.4','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
- archive=out/'mintcraft-sputnik-0.1.3.zip'
+ archive=out/'mintcraft-sputnik-0.1.4.zip'
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
    z.writestr(entry,path.read_bytes())
-  for name in ('README.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','LICENSE'):
+  for name in ('README.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','LICENSE'):
    path=ROOT/name if name=='LICENSE' else BASE/name
    if path.exists():
     entry=zipfile.ZipInfo(name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
