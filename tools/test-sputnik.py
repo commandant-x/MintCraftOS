@@ -12,13 +12,18 @@ java=str(args.java_home/'bin/java') if args.java_home else shutil.which('java')
 javac=str(args.java_home/'bin/javac') if args.java_home else shutil.which('javac')
 assert java and javac,'Java 21 JDK required'
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
+import importlib.util
+spec=importlib.util.spec_from_file_location('sputnik_build',ROOT/'tools/build-sputnik.py');builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+assert builder.nbt_utf8_size('a')==1 and builder.nbt_utf8_size('\0')==2 and builder.nbt_utf8_size('é')==2 and builder.nbt_utf8_size('😀')==6
 dist=ROOT/'platforms/sputnik/dist'; manifest=json.loads((dist/'manifest.json').read_text())
 assert hashlib.sha256(args.cosmonautics_jar.read_bytes()).hexdigest()==manifest['hostJarSha256'],'Different Cosmonautics JAR: audit its APIs before claiming compatibility'
-first=(dist/'mintcraft-sputnik-0.1.1.zip').read_bytes()
+first=(dist/'mintcraft-sputnik-0.1.2.zip').read_bytes()
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
-assert first==(dist/'mintcraft-sputnik-0.1.1.zip').read_bytes(),'Non-deterministic distribution'
+assert first==(dist/'mintcraft-sputnik-0.1.2.zip').read_bytes(),'Non-deterministic distribution'
 for name,record in manifest['artifacts'].items():
  data=(dist/name).read_bytes();assert len(data)==record['bytes'] and hashlib.sha256(data).hexdigest()==record['sha256']
+ if name.endswith('.lua') and not name.startswith('sdk/'):
+  assert builder.nbt_utf8_size(data.decode())<=60000,'Unsafe native NBT string size'
  if name.endswith('.clipboard.txt'):
   assert not any(chr(c).isspace() for c in data),'Whitespace rejected by Sputnik native decoder'
   assert base64.b64decode(data,validate=True).startswith(b'{nodes:[')
@@ -32,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  cp=str(folder)+os.pathsep+str(runtime)
  execute([java,'-cp',cp,'VerifySputnikLua','platforms/sputnik/tests/runtime.lua'])
  bootstrap=folder/'bootstrap.lua'
- text="getUniverseTime=function() return 0 end\nlocal sdk=assert(loadfile('platforms/sputnik/dist/mintcraft-library.lua'))()\nlocal host=require\nlocal included={\n"
+ text="getUniverseTime=function() return 0 end\nlocal sdk=assert(loadfile('platforms/sputnik/dist/sdk/mintcraft-library.lua'))()\nlocal host=require\nlocal included={\n"
  text+=''.join('['+json.dumps(name)+']=true,\n' for name in manifest['modules'])
  text+="}\nrequire=function(name) if included[name] then return sdk(name) end return host(name) end\n"
  bootstrap.write_text(text)

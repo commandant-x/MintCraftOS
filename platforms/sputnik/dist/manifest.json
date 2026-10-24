@@ -1,13 +1,21 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
   "testedInMinecraft": false,
   "qualifiedAutopilot": false,
   "defaultActuation": false,
+  "nativeNodeModifiedUtf8Budget": 60000,
+  "developerLibraryImportableAsSingleNode": false,
+  "nodeModifiedUtf8Bytes": {
+    "import-test": 102,
+    "dashboard": 3753,
+    "link-gateway": 3012,
+    "numeric-radio": 1269
+  },
   "modules": {
     "system.libraries.addon": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
     "system.ascendancy.contracts": "bdc7466cb6a538bed085efa8c18860c7fc4c0bbefd2fc4c25b80255c769b9c1a",
@@ -27,7 +35,7 @@
     "system.navigation.autopilot": "f933a275d507104478ad9560bd9af24b5876e565ef3151c6ac692f9e26142769"
   },
   "artifacts": {
-    "mintcraft-library.lua": {
+    "sdk/mintcraft-library.lua": {
       "bytes": 104732,
       "sha256": "fc290abc7814bd0d5d5ec2a78c4d6039a584b07f2c06aec5c98426dac88b3942"
     },
@@ -40,12 +48,12 @@
       "sha256": "4db13688adfbd94e871caffcb3a75cc52c28a56001ffa4bbde591300c4d37441"
     },
     "mintcraft-dashboard.lua": {
-      "bytes": 108508,
-      "sha256": "4756ae7ffb2e4bcfdc78905cf59c8d4535cfcf17a24a54e073b10bbab3568ab8"
+      "bytes": 3753,
+      "sha256": "4647547b2efc084ef200dad0fd076b00bcea4715e3f53c9ec2f496960792cf9b"
     },
     "mintcraft-dashboard.clipboard.txt": {
-      "bytes": 145304,
-      "sha256": "ead4c46c85d89eb68fd0b588f9fb46a7cebe0bb142283217c3f46aa2f6ffd42c"
+      "bytes": 5272,
+      "sha256": "6ea5a3c1cda64b7062b6827dedd7cbc6cb34837e8c256f823149f363bdb21e02"
     },
     "mintcraft-link-gateway.lua": {
       "bytes": 3012,

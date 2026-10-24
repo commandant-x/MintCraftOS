@@ -29,8 +29,9 @@ local savedOs,savedIo,savedRequire=os,io,require
 os=nil io=nil require=nil fs=nil http=nil peripheral=nil shell=nil term=nil
 assert(pcall(dashboard))
 assert(#writes==0 and outputs['Flight qualified']==0 and outputs['Telemetry valid']==1)
-local sdk=assert(MintCraftSputnik.require)
-local library=assert(realLoadfile('platforms/sputnik/dist/mintcraft-library.lua'))()
+assert(MintCraftSputnik.require==nil,'dashboard embedded an unused oversized SDK')
+local sdk=assert(realLoadfile('platforms/sputnik/dist/sdk/mintcraft-library.lua'))()
+local library=assert(realLoadfile('platforms/sputnik/dist/sdk/mintcraft-library.lua'))()
 assert(library('system.navigation.known_flight'))
 assert(sdk('system.navigation.response_model').axes[3]=='vertical')
 assert(sdk('system.navigation.altitude_sweep').defaults().maxTravel==0)

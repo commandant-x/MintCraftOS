@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.1
+# MintCraft Sputnik 0.1.2
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.1.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.2.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -30,7 +30,7 @@ Pas de `wget`, de shell CraftOS ni d'installateur CC dans Sputnik.
 
 ### Si le collage ne fait rien
 
-La 0.1.1 corrige un retour à la ligne final dans les anciens fichiers Base64.
+La 0.1.2 corrige un retour à la ligne final dans les anciens fichiers Base64.
 Sputnik le rejetait silencieusement. Utiliser les nouveaux fichiers sans espace,
 sans guillemets et sans retour à la ligne ajouté. `mintcraft-import-test.clipboard.txt`
 est un tout petit graphe de test : le nœud doit apparaître et afficher la sortie
@@ -47,7 +47,7 @@ Fermer l'éditeur pour revenir au graphe et sauvegarder.
   horloge, inventaire à la demande et sorties numériques. La masse et l'horloge
   sont absentes de certaines vues client : cela est affiché, jamais remplacé par
   un faux certificat de télémétrie.
-- **16 modules de calcul portables** : géométrie, estimation de pose, autorité,
+- **16 modules de calcul pour le développement, séparés du nœud** : géométrie, estimation de pose, autorité,
   identification/allocation six axes, contrôleur et qualification, inclinaison,
   convergence, balayage d'altitude, modèle altitude, guidage historique et contrats.
   Leurs sources sont incluses sans modifier leurs mathématiques. Leur présence
@@ -58,10 +58,25 @@ Fermer l'éditeur pour revenir au graphe et sauvegarder.
 - **Numeric radio**, optionnelle : canal/code/valeur et émission sur un front
   manuel. Une réception est un cache sans horodatage ni authentification.
 
-La bibliothèque seule est `mintcraft-library.lua`. Dans un nœud dashboard,
-`MintCraftSputnik.require('system.navigation.response_model')` donne accès au
-module inclus, dans le même environnement Lua. Il ne s'agit pas du `require`
-CraftOS ou d'un accès aux fichiers. Les autres nœuds n'ont pas un `_G` partagé.
+La bibliothèque de développement est séparée dans `sdk/mintcraft-library.lua`.
+**Ne pas la coller en bloc dans Sputnik** : elle dépasse la limite NBT de
+65 535 octets par chaîne. Elle sert aux tests et au développement de contrôleurs
+ciblés ; le tableau de bord téléversable ne l'embarque plus et n'expose pas
+`MintCraftSputnik.require`. Les modules restent conservés, sans activation de vol.
+
+### Erreur réseau avec les anciennes versions
+
+La 0.1.2 corrige le code de 108 508 octets embarqué dans le tableau de bord.
+Le parseur de texte pouvait le lire, mais le paquet réseau échouait lors de
+l'écriture NBT (`UTFDataFormatException`). Chaque nœud téléversable est maintenant
+borné à 60 000 octets **UTF modifié Java**, et les tests écrivent réellement le NBT.
+Le nouveau tableau de bord fait environ 4 Ko.
+
+Si l'ancien nœud est encore affiché, ouvrir son éditeur et remplacer son code par
+`output("Test", 1)`, exécuter puis sauvegarder. Ensuite remplacer ce petit code
+par le nouveau `mintcraft-dashboard.lua`. Ne pas recoller les fichiers 0.1.0/0.1.1.
+Si le client rouvre un ancien graphe surdimensionné, redémarrer d'abord Minecraft
+pour vider son cache de graphes côté client ; aucun fichier de monde à supprimer.
 
 ## Passerelle Link : emploi explicite
 

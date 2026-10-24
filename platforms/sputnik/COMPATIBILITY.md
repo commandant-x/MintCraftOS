@@ -3,7 +3,7 @@
 | Fonction MintCraftOS | Édition Sputnik sans nouveau mod | Limite vérifiée |
 | --- | --- | --- |
 | Tableau de bord/navigation numérique | Nœud Lua natif et sorties de graphe | Pas le bureau CraftOS |
-| Calculs de navigation, altitude, identification, allocation et qualification | 16 modules inclus | Ils exigent toujours les données/provenances réelles |
+| Calculs de navigation, altitude, identification, allocation et qualification | 16 modules de développement séparés | Bibliothèque complète non téléversable en un nœud ; données/provenances réelles toujours nécessaires |
 | Télémétrie position/vitesse/attitude/masse | API Cosmonautics native | Vitesse du root Sable, pas du bloc tournant ; masse serveur seulement |
 | Inertie | API native : diagonale seulement | Pas de tenseur complet ni centre de masse |
 | Inventaire moteur | Relevé explicite des IDs/types | Portée dimension ; aucun groupage par proximité |
