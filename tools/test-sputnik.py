@@ -18,9 +18,9 @@ spec=importlib.util.spec_from_file_location('sputnik_build',ROOT/'tools/build-sp
 assert builder.nbt_utf8_size('a')==1 and builder.nbt_utf8_size('\0')==2 and builder.nbt_utf8_size('é')==2 and builder.nbt_utf8_size('😀')==6
 dist=ROOT/'platforms/sputnik/dist'; manifest=json.loads((dist/'manifest.json').read_text())
 assert hashlib.sha256(args.cosmonautics_jar.read_bytes()).hexdigest()==manifest['hostJarSha256'],'Different Cosmonautics JAR: audit its APIs before claiming compatibility'
-first=(dist/'mintcraft-sputnik-0.1.13.zip').read_bytes()
+first=(dist/'mintcraft-sputnik-0.1.14.zip').read_bytes()
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
-assert first==(dist/'mintcraft-sputnik-0.1.13.zip').read_bytes(),'Non-deterministic distribution'
+assert first==(dist/'mintcraft-sputnik-0.1.14.zip').read_bytes(),'Non-deterministic distribution'
 for name,record in manifest['artifacts'].items():
  data=(dist/name).read_bytes();assert len(data)==record['bytes'] and hashlib.sha256(data).hexdigest()==record['sha256']
  if name.endswith('.lua') and not name.startswith('sdk/'):

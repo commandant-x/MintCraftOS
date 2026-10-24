@@ -1,10 +1,37 @@
-# Quad natif Sputnik 0.1.13 — contrôleur expérimental
+# Quad natif Sputnik 0.1.14 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
 dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
 masse, de la pression et de la géométrie confirmée. Le mode manuel historique
 reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Autorisation et puissance séparées — 0.1.14
+
+Le levier sur sa fréquence dédiée fournit uniquement une **autorisation** :
+signal physique 0 = OFF ; tout entier 1 à 15 = ON. Le lecteur fournit alors
+`Enable=1`, jamais la puissance analogique du levier. Cette valeur ne sert ni
+de consigne moteur, ni de multiplicateur des commandes des hélices.
+
+Après un OFF réel et une activation à plat avec configuration valide, le
+contrôleur capture la position et l'altitude puis calcule les quatre niveaux
+de transmission indépendamment. Il démarre ce maintien même si `Commands valid`
+vaut 0 : un clavier pas encore prêt ne bloque plus la stabilisation. Les
+fréquences clavier doivent néanmoins être configurées et raccordées pour
+vérifier leur séparation des sorties moteur. Un clavier valide avec une touche
+maintenue doit être relâché avant le démarrage. Pendant le maintien, des
+commandes invalides sont ignorées ; des commandes valides déplacent les consignes.
+
+Sur un quad symétrique réellement à plat, une chute verticale appelle une
+augmentation collective de la poussée : les quatre signaux baissent ensemble
+dans le sens réducteur de ces transmissions. Le test couvre ce cas et compare
+les traces moteur obtenues pour chacune des quinze puissances d'autorisation.
+Il ne prouve ni le câblage réel des quatre fréquences, ni le centrage du véhicule.
+
+Le levier ne doit alimenter ni une transmission directement, ni un émetteur
+sur une fréquence moteur : un autre émetteur à 15 y imposerait l'arrêt.
+L'état OFF conserve le comportement de repli existant ; il ne constitue pas
+une procédure automatique d'atterrissage.
 
 ## Mode physique automatique — ne plus remplir les sept coefficients
 

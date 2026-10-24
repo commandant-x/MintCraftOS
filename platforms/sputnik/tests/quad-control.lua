@@ -128,14 +128,15 @@ s.noise.value='';tick();assert(outputs.Status:find('PARAM_noise',1,true))
 s.noise.value='.0025';s.physicalFields.armX.value.value='';tick()
 assert(outputs.Status:find('PHYS_armX',1,true))
 s.physicalFields.armX.value.value='2';tick();tick();tick()
-inputs['Flight Enable']=15;inputs['Commands valid']=0;tick()
-assert(outputs.Status:find('KEYS_WAIT',1,true))
-inputs['Commands valid']=1;inputs['Vertical demand']=1;tick()
+inputs['Flight Enable']=15;inputs['Commands valid']=1;inputs['Vertical demand']=1;tick()
 assert(outputs.Status:find('KEYS_HELD',1,true))
 assert(#sends==0,'diagnostics bypassed activation guards')
+inputs['Commands valid']=0;tick()
+assert(outputs.Active==1,'keyboard readiness blocked neutral stabilisation')
+assert(outputs['Target altitude']==pose.y,'neutral stabilisation did not capture altitude')
 _G.MintCraftQuad=nil;pose.mass=0;node()
 assert(outputs.Status:find('MASS:',1,true),'missing mass silently hid Status output')
-print('Detailed refusal diagnostics: confirmation, missing typed bindings, 0/6 keyboard channels, cross-role frequency collision, missing rotor, noise/geometry fields, held key/unarmed keyboard and absent server mass all reported without bypassing guards')
+print('Detailed refusal diagnostics: confirmation, missing typed bindings, collisions, fields, held key and absent server mass; invalid movement commands allow neutral stabilisation')
 -- Regression: after a real control failure, high Enable must not hide it as BASELINE.
 _G.MintCraftQuad=nil;pose.mass=65;pose.pitch=0;pose.roll=0;inputs['Flight Enable']=0;inputs['Commands valid']=1;inputs['Vertical demand']=0
 node();s=_G.MintCraftQuad;s.checked.value=true;s.physical.value=true
@@ -178,3 +179,39 @@ tick();assert(outputs.Active==1 and outputs.Status:find('RADIO_1:',1,true),'stro
 receiveWirelessRedstone=function() return 0 end
 tick();assert(not outputs.Status:find('RADIO_',1,true),'stale radio warning not cleared')
 print('Competing TX diagnostic: stronger network strength reported as a warning, never treated as physical ACK and never bypasses control guards')
+
+-- Permission amplitude must never become a motor command. Pure level descent
+-- on a symmetric quad must request collective lift, even without a ready keyboard.
+local function permissionTrace(strength)
+ _G.MintCraftQuad=nil;sends={};outputs={}
+ pose={tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=65,dimension='minecraft:overworld'}
+ inputs['Flight Enable']=0;inputs['Commands valid']=0
+ -- Invalid keyboard values are ignored rather than mixed into lift/attitude.
+ inputs['Forward demand']=1;inputs['Left demand']=-1;inputs['Vertical demand']=1
+ node();s=_G.MintCraftQuad;s.checked.value=true;s.physical.value=true
+ s.physicalFields.armX.value.value='3';s.physicalFields.armZ.value.value='3'
+ for i,r in ipairs(s.rotors) do r.a.value='minecraft:stone';r.b.value='minecraft:item_'..i;r.row.value='' end
+ tick();tick();tick();inputs['Flight Enable']=strength;tick()
+ assert(outputs.Active==1 and outputs['Target altitude']==80,'permission did not start neutral hold')
+ local trace,first,last={},0,0
+ for n=1,60 do
+  pose.y=pose.y-.03;tick()
+  assert(outputs.Active==1,'level descent stopped stabilisation')
+  local base=#sends-3
+  for i=1,4 do
+   local signal=sends[base+i-1][3]
+   assert(signal==sends[base][3],'level descent introduced asymmetric rotor commands')
+   trace[#trace+1]=signal
+   if n<=10 then first=first+signal end
+   if n>50 then last=last+signal end
+  end
+ end
+ assert(last<first,'falling quad did not request more collective thrust (lower signals)')
+ assert(outputs['Target altitude']==80,'missing keyboard changed altitude target')
+ inputs['Commands valid']=1;inputs['Forward demand']=0;inputs['Left demand']=0;inputs['Vertical demand']=1
+ tick();assert(outputs['Target altitude']>80,'keyboard did not take over target movement after neutral hold')
+ return table.concat(trace,',')
+end
+local reference=permissionTrace(1)
+for strength=2,15 do assert(permissionTrace(strength)==reference,'Enable strength scaled rotor control') end
+print('Binary permission regression: strengths 1..15 produce identical motor traces; no ready keyboard still holds altitude; level descent increases all four rotors together; valid Space later changes target')

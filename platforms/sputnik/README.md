@@ -1,4 +1,9 @@
-# MintCraft Sputnik 0.1.13
+# MintCraft Sputnik 0.1.14
+
+**0.1.14 : autorisation binaire et maintien autonome au neutre.** Le levier
+1..15 devient `Enable=1`, sans transmission de sa puissance aux moteurs.
+La stabilisation peut démarrer sans clavier prêt ; les touches valides servent
+à déplacer les consignes. Voir [QUAD-FLIGHT.md](QUAD-FLIGHT.md).
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +12,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.13.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.14.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

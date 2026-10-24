@@ -30,6 +30,14 @@ local quad=env('quad','platforms/sputnik/dist/mintcraft-quad-control.lua')
 local audit=env('audit','platforms/sputnik/dist/mintcraft-flight-telemetry.lua')
 consent.MintCraftConsent.a.v='minecraft:pink_wool';consent.MintCraftConsent.b.v='minecraft:pink_wool'
 local enable='minecraft:pink_wool,minecraft:pink_wool'
+-- Native adapter converts physical strength to permission, not throttle.
+for strength=1,15 do
+ w.bus[enable]=strength;consent.run();assert(consent.outputs.Enable==1,'consent leaked analog strength')
+end
+for _,strength in ipairs({0,.5,16,-1}) do
+ w.bus[enable]=strength;consent.run();assert(consent.outputs.Enable==0,'invalid consent accepted')
+end
+w.bus[enable]=0;consent.run()
 local keyNames={'W','S','Q','D','Space','Shift'}
 local keyItems={'blue_wool','orange_wool','lime_wool','red_wool','white_wool','black_wool'}
 local keyChannels={}
@@ -74,6 +82,7 @@ assert(#w.writes==0,'unarmed graph emitted rotor commands')
 w.bus[enable]=15
 for _=1,10 do step() end
 assert(quad.outputs.Active==1 and keyboard.outputs['Commands valid']==1,'complete graph did not activate: '..tostring(quad.outputs.Status))
+assert(consent.outputs.Enable==1 and w.bus[enable]==15,'physical ON strength was not isolated from controller permission')
 assert(audit.outputs.Mass==65 and audit.outputs['Inertia X']==250 and audit.outputs['Pose valid']==1,'audit lost native mass/inertia')
 local start=w.y;local initialTarget=quad.outputs['Target altitude']
 w.bus[keyChannels.Space]=15

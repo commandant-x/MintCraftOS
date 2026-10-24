@@ -402,11 +402,14 @@ if server then
   if s.phase~='active' then
    if s.fault then s.reason=s.fault.message
    elseif s.phase~='ready' then s.reason='BASELINE: mettre levier a 0 puis activer sans touche'
-   elseif keys~=1 then s.reason='KEYS_WAIT: clavier pas encore arme (Commands valid ~= 1)'
-   elseif forward~=0 or left~=0 or vertical~=0 then s.reason='KEYS_HELD: relacher touches F='..tostring(forward)..' L='..tostring(left)..' Y='..tostring(vertical)
+   elseif keys==1 and (forward~=0 or left~=0 or vertical~=0) then s.reason='KEYS_HELD: relacher touches F='..tostring(forward)..' L='..tostring(left)..' Y='..tostring(vertical)
    elseif not level then s.reason='LEVEL_WAIT: remettre le quad a plat (pitch='..tostring(pitch)..' roll='..tostring(roll)..'; depart +/-10 deg)' end
   end
-  if s.phase=='ready' and keys==1 and forward==0 and left==0 and vertical==0 and level then
+  -- Permission is binary and independent of keyboard readiness. With no valid
+  -- movement command, capture this position and stabilise at neutral demand.
+  -- A valid held key still requires release before starting the controller.
+  local neutral=keys~=1 or (forward==0 and left==0 and vertical==0)
+  if s.phase=='ready' and neutral and level then
    local core,why=Quad.new(rows,pose,config)
    if core then
     s.info=nil s.core=core s.owner={pairs=pairs_,rows=core.model.rows} s.phase='active' s.reason='Boucle experimentale en cours'
