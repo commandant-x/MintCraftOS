@@ -6,13 +6,13 @@ local function read(name,...)
 end
 local function number(v) return finite(v) and string.format('%.2f',v) or '?' end
 if not _G.MintCraftSputnik then
- local state={version='0.1.2',actuation=false,flightQualified=false,clockAvailable=false}
+ local state={version='0.1.3',actuation=false,flightQualified=false,clockAvailable=false}
  -- No vehicle UUID, RX association or ownership API is present in the audited host.
  state.capabilities={telemetry=true,numericNavigation=false,wirelessLinks=true,numericRadio=true,
   filesystem=false,http=false,authentication=false,completeGeometry=false,qualifiedAutopilot=false}
  _G.MintCraftSputnik=state
  if type(ui)=='table' and type(addElement)=='function' then
-  state.title=ui.label('MintCraft Sputnik 0.1.2 | lecture seule')
+  state.title=ui.label('MintCraft Sputnik 0.1.3 | lecture seule')
   state.position=ui.label('Position ?') state.motion=ui.label('Vitesse ?')
   state.attitude=ui.label('Attitude ?') state.physical=ui.label('Masse ?')
   state.notice=ui.label('Pilotage qualifie indisponible: identite/RX non exposes')

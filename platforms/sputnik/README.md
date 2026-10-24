@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.2
+# MintCraft Sputnik 0.1.3
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.2.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.3.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -30,7 +30,7 @@ Pas de `wget`, de shell CraftOS ni d'installateur CC dans Sputnik.
 
 ### Si le collage ne fait rien
 
-La 0.1.2 corrige un retour à la ligne final dans les anciens fichiers Base64.
+La 0.1.3 corrige un retour à la ligne final dans les anciens fichiers Base64.
 Sputnik le rejetait silencieusement. Utiliser les nouveaux fichiers sans espace,
 sans guillemets et sans retour à la ligne ajouté. `mintcraft-import-test.clipboard.txt`
 est un tout petit graphe de test : le nœud doit apparaître et afficher la sortie
@@ -41,13 +41,24 @@ ci-dessus et y saisir simplement `output("MintCraft test", 1)`, puis **Run (▶)
 Fermer l'éditeur pour revenir au graphe et sauvegarder.
 
 
+## Configurations Venator, airship et rotors
+
+[Groupes de commande et limites physiques](VEHICLE-PROFILES.md) : le Venator décrit
+possède deux banques arrière de deux moteurs et quatre pales indépendantes.
+Le nœud `mintcraft-drive-mixer.lua` fournit les deux demandes de propulsion signées
+et quatre demandes de sustentation normalisées, sans émettre de signal moteur.
+Il gère marche arrière, pivot, rotation sur place et STOP horizontal laissant les
+demandes de sustentation inchangées. Ces demandes **ne sont pas** des niveaux
+redstone 0–15 : la table de transmission mesurée et les retours physiques restent
+nécessaires avant tout actionnement. Le niveau 15 coupe les pales du Venator.
+
 ## Contenu
 
 - **Dashboard** natif : position/dimension, vitesse, attitude, masse serveur,
   horloge, inventaire à la demande et sorties numériques. La masse et l'horloge
   sont absentes de certaines vues client : cela est affiché, jamais remplacé par
   un faux certificat de télémétrie.
-- **16 modules de calcul pour le développement, séparés du nœud** : géométrie, estimation de pose, autorité,
+- **17 modules de calcul pour le développement, séparés du nœud** : géométrie, estimation de pose, autorité,
   identification/allocation six axes, contrôleur et qualification, inclinaison,
   convergence, balayage d'altitude, modèle altitude, guidage historique et contrats.
   Leurs sources sont incluses sans modifier leurs mathématiques. Leur présence
@@ -66,7 +77,7 @@ ciblés ; le tableau de bord téléversable ne l'embarque plus et n'expose pas
 
 ### Erreur réseau avec les anciennes versions
 
-La 0.1.2 corrige le code de 108 508 octets embarqué dans le tableau de bord.
+La 0.1.2 a corrigé le code de 108 508 octets embarqué dans le tableau de bord.
 Le parseur de texte pouvait le lire, mais le paquet réseau échouait lors de
 l'écriture NBT (`UTFDataFormatException`). Chaque nœud téléversable est maintenant
 borné à 60 000 octets **UTF modifié Java**, et les tests écrivent réellement le NBT.

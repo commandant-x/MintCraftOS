@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -11,6 +11,7 @@
   "nativeNodeModifiedUtf8Budget": 60000,
   "developerLibraryImportableAsSingleNode": false,
   "nodeModifiedUtf8Bytes": {
+    "drive-mixer": 5100,
     "import-test": 102,
     "dashboard": 3753,
     "link-gateway": 3012,
@@ -32,12 +33,25 @@
     "system.navigation.altitude_model": "a919f935f501b23d73c239956ba502aaddd32a82a39ead6857c154928f0344da",
     "system.navigation.altitude_sweep": "a1bf31b674f6e2986f20d4803fa52d80cb800c31320e06551b6256d379145100",
     "system.navigation.sweep_progress": "6a5f8fc4b7c5c57656db87f9d37fc42895bad45af021f2aa2ea74e1070ed0b59",
-    "system.navigation.autopilot": "f933a275d507104478ad9560bd9af24b5876e565ef3151c6ac692f9e26142769"
+    "system.navigation.autopilot": "f933a275d507104478ad9560bd9af24b5876e565ef3151c6ac692f9e26142769",
+    "platforms.sputnik.src.drive_mixer": "dcf909fb1d2f3a2b09a25738ff98b84600c4c805863a01b491f0a8c94ec89905"
   },
   "artifacts": {
+    "profiles/venator.json": {
+      "bytes": 1803,
+      "sha256": "10cb98fd29382497af52c59ce9105cb45c89d8f2879689d5186f0b0ea2ace845"
+    },
     "sdk/mintcraft-library.lua": {
-      "bytes": 104732,
-      "sha256": "fc290abc7814bd0d5d5ec2a78c4d6039a584b07f2c06aec5c98426dac88b3942"
+      "bytes": 108184,
+      "sha256": "f1c07b6740395a5cfa762735c9878dd8c5ed8bdd9ef7d9ffc3d7091bedbba3e0"
+    },
+    "mintcraft-drive-mixer.lua": {
+      "bytes": 5100,
+      "sha256": "9b64ecb4a6367f2be7197242e47b9f9cc6842091b9b5ac3cfd7bc0bdae602171"
+    },
+    "mintcraft-drive-mixer.clipboard.txt": {
+      "bytes": 7072,
+      "sha256": "c9a426c02ff19382566e02979d451f5ed21333283c2f4a228c5d4747fc997db9"
     },
     "mintcraft-import-test.lua": {
       "bytes": 102,
@@ -49,11 +63,11 @@
     },
     "mintcraft-dashboard.lua": {
       "bytes": 3753,
-      "sha256": "4647547b2efc084ef200dad0fd076b00bcea4715e3f53c9ec2f496960792cf9b"
+      "sha256": "b7201994d645b6e16a90369b6449d1d261cee842a24d326dcc11853765655e9e"
     },
     "mintcraft-dashboard.clipboard.txt": {
       "bytes": 5272,
-      "sha256": "6ea5a3c1cda64b7062b6827dedd7cbc6cb34837e8c256f823149f363bdb21e02"
+      "sha256": "225bad4602390ba9e2597432d528a20928a02eb519066b9da70daee57e0da325"
     },
     "mintcraft-link-gateway.lua": {
       "bytes": 3012,

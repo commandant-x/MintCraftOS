@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "kind": "unqualified-vehicle-layout",
+  "name": "Venator",
+  "liveActuation": false,
+  "flightQualified": false,
+  "groups": [
+    {"id": "rear-left", "role": "signed-propulsion", "members": 2, "side": "left", "linkFrequencies": null, "transmissionCurveRPM": null, "inverter": null, "clutch": null},
+    {"id": "rear-right", "role": "signed-propulsion", "members": 2, "side": "right", "linkFrequencies": null, "transmissionCurveRPM": null, "inverter": null, "clutch": null},
+    {"id": "lift-1", "role": "lift", "members": 1, "physicalPosition": null, "independent": true, "mechanicalStopSignal": 15, "hoverSignal": null, "linkFrequencies": null, "transmissionCurveRPM": null},
+    {"id": "lift-2", "role": "lift", "members": 1, "physicalPosition": null, "independent": true, "mechanicalStopSignal": 15, "hoverSignal": null, "linkFrequencies": null, "transmissionCurveRPM": null},
+    {"id": "lift-3", "role": "lift", "members": 1, "physicalPosition": null, "independent": true, "mechanicalStopSignal": 15, "hoverSignal": null, "linkFrequencies": null, "transmissionCurveRPM": null},
+    {"id": "lift-4", "role": "lift", "members": 1, "physicalPosition": null, "independent": true, "mechanicalStopSignal": 15, "hoverSignal": null, "linkFrequencies": null, "transmissionCurveRPM": null}
+  ],
+  "authority": {"forward": "candidate", "yaw": "candidate", "vertical": "candidate", "pitch": "requires-positions-and-response", "roll": "requires-positions-and-response", "lateral": "not-directly-observed"},
+  "propulsionMix": "pivot-inside-and-neutral-steering",
+  "stopPolicy": "stop-horizontal-preserve-qualified-vertical-hold",
+  "missing": ["actual-Link-bindings", "physical-lift-positions", "measured-RPM-curves", "receiver-and-mechanical-feedback", "hover-and-closed-loop-evidence"]
+}
