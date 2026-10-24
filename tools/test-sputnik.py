@@ -4,6 +4,7 @@ import base64, argparse, hashlib, json, os, pathlib, shutil, subprocess, tempfil
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser()
 parser.add_argument('--cosmonautics-jar',type=pathlib.Path,required=True)
+parser.add_argument('--sable-jar',type=pathlib.Path,help='Optional audited Sable JAR for actual pressure-curve oracle')
 parser.add_argument('--java-home',type=pathlib.Path)
 parser.add_argument('--minecraft-classpath',help='Optional mapped MC 1.21.1 + runtime dependencies for real SNBT parsing')
 args=parser.parse_args()
@@ -17,9 +18,9 @@ spec=importlib.util.spec_from_file_location('sputnik_build',ROOT/'tools/build-sp
 assert builder.nbt_utf8_size('a')==1 and builder.nbt_utf8_size('\0')==2 and builder.nbt_utf8_size('é')==2 and builder.nbt_utf8_size('😀')==6
 dist=ROOT/'platforms/sputnik/dist'; manifest=json.loads((dist/'manifest.json').read_text())
 assert hashlib.sha256(args.cosmonautics_jar.read_bytes()).hexdigest()==manifest['hostJarSha256'],'Different Cosmonautics JAR: audit its APIs before claiming compatibility'
-first=(dist/'mintcraft-sputnik-0.1.7.zip').read_bytes()
+first=(dist/'mintcraft-sputnik-0.1.8.zip').read_bytes()
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
-assert first==(dist/'mintcraft-sputnik-0.1.7.zip').read_bytes(),'Non-deterministic distribution'
+assert first==(dist/'mintcraft-sputnik-0.1.8.zip').read_bytes(),'Non-deterministic distribution'
 for name,record in manifest['artifacts'].items():
  data=(dist/name).read_bytes();assert len(data)==record['bytes'] and hashlib.sha256(data).hexdigest()==record['sha256']
  if name.endswith('.lua') and not name.startswith('sdk/'):
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
    if name.startswith('dev/devce/rocketnautics/shaded/luaj/') and name.endswith('.class'):target.writestr(name,src.read(name))
  execute([javac,'-cp',runtime,'-d',folder,ROOT/'tools/VerifySputnikLua.java'])
  cp=str(folder)+os.pathsep+str(runtime)
- execute([java,'-cp',cp,'VerifySputnikLua','platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua'])
+ execute([java,'-cp',cp,'VerifySputnikLua','platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua'])
  bootstrap=folder/'bootstrap.lua'
  text="getUniverseTime=function() return 0 end\nlocal sdk=assert(loadfile('platforms/sputnik/dist/sdk/mintcraft-library.lua'))()\nlocal host=require\nlocal included={\n"
  text+=''.join('['+json.dumps(name)+']=true,\n' for name in manifest['modules'])
@@ -43,6 +44,12 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  bootstrap.write_text(text)
  execute([java,'-cp',cp,'VerifySputnikLua',bootstrap,*['tests/'+name+'.lua' for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight')]])
  if args.minecraft_classpath:
+  if args.sable_jar:
+   audit=json.loads((ROOT/'platforms/sputnik/profiles/aeronautics-1.3.2-defaults.json').read_text())
+   assert hashlib.sha256(args.sable_jar.read_bytes()).hexdigest()==audit['jars']['sable-neoforge-1.21.1-2.0.6.jar'],'Different Sable physics JAR'
+   execute([javac,'-d',folder,ROOT/'tools/VerifySablePressure.java'])
+   actual=subprocess.check_output([java,'-cp',str(folder)+os.pathsep+args.minecraft_classpath+os.pathsep+str(args.sable_jar),'VerifySablePressure'],cwd=ROOT)
+   assert actual==(ROOT/'platforms/sputnik/tests/fixtures/sable-pressure.csv').read_bytes(),'Actual Sable pressure oracle changed'
   execute([javac,'-proc:none','-cp',args.minecraft_classpath,'-d',folder,ROOT/'tools/VerifySputnikClipboard.java'])
   pairs=[]
   for name in ('quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):

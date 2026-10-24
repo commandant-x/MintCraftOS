@@ -52,7 +52,7 @@ pose.tick=pose.tick+20 assert(not core:step(pose,neutral),'clock gap accepted')
 print('Native quad: Kalman covariance/velocity, measured rank, integer bounded allocation, altitude capture, tilt forward/strafe/braking, mass change retaining altitude; simplified near-level physics only')
 -- Native hardware adapter fixtures: no action before config and low-high gate.
 _G.MintCraftQuad=nil
-ui={label=function() return {setText=function() end} end,checkbox=function() local c={value=false};c.isChecked=function() return c.value end;return c end,
+ui={label=function() return {setText=function(v) assert(type(v)=='string','native UI expects label text') end} end,checkbox=function() local c={value=false};c.isChecked=function() return c.value end;return c end,
  textfield=function() local c={value=''};c.getValue=function() return c.value end;c.setValue=function(v) c.value=v end;return c end,
  itempicker=function() local c={value='minecraft:air'};c.getItem=function() return c.value end;return c end}
 addElement=function() end
@@ -92,3 +92,17 @@ for i,r in ipairs(s.rotors) do r.a.value='minecraft:stone';r.b.value=i==1 and 'm
 tick();tick();tick();inputs['Flight Enable']=15;tick()
 assert(#sends==0 and outputs.Active==0,'keyboard frequency collision actuated rotor')
 print('Native rotor adapter: four mapped Links, no boot action, physical low-high gate, measured fallback, frozen old mapping, latched fault/rearm and mass-context loss passed; no world flight proof')
+-- Native automatic physical mode: blank measured rows, real API mass/inertia.
+_G.MintCraftQuad=nil;sends={};pose.mass=65;inputs['Flight Enable']=0
+getInertiaTensor=function() return 250,500,250 end
+node();s=_G.MintCraftQuad;s.checked.value=true;s.physical.value=true
+s.physicalFields.armX.value.value='3';s.physicalFields.armZ.value.value='3'
+for i,r in ipairs(s.rotors) do r.a.value='minecraft:stone';r.b.value='minecraft:item_'..i;r.row.value='' end
+tick();tick();tick();inputs['Flight Enable']=15;tick()
+assert(outputs.Active==1 and #sends==4,'physical model required guessed measured fields')
+assert(outputs['Maximum thrust']>outputs.Weight and outputs.Weight==715)
+tick();pose.mass=60;tick()
+assert(outputs.Active==1 and outputs.Weight==660,'mass/inertia did not update physical model')
+s.physicalFields.armX.value.value='4';tick()
+assert(outputs.Active==0,'physical geometry changed without requalification')
+print('Native automatic physical mode: blank manual rows, API mass/inertia, density-derived trim, four real Link calls and mass update passed')

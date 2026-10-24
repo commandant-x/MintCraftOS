@@ -1,0 +1,57 @@
+local P=assert(loadfile('platforms/sputnik/src/aero_physics.lua'))()
+local Q=assert(loadfile('platforms/sputnik/src/quad_control.lua'))() Q.Physics=P
+-- Oracle rows produced by real Sable BezierResourceFunction.evaluateFunction.
+for line in io.lines('platforms/sputnik/tests/fixtures/sable-pressure.csv') do
+ local y,v=line:match('([^,]+),([^,]+)') assert(math.abs(P.pressure(tonumber(y))-tonumber(v))<1e-12,'Sable pressure mismatch at '..y)
+end
+assert(P.rpm(256,0)==240 and P.rpm(256,15)==0 and P.rpm(256,7)==128)
+assert(P.force(240,1,0,1,.1)==240)
+assert(P.force(240,1,12,1,.1)==120 and P.force(240,1,-12,1,.1)==240)
+assert(P.force(240,1,30,1,.1)==0 and P.force(0,1,0,1,.1)==0)
+local spec={source=256,thrust=1,airflow=.1,armX=3,armZ=3,height=0,gravity=11}
+local pose={tick=100,mass=65,ix=250,iz=250,x=0,y=80,z=0,pitch=0,roll=0,yaw=0,dimension='minecraft:overworld'}
+local rows,diag=assert(P.rows(spec,pose))
+assert(rows[1][4]<0 and rows[1][5]>0 and rows[1][6]>0,'front-left moments/transmission sign')
+assert(not P.rows(spec,{dimension='custom:moon'}),'unknown dimension accepted')
+local bad={} for k,v in pairs(pose) do bad[k]=v end bad.mass=1000
+assert(not P.rows(spec,bad),'impossible lift accepted')
+local lower=rows[1][1];bad.mass=pose.mass;bad.y=100
+assert(P.rows(spec,bad)[1][1]<lower,'thin air did not increase RPM')
+local config={physics=spec,speed=1,climb=.5,tilt=6}
+local core=assert(Q.new(nil,pose,config))
+local rates={x=0,y=0,z=0,pitch=0,roll=0}
+local rpm={} for i,r in ipairs(rows) do rpm[i]=P.rpm(spec.source,r[1]) end
+local function step(command)
+ pose.tick=pose.tick+1
+ local signals,info=core:step(pose,command) assert(signals,info)
+ local up={-math.sin(math.rad(pose.roll)),math.cos(math.rad(pose.pitch))*math.cos(math.rad(pose.roll)),math.sin(math.rad(pose.pitch))*math.cos(math.rad(pose.roll))}
+ local sum,mx,mz=0,0,0
+ local locations={{-3,3},{3,3},{-3,-3},{3,-3}}
+ for i,loc in ipairs(locations) do
+  -- Independent plant: steady transmission, actual 0.15 spool interpolation,
+  -- local air inflow, density at each rotor, moment arms and actual mass/inertia.
+  local target=256*(1-(signals[i]+1)/16)
+  rpm[i]=rpm[i]+.15*(target-rpm[i])
+  local vy=rates.x*up[1]+rates.y*up[2]+rates.z*up[3]+math.rad(rates.roll)*loc[1]-math.rad(rates.pitch)*loc[2]
+  local pressure=P.pressure(pose.y+loc[1]*math.sin(math.rad(pose.roll))*math.cos(math.rad(pose.pitch))-loc[2]*math.sin(math.rad(pose.pitch)))
+  local factor=rpm[i]>.03334 and math.max(0,math.min(1,(.1*rpm[i]-vy)/(.1*rpm[i]))) or 0
+  local force=rpm[i]*pressure*factor
+  sum=sum+force mx=mx-loc[2]*force mz=mz+loc[1]*force
+ end
+ local a={x=up[1]*sum/pose.mass-.3*rates.x,y=up[2]*sum/pose.mass-11-.2*rates.y,z=up[3]*sum/pose.mass-.3*rates.z,pitch=math.deg(mx/pose.ix)-.2*rates.pitch,roll=math.deg(mz/pose.iz)-.2*rates.roll}
+ for _,key in ipairs({'x','y','z','pitch','roll'}) do rates[key]=rates[key]+a[key]*.05 pose[key]=pose[key]+rates[key]*.05 end
+ return info
+end
+local neutral={forward=0,left=0,vertical=0}
+for _=1,100 do step(neutral) end
+for _=1,40 do step({forward=0,left=0,vertical=1}) end
+for _=1,600 do step(neutral) end
+assert(math.abs(pose.y-81)<.25,'physics altitude did not settle: '..pose.y)
+for _=1,40 do step({forward=.5,left=0,vertical=0}) end
+for _=1,600 do step(neutral) end
+assert(pose.z>.2 and math.abs(rates.z)<.2 and math.abs(pose.y-81)<.3,'physics forward/brake lost stability')
+pose.mass=60;pose.ix=230;pose.iz=230
+for _=1,600 do step(neutral) end
+assert(math.abs(pose.y-81)<.3 and math.abs(rates.y)<.15,'mass/inertia adaptation lost target')
+assert(core.diagnostics.required==660 and core.target.y>80.99 and core.target.y<81.01)
+print('Audited Aero physics: actual Sable pressure oracle, 15/16 transmission, velocity-dependent thrust, mass/inertia/geometry auto model, spool-lag altitude/tilt/braking and in-flight mass update passed; simulated plant only')

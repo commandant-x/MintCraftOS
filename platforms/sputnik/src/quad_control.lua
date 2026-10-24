@@ -36,13 +36,13 @@ local function inverse(a)
  end
  return b
 end
-function M.model(rows)
+function M.model(rows,continuous)
  if type(rows)~='table' or #rows~=4 then return nil,'Four measured rotor rows required' end
  local out={rows={},scale={0,0,0}}
  for i,r in ipairs(rows) do
   if type(r)~='table' or #r~=7 then return nil,'Row: trim,min,max,dY,dPitch,dRoll,fallback' end
   for _,v in ipairs(r) do if not finite(v) then return nil,'Nonfinite rotor row' end end
-  for _,j in ipairs({1,2,3,7}) do if r[j]%1~=0 or r[j]<0 or r[j]>15 then return nil,'Signals must be integers 0..15' end end
+  for _,j in ipairs({1,2,3,7}) do if (j~=1 or not continuous) and r[j]%1~=0 or r[j]<0 or r[j]>15 then return nil,'Signals must be integers 0..15' end end
   if r[2]>=r[1] or r[1]>=r[3] or math.abs(r[4])<1e-5 then return nil,'Measured trim must have bidirectional local margin' end
   out.rows[i]={} for j=1,7 do out.rows[i][j]=r[j] end
   for j=1,3 do out.scale[j]=math.max(out.scale[j],math.abs(r[j+3])) end
@@ -69,12 +69,19 @@ function M.allocate(model,demand)
  return values,scale
 end
 function M.new(rows,pose,config)
- local model,why=M.model(rows) if not model then return nil,why end
  config=config or {}
+ local diagnostics
+ if config.physics then
+  if not M.Physics then return nil,'Physics library unavailable' end
+  rows,diagnostics=M.Physics.rows(config.physics,pose)
+  if not rows then return nil,diagnostics end
+ end
+ local model,why=M.model(rows,config.physics~=nil) if not model then return nil,why end
  for _,k in ipairs({'tick','x','y','z','pitch','roll','yaw','mass'}) do if not finite(pose[k]) then return nil,'Finite server pose required' end end
  if pose.mass<=0 or type(pose.dimension)~='string' or pose.dimension=='' then return nil,'Server mass/dimension required' end
  if math.abs(pose.pitch)>10 or math.abs(pose.roll)>10 then return nil,'Start near level' end
  local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0}
+ s.physics=config.physics s.gravity=s.physics and s.physics.gravity or 9.81 s.diagnostics=diagnostics
  s.speed=config.speed or 2 s.climb=config.climb or 1 s.tilt=config.tilt or 8
  s.noise=config.noise or .0025 s.process=config.process or 4
  if not finite(s.speed) or s.speed<=0 or s.speed>10 or not finite(s.climb) or s.climb<=0 or s.climb>3 or not finite(s.tilt) or s.tilt<=0 or s.tilt>15 then return nil,'Invalid local control envelope' end
@@ -96,6 +103,13 @@ function M.new(rows,pose,config)
    if math.abs(z-k.x)>((key=='pitch' or key=='roll') and 30 or 20) then return nil,'Pose discontinuity' end
    if not M.update(k,z,dt) then return nil,'Kalman failure' end
   end
+  if self.physics then
+   local velocity={} for _,key in ipairs({'x','y','z','pitch','roll'}) do velocity[key]=self.filters[key].v end
+   local rows,info=M.Physics.rows(self.physics,p,velocity)
+   if not rows then return nil,info end
+   local model,why=M.model(rows,true) if not model then return nil,why end
+   self.model=model self.diagnostics=info
+  end
   self.tick=p.tick self.samples=self.samples+1
   local k=self.filters local yaw=math.rad(p.yaw)
   -- Minecraft YXZ: body forward +Z maps to (sin yaw, cos yaw) in world X/Z.
@@ -109,13 +123,13 @@ function M.new(rows,pose,config)
   local ax=clip(1.2*(ux-k.x.v),-3,3) local az=clip(1.2*(uz-k.z.v),-3,3)
   local bodyRight=ax*math.cos(yaw)-az*math.sin(yaw)
   local bodyForward=ax*math.sin(yaw)+az*math.cos(yaw)
-  local pitchTarget=clip(math.deg(math.atan(bodyForward/9.81)),-self.tilt,self.tilt)
-  local rollTarget=clip(-math.deg(math.atan(bodyRight/9.81)),-self.tilt,self.tilt)
+  local pitchTarget=clip(math.deg(math.atan(bodyForward/self.gravity)),-self.tilt,self.tilt)
+  local rollTarget=clip(-math.deg(math.atan(bodyRight/self.gravity)),-self.tilt,self.tilt)
   local errorY=self.target.y-k.y.x
   local desiredY=clip(errorY,-self.climb,self.climb)
   local vertical=2*(desiredY-k.y.v)+self.integral
   local up=math.cos(math.rad(k.pitch.x))*math.cos(math.rad(k.roll.x))
-  vertical=(vertical+9.81)/math.max(.8,up)-9.81
+  vertical=(vertical+self.gravity)/math.max(.8,up)-self.gravity
   local demand={vertical,6*(pitchTarget-k.pitch.x)-4*k.pitch.v,6*(rollTarget-k.roll.x)-4*k.roll.v}
   local values,scale=M.allocate(self.model,demand)
   -- Anti-windup: adapt hover bias in flight, never run a mass-triggered sweep.

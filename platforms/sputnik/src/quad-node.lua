@@ -3,18 +3,24 @@ local s=_G.MintCraftQuad
 local names={'Avant gauche','Avant droite','Arriere gauche','Arriere droite'}
 if not s then
  s={rotors={},low=0,phase='off',label=ui.label('Quad experimental: modele mesure obligatoire'),
-  checked=ui.checkbox('Modele local et reprise physique verifies; essais experimentaux'),
+  checked=ui.checkbox('Reprise physique et modele/geometrie verifies; essais experimentaux'),
   noise=ui.textfield(140),process=ui.textfield(140),speed=ui.textfield(140),climb=ui.textfield(140),tilt=ui.textfield(140)}
+ s.physical=ui.checkbox('Calcul physique: petits rotors verticaux identiques, quad symetrique centre, reglages par defaut verifies')
+ s.physicalFields={}
+ for _,entry in ipairs({{'source','RPM source avant transmission','256'},{'thrust','Coefficient poussee Aero','1'},{'airflow','Coefficient ecoulement Aero','0.1'},{'armX','Demi-largeur depuis centre de masse (blocs)',''},{'armZ','Demi-longueur depuis centre de masse (blocs)',''},{'height','Hauteur rotors moins hauteur Sputnik (blocs)','0'},{'gravity','Gravite Sable par defaut','11'}}) do
+  local f={label=ui.label(entry[2]),value=ui.textfield(140)} f.value.setValue(entry[3]);s.physicalFields[entry[1]]=f
+ end
  s.noise.setValue('0.0025') s.process.setValue('4') s.speed.setValue('2') s.climb.setValue('1') s.tilt.setValue('8')
  s.help=ui.label('Bruit position R / acceleration Q / vitesse / montee / inclinaison max')
  for i,name in ipairs(names) do s.rotors[i]={label=ui.label(name..': Link puis trim,min,max,dY,dPitch,dRoll,repli'),a=ui.itempicker(),b=ui.itempicker(),row=ui.textfield(300)} end
  _G.MintCraftQuad=s
 end
-addElement(s.label) addElement(s.checked) addElement(s.help)
+addElement(s.label) addElement(s.checked) addElement(s.help) addElement(s.physical)
+for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity'}) do local f=s.physicalFields[key] addElement(f.label) addElement(f.value) end
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do addElement(s[key]) end
 for _,r in ipairs(s.rotors) do addElement(r.label) addElement(r.a) addElement(r.b) addElement(r.row) end
 local emit=output
-if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) end
+if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) end
 local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
@@ -27,9 +33,11 @@ local function read(name)
 end
 local tick=read('getUniverseTime') local mass=read('getShipMass')
 local x,y,z=read('getPosition') local pitch,yaw,roll=read('getOrientation') local dimension=read('getDimension')
-local pose={tick=tick,mass=mass,x=x,y=y,z=z,pitch=pitch,yaw=yaw,roll=roll,dimension=dimension}
+local ix,iy,iz=read('getInertiaTensor')
+local pose={ix=ix,iz=iz,tick=tick,mass=mass,x=x,y=y,z=z,pitch=pitch,yaw=yaw,roll=roll,dimension=dimension}
 local server=finite(tick) and tick>0 and finite(mass) and mass>0
 local rows,pairs_,seen,parts={}, {},{},{}
+local physical=s.physical.isChecked()
 local valid=s.checked.isChecked() and type(transmitWirelessRedstone)=='function'
 -- Reject collisions across keyboard, physical enable and all four rotor outputs.
 local function binding(id)
@@ -53,7 +61,8 @@ for i,r in ipairs(s.rotors) do
  if not item(a) or not item(b) or seen[tostring(a)..','..tostring(b)] then valid=false end
  seen[tostring(a)..','..tostring(b)]=true pairs_[i]={a,b}
  rows[i]={}
- if type(text)~='string' or #text>256 then valid=false else
+ if physical then rows[i]={}
+ elseif type(text)~='string' or #text>256 then valid=false else
   -- Empty fields must not silently shift response columns.
   local count=0 for token in (text..','):gmatch('(.-),') do count=count+1 rows[i][count]=tonumber(token) or false end
   if count~=7 then valid=false end
@@ -62,7 +71,23 @@ end
 local config={}
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do config[key]=tonumber(s[key].getValue()) parts[#parts+1]=tostring(config[key])
  if not finite(config[key]) or config[key]<=0 then valid=false end end
-local model,modelWhy=Quad.model(rows) if not model then valid=false end
+local physicsWhy
+if physical then
+ config.physics={}
+ for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity'}) do
+  config.physics[key]=tonumber(s.physicalFields[key].value.getValue())
+  parts[#parts+1]=tostring(config.physics[key])
+ end
+ if server then
+  local result
+  rows,result=Quad.Physics.rows(config.physics,pose)
+  if not rows then physicsWhy=result end
+ else rows=nil end
+end
+parts[#parts+1]=tostring(physical)
+local model,modelWhy=Quad.model(rows,physical) if not model then valid=false end
+modelWhy=physicsWhy or modelWhy
+if not valid and not s.owner then s.reason=modelWhy or 'Configurer les frequences et parametres verifies' s.phase='off' s.low=0 end
 local signature=table.concat(parts,'|')
 local function send(values)
  if not s.owner then return false end
@@ -94,7 +119,7 @@ if server then
   if s.phase=='ready' and keys==1 and forward==0 and left==0 and vertical==0 then
    local core,why=Quad.new(rows,pose,config)
    if core then
-    s.info=nil s.core=core s.owner={pairs=pairs_,rows=model.rows} s.phase='active' s.reason='Stabilisation experimentale active'
+    s.info=nil s.core=core s.owner={pairs=pairs_,rows=core.model.rows} s.phase='active' s.reason='Stabilisation experimentale active'
     local trims={} for i,r in ipairs(model.rows) do trims[i]=r[1] end
     if not send(trims) then fallback('Echec transmission initiale') end
    else fallback(why) end
@@ -105,7 +130,7 @@ if server then
    local values,info=s.core:step(pose,command)
    if not values then fallback(info)
    elseif not send(values) then fallback('Echec transmission Link; reprise physique')
-   else s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Stabilisation experimentale active' end
+   else s.owner.rows=s.core.model.rows s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Stabilisation experimentale active' end
   end
  end
 elseif not s.owner then s.reason='Configuration client; etat serveur via MC_QUAD' end
@@ -121,5 +146,13 @@ local active=s.phase=='active'
 emit('Active',active and 1 or 0) emit('Flight qualified',0)
 emit('Kalman ready',active and s.info and s.info.ready and 1 or 0)
 emit('Altitude',s.info and s.info.altitude or 0) emit('Target altitude',s.core and s.core.target.y or 0)
+local diagnostics=s.core and s.core.diagnostics
+emit('Maximum thrust',diagnostics and diagnostics.maxThrust or 0) emit('Weight',diagnostics and diagnostics.required or 0) emit('Pressure',diagnostics and diagnostics.pressure or 0)
 emit('Status',s.reason or modelWhy or 'Inactif')
-if type(display)=='function' and server then display('MC_QUAD',s.reason or 'Inactif') end
+if type(display)=='function' and server then
+ display('MC_QUAD',s.reason or 'Inactif')
+ if diagnostics and diagnostics.rotors then
+  for i,r in ipairs(diagnostics.rotors) do display('MC_ROTOR_'..i,'Fmax '..string.format('%.1f',r.maximum)..' / RPM0 '..string.format('%.1f',r.rpm)..' / signal '..string.format('%.2f',r.trim)) end
+ end
+ if diagnostics then display('MC_FORCE','Fmax '..string.format('%.1f',diagnostics.maxThrust)..' / poids '..string.format('%.1f',diagnostics.required)..' / P '..string.format('%.3f',diagnostics.pressure)) end
+end

@@ -1,9 +1,84 @@
-# Quad natif Sputnik 0.1.7 — contrôleur expérimental
+# Quad natif Sputnik 0.1.8 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
-dans le SDK. Le modèle physique de votre quad doit être fourni et vérifié avant
-activation. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
+masse, de la pression et de la géométrie confirmée. Le mode manuel historique
+reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Mode physique automatique — ne plus remplir les sept coefficients
+
+Pour quatre petits rotors **fixes, verticaux, identiques et poussant vers le haut**,
+un quad symétrique avec centre de masse au centre, et les réglages Overworld
+par défaut de Sable/Aeronautics : cocher le mode « Calcul physique » dans
+`quad-controller`. **Laisser vides les quatre anciennes lignes** de coefficients.
+
+Renseigner les paramètres géométriques simples :
+
+- `Demi-largeur` : distance horizontale du centre de masse à une hélice vers la
+  gauche/droite. Si l'écart gauche-droite est 6 blocs, entrer 3.
+- `Demi-longueur` : distance vers l'avant/arrière, même principe.
+- `Hauteur rotors moins hauteur Sputnik` : différence verticale, en blocs,
+  entre le centre des blocs hélices et celui du Sputnik.
+
+Les distances concernent le repère local du véhicule, avec avant=+Z et droite=+X.
+Ne pas supposer qu'un centre de masse décalé coïncide avec le centre de la croix.
+Le mode ne convient pas aux rotors inclinables ni à une répartition asymétrique.
+Sputnik ne fournit ni positions des hélices ni centre de masse : ces données ne
+peuvent pas être détectées automatiquement avec l'API stock actuelle.
+
+Les champs préremplis correspondent aux valeurs auditées : **256 RPM d'entrée**,
+coefficient de poussée 1, coefficient d'écoulement 0,1, gravité 11. Confirmer
+l'absence de modifications serveur/datapack avant d'activer ce modèle.
+
+Le calcul automatique utilise :
+
+1. La **masse actuelle et les inerties diagonales X/Z**, lues via les API serveur
+   réelles `getShipMass` et `getInertiaTensor`, sans inventer un tenseur complet.
+2. La pression au niveau de chaque rotor, avec la courbe cubique Hermite utilisée
+   par Sable, y compris son raccordement vers pression nulle à Y=320.
+3. La transmission `RPM = RPM_entrée × (15 − signal) / 16` : **à signal 0,
+   256 RPM d'entrée donnent 240 RPM sur l'arbre**, et 15 donne zéro. Ce n'est pas
+   la relation supposée 256 × (15−signal)/15.
+4. La poussée statique des petits rotors `F = coefficient × RPM × pression`,
+   réduite par l'écoulement axial lorsque le rotor monte dans l'air :
+   `F = coefficient × RPM × pression × clamp(1 − vitesse_axiale/(coefficient_air × RPM), 0, 1)`.
+   À l'arrêt, la poussée est nulle. Il ne s'agit pas d'une loi inventée en RPM².
+5. Le poids `masse × gravité` et les moments `r × F`, puis les inerties pour
+   produire automatiquement la matrice verticale/tangage/roulis et l'équilibre.
+
+La commande d'équilibre n'est **pas figée** : masse, inertie, altitude, vitesse
+axiale, inclinaison et pression aux rotors actualisent le modèle à chaque nouvelle
+observation. Le Kalman et les corrections ferment ensuite la boucle. Des niveaux
+voisins sont alternés si l'équilibre demandé tombe entre deux valeurs entières.
+Une intégrale corrige les écarts locaux restants, sans sweep lors d'un changement
+de masse. Un centre de masse déplacé ou un changement d'orientation des rotors
+sort néanmoins des hypothèses du modèle symétrique.
+
+Sur Display Link, `MC_FORCE` donne poussée maximale totale disponible, poids et
+pression. `MC_ROTOR_1` à `MC_ROTOR_4` donnent la poussée maximale de chaque rotor,
+les RPM à signal zéro et le signal d'équilibre calculé. Les valeurs sont celles
+du modèle par défaut, **pas des capteurs de poussée ou des ACK des transmissions**.
+Si la pression ou la réserve de poussée ne permet plus de soutenir le poids,
+le calcul le signale et refuse le modèle au lieu de promettre un vol impossible.
+Le repli constant ne peut pas compenser une absence physique de sustentation.
+
+Les formules et courbes ont été vérifiées dans les JAR actuels : Aeronautics et
+Simulated 1.3.2, Sable 2.0.6 pour Minecraft 1.21.1. Les empreintes et hypothèses sont
+incluses dans `profiles/aeronautics-1.3.2-defaults.json`. La courbe Lua est comparée
+à 421 valeurs produites par **la vraie classe Java de Sable**. Les essais de vol
+restent des simulations, avec interpolation de régime de 0,15 par tick ; aucune
+validation Minecraft en jeu n'est revendiquée. La physique serveur personnalisée
+n'est pas lisible par Sputnik stock : ce mode ne doit pas l'assimiler aux défauts.
+
+## Mise à jour depuis 0.1.7
+
+Mettre le levier à zéro et conserver une copie du graphe actuel. Pour éviter
+le mélange d'anciens widgets avec les nouveaux, supprimer les trois anciens
+nœuds du quad puis importer le nouveau `mintcraft-quad-flight.clipboard.txt`.
+Reconfigurer les mêmes fréquences. Ne pas garder deux contrôleurs qui émettent
+vers les mêmes hélices. Le fichier sauvegardé et l'historique Git permettent de
+revenir à la version précédente.
 
 ## Import et branchement
 
@@ -28,7 +103,7 @@ La flèche avant choisie pour les noms des rotors est **le +Z local de Sputnik**
 la droite est +X. Un bloc tourné ou un repère différent exige de mesurer les
 réponses dans le même repère que la télémétrie, pas de recopier les noms d'une photo.
 
-## Modèle mesuré des quatre transmissions
+## Mode manuel historique : modèle mesuré des quatre transmissions
 
 Sous chaque paire de fréquence, le champ attend sept nombres séparés par des
 virgules :
@@ -56,7 +131,9 @@ commandes physiques indépendantes ; comparer l'accélération au neutre à cell
 obtenue par une petite variation d'un seul rotor, les autres restant identiques.
 Réitérer des deux côtés et sur plusieurs observations. Si la réponse varie trop
 ou si le montage ne peut pas être testé ainsi, ne pas cocher la confirmation.
-**La calibration automatique de ces coefficients n'est pas fournie.**
+Ce mode manuel ne réalise pas de calibration automatique ; le mode physique
+ci-dessus remplace ces coefficients uniquement pour les montages et réglages
+qu'il prend en charge.
 
 Le repli est envoyé sur les anciennes fréquences figées si une configuration
 change pendant le vol. Il n'est jamais inventé comme 0 ou 15. Un signal constant
@@ -85,8 +162,9 @@ ce n'est pas un arrêt mécanique universel ni une procédure d'atterrissage.
 Ce n'est pas un EKF de navigation six axes : pas de fusion GPS/IMU indépendantes,
 pas d'identité Sable vérifiable, pas de contrôle de yaw, de terrain ou de cap.
 L'orientation Euler et le modèle sont réservés au vol proche de l'horizontale.
-Les gains et la gravité nominale 9,81 sont ceux d'un prototype testé sur une
-plante simplifiée ; ils ne sont pas identifiés automatiquement dans votre monde.
+Les gains sont ceux d'un prototype testé sur des plantes simplifiées ; ils ne
+sont pas identifiés automatiquement dans votre monde. La gravité est 11 dans
+le mode physique par défaut ; le mode manuel historique conserve 9,81.
 Les cas asymétriques, délais Link, dommages ou collisions peuvent dépasser le
 modèle. `Flight qualified` reste à zéro même lorsque `Active` vaut 1.
 

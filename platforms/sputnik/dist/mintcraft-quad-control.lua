@@ -1,3 +1,84 @@
+local Physics=(function()
+-- Audited defaults: Aeronautics/Simulated 1.3.2 + Sable 2.0.6, small fixed props.
+-- No sensor/ownership claims. Geometry, normal thrust direction and defaults confirmed by operator.
+local M={}
+local function finite(v) return type(v)=='number' and v==v and math.abs(v)<math.huge end
+local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
+function M.pressure(y)
+ if not finite(y) then return nil end
+ -- DimensionPhysics.createDefault: sea=63, min=-64, logicalHeight=384 (Overworld).
+ local sea,top=63,320 local smoothing=top-40
+ local current=math.max(-64,math.log(1.5)/-.004+sea) local points={}
+ for _=1,16 do
+  local p=math.exp(-.004*(current-sea)) points[#points+1]={current,p,-.004*p}
+  if current>=smoothing then break end
+  if current<sea and current+200>=sea then current=sea
+  elseif current<smoothing and current+200>=smoothing then current=smoothing
+  else current=current+200 end
+ end
+ local last=points[#points] points[#points+1]={top,0,-2*last[2]/(top-smoothing)}
+ if y<points[1][1] then return points[1][2] end
+ for i=1,#points-1 do
+  local a,b=points[i],points[i+1]
+  if y<b[1] then
+   local dx,dy=b[1]-a[1],b[2]-a[2] local t=(y-a[1])/dx
+   local cubic=(a[3]+b[3])*dx-2*dy
+   local quadratic=3*dy-(2*a[3]+b[3])*dx
+   return math.max(((cubic*t+quadratic)*t+dx*a[3])*t+a[2],0)
+  end
+ end
+ return 0
+end
+function M.rpm(source,signal)
+ if not finite(source) or source<=0 or not finite(signal) or signal<0 or signal>15 then return nil end
+ return source*(15-signal)/16
+end
+function M.force(rpm,pressure,axialVelocity,thrust,airflow)
+ if not finite(rpm) or rpm<0 or not finite(pressure) or pressure<0 or not finite(axialVelocity) or not finite(thrust) or thrust<=0 or not finite(airflow) or airflow<=0 then return nil end
+ if rpm<=1/30 then return 0 end
+ -- magnitude of BlockEntityPropeller.getScaledThrust for upward fixed props.
+ local flow=airflow*rpm
+ return thrust*rpm*pressure*clamp((flow-axialVelocity)/flow,0,1)
+end
+function M.rows(spec,pose,velocity)
+ if type(spec)~='table' or type(pose)~='table' or pose.dimension~='minecraft:overworld' then return nil,'Default Overworld physics only' end
+ for _,key in ipairs({'source','thrust','airflow','armX','armZ','gravity'}) do
+  if not finite(spec[key]) or spec[key]<=0 then return nil,'Positive physical parameters required' end
+ end
+ if not finite(spec.height) or math.abs(spec.height)>32 or spec.armX>32 or spec.armZ>32 or spec.source>256 then return nil,'Unsupported fixed-quad geometry/source RPM' end
+ for _,key in ipairs({'mass','ix','iz','y','pitch','roll','yaw'}) do if not finite(pose[key]) then return nil,'Server mass, inertia and pose required' end end
+ if pose.mass<=0 or pose.ix<=0 or pose.iz<=0 then return nil,'Positive mass and inertia required' end
+ local p,r,yaw=math.rad(pose.pitch),math.rad(pose.roll),math.rad(pose.yaw)
+ local up={math.sin(yaw)*math.sin(p)*math.cos(r)-math.cos(yaw)*math.sin(r),math.cos(p)*math.cos(r),math.cos(yaw)*math.sin(p)*math.cos(r)+math.sin(yaw)*math.sin(r)}
+ velocity=velocity or {x=0,y=0,z=0,pitch=0,roll=0}
+ for _,key in ipairs({'x','y','z','pitch','roll'}) do if not finite(velocity[key]) then return nil,'Finite local airflow velocity required' end end
+ local axial=velocity.x*up[1]+velocity.y*up[2]+velocity.z*up[3]
+ local locations={{-spec.armX,spec.armZ},{spec.armX,spec.armZ},{-spec.armX,-spec.armZ},{spec.armX,-spec.armZ}}
+ local rows={} local diagnostics={rotors={},maxThrust=0,required=pose.mass*spec.gravity,pressure=M.pressure(pose.y),rpmAtZero=M.rpm(spec.source,0)}
+ for i,location in ipairs(locations) do
+  local x,z=location[1],location[2]
+  local height=pose.y+spec.height*up[2]+x*math.sin(r)*math.cos(p)-z*math.sin(p)
+  local pressure=M.pressure(height)
+  if not pressure or pressure<=0 then return nil,'No atmospheric pressure at a rotor' end
+  local v=axial+math.rad(velocity.roll)*x-math.rad(velocity.pitch)*z
+  local maxRpm=M.rpm(spec.source,0)
+  local maximum=M.force(maxRpm,pressure,v,spec.thrust,spec.airflow)
+  diagnostics.maxThrust=diagnostics.maxThrust+maximum
+  diagnostics.rotors[i]={pressure=pressure,maximum=maximum,rpm=maxRpm}
+  local required=pose.mass*spec.gravity/4
+  if not maximum or required>=maximum then return nil,'Insufficient lift at this mass/altitude/inflow',diagnostics end
+  local equilibriumRPM=required/(spec.thrust*pressure)+math.max(0,v)/spec.airflow
+  local trim=15-16*equilibriumRPM/spec.source
+  if trim<=0 or trim>=15 then return nil,'No interior lift margin' end
+  diagnostics.rotors[i].trim=trim
+  local slope=-spec.thrust*pressure*spec.source/16
+  rows[i]={trim,0,15,slope/pose.mass,math.deg(-z*slope/pose.ix),math.deg(x*slope/pose.iz),clamp(math.floor(trim+.5),0,14)}
+ end
+ return rows,diagnostics
+end
+return M
+
+end)()
 local Quad=(function()
 -- Experimental near-level quad control. Measured local 3x4 response required.
 -- World X/Z/Y constant-velocity Kalman filters; Euler rates only near level.
@@ -37,13 +118,13 @@ local function inverse(a)
  end
  return b
 end
-function M.model(rows)
+function M.model(rows,continuous)
  if type(rows)~='table' or #rows~=4 then return nil,'Four measured rotor rows required' end
  local out={rows={},scale={0,0,0}}
  for i,r in ipairs(rows) do
   if type(r)~='table' or #r~=7 then return nil,'Row: trim,min,max,dY,dPitch,dRoll,fallback' end
   for _,v in ipairs(r) do if not finite(v) then return nil,'Nonfinite rotor row' end end
-  for _,j in ipairs({1,2,3,7}) do if r[j]%1~=0 or r[j]<0 or r[j]>15 then return nil,'Signals must be integers 0..15' end end
+  for _,j in ipairs({1,2,3,7}) do if (j~=1 or not continuous) and r[j]%1~=0 or r[j]<0 or r[j]>15 then return nil,'Signals must be integers 0..15' end end
   if r[2]>=r[1] or r[1]>=r[3] or math.abs(r[4])<1e-5 then return nil,'Measured trim must have bidirectional local margin' end
   out.rows[i]={} for j=1,7 do out.rows[i][j]=r[j] end
   for j=1,3 do out.scale[j]=math.max(out.scale[j],math.abs(r[j+3])) end
@@ -70,12 +151,19 @@ function M.allocate(model,demand)
  return values,scale
 end
 function M.new(rows,pose,config)
- local model,why=M.model(rows) if not model then return nil,why end
  config=config or {}
+ local diagnostics
+ if config.physics then
+  if not M.Physics then return nil,'Physics library unavailable' end
+  rows,diagnostics=M.Physics.rows(config.physics,pose)
+  if not rows then return nil,diagnostics end
+ end
+ local model,why=M.model(rows,config.physics~=nil) if not model then return nil,why end
  for _,k in ipairs({'tick','x','y','z','pitch','roll','yaw','mass'}) do if not finite(pose[k]) then return nil,'Finite server pose required' end end
  if pose.mass<=0 or type(pose.dimension)~='string' or pose.dimension=='' then return nil,'Server mass/dimension required' end
  if math.abs(pose.pitch)>10 or math.abs(pose.roll)>10 then return nil,'Start near level' end
  local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0}
+ s.physics=config.physics s.gravity=s.physics and s.physics.gravity or 9.81 s.diagnostics=diagnostics
  s.speed=config.speed or 2 s.climb=config.climb or 1 s.tilt=config.tilt or 8
  s.noise=config.noise or .0025 s.process=config.process or 4
  if not finite(s.speed) or s.speed<=0 or s.speed>10 or not finite(s.climb) or s.climb<=0 or s.climb>3 or not finite(s.tilt) or s.tilt<=0 or s.tilt>15 then return nil,'Invalid local control envelope' end
@@ -97,6 +185,13 @@ function M.new(rows,pose,config)
    if math.abs(z-k.x)>((key=='pitch' or key=='roll') and 30 or 20) then return nil,'Pose discontinuity' end
    if not M.update(k,z,dt) then return nil,'Kalman failure' end
   end
+  if self.physics then
+   local velocity={} for _,key in ipairs({'x','y','z','pitch','roll'}) do velocity[key]=self.filters[key].v end
+   local rows,info=M.Physics.rows(self.physics,p,velocity)
+   if not rows then return nil,info end
+   local model,why=M.model(rows,true) if not model then return nil,why end
+   self.model=model self.diagnostics=info
+  end
   self.tick=p.tick self.samples=self.samples+1
   local k=self.filters local yaw=math.rad(p.yaw)
   -- Minecraft YXZ: body forward +Z maps to (sin yaw, cos yaw) in world X/Z.
@@ -110,13 +205,13 @@ function M.new(rows,pose,config)
   local ax=clip(1.2*(ux-k.x.v),-3,3) local az=clip(1.2*(uz-k.z.v),-3,3)
   local bodyRight=ax*math.cos(yaw)-az*math.sin(yaw)
   local bodyForward=ax*math.sin(yaw)+az*math.cos(yaw)
-  local pitchTarget=clip(math.deg(math.atan(bodyForward/9.81)),-self.tilt,self.tilt)
-  local rollTarget=clip(-math.deg(math.atan(bodyRight/9.81)),-self.tilt,self.tilt)
+  local pitchTarget=clip(math.deg(math.atan(bodyForward/self.gravity)),-self.tilt,self.tilt)
+  local rollTarget=clip(-math.deg(math.atan(bodyRight/self.gravity)),-self.tilt,self.tilt)
   local errorY=self.target.y-k.y.x
   local desiredY=clip(errorY,-self.climb,self.climb)
   local vertical=2*(desiredY-k.y.v)+self.integral
   local up=math.cos(math.rad(k.pitch.x))*math.cos(math.rad(k.roll.x))
-  vertical=(vertical+9.81)/math.max(.8,up)-9.81
+  vertical=(vertical+self.gravity)/math.max(.8,up)-self.gravity
   local demand={vertical,6*(pitchTarget-k.pitch.x)-4*k.pitch.v,6*(rollTarget-k.roll.x)-4*k.roll.v}
   local values,scale=M.allocate(self.model,demand)
   -- Anti-windup: adapt hover bias in flight, never run a mass-triggered sweep.
@@ -133,23 +228,30 @@ end
 return M
 
 end)()
+Quad.Physics=Physics
 -- Actual Link actuator adapter. Experimental near-level control, not certified flight.
 local s=_G.MintCraftQuad
 local names={'Avant gauche','Avant droite','Arriere gauche','Arriere droite'}
 if not s then
  s={rotors={},low=0,phase='off',label=ui.label('Quad experimental: modele mesure obligatoire'),
-  checked=ui.checkbox('Modele local et reprise physique verifies; essais experimentaux'),
+  checked=ui.checkbox('Reprise physique et modele/geometrie verifies; essais experimentaux'),
   noise=ui.textfield(140),process=ui.textfield(140),speed=ui.textfield(140),climb=ui.textfield(140),tilt=ui.textfield(140)}
+ s.physical=ui.checkbox('Calcul physique: petits rotors verticaux identiques, quad symetrique centre, reglages par defaut verifies')
+ s.physicalFields={}
+ for _,entry in ipairs({{'source','RPM source avant transmission','256'},{'thrust','Coefficient poussee Aero','1'},{'airflow','Coefficient ecoulement Aero','0.1'},{'armX','Demi-largeur depuis centre de masse (blocs)',''},{'armZ','Demi-longueur depuis centre de masse (blocs)',''},{'height','Hauteur rotors moins hauteur Sputnik (blocs)','0'},{'gravity','Gravite Sable par defaut','11'}}) do
+  local f={label=ui.label(entry[2]),value=ui.textfield(140)} f.value.setValue(entry[3]);s.physicalFields[entry[1]]=f
+ end
  s.noise.setValue('0.0025') s.process.setValue('4') s.speed.setValue('2') s.climb.setValue('1') s.tilt.setValue('8')
  s.help=ui.label('Bruit position R / acceleration Q / vitesse / montee / inclinaison max')
  for i,name in ipairs(names) do s.rotors[i]={label=ui.label(name..': Link puis trim,min,max,dY,dPitch,dRoll,repli'),a=ui.itempicker(),b=ui.itempicker(),row=ui.textfield(300)} end
  _G.MintCraftQuad=s
 end
-addElement(s.label) addElement(s.checked) addElement(s.help)
+addElement(s.label) addElement(s.checked) addElement(s.help) addElement(s.physical)
+for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity'}) do local f=s.physicalFields[key] addElement(f.label) addElement(f.value) end
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do addElement(s[key]) end
 for _,r in ipairs(s.rotors) do addElement(r.label) addElement(r.a) addElement(r.b) addElement(r.row) end
 local emit=output
-if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) end
+if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) end
 local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
@@ -162,9 +264,11 @@ local function read(name)
 end
 local tick=read('getUniverseTime') local mass=read('getShipMass')
 local x,y,z=read('getPosition') local pitch,yaw,roll=read('getOrientation') local dimension=read('getDimension')
-local pose={tick=tick,mass=mass,x=x,y=y,z=z,pitch=pitch,yaw=yaw,roll=roll,dimension=dimension}
+local ix,iy,iz=read('getInertiaTensor')
+local pose={ix=ix,iz=iz,tick=tick,mass=mass,x=x,y=y,z=z,pitch=pitch,yaw=yaw,roll=roll,dimension=dimension}
 local server=finite(tick) and tick>0 and finite(mass) and mass>0
 local rows,pairs_,seen,parts={}, {},{},{}
+local physical=s.physical.isChecked()
 local valid=s.checked.isChecked() and type(transmitWirelessRedstone)=='function'
 -- Reject collisions across keyboard, physical enable and all four rotor outputs.
 local function binding(id)
@@ -188,7 +292,8 @@ for i,r in ipairs(s.rotors) do
  if not item(a) or not item(b) or seen[tostring(a)..','..tostring(b)] then valid=false end
  seen[tostring(a)..','..tostring(b)]=true pairs_[i]={a,b}
  rows[i]={}
- if type(text)~='string' or #text>256 then valid=false else
+ if physical then rows[i]={}
+ elseif type(text)~='string' or #text>256 then valid=false else
   -- Empty fields must not silently shift response columns.
   local count=0 for token in (text..','):gmatch('(.-),') do count=count+1 rows[i][count]=tonumber(token) or false end
   if count~=7 then valid=false end
@@ -197,7 +302,23 @@ end
 local config={}
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do config[key]=tonumber(s[key].getValue()) parts[#parts+1]=tostring(config[key])
  if not finite(config[key]) or config[key]<=0 then valid=false end end
-local model,modelWhy=Quad.model(rows) if not model then valid=false end
+local physicsWhy
+if physical then
+ config.physics={}
+ for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity'}) do
+  config.physics[key]=tonumber(s.physicalFields[key].value.getValue())
+  parts[#parts+1]=tostring(config.physics[key])
+ end
+ if server then
+  local result
+  rows,result=Quad.Physics.rows(config.physics,pose)
+  if not rows then physicsWhy=result end
+ else rows=nil end
+end
+parts[#parts+1]=tostring(physical)
+local model,modelWhy=Quad.model(rows,physical) if not model then valid=false end
+modelWhy=physicsWhy or modelWhy
+if not valid and not s.owner then s.reason=modelWhy or 'Configurer les frequences et parametres verifies' s.phase='off' s.low=0 end
 local signature=table.concat(parts,'|')
 local function send(values)
  if not s.owner then return false end
@@ -229,7 +350,7 @@ if server then
   if s.phase=='ready' and keys==1 and forward==0 and left==0 and vertical==0 then
    local core,why=Quad.new(rows,pose,config)
    if core then
-    s.info=nil s.core=core s.owner={pairs=pairs_,rows=model.rows} s.phase='active' s.reason='Stabilisation experimentale active'
+    s.info=nil s.core=core s.owner={pairs=pairs_,rows=core.model.rows} s.phase='active' s.reason='Stabilisation experimentale active'
     local trims={} for i,r in ipairs(model.rows) do trims[i]=r[1] end
     if not send(trims) then fallback('Echec transmission initiale') end
    else fallback(why) end
@@ -240,7 +361,7 @@ if server then
    local values,info=s.core:step(pose,command)
    if not values then fallback(info)
    elseif not send(values) then fallback('Echec transmission Link; reprise physique')
-   else s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Stabilisation experimentale active' end
+   else s.owner.rows=s.core.model.rows s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Stabilisation experimentale active' end
   end
  end
 elseif not s.owner then s.reason='Configuration client; etat serveur via MC_QUAD' end
@@ -256,5 +377,13 @@ local active=s.phase=='active'
 emit('Active',active and 1 or 0) emit('Flight qualified',0)
 emit('Kalman ready',active and s.info and s.info.ready and 1 or 0)
 emit('Altitude',s.info and s.info.altitude or 0) emit('Target altitude',s.core and s.core.target.y or 0)
+local diagnostics=s.core and s.core.diagnostics
+emit('Maximum thrust',diagnostics and diagnostics.maxThrust or 0) emit('Weight',diagnostics and diagnostics.required or 0) emit('Pressure',diagnostics and diagnostics.pressure or 0)
 emit('Status',s.reason or modelWhy or 'Inactif')
-if type(display)=='function' and server then display('MC_QUAD',s.reason or 'Inactif') end
+if type(display)=='function' and server then
+ display('MC_QUAD',s.reason or 'Inactif')
+ if diagnostics and diagnostics.rotors then
+  for i,r in ipairs(diagnostics.rotors) do display('MC_ROTOR_'..i,'Fmax '..string.format('%.1f',r.maximum)..' / RPM0 '..string.format('%.1f',r.rpm)..' / signal '..string.format('%.2f',r.trim)) end
+ end
+ if diagnostics then display('MC_FORCE','Fmax '..string.format('%.1f',diagnostics.maxThrust)..' / poids '..string.format('%.1f',diagnostics.required)..' / P '..string.format('%.3f',diagnostics.pressure)) end
+end
