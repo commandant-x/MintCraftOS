@@ -13,6 +13,13 @@ import io.netty.buffer.Unpooled;
 /** Parse generated clipboard with the actual mapped Minecraft 1.21.1 SNBT parser. */
 public final class VerifySputnikClipboard {
  public static void main(String[] args) throws Exception {
+  if(Boolean.getBoolean("mintcraft.sputnik.payload")) {
+     // Headless fixture: use the real dedicated-server layout branch.
+     Class<?> distType=Class.forName("net.neoforged.api.distmarker.Dist");
+     @SuppressWarnings({"unchecked","rawtypes"}) Object dedicated=Enum.valueOf((Class)distType,"DEDICATED_SERVER");
+     var distField=Class.forName("net.neoforged.fml.loading.FMLLoader").getDeclaredField("dist");
+     distField.setAccessible(true);distField.set(null,dedicated);
+  }
   // Reproduce the user's 108508-byte failure in the real NBT binary writer.
   var oversized=new CompoundTag(); oversized.putString("code","x".repeat(108508));
   try {
@@ -38,7 +45,18 @@ public final class VerifySputnikClipboard {
    var ids=new HashMap<UUID,CompoundTag>();
    for(int n=0;n<nodes.size();n++) {
     var part=nodes.getCompound(n);
-    if(!part.hasUUID("id")||!part.getString("typeId").equals("rocketnautics:lua_script")||ids.put(part.getUUID("id"),part)!=null) throw new AssertionError("Invalid native node");
+    if(!part.hasUUID("id")||!Set.of("rocketnautics:lua_script","websnodelib:string_display").contains(part.getString("typeId"))||ids.put(part.getUUID("id"),part)!=null) throw new AssertionError("Invalid native node");
+    if(part.getString("typeId").equals("websnodelib:string_display")&&Boolean.getBoolean("mintcraft.sputnik.payload")) {
+     Class.forName("dev.devce.websnodelib.internal.InternalNodes").getMethod("register").invoke(null);
+     Class<?> registry=Class.forName("dev.devce.websnodelib.api.NodeRegistry");
+     Object actual=registry.getMethod("createNode",net.minecraft.resources.ResourceLocation.class,int.class,int.class).invoke(null,net.minecraft.resources.ResourceLocation.parse("websnodelib:string_display"),0,0);
+     var inputs=(java.util.List<?>)actual.getClass().getMethod("getInputs").invoke(actual);
+     if(inputs.size()!=1||!inputs.get(0).getClass().getMethod("getValueType").invoke(inputs.get(0)).toString().equals("STRING")) throw new AssertionError("Actual String Display input changed");
+     actual.getClass().getMethod("load",CompoundTag.class).invoke(actual,part);
+     inputs=(java.util.List<?>)actual.getClass().getMethod("getInputs").invoke(actual);
+     inputs.get(0).getClass().getMethod("setStringValue",String.class).invoke(inputs.get(0),"Diagnostic serveur");
+     actual.getClass().getMethod("evaluate").invoke(actual);
+    }
     new DataOutputStream(new ByteArrayOutputStream()).writeUTF(part.getCompound("customData").getString("code"));
    }
    var links=tag.getList("conns",10);

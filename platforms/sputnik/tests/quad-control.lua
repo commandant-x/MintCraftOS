@@ -106,3 +106,33 @@ assert(outputs.Active==1 and outputs.Weight==660,'mass/inertia did not update ph
 s.physicalFields.armX.value.value='4';tick()
 assert(outputs.Active==0,'physical geometry changed without requalification')
 print('Native automatic physical mode: blank manual rows, API mass/inertia, density-derived trim, four real Link calls and mass update passed')
+-- Failed prerequisites must report the actual condition, without actuator writes.
+_G.MintCraftQuad=nil;sends={};pose.mass=65;inputs['Flight Enable']=0
+node();s=_G.MintCraftQuad
+assert(outputs.Status:find('CONFIRM',1,true),'missing confirmation hidden behind generic message')
+s.checked.value=true;s.physical.value=true
+s.physicalFields.armX.value.value='2';s.physicalFields.armZ.value.value='3';s.physicalFields.height.value.value='2'
+for i,r in ipairs(s.rotors) do r.a.value='minecraft:stone';r.b.value='minecraft:item_'..i;r.row.value='' end
+tick()
+local oldEnable=inputs['Enable binding'];inputs['Enable binding']='';tick()
+assert(outputs.Status:find('ENABLE_BIND',1,true))
+inputs['Enable binding']=oldEnable
+local oldKeys=inputs['Keyboard bindings'];inputs['Keyboard bindings']='';tick()
+assert(outputs.Status:find('KEY_COUNT: 0/6',1,true))
+inputs['Keyboard bindings']=oldKeys
+s.rotors[1].b.value='minecraft:key_1';tick()
+assert(outputs.Status:find('DUP_1',1,true),'cross-role collision reason lost')
+s.rotors[1].b.value='minecraft:air';tick();assert(outputs.Status:find('ROTOR_1',1,true))
+s.rotors[1].b.value='minecraft:item_1'
+s.noise.value='';tick();assert(outputs.Status:find('PARAM_noise',1,true))
+s.noise.value='.0025';s.physicalFields.armX.value.value='';tick()
+assert(outputs.Status:find('PHYS_armX',1,true))
+s.physicalFields.armX.value.value='2';tick();tick();tick()
+inputs['Flight Enable']=15;inputs['Commands valid']=0;tick()
+assert(outputs.Status:find('KEYS_WAIT',1,true))
+inputs['Commands valid']=1;inputs['Vertical demand']=1;tick()
+assert(outputs.Status:find('KEYS_HELD',1,true))
+assert(#sends==0,'diagnostics bypassed activation guards')
+_G.MintCraftQuad=nil;pose.mass=0;node()
+assert(outputs.Status:find('MASS:',1,true),'missing mass silently hid Status output')
+print('Detailed refusal diagnostics: confirmation, missing typed bindings, 0/6 keyboard channels, cross-role frequency collision, missing rotor, noise/geometry fields, held key/unarmed keyboard and absent server mass all reported without bypassing guards')

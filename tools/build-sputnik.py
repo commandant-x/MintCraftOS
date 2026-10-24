@@ -42,13 +42,14 @@ def pins(code):
 def pin_tags(values,kind):
  return '['+','.join('{name:'+quote(name)+',valueType:'+quote(typ)+',pinType:'+quote(kind)+',color:-1,value:0.0d,stringValue:""}' for name,typ in values)+']'
 def uuid_tag(ident): return '[I;'+','.join(str(v) for v in struct.unpack('>4i',ident.bytes))+']'
-def graph_clipboard(nodes,edges):
+def graph_clipboard(nodes,edges,types=None):
+ types=types or {}
  identifiers={name:uuid.uuid5(uuid.NAMESPACE_URL,'https://github.com/commandant-x/MintCraftOS/sputnik/'+name) for name,code,x,y in nodes}
  metadata={name:pins(code) for name,code,x,y in nodes}
  records=[]
  for name,code,x,y in nodes:
   assert nbt_utf8_size(code)<=60000,'Unsafe native node size'
-  records.append('{id:'+uuid_tag(identifiers[name])+',typeId:"rocketnautics:lua_script",title:'+quote('MintCraft '+name)+',x:'+str(x)+',y:'+str(y)+',inputs:'+pin_tags(metadata[name]['input'],'INPUT')+',outputs:'+pin_tags(metadata[name]['output'],'OUTPUT')+',elements:[],customData:{code:'+quote(code)+'}}')
+  records.append('{id:'+uuid_tag(identifiers[name])+',typeId:'+quote(types.get(name,'rocketnautics:lua_script'))+',title:'+quote('MintCraft '+name)+',x:'+str(x)+',y:'+str(y)+',inputs:'+pin_tags(metadata[name]['input'],'INPUT')+',outputs:'+pin_tags(metadata[name]['output'],'OUTPUT')+',elements:[],customData:{code:'+quote(code)+'}}')
  connections=[]
  for src,out,tgt,inp in edges:
   source_index=[v[0] for v in metadata[src]['output']].index(out)
@@ -93,21 +94,22 @@ def main():
  path.write_text(graph_clipboard(graph_nodes,graph_edges),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
  # Separate keyboard/quad graph; consent and outputs remain unconfigured.
- quad_nodes=[('quad-enable',consent,20,40),('quad-keyboard',scripts['typewriter'],350,40),('quad-controller',quad,1100,40)]
+ quad_nodes=[('quad-enable',consent,20,40),('quad-keyboard',scripts['typewriter'],350,40),('quad-controller',quad,1100,40),('quad-status',"input('Text','string')",2050,40)]
  quad_edges=[('quad-enable','Binding','quad-controller','Enable binding'),('quad-keyboard','Bindings','quad-controller','Keyboard bindings'),('quad-enable','Enable','quad-keyboard','Enable'),('quad-enable','Enable','quad-controller','Flight Enable')]
  for pin in ('Forward demand','Left demand','Vertical demand','Commands valid'):
   quad_edges.append(('quad-keyboard',pin,'quad-controller',pin))
+ quad_edges.append(('quad-controller','Status','quad-status','Text'))
  path=out/'mintcraft-quad-flight.clipboard.txt'
- path.write_text(graph_clipboard(quad_nodes,quad_edges),encoding='utf-8')
+ path.write_text(graph_clipboard(quad_nodes,quad_edges,{'quad-status':'websnodelib:string_display'}),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.9','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
+ manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.10','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
- archive=out/'mintcraft-sputnik-0.1.9.zip'
+ archive=out/'mintcraft-sputnik-0.1.10.zip'
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16

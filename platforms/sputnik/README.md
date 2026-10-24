@@ -1,4 +1,4 @@
-# MintCraft Sputnik 0.1.9
+# MintCraft Sputnik 0.1.10
 
 Édition autonome pour **Cosmonautics 26.08.307, Minecraft 1.21.1**. CC:Tweaked et
 Vehicle Bridge ne sont pas nécessaires. La version de votre serveur reste à
@@ -7,7 +7,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.9.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.10.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -167,7 +167,7 @@ L'option `--minecraft-classpath` ajoute la validation du presse-papiers par le
 vrai parseur SNBT Minecraft 1.21.1 mappé. Ces JAR ne sont pas redistribués dans
 le paquet utilisateur. Les tests de physique restent des simulations.
 
-## Clavier Linked Typewriter — 0.1.9
+## Clavier Linked Typewriter — 0.1.10
 
 Importer `mintcraft-typewriter.clipboard.txt` dans le fond du graphe : ce nouveau
 nœud est un récepteur, sans commande moteur. Sauvegarder, fermer puis rouvrir le
@@ -216,7 +216,7 @@ indiscernable d'un relâchement, ou laisser temporairement un signal en cache.
 Ces sorties ne certifient donc pas une liaison de vol ni un autopilote ;
 `Flight qualified` reste zéro. Aucun signal n'est transmis par ce nœud.
 
-## Contrôleur quad avec sorties moteur — 0.1.9
+## Contrôleur quad avec sorties moteur — 0.1.10
 
 Importer `mintcraft-quad-flight.clipboard.txt` pour obtenir le graphe complet
 levier + clavier + contrôleur. Les quatre fréquences des transmissions se
@@ -226,7 +226,7 @@ la stabilisation, l'activation et le repli. Cette version émet réellement des
 signaux après configuration et autorisation ; elle reste expérimentale, avec
 calibration manuelle et sans vol Minecraft validé.
 
-## Poussée et masse automatiques — 0.1.9
+## Poussée et masse automatiques — 0.1.10
 
 Le contrôleur propose maintenant un mode physique pour un quad symétrique à
 quatre petits rotors verticaux identiques, avec Aeronautics/Simulated 1.3.2 et
@@ -237,7 +237,7 @@ dimensions et hypothèses matérielles sont à confirmer. Lire
 [le mode physique du guide](QUAD-FLIGHT.md) avant activation. Le résultat reste
 expérimental et n'a pas été testé en jeu.
 
-## Diagnostic Link indépendant — 0.1.9
+## Diagnostic Link indépendant — 0.1.10
 
 `mintcraft-link-test.clipboard.txt` ajoute un seul nœud de test radio. Ce test
 utilise l'API native `transmitWirelessRedstone` sans contrôleur de vol, sans masse
@@ -263,3 +263,26 @@ lire `MC_QUAD` via Display Link. Si elle ne fonctionne pas malgré la configurat
 sauvegardée, ce résultat oriente vers la fréquence, le mode récepteur, la portée,
 l'exécution du graphe ou l'intégration Create/Cosmonautics ; la cause exacte reste
 à établir. Les essais automatisés ne remplacent pas ce test physique.
+
+## Motifs de refus détaillés — 0.1.10
+
+Le contrôleur ne se limite plus à « Configurer les fréquences et paramètres ».
+Sa sortie `Status` donne les conditions réellement refusées côté exécution :
+`CONFIRM` (confirmation non reçue), `ENABLE_BIND` (description du levier),
+`KEY_COUNT` (nombre de fréquences clavier), `DUP_n` (collision entre rôles),
+`ROTOR_n` (paire manquante), `PARAM_*` / `PHYS_*` (champ invalide), `MODEL`
+(modèle physique refusé), puis `BASELINE`, `KEYS_WAIT` ou `KEYS_HELD` pour les
+étapes d'activation. `MASS` signale une masse serveur absente. Ces messages
+n'autorisent aucune commande supplémentaire et ne désactivent aucun contrôle.
+
+Le graphe complet contient maintenant **quatre nœuds et neuf fils** : le
+`String Display` natif `MintCraft quad-status` est déjà raccordé à `Status`.
+Dans le Display Link, sélectionner **Node: MintCraft quad-status**. Les clés
+créées par `display(...)` existent côté serveur mais leur carte n'est pas
+synchronisée dans le menu client du mod ; ne pas dépendre d'une sélection
+« Bridge: MC_QUAD » pour le diagnostic.
+
+Pour cette mise à jour, sauvegarder le graphe et les réglages existants, mettre
+l'autorisation à zéro, puis remplacer l'ancien graphe quad par le nouveau.
+Reconfigurer les fréquences et dimensions ; ne pas garder deux contrôleurs qui
+émettent sur les mêmes rotors. L'ancien graphe sauvegardé reste réimportable.

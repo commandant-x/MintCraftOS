@@ -1,4 +1,4 @@
-# Quad natif Sputnik 0.1.8 — contrôleur expérimental
+# Quad natif Sputnik 0.1.10 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
@@ -83,7 +83,7 @@ revenir à la version précédente.
 ## Import et branchement
 
 Sauvegarder le graphe actuel. Importer `mintcraft-quad-flight.clipboard.txt` dans
-le fond vide de l'éditeur Sputnik puis F pour cadrer les trois nœuds. Sauvegarder,
+le fond vide de l'éditeur Sputnik puis F pour cadrer les quatre nœuds. Sauvegarder,
 fermer et rouvrir avant de configurer les widgets. Ce graphe **ajoute** un lecteur
 de levier, un clavier et un contrôleur : ne pas conserver un autre émetteur qui
 commande les mêmes rotors. L'ancien graphe Venator n'est pas modifié.
@@ -94,7 +94,7 @@ commande les mêmes rotors. L'ancien graphe Venator n'est pas modifié.
   avant gauche, avant droite, arrière gauche, arrière droite. Ce sont les
   fréquences des récepteurs qui commandent vos quatre transmissions.
 
-Les huit fils logiques sont déjà raccordés : levier vers les deux autorisations,
+Les neuf fils logiques sont déjà raccordés : levier vers les deux autorisations,
 puis trois axes du clavier et son indicateur de validité vers le contrôleur.
 Deux liaisons de description des fréquences permettent de refuser les collisions
 entre le clavier, le levier et les quatre sorties.
@@ -192,3 +192,19 @@ un changement de fréquence ou une erreur d'émission déclenche le repli config
 Le succès d'un appel Link n'est pas un accusé de réception physique ; l'absence
 d'identité/source fraîche vérifiable interdit de présenter ce système comme
 un autopilote qualifié. Les essais de simulation ne remplacent pas les mesures.
+
+## Lire le refus exact avec la 0.1.10
+
+Le graphe comporte un `String Display` natif, nommé **MintCraft quad-status**,
+relié à `Status` du contrôleur. Choisir ce nœud dans le Display Link, plutôt
+qu'une clé MC_QUAD absente de la liste client. La carte `displayBridge` du mod
+n'est pas incluse dans la synchronisation de son bloc. Le texte du panneau
+physique donne le diagnostic de l'exécution serveur ; l'étiquette visible dans
+l'éditeur peut seulement représenter sa configuration côté client.
+
+Les anciens messages génériques sont remplacés par des motifs précis et leurs
+valeurs quand elles sont utiles. Une confirmation affichée cochée côté client
+mais reçue décochée au serveur produit `CONFIRM` ; une liaison de description
+manquante produit `ENABLE_BIND` ou `KEY_COUNT: 0/6`, sans supposer que les
+fréquences radio elles-mêmes sont défaillantes. Les défauts de masse restent
+visibles sur `Status`, y compris lorsque le contrôleur ne peut pas s'armer.

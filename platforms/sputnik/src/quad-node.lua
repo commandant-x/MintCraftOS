@@ -38,45 +38,53 @@ local pose={ix=ix,iz=iz,tick=tick,mass=mass,x=x,y=y,z=z,pitch=pitch,yaw=yaw,roll
 local server=finite(tick) and tick>0 and finite(mass) and mass>0
 local rows,pairs_,seen,parts={}, {},{},{}
 local physical=s.physical.isChecked()
-local valid=s.checked.isChecked() and type(transmitWirelessRedstone)=='function'
+local valid=true local problems={}
+local function reject(code,why) valid=false problems[#problems+1]=code..': '..why end
+if not s.checked.isChecked() then reject('CONFIRM','case reprise/modele non cochee sur serveur') end
+if type(transmitWirelessRedstone)~='function' then reject('API','emission Link indisponible') end
 -- Reject collisions across keyboard, physical enable and all four rotor outputs.
 local function binding(id)
  if type(id)~='string' or #id>386 then return false end
  local a,b=id:match('^([^,]+),([^,]+)$')
  return item(a) and item(b)
 end
-if not binding(enableBinding) then valid=false else seen[enableBinding]=true end
+if not binding(enableBinding) then reject('ENABLE_BIND','fil Binding du levier absent/invalide') else seen[enableBinding]='levier' end
 local count=0
-if type(keyboardBindings)~='string' or #keyboardBindings>2400 then valid=false else
+if type(keyboardBindings)~='string' or #keyboardBindings>2400 then reject('KEY_BIND','description clavier absente/invalide') else
  for id in keyboardBindings:gmatch('[^|]+') do
   count=count+1
-  if not binding(id) or seen[id] then valid=false end seen[id]=true
+  if not binding(id) then reject('KEY_PAIR','paire clavier '..count..' invalide')
+  elseif seen[id] then reject('DUP','clavier '..count..' utilise frequence de '..seen[id]) end
+  seen[id]='clavier '..count
  end
 end
-if count~=6 then valid=false end
+if count~=6 then reject('KEY_COUNT',tostring(count)..'/6 frequences clavier recues') end
 parts[#parts+1]=tostring(keyboardBindings)..':'..tostring(enableBinding)
 for i,r in ipairs(s.rotors) do
  local a,b=r.a.getItem(),r.b.getItem() local text=r.row.getValue()
  parts[#parts+1]=tostring(a)..','..tostring(b)..':'..tostring(text)
- if not item(a) or not item(b) or seen[tostring(a)..','..tostring(b)] then valid=false end
- seen[tostring(a)..','..tostring(b)]=true pairs_[i]={a,b}
+ local id=tostring(a)..','..tostring(b)
+ if not item(a) or not item(b) then reject('ROTOR_'..i,'paire objets absente/invalide')
+ elseif seen[id] then reject('DUP_'..i,'rotor '..i..' utilise frequence de '..seen[id]) end
+ seen[id]='rotor '..i pairs_[i]={a,b}
  rows[i]={}
  if physical then rows[i]={}
- elseif type(text)~='string' or #text>256 then valid=false else
+ elseif type(text)~='string' or #text>256 then reject('ROW_'..i,'ligne manuelle invalide') else
   -- Empty fields must not silently shift response columns.
   local count=0 for token in (text..','):gmatch('(.-),') do count=count+1 rows[i][count]=tonumber(token) or false end
-  if count~=7 then valid=false end
+  if count~=7 then reject('ROW_'..i,'7 nombres requis ou activer Calcul physique') end
  end
 end
 local config={}
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do config[key]=tonumber(s[key].getValue()) parts[#parts+1]=tostring(config[key])
- if not finite(config[key]) or config[key]<=0 then valid=false end end
+ if not finite(config[key]) or config[key]<=0 then reject('PARAM_'..key,'valeur positive requise') end end
 local physicsWhy
 if physical then
  config.physics={}
  for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity'}) do
   config.physics[key]=tonumber(s.physicalFields[key].value.getValue())
   parts[#parts+1]=tostring(config.physics[key])
+  if not finite(config.physics[key]) then reject('PHYS_'..key,'valeur numerique requise') end
  end
  if server then
   local result
@@ -85,9 +93,11 @@ if physical then
  else rows=nil end
 end
 parts[#parts+1]=tostring(physical)
-local model,modelWhy=Quad.model(rows,physical) if not model then valid=false end
+local model,modelWhy=Quad.model(rows,physical)
 modelWhy=physicsWhy or modelWhy
-if not valid and not s.owner then s.reason=modelWhy or 'Configurer les frequences et parametres verifies' s.phase='off' s.low=0 end
+if not model then reject('MODEL',tostring(modelWhy)) end
+local rejection=#problems>0 and table.concat(problems,' | ') or nil
+if not valid and not s.owner then s.reason=rejection or 'Configuration incomplete' s.phase='off' s.low=0 end
 local signature=table.concat(parts,'|')
 local function send(values)
  if not s.owner then return false end
@@ -108,14 +118,21 @@ end
 local advancing=server and (not s.tick or tick>s.tick)
 local gap=server and s.tick and (tick<s.tick or tick-s.tick>10)
 if s.owner and (not server or not valid or s.signature~=signature or gap or not finite(enabled) or enabled<0 or enabled>15) then
- fallback('Configuration/contexte/horloge perdu; repli mesure, reprise physique')
+ fallback(rejection or 'Configuration/contexte/horloge perdu; repli mesure, reprise physique')
 end
 if server then
- if enabled==0 then
+ if not finite(enabled) or enabled<0 or enabled>15 then
+  if not s.owner then s.reason='ENABLE_VALUE: autorisation non numerique ou hors 0..15' end
+ elseif enabled==0 then
   if s.owner and s.phase=='active' then fallback('Desactive: repli configure, pas de coupure des pales') end
   if advancing and valid and not gap then s.low=s.low+1 else s.low=0 end
   if s.low>=2 then s.phase='ready' s.reason='Pret: activer sans touche' end
  elseif finite(enabled) and enabled>0 and enabled<=15 and valid and not gap then
+  if s.phase~='active' then
+   if s.phase~='ready' then s.reason='BASELINE: mettre levier a 0 puis activer sans touche'
+   elseif keys~=1 then s.reason='KEYS_WAIT: clavier pas encore arme (Commands valid ~= 1)'
+   elseif forward~=0 or left~=0 or vertical~=0 then s.reason='KEYS_HELD: relacher touches F='..tostring(forward)..' L='..tostring(left)..' Y='..tostring(vertical) end
+  end
   if s.phase=='ready' and keys==1 and forward==0 and left==0 and vertical==0 then
    local core,why=Quad.new(rows,pose,config)
    if core then
@@ -133,7 +150,9 @@ if server then
    else s.owner.rows=s.core.model.rows s.info=info s.reason=info.massChanged and 'Masse modifiee: adaptation du trim en vol' or keys~=1 and 'Clavier indisponible: freinage/maintien demande' or 'Stabilisation experimentale active' end
   end
  end
-elseif not s.owner then s.reason='Configuration client; etat serveur via MC_QUAD' end
+elseif not s.owner then
+ s.reason=finite(tick) and tick>0 and ('MASS: masse serveur absente ('..tostring(mass)..'); verifier assemblage simule') or 'CLIENT/CLOCK: contexte client ou horloge serveur absente'
+end
 if s.owner and s.phase~='active' then
  local values={} for i,r in ipairs(s.owner.rows) do values[i]=r[7] end
  send(values)
@@ -141,7 +160,11 @@ end
 if server then s.tick=tick end
 s.signature=signature
 s.label.setText(s.reason or modelWhy or 'Configurer les quatre sorties et le modele mesure')
-if not server and not s.owner then return end
+if not server and not s.owner then
+ -- Keep a typed reason available even when mass/clock prerequisites fail.
+ emit('Status',s.reason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0)
+ return
+end
 local active=s.phase=='active'
 emit('Active',active and 1 or 0) emit('Flight qualified',0)
 emit('Kalman ready',active and s.info and s.info.ready and 1 or 0)
