@@ -1,4 +1,9 @@
-# MintCraft Sputnik 0.1.17
+# MintCraft Sputnik 0.1.18
+
+**0.1.18 : Q/D courbent progressivement la trajectoire avec quatre hélices fixes.**
+Le nez reste sans commande de lacet. Une case conserve le mode latéral classique.
+Les consignes Link validées sont lues au tick courant pour éviter un étage de
+latence du graphe. [Rapport et limites](https://github.com/commandant-x/MintCraftOS/blob/main/platforms/sputnik/reports/course-0.1.18/README.md).
 
 **0.1.17 : appui maintenu = inclinaison maintenue, sans plafond de 2 m/s.**
 Le quad accélère pendant l'appui, freine au relâchement puis maintient le point
@@ -27,7 +32,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.17.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.18.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

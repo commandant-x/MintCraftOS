@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -13,7 +13,7 @@
   "nodeModifiedUtf8Bytes": {
     "flight-telemetry": 2081,
     "link-test": 2188,
-    "quad-control": 32865,
+    "quad-control": 35695,
     "typewriter": 4713,
     "vehicle-mixer": 6745,
     "bank-test": 15545,
@@ -74,12 +74,12 @@
       "sha256": "85eeff4abc1a6dfeb6e910d5bf23f4df7c2209bb8b516d65bbeefcc047f2b23e"
     },
     "mintcraft-quad-control.lua": {
-      "bytes": 32865,
-      "sha256": "40bcdc1453a1a1de6e581cfbf45efe1c796ab8f2652c3688943fec0819b4e452"
+      "bytes": 35695,
+      "sha256": "71a9dd3537679b057e5a266eb55ae006db0c586baa2442e9e31a0a9c229bae7b"
     },
     "mintcraft-quad-control.clipboard.txt": {
-      "bytes": 46308,
-      "sha256": "e4942e2724eb289b28454ed0552ddcf7d46b49a6454abaad6548a22f4b8cd2a1"
+      "bytes": 50340,
+      "sha256": "2e65df055ec8bae6a8911530a7fb9292b33a633d1213f24968aaba9da0c5902b"
     },
     "mintcraft-typewriter.lua": {
       "bytes": 4713,
@@ -139,11 +139,11 @@
     },
     "mintcraft-dashboard.lua": {
       "bytes": 3755,
-      "sha256": "365e27fffe197b376cbd054e73399044193a2af8283ad6eac8baf8d5c23d4167"
+      "sha256": "be6543f4b64dbda57ca7ff70bd17b0bc60f702bd79f73c4e35bcb5e9dbb6d6bd"
     },
     "mintcraft-dashboard.clipboard.txt": {
       "bytes": 5888,
-      "sha256": "47c640ea8a289c5bdc06758c5d25e3ce0ae594fa781e514417b492bf1eafcdef"
+      "sha256": "4c26f001bd6b1717b8f02d9b8d38e5cf403ba71d139d9957b051d283e97d313f"
     },
     "mintcraft-link-gateway.lua": {
       "bytes": 3012,
@@ -170,8 +170,8 @@
       "sha256": "4a146ee014f9dca0194e1e76a45dc5a6a4aee80d0b8618c9f17f1b276e21c0f4"
     },
     "mintcraft-quad-flight.clipboard.txt": {
-      "bytes": 63436,
-      "sha256": "34d27f303be43267add1297583fb234e68c4b402af2e1074261b10d91ef89e47"
+      "bytes": 67468,
+      "sha256": "747ae3f1d7912f4b779191f766838f432c96f12d6644b12c2ce18c57eee9a512"
     }
   }
 }

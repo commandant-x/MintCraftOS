@@ -1,10 +1,52 @@
-# Quad natif Sputnik 0.1.17 — contrôleur expérimental
+# Quad natif Sputnik 0.1.18 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
 dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
 masse, de la pression et de la géométrie confirmée. Le mode manuel historique
 reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Quatre hélices fixes : courber la trajectoire — 0.1.18
+
+La case **Q/D: virage de trajectoire (nez non pilote)** est activée par défaut.
+W/S accélèrent/freinent sur le cap de trajectoire demandé. Q/D courbent ce cap
+progressivement en demandant une accélération centripète, et non une diagonale
+fixe. Le cap demandé est conservé lorsque Q/D sont relâchées ; il ne revient
+pas automatiquement au cap initial ou au cap du nez. Les phases de freinage et de maintien de la 0.1.17
+restent utilisées lorsque toutes les commandes de déplacement sont relâchées.
+
+Ce mode ne commande **pas le lacet du corps**. Dans les versions auditées,
+les petites hélices fixes appliquent une force au point de montage, sans
+couple de réaction autour de leur axe. Quatre poussées verticales offrent
+portance, tangage et roulis ; elles ne donnent pas un quatrième canal de lacet
+indépendant. Le nez peut dériver par couplage physique sans être piloté. Les
+sorties `Track heading` et `Body yaw controlled=0` distinguent ce fait ; le
+statut affiche `TRAJ` (consigne de trajectoire) et `NEZ` (angle mesuré).
+Q/D seules à l'arrêt ne font donc pas pivoter le véhicule.
+
+La courbure dépend de la poussée horizontale disponible et de la vitesse :
+à vitesse élevée, les virages sont plus larges. La vitesse de rotation de la
+trajectoire est bornée à 30°/s aux faibles vitesses pour garder la demande
+compatible avec la réponse de l'attitude. Cela n'ajoute pas de plafond de
+vitesse horizontale. Le cap demandé ne s'éloigne pas sans limite d'une
+trajectoire qui ne peut pas suivre ; la réserve de sustentation reste active.
+
+Décocher la case, autorisation coupée, conserve l'ancien déplacement latéral
+Q/D. Les fonctions du SDK gardent aussi leur comportement classique sauf si
+`config.steering=true` est fourni explicitement.
+
+Après validation du clavier et des six fréquences, le contrôleur lit ses
+récepteurs directement au tick courant. L'armement, le neutre initial, les
+collisions de fréquences et la validité du clavier restent requis. Une lecture
+invalide revient au freinage/maintien. Cela supprime une étape du graphe,
+nominalement 50 ms à 20 TPS ; la montée en régime des hélices ne change pas.
+La case **Consignes clavier Link directes** est activée par défaut. La décocher,
+autorisation coupée, conserve la consommation des entrées du graphe pour un
+autre fournisseur de consignes. Le statut indique `LINK` ou `GRAPH`.
+
+Voir le [rapport de trajectoire](https://github.com/commandant-x/MintCraftOS/blob/main/platforms/sputnik/reports/course-0.1.18/README.md)
+pour les courbes, la variation du cap de déplacement et le cap réel du nez.
+Ce compromis ne transforme pas le montage en drone FPV avec lacet indépendant.
 
 ## Déplacement à inclinaison maintenue — 0.1.17
 

@@ -173,7 +173,7 @@ function M.new(rows,pose,config)
  if math.abs(pose.pitch)>10 or math.abs(pose.roll)>10 then return nil,'Start near level' end
  local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0,
   lastAttitude={pitch=pose.pitch,roll=pose.roll},rates={pitch=0,roll=0},angularAcceleration={pitch=0,roll=0},
-  motion='HOLD',lastVelocity={x=0,z=0},linearAcceleration={x=0,z=0}}
+  motion='HOLD',lastVelocity={x=0,z=0},linearAcceleration={x=0,z=0},steering=config.steering==true,course=pose.yaw}
  s.physics=config.physics s.gravity=s.physics and s.physics.gravity or 9.81 s.diagnostics=diagnostics
  s.speed=config.speed or 2 s.climb=config.climb or 1 s.tilt=config.tilt or 8
  s.noise=config.noise or .0025 s.process=config.process or 4
@@ -232,16 +232,40 @@ function M.new(rows,pose,config)
    self.lastVelocity[key]=k[key].v
   end
   if command.vertical~=0 then self.target.y=self.target.y+command.vertical*self.climb*dt end
-  local moving=command.forward~=0 or command.left~=0
+  local horizontalSpeed=math.sqrt(k.x.v^2+k.z.v^2)
+  local moving=command.forward~=0 or (command.left~=0 and (not self.steering or horizontalSpeed>.3))
   local accelerationLimit=self.gravity*math.tan(math.rad(self.tilt))
   local ax,az
   if moving then
-   -- A held key requests a sustained tilt, not a capped horizontal speed.
-   -- Body forward +Z and left -X are rotated into the world by measured yaw.
+   -- A held key requests thrust, not a capped horizontal speed.
    self.motion='TRAVEL'
    local norm=math.max(1,math.sqrt(command.forward^2+command.left^2))
-   ax=accelerationLimit*(command.forward*math.sin(yaw)-command.left*math.cos(yaw))/norm
-   az=accelerationLimit*(command.forward*math.cos(yaw)+command.left*math.sin(yaw))/norm
+   if self.steering then
+    -- Fixed vertical propellers have no independent body-yaw channel. Steer
+    -- the FLIGHT PATH with centripetal acceleration, never pretend to yaw it.
+    local course=math.rad(self.course)
+    local along=k.x.v*math.sin(course)+k.z.v*math.cos(course)
+    local direction=along<0 and -1 or 1
+    local observed=self.course
+    if horizontalSpeed>.3 then
+     observed=wrap(math.deg(math.atan2(k.x.v,k.z.v))+(direction<0 and 180 or 0))
+    end
+    local error=wrap(self.course-observed)
+    local turnRate=-clip(accelerationLimit*command.left/norm/math.max(.3,horizontalSpeed),-math.rad(30),math.rad(30))
+    -- Do not wind the requested course ahead of an aircraft that cannot follow.
+    if math.abs(error)>15 and error*turnRate>0 then turnRate=0 end
+    self.course=wrap(self.course+math.deg(turnRate)*dt)
+    error=math.rad(wrap(self.course-observed))
+    course=math.rad(observed)
+    local tangent=accelerationLimit*command.forward/norm
+    local normal=-direction*horizontalSpeed*(turnRate+.7*error)
+    ax=tangent*math.sin(course)-normal*math.cos(course)
+    az=tangent*math.cos(course)+normal*math.sin(course)
+   else
+    -- Optional classic body-relative strafe, retained for existing users/SDK.
+    ax=accelerationLimit*(command.forward*math.sin(yaw)-command.left*math.cos(yaw))/norm
+    az=accelerationLimit*(command.forward*math.cos(yaw)+command.left*math.sin(yaw))/norm
+   end
    self.target.x=k.x.x self.target.z=k.z.x
   else
    if self.motion=='TRAVEL' then self.motion='BRAKE' end
@@ -315,7 +339,7 @@ function M.new(rows,pose,config)
    local value=clip(values[i]+self.quant[i],r[2],r[3])
    signals[i]=clip(math.floor(value+.5),r[2],r[3]) self.quant[i]=clip(value-signals[i],-.5,.5)
   end
-  return signals,{scale=scale,altitude=k.y.x,targetY=self.target.y,verticalSpeed=k.y.v,horizontalSpeed=math.sqrt(k.x.v^2+k.z.v^2),pitchTarget=pitchTarget,rollTarget=rollTarget,motion=self.motion,liftLimited=attitudeScale<.99,massChanged=math.abs(p.mass-self.mass)/self.mass>.02,ready=self.samples>=3}
+  return signals,{scale=scale,altitude=k.y.x,targetY=self.target.y,verticalSpeed=k.y.v,horizontalSpeed=horizontalSpeed,pitchTarget=pitchTarget,rollTarget=rollTarget,motion=self.motion,steering=self.steering,course=self.course,liftLimited=attitudeScale<.99,massChanged=math.abs(p.mass-self.mass)/self.mass>.02,ready=self.samples>=3}
  end
  return s
 end
@@ -338,14 +362,18 @@ if not s then
  s.noise.setValue('0.0025') s.process.setValue('4') s.speed.setValue('2') s.climb.setValue('1') s.tilt.setValue('8')
  s.help=ui.label('R / Q / vitesse retour maintien / montee / inclinaison deplacement')
  for i,name in ipairs(names) do s.rotors[i]={label=ui.label(name..': Link puis trim,min,max,dY,dPitch,dRoll,repli'),a=ui.itempicker(),b=ui.itempicker(),row=ui.textfield(300)} end
+ s.steering=ui.checkbox('Q/D: virage de trajectoire (nez non pilote)') s.steering.setChecked(true)
+ s.direct=ui.checkbox('Consignes clavier Link directes (latence reduite)') s.direct.setChecked(true)
  _G.MintCraftQuad=s
 end
 addElement(s.label) addElement(s.checked) addElement(s.help) addElement(s.physical)
 for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity'}) do local f=s.physicalFields[key] addElement(f.label) addElement(f.value) end
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do addElement(s[key]) end
 for _,r in ipairs(s.rotors) do addElement(r.label) addElement(r.a) addElement(r.b) addElement(r.row) end
+addElement(s.steering)
+addElement(s.direct)
 local emit=output
-if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') output('Horizontal speed',0) end
+if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') output('Horizontal speed',0) output('Track heading',0) output('Body yaw controlled',0) end
 local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
@@ -374,13 +402,14 @@ local function binding(id)
  return item(a) and item(b)
 end
 if not binding(enableBinding) then reject('ENABLE_BIND','fil Binding du levier absent/invalide') else seen[enableBinding]='levier' end
-local count=0
+local count=0 local keyPairs={}
 if type(keyboardBindings)~='string' or #keyboardBindings>2400 then reject('KEY_BIND','description clavier absente/invalide') else
  for id in keyboardBindings:gmatch('[^|]+') do
   count=count+1
   if not binding(id) then reject('KEY_PAIR','paire clavier '..count..' invalide')
   elseif seen[id] then reject('DUP','clavier '..count..' utilise frequence de '..seen[id]) end
   seen[id]='clavier '..count
+  local a,b=id:match('^([^,]+),([^,]+)$');keyPairs[count]={a,b}
  end
 end
 if count~=6 then reject('KEY_COUNT',tostring(count)..'/6 frequences clavier recues') end
@@ -400,7 +429,7 @@ for i,r in ipairs(s.rotors) do
   if count~=7 then reject('ROW_'..i,'7 nombres requis ou activer Calcul physique') end
  end
 end
-local config={}
+local config={steering=s.steering.isChecked(),directInput=s.direct.isChecked()} parts[#parts+1]=tostring(config.steering)..':'..tostring(config.directInput)
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do config[key]=tonumber(s[key].getValue()) parts[#parts+1]=tostring(config[key])
  if not finite(config[key]) or config[key]<=0 then reject('PARAM_'..key,'valeur positive requise') end end
 local physicsWhy
@@ -424,6 +453,22 @@ if not model then reject('MODEL',tostring(modelWhy)) end
 local rejection=#problems>0 and table.concat(problems,' | ') or nil
 if not valid and not s.owner and not s.fault then s.reason=rejection or 'Configuration incomplete' s.phase='off' s.low=0 end
 local signature=table.concat(parts,'|')
+-- Keep the keyboard's physical OFF/neutral/verification gate, but sample its
+-- six validated receivers directly once permitted: no extra graph-tick delay.
+local inputPath='GRAPH'
+if server and valid and keys==1 and config.directInput and type(receiveWirelessRedstone)=='function' then
+ local values={} local good=true
+ for i,pair in ipairs(keyPairs) do
+  local ok,value=pcall(receiveWirelessRedstone,pair[1],pair[2])
+  if not ok or not finite(value) or value%1~=0 or value<0 or value>15 then good=false;break end
+  values[i]=value>0 and 1 or 0
+ end
+ inputPath='LINK'
+ if good then
+  forward=values[1]-values[2];left=values[3]-values[4];vertical=values[5]-values[6]
+  local norm=math.max(1,math.sqrt(forward^2+left^2));forward=forward/norm;left=left/norm
+ else keys=0;forward=0;left=0;vertical=0 end
+end
 local function send(values)
  if not s.owner then return false end
  -- No Link ACK is available: RPC success is not proof of rotor response.
@@ -512,7 +557,7 @@ if server then
     s.owner.rows=s.core.model.rows s.info=info
     local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
     -- Requests, not actuator ACKs: expose the whole path on the existing panel.
-    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN '..info.motion..(info.liftLimited and ' LIFT_LIMIT' or '')..' Vh='..n(info.horizontalSpeed)..' m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
+    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN '..info.motion..(info.steering and ' TRAJ='..n(info.course)..' NEZ='..n(yaw) or '')..(info.liftLimited and ' LIFT_LIMIT' or '')..' Vh='..n(info.horizontalSpeed)..' '..inputPath..' m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
    end
   end
  end
@@ -526,6 +571,8 @@ end
 if server then s.tick=tick end
 s.signature=signature
 s.label.setText(s.reason or modelWhy or 'Configurer les quatre sorties et le modele mesure')
+emit('Body yaw controlled',0)
+emit('Track heading',s.core and s.core.course or 0)
 if not server and not s.owner then
  -- Keep a typed reason available even when mass/clock prerequisites fail.
  emit('Last fault',s.fault and s.fault.message or '')

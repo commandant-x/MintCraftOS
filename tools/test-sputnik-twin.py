@@ -84,6 +84,7 @@ metadata = {
                  'maximum_tilt_deg_lt': 25, 'last_10s_tilt_rms_deg_lt': 2, 'last_10s_speed_rms_ms_lt': .2,
                  'sustained_travel_cases': {'mean_pitch_fraction_gt': .7, 'pitch_std_deg_lt': 1.5, 'peak_horizontal_speed_ms_gt': 8, 'release_backtrack_m_lt': .5}},
     'limitations': ['Mass and dimensions are user parameters; inertia/COM/rotor response not measured',
+                    'Fixed vertical rotors have no independently controlled body-yaw actuator; course steering changes the flight path',
                     'No collision, terrain, joints, constraints or Create stress network solver',
                     'No full inertia tensor, rotor gyroscopic torques or ground effect',
                     'Radio delay and linear/angular airframe drag are scenario assumptions',

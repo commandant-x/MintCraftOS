@@ -78,6 +78,15 @@ local cases={
  {name='held_forward_heavy',command='W',duration=12,seconds=60,mass=85,stress=true,expectLiftLimit=true},
  {name='held_forward_endurance',command='W',duration=80,seconds=220,drag=0,angularDrag=0,expectTravel=true,stress=true},
  {name='travel_mass_loss',command='W',duration=20,seconds=70,massLoss=true,expectTravel=true},
+ {name='course_left_arc',command='W',turn=true,duration=24,seconds=90,expectTurn=75},
+ {name='course_right_arc',command='W',turn=true,right=true,duration=24,seconds=90,expectTurn=75},
+ {name='course_no_drag',command='W',turn=true,duration=36,seconds=110,drag=0,angularDrag=0,expectTurn=75},
+ {name='course_release_steer',command='W',turn=true,turnEnd=18,duration=24,seconds=90,expectTurn=40},
+ {name='course_turn_only',command='W',turn=true,turnOnly=true,duration=24,seconds=90,expectTurn=120},
+ {name='steer_at_rest',command='Q',duration=10,seconds=40,expectRest=true},
+ {name='classic_strafe',command='WQ',duration=8,seconds=50,classic=true},
+ {name='course_straight_gust',command='W',duration=24,seconds=80,gust=true,expectTravel=true},
+ {name='course_reverse_arc',command='S',turn=true,reverseCommand=true,duration=24,seconds=90,expectTurn=75},
  {name='slow_spool',spool=.08,pitch=4,roll=-3,seconds=40,stress=true},
  {name='com_offset_10cm',com={.1,0,0},seconds=30,stress=true},
  {name='com_offset_25cm',com={.25,0,0},seconds=30,stress=true},
@@ -96,7 +105,7 @@ if MINTCRAFT_TWIN_CASES then
  cases=selected
 end
 local summary=assert(io.open(outDir..'/summary.csv','w'))
-summary:write('scenario,stress,status,final_altitude_error_m,max_altitude_error_m,min_altitude_m,max_tilt_deg,final_speed_ms,final_horizontal_error_m,max_rotor_spread,first_fault,tail_tilt_rms_deg,tail_speed_rms_ms,time_to_1ms_s,held_pitch_mean_deg,held_pitch_std_deg,peak_speed_ms,max_backtrack_m,lift_limited_frames,final_mode\n')
+summary:write('scenario,stress,status,final_altitude_error_m,max_altitude_error_m,min_altitude_m,max_tilt_deg,final_speed_ms,final_horizontal_error_m,max_rotor_spread,first_fault,tail_tilt_rms_deg,tail_speed_rms_ms,time_to_1ms_s,held_pitch_mean_deg,held_pitch_std_deg,peak_speed_ms,max_backtrack_m,lift_limited_frames,final_mode,track_turn_deg,body_yaw_change_deg\n')
 for _,case in ipairs(cases) do
  local w={tick=100,pos={0,80,0},v={0,0,0},q=orientation(case.pitch or 0,case.yaw or 0,case.roll or 0),omega={0,0,0},
  mass=case.mass or profile.mass,I={profile.ix*(case.inertiaScale or 1),profile.iy*(case.inertiaScale or 1),profile.iz*(case.inertiaScale or 1)},bus={},tx={},queue={},rpm={},requested={},actual={},com=case.com or {0,0,0},time=0}
@@ -109,7 +118,7 @@ for _,case in ipairs(cases) do
   local e=setmetatable({},{__index=function(_,key) if type(key)=='string' and key:match('^MintCraft') then return nil end return _G[key] end});e._G=e;e.values={};e.outputs={}
   e.input=function(k) return e.values[k] or 0 end;e.output=function(k,v) e.outputs[k]=v end
   e.ui={label=function() return {setText=function() end} end,
-   checkbox=function() local c={v=false};c.isChecked=function() return c.v end;return c end,
+   checkbox=function() local c={v=false};c.isChecked=function() return c.v end;c.setChecked=function(v) c.v=v end;return c end,
    textfield=function() local c={v=''};c.getValue=function() return c.v end;c.setValue=function(v) c.v=v end;return c end,
    itempicker=function() local c={v='minecraft:air'};c.getItem=function() return c.v end;return c end}
   e.addElement=function() end;e.display=function() end
@@ -139,6 +148,7 @@ for _,case in ipairs(cases) do
  local qs=quad.MintCraftQuad;qs.checked.v=true;qs.physical.v=true
  qs.physicalFields.armX.value.v=tostring(profile.armX);qs.physicalFields.armZ.value.v=tostring(profile.armZ);qs.physicalFields.height.value.v=tostring(profile.height)
  qs.tilt.v=tostring(case.tilt or 8)
+ if qs.steering then qs.steering.v=case.classic~=true end
  local channels={}
  for i,r in ipairs(qs.rotors) do r.a.v='minecraft:paper';r.b.v='minecraft:'..rotorItems[i];channels[i]=r.a.v..','..r.b.v end
  local function graph()
@@ -161,9 +171,11 @@ for _,case in ipairs(cases) do
  local tailTilt,tailSpeed,tailCount,response50=0,0,0,-1
  local heldSum,heldSquare,heldCount,peakSpeed,backtrack,liftLimitedFrames=0,0,0,0,0,0
  local releasePosition,releaseDirection,furthest=nil,nil,0
+ local previousTrack,trackUnwrapped,turnAccum=case.yaw or 0,case.yaw or 0,0
+ local previousYaw,bodyYawAccum=case.yaw or 0,0
  local lastTargetX,lastTargetZ=quad.MintCraftQuad.core.target.x,quad.MintCraftQuad.core.target.z
  local trace=assert(io.open(outDir..'/'..case.name..'.csv','w'))
- trace:write('time,x,y,z,target_y,vx,vy,vz,pitch,yaw,roll,tilt,active,mass,r1,r2,r3,r4,rpm1,rpm2,rpm3,rpm4,pitch_target,roll_target,mode\n')
+ trace:write('time,x,y,z,target_y,vx,vy,vz,pitch,yaw,roll,tilt,active,mass,r1,r2,r3,r4,rpm1,rpm2,rpm3,rpm4,pitch_target,roll_target,track_heading,body_yaw_unwrapped,mode\n')
  local steps=case.seconds*20
  for frame=1,steps do
   w.tick=w.tick+1;w.time=frame/20
@@ -173,6 +185,9 @@ for _,case in ipairs(cases) do
    if case.alternating and w.time>=4 and w.time<12 then
     local forward=math.floor((w.time-4)/case.alternating)%2==0
     on=forward and name=='W' or not forward and name=='S'
+   end
+   if case.turn and w.time>=4 and w.time<4+case.duration then
+    on=(name==(case.reverseCommand and 'S' or 'W') and not (case.turnOnly and w.time>=8)) or (name==(case.right and 'D' or 'Q') and w.time>=8 and w.time<(case.turnEnd or 4+case.duration))
    end
    w.bus['minecraft:stick,minecraft:'..keyItems[i]]=on and 15 or 0
   end
@@ -227,6 +242,12 @@ for _,case in ipairs(cases) do
   local p,y,r=euler(w.q);local tilt=math.deg(math.acos(clamp(rotate(w.q,{0,1,0})[2],-1,1)))
   maxTilt=math.max(maxTilt,tilt);maxError=math.max(maxError,math.abs(w.pos[2]-lastTarget));minHeight=math.min(minHeight,w.pos[2])
   local horizontalSpeed=math.sqrt(w.v[1]^2+w.v[3]^2);peakSpeed=math.max(peakSpeed,horizontalSpeed)
+  local yawChange=(y-previousYaw+180)%360-180;bodyYawAccum=bodyYawAccum+yawChange;previousYaw=y
+  if horizontalSpeed>.3 then
+   local track=math.deg(math.atan2(w.v[1],w.v[3]));local change=(track-previousTrack+180)%360-180
+   trackUnwrapped=trackUnwrapped+change;previousTrack=track
+   if case.turn and w.time>=8 and w.time<(case.turnEnd or 4+case.duration) then turnAccum=turnAccum+change end
+  end
   if case.command=='W' and w.time>=8 and w.time<4+(case.duration or 2) then heldSum=heldSum+p;heldSquare=heldSquare+p*p;heldCount=heldCount+1 end
   if case.command=='W' and w.time>=4+(case.duration or 2) then
    if not releasePosition then
@@ -240,6 +261,7 @@ for _,case in ipairs(cases) do
   local values={w.time,w.pos[1],w.pos[2],w.pos[3],lastTarget,w.v[1],w.v[2],w.v[3],p,y,r,tilt,quad.outputs.Active,w.mass}
   for i=1,4 do values[#values+1]=w.actual[i] end;for i=1,4 do values[#values+1]=w.rpm[i] end
   values[#values+1]=info and info.pitchTarget or 0;values[#values+1]=info and info.rollTarget or 0
+  values[#values+1]=trackUnwrapped;values[#values+1]=(case.yaw or 0)+bodyYawAccum
   for j,v in ipairs(values) do values[j]=string.format('%.6f',v) end
   values[#values+1]=quad.outputs.Active~=1 and 'FAULT' or info and info.motion or 'LEGACY'
   trace:write(table.concat(values,',')..'\n')
@@ -254,12 +276,14 @@ for _,case in ipairs(cases) do
  local heldStd=heldCount>0 and math.sqrt(math.max(0,heldSquare/heldCount-heldMean^2)) or 0
  local pass=not activeLost and finalError<.3 and speed<.2 and horizontal<.3 and maxTilt<25 and tiltRms<2 and speedRms<.2
  if case.expectTravel then pass=pass and heldMean>.7*(case.tilt or 8) and heldStd<1.5 and peakSpeed>8 and backtrack<.5 end
+ if case.expectTurn then pass=pass and (case.right and turnAccum>case.expectTurn or not case.right and turnAccum<-case.expectTurn) end
+ if case.expectRest then pass=pass and peakSpeed<.1 and math.abs(bodyYawAccum)<1 end
  local status=pass and 'PASS' or 'FAIL'
  if case.expectLiftLimit and pass and liftLimitedFrames>0 and peakSpeed<.2 then status='LIFT_LIMIT' end
  if MINTCRAFT_TWIN_ASSERT then assert(pass,'Independent twin regression failed: '..case.name) end
  local function csv(s) return '"'..tostring(s):gsub('"','""')..'"' end
  local finalMode=quad.outputs.Active~=1 and 'FAULT' or quad.MintCraftQuad.info and quad.MintCraftQuad.info.motion or 'LEGACY'
- summary:write(string.format('%s,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s\n',case.name,tostring(case.stress or false),status,finalError,maxError,minHeight,maxTilt,speed,horizontal,maxSpread,csv(firstFault or ''),tiltRms,speedRms,response50,heldMean,heldStd,peakSpeed,backtrack,liftLimitedFrames,finalMode))
+ summary:write(string.format('%s,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s,%.6f,%.6f\n',case.name,tostring(case.stress or false),status,finalError,maxError,minHeight,maxTilt,speed,horizontal,maxSpread,csv(firstFault or ''),tiltRms,speedRms,response50,heldMean,heldStd,peakSpeed,backtrack,liftLimitedFrames,finalMode,turnAccum,bodyYawAccum))
  summary:flush()
  print(string.format('%s: %s error=%.3fm tilt=%.2fdeg speed=%.3fm/s fault=%s',case.name,status,finalError,maxTilt,speed,firstFault or 'none'))
 end

@@ -9,7 +9,7 @@ local function env(name,path)
  end});e._G=e;e.values={};e.outputs={}
  e.input=function(k) return e.values[k] or 0 end;e.output=function(k,v) e.outputs[k]=v end
  e.ui={label=function() return {setText=function(v) assert(type(v)=='string') end} end,
- checkbox=function() local c={v=false};c.isChecked=function() return c.v end;return c end,
+ checkbox=function() local c={v=false};c.isChecked=function() return c.v end;c.setChecked=function(v) c.v=v end;return c end,
  textfield=function() local c={v=''};c.getValue=function() return c.v end;c.setValue=function(v) c.v=v end;return c end,
  itempicker=function() local c={v='minecraft:air'};c.getItem=function() return c.v end;return c end}
  e.addElement=function() end;e.display=function() end

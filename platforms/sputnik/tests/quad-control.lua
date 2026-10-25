@@ -82,7 +82,8 @@ pose.tick=pose.tick+20 assert(not core:step(pose,neutral),'clock gap accepted')
 print('Native quad: Kalman covariance/velocity, measured rank, integer bounded allocation, altitude capture, tilt forward/strafe/braking, mass change retaining altitude; simplified near-level physics only')
 -- Native hardware adapter fixtures: no action before config and low-high gate.
 _G.MintCraftQuad=nil
-ui={label=function() return {setText=function(v) assert(type(v)=='string','native UI expects label text') end} end,checkbox=function() local c={value=false};c.isChecked=function() return c.value end;return c end,
+receiveWirelessRedstone=nil
+ui={label=function() return {setText=function(v) assert(type(v)=='string','native UI expects label text') end} end,checkbox=function() local c={value=false};c.isChecked=function() return c.value end;c.setChecked=function(v) c.value=v end;return c end,
  textfield=function() local c={value=''};c.getValue=function() return c.value end;c.setValue=function(v) c.value=v end;return c end,
  itempicker=function() local c={value='minecraft:air'};c.getItem=function() return c.value end;return c end}
 addElement=function() end
@@ -212,6 +213,7 @@ print('Competing TX diagnostic: stronger network strength reported as a warning,
 
 -- Permission amplitude must never become a motor command. Pure level descent
 -- on a symmetric quad must request collective lift, even without a ready keyboard.
+receiveWirelessRedstone=nil
 local function permissionTrace(strength)
  _G.MintCraftQuad=nil;sends={};outputs={}
  pose={tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=65,dimension='minecraft:overworld'}
@@ -245,3 +247,32 @@ end
 local reference=permissionTrace(1)
 for strength=2,15 do assert(permissionTrace(strength)==reference,'Enable strength scaled rotor control') end
 print('Binary permission regression: strengths 1..15 produce identical motor traces; no ready keyboard still holds altitude; level descent increases all four rotors together; valid Space later changes target')
+-- Ready keyboard permits direct Link samples, not an extra old-output tick.
+inputs['Commands valid']=1;inputs['Forward demand']=0;inputs['Left demand']=0;inputs['Vertical demand']=0
+local directKeys={['minecraft:key_5']=15}
+receiveWirelessRedstone=function(a,b) return directKeys[b] or 0 end
+local oldTarget=outputs['Target altitude'];tick()
+assert(outputs['Target altitude']>oldTarget and outputs.Status:find('LINK',1,true),'fresh physical Space waited for the graph value')
+directKeys['minecraft:key_5']=0;inputs['Vertical demand']=1;oldTarget=outputs['Target altitude'];tick()
+assert(outputs['Target altitude']==oldTarget,'stale graph Space delayed a fresh physical release')
+directKeys['minecraft:key_5']=16;tick();assert(outputs.Active==1 and outputs['Target altitude']==oldTarget,'malformed direct input moved the target or stopped stabilisation')
+directKeys['minecraft:key_5']=15;inputs['Commands valid']=0;tick()
+assert(outputs['Target altitude']==oldTarget,'direct receiver bypassed the keyboard validity gate')
+inputs['Flight Enable']=0;s.direct.value=false;tick();tick();tick()
+inputs['Commands valid']=1;inputs['Vertical demand']=0;inputs['Flight Enable']=15;tick();oldTarget=outputs['Target altitude'];tick()
+assert(outputs.Active==1 and outputs['Target altitude']==oldTarget and outputs.Status:find('GRAPH',1,true),'wired command mode did not retain priority when direct Link was disabled')
+receiveWirelessRedstone=nil
+print('Direct Link intent: fresh Space/release override previous graph demand, malformed input holds, keyboard validity remains required')
+
+local turnPose={tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'}
+local turning=assert(Q.new(rows,turnPose,{steering=true}))
+turning.filters.z.v=5;turning.lastVelocity.z=5
+turnPose.tick=101;turnPose.z=.25
+local _,turnInfo=turning:step(turnPose,{forward=1,left=1,vertical=0})
+assert(turnInfo.rollTarget>0 and turnInfo.steering,'left steering did not request left centripetal acceleration')
+local requestedCourse=turnInfo.course;turnPose.tick=102;turnPose.z=.5
+local _,straightInfo=turning:step(turnPose,{forward=1,left=0,vertical=0})
+assert(straightInfo.course==requestedCourse,'releasing steering reset the requested course to body heading')
+local resting=assert(Q.new(rows,{tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'},{steering=true}))
+local _,restInfo=resting:step({tick=101,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'},{forward=0,left=1,vertical=0})
+assert(restInfo.motion=='HOLD' and restInfo.pitchTarget==0 and restInfo.rollTarget==0,'steering at rest pretended to command body yaw')

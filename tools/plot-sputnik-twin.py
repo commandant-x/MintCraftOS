@@ -12,6 +12,7 @@ parser.add_argument('--after', type=Path, required=True)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--resonance', action='store_true')
 parser.add_argument('--travel', action='store_true')
+parser.add_argument('--course', action='store_true')
 args = parser.parse_args()
 before_metadata = json.loads((args.before / 'summary.json').read_text())
 after_metadata = json.loads((args.after / 'summary.json').read_text())
@@ -23,6 +24,41 @@ os.environ.setdefault('XDG_CACHE_HOME', '/tmp/mintcraft-twin-cache')
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+if args.course:
+    names = [('course_left_arc', 'Trajectoire vers la gauche'),
+             ('course_right_arc', 'Trajectoire vers la droite'),
+             ('course_release_steer', 'Q relâchée, W maintenue'),
+             ('course_turn_only', 'Q seule après accélération')]
+    fig, axes = plt.subplots(2, len(names), figsize=(17, 8))
+    for col, (name, title) in enumerate(names):
+        axes[0, col].set_title(title, fontsize=10)
+        for directory, label, color in [(args.before, before_metadata['version'], '#c13b32'), (args.after, after_metadata['version'], '#167aab')]:
+            with (directory / (name + '.csv')).open() as source:
+                data = list(csv.DictReader(source))
+            axes[0, col].plot([float(r['x']) for r in data], [float(r['z']) for r in data], color=color, label=label)
+            t = [float(r['time']) for r in data]
+            # Freeze headings once stopped; near-zero velocity has no reliable bearing.
+            axes[1, col].plot(t, [float(r['track_heading']) for r in data], color=color, label='Trajectoire ' + label)
+            if directory == args.after:
+                axes[1, col].plot(t, [float(r['body_yaw_unwrapped']) for r in data], color='#4f8d32', linestyle='--', label='Nez non piloté')
+        axes[0, col].scatter([0], [0], color='black', marker='o', s=12)
+        axes[0, col].set_aspect('equal', adjustable='datalim')
+        axes[0, col].set_xlabel('X (m)')
+        axes[1, col].set_xlabel('Temps (s)')
+        for row in range(2):
+            axes[row, col].grid(alpha=.2)
+    axes[0, 0].set_ylabel('Z (m)')
+    axes[1, 0].set_ylabel('Direction déroulée (°)')
+    axes[0, 0].legend(fontsize=8)
+    axes[1, 0].legend(fontsize=7)
+    fig.suptitle('Quatre hélices fixes : virages de trajectoire, sans commande indépendante de lacet\n'
+                 f'{assumptions["mass_kg"]:g} kg — géométrie déclarée, inerties supposées — simulation')
+    fig.tight_layout()
+    fig.savefig(args.output, dpi=130)
+    plt.close(fig)
+    print(args.output)
+    raise SystemExit(0)
 
 selected = [('level_drop_2ms', 'Chute à plat, 2 m/s'),
             ('tilt_roll_5deg', 'Départ incliné, roulis 5°'),

@@ -82,7 +82,7 @@ function M.new(rows,pose,config)
  if math.abs(pose.pitch)>10 or math.abs(pose.roll)>10 then return nil,'Start near level' end
  local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0,
   lastAttitude={pitch=pose.pitch,roll=pose.roll},rates={pitch=0,roll=0},angularAcceleration={pitch=0,roll=0},
-  motion='HOLD',lastVelocity={x=0,z=0},linearAcceleration={x=0,z=0}}
+  motion='HOLD',lastVelocity={x=0,z=0},linearAcceleration={x=0,z=0},steering=config.steering==true,course=pose.yaw}
  s.physics=config.physics s.gravity=s.physics and s.physics.gravity or 9.81 s.diagnostics=diagnostics
  s.speed=config.speed or 2 s.climb=config.climb or 1 s.tilt=config.tilt or 8
  s.noise=config.noise or .0025 s.process=config.process or 4
@@ -141,16 +141,40 @@ function M.new(rows,pose,config)
    self.lastVelocity[key]=k[key].v
   end
   if command.vertical~=0 then self.target.y=self.target.y+command.vertical*self.climb*dt end
-  local moving=command.forward~=0 or command.left~=0
+  local horizontalSpeed=math.sqrt(k.x.v^2+k.z.v^2)
+  local moving=command.forward~=0 or (command.left~=0 and (not self.steering or horizontalSpeed>.3))
   local accelerationLimit=self.gravity*math.tan(math.rad(self.tilt))
   local ax,az
   if moving then
-   -- A held key requests a sustained tilt, not a capped horizontal speed.
-   -- Body forward +Z and left -X are rotated into the world by measured yaw.
+   -- A held key requests thrust, not a capped horizontal speed.
    self.motion='TRAVEL'
    local norm=math.max(1,math.sqrt(command.forward^2+command.left^2))
-   ax=accelerationLimit*(command.forward*math.sin(yaw)-command.left*math.cos(yaw))/norm
-   az=accelerationLimit*(command.forward*math.cos(yaw)+command.left*math.sin(yaw))/norm
+   if self.steering then
+    -- Fixed vertical propellers have no independent body-yaw channel. Steer
+    -- the FLIGHT PATH with centripetal acceleration, never pretend to yaw it.
+    local course=math.rad(self.course)
+    local along=k.x.v*math.sin(course)+k.z.v*math.cos(course)
+    local direction=along<0 and -1 or 1
+    local observed=self.course
+    if horizontalSpeed>.3 then
+     observed=wrap(math.deg(math.atan2(k.x.v,k.z.v))+(direction<0 and 180 or 0))
+    end
+    local error=wrap(self.course-observed)
+    local turnRate=-clip(accelerationLimit*command.left/norm/math.max(.3,horizontalSpeed),-math.rad(30),math.rad(30))
+    -- Do not wind the requested course ahead of an aircraft that cannot follow.
+    if math.abs(error)>15 and error*turnRate>0 then turnRate=0 end
+    self.course=wrap(self.course+math.deg(turnRate)*dt)
+    error=math.rad(wrap(self.course-observed))
+    course=math.rad(observed)
+    local tangent=accelerationLimit*command.forward/norm
+    local normal=-direction*horizontalSpeed*(turnRate+.7*error)
+    ax=tangent*math.sin(course)-normal*math.cos(course)
+    az=tangent*math.cos(course)+normal*math.sin(course)
+   else
+    -- Optional classic body-relative strafe, retained for existing users/SDK.
+    ax=accelerationLimit*(command.forward*math.sin(yaw)-command.left*math.cos(yaw))/norm
+    az=accelerationLimit*(command.forward*math.cos(yaw)+command.left*math.sin(yaw))/norm
+   end
    self.target.x=k.x.x self.target.z=k.z.x
   else
    if self.motion=='TRAVEL' then self.motion='BRAKE' end
@@ -224,7 +248,7 @@ function M.new(rows,pose,config)
    local value=clip(values[i]+self.quant[i],r[2],r[3])
    signals[i]=clip(math.floor(value+.5),r[2],r[3]) self.quant[i]=clip(value-signals[i],-.5,.5)
   end
-  return signals,{scale=scale,altitude=k.y.x,targetY=self.target.y,verticalSpeed=k.y.v,horizontalSpeed=math.sqrt(k.x.v^2+k.z.v^2),pitchTarget=pitchTarget,rollTarget=rollTarget,motion=self.motion,liftLimited=attitudeScale<.99,massChanged=math.abs(p.mass-self.mass)/self.mass>.02,ready=self.samples>=3}
+  return signals,{scale=scale,altitude=k.y.x,targetY=self.target.y,verticalSpeed=k.y.v,horizontalSpeed=horizontalSpeed,pitchTarget=pitchTarget,rollTarget=rollTarget,motion=self.motion,steering=self.steering,course=self.course,liftLimited=attitudeScale<.99,massChanged=math.abs(p.mass-self.mass)/self.mass>.02,ready=self.samples>=3}
  end
  return s
 end
