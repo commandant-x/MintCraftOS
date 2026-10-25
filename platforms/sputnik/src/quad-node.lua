@@ -11,7 +11,7 @@ if not s then
   local f={label=ui.label(entry[2]),value=ui.textfield(140)} f.value.setValue(entry[3]);s.physicalFields[entry[1]]=f
  end
  s.noise.setValue('0.0025') s.process.setValue('4') s.speed.setValue('2') s.climb.setValue('1') s.tilt.setValue('8')
- s.help=ui.label('Bruit position R / acceleration Q / vitesse / montee / inclinaison max')
+ s.help=ui.label('R / Q / vitesse retour maintien / montee / inclinaison deplacement')
  for i,name in ipairs(names) do s.rotors[i]={label=ui.label(name..': Link puis trim,min,max,dY,dPitch,dRoll,repli'),a=ui.itempicker(),b=ui.itempicker(),row=ui.textfield(300)} end
  _G.MintCraftQuad=s
 end
@@ -20,7 +20,7 @@ for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do addElement(s[key]) end
 for _,r in ipairs(s.rotors) do addElement(r.label) addElement(r.a) addElement(r.b) addElement(r.row) end
 local emit=output
-if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') end
+if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') output('Horizontal speed',0) end
 local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
@@ -187,7 +187,7 @@ if server then
     s.owner.rows=s.core.model.rows s.info=info
     local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
     -- Requests, not actuator ACKs: expose the whole path on the existing panel.
-    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
+    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN '..info.motion..(info.liftLimited and ' LIFT_LIMIT' or '')..' Vh='..n(info.horizontalSpeed)..' m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
    end
   end
  end
@@ -204,13 +204,14 @@ s.label.setText(s.reason or modelWhy or 'Configurer les quatre sorties et le mod
 if not server and not s.owner then
  -- Keep a typed reason available even when mass/clock prerequisites fail.
  emit('Last fault',s.fault and s.fault.message or '')
- emit('Status',s.reason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0)
+ emit('Status',s.reason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0) emit('Horizontal speed',0)
  return
 end
 emit('Last fault',s.fault and s.fault.message or '')
 local active=s.phase=='active'
 emit('Active',active and 1 or 0) emit('Flight qualified',0)
 emit('Kalman ready',active and s.info and s.info.ready and 1 or 0)
+emit('Horizontal speed',active and s.info and s.info.horizontalSpeed or 0)
 emit('Altitude',s.info and s.info.altitude or 0) emit('Target altitude',s.core and s.core.target.y or s.fault and s.fault.target or 0)
 local diagnostics=s.core and s.core.diagnostics or s.fault and s.fault.diagnostics
 emit('Maximum thrust',diagnostics and diagnostics.maxThrust or 0) emit('Weight',diagnostics and diagnostics.required or 0) emit('Pressure',diagnostics and diagnostics.pressure or 0)

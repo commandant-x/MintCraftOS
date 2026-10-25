@@ -1,10 +1,47 @@
-# Quad natif Sputnik 0.1.16 — contrôleur expérimental
+# Quad natif Sputnik 0.1.17 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
 dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
 masse, de la pression et de la géométrie confirmée. Le mode manuel historique
 reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Déplacement à inclinaison maintenue — 0.1.17
+
+Les touches horizontales ne poursuivent plus une vitesse de 2 m/s. Tant que
+W/S/Q/D reste maintenue, `TRAVEL` demande une inclinaison constante dans la
+direction choisie, normalisée pour les diagonales. Le quad continue à accélérer
+jusqu'à son équilibre physique ; il n'existe plus de plafond de vitesse
+horizontale fixé par le champ `speed`. Le champ **inclinaison déplacement**
+détermine cette inclinaison : 8° par défaut, réglable jusqu'à 15° dans
+l'enveloppe de ce contrôleur. Ce changement conserve les gains d'attitude de
+la 0.1.16, qui fonctionnaient sur le véhicule du joueur.
+
+Au relâchement, `BRAKE` freine la vitesse avec une anticipation de 0,4 s du
+retard des hélices. Une fois le quad lent et près du niveau, `HOLD` capture
+le point d'arrêt. Le pilote ne ramène plus le véhicule vers le point où la
+touche a été relâchée, ce qui provoquait un aller-retour indésirable. Le champ
+anciennement appelé « vitesse » ne règle maintenant que la vitesse de retour
+du maintien de position. Space/Shift continuent de déplacer la consigne
+d'altitude ; aucune attente chronométrée ne déclenche les phases de freinage
+ou de maintien.
+
+L'inclinaison est réduite si la poussée maximale prédite ne peut pas soutenir
+le poids avec une réserve de 10 %. Cette réserve permet encore de corriger
+l'attitude malgré le retard des hélices et les variations d'écoulement. Le
+statut affiche alors `LIFT_LIMIT` : c'est une contrainte de sustentation, pas
+un plafond arbitraire en m/s. Une machine très proche de sa portance maximale
+peut rester à plat sans pouvoir accélérer horizontalement.
+
+Le statut affiche aussi `TRAVEL`, `BRAKE` ou `HOLD`, ainsi que `Vh`.
+L'audit lit indépendamment `getVelocity` et expose la vitesse horizontale
+native. La sortie du contrôleur expose sa vitesse horizontale filtrée.
+
+Le [rapport déplacement](https://github.com/commandant-x/MintCraftOS/blob/main/platforms/sputnik/reports/travel-0.1.17/README.md)
+mesure l'inclinaison pendant les appuis prolongés, la vitesse atteinte,
+le retour arrière au freinage, les changements de masse et un essai sans
+traînée jusqu'à la limite de sustentation. Ces vitesses sont celles d'un banc
+paramétré, pas une vitesse maximale garantie pour le serveur du joueur.
 
 ## Réponse et résonance — 0.1.16
 

@@ -172,7 +172,8 @@ function M.new(rows,pose,config)
  if pose.mass<=0 or type(pose.dimension)~='string' or pose.dimension=='' then return nil,'Server mass/dimension required' end
  if math.abs(pose.pitch)>10 or math.abs(pose.roll)>10 then return nil,'Start near level' end
  local s={model=model,tick=pose.tick,mass=pose.mass,dimension=pose.dimension,filters={},target={x=pose.x,y=pose.y,z=pose.z},integral=0,quant={0,0,0,0},samples=0,
-  lastAttitude={pitch=pose.pitch,roll=pose.roll},rates={pitch=0,roll=0},angularAcceleration={pitch=0,roll=0}}
+  lastAttitude={pitch=pose.pitch,roll=pose.roll},rates={pitch=0,roll=0},angularAcceleration={pitch=0,roll=0},
+  motion='HOLD',lastVelocity={x=0,z=0},linearAcceleration={x=0,z=0}}
  s.physics=config.physics s.gravity=s.physics and s.physics.gravity or 9.81 s.diagnostics=diagnostics
  s.speed=config.speed or 2 s.climb=config.climb or 1 s.tilt=config.tilt or 8
  s.noise=config.noise or .0025 s.process=config.process or 4
@@ -204,7 +205,11 @@ function M.new(rows,pose,config)
   local measurement={x=p.x,y=p.y,z=p.z,pitch=p.pitch,roll=p.roll}
   for key,k in pairs(self.filters) do
    local z=measurement[key] if key=='pitch' or key=='roll' then z=k.x+wrap(z-k.x) end
-   if math.abs(z-k.x)>((key=='pitch' or key=='roll') and 30 or 20) then return nil,'Pose discontinuity' end
+   local angle=key=='pitch' or key=='roll'
+   -- Position discontinuities are innovations, not travelled distance: a
+   -- correctly tracked high speed must not become an implicit speed ceiling.
+   local reference=angle and k.x or k.x+k.v*dt
+   if math.abs(z-reference)>(angle and 30 or 20) then return nil,'Pose discontinuity' end
    if not M.update(k,z,dt) then return nil,'Kalman failure' end
   end
   if self.physics then
@@ -221,21 +226,71 @@ function M.new(rows,pose,config)
   end
   self.tick=p.tick self.samples=self.samples+1
   local k=self.filters local yaw=math.rad(p.yaw)
-  -- Minecraft YXZ: body forward +Z maps to (sin yaw, cos yaw) in world X/Z.
-  local vx=self.speed*(command.forward*math.sin(yaw)-command.left*math.cos(yaw))
-  local vz=self.speed*(command.forward*math.cos(yaw)+command.left*math.sin(yaw))
-  if command.forward~=0 or command.left~=0 then self.target.x=k.x.x self.target.z=k.z.x end
+  for _,key in ipairs({'x','z'}) do
+   local acceleration=(k[key].v-self.lastVelocity[key])/dt
+   self.linearAcceleration[key]=self.linearAcceleration[key]+dt/(.1+dt)*(acceleration-self.linearAcceleration[key])
+   self.lastVelocity[key]=k[key].v
+  end
   if command.vertical~=0 then self.target.y=self.target.y+command.vertical*self.climb*dt end
-  local desiredX=command.forward~=0 or command.left~=0
-  -- Translation remains slower than the damped attitude loop, while responding
-  -- sooner than the previous 0.25/0.6 position/velocity gains.
-  local ux=desiredX and vx or clip(.3*(self.target.x-k.x.x),-self.speed,self.speed)
-  local uz=desiredX and vz or clip(.3*(self.target.z-k.z.x),-self.speed,self.speed)
-  local ax=clip(.9*(ux-k.x.v),-3,3) local az=clip(.9*(uz-k.z.v),-3,3)
+  local moving=command.forward~=0 or command.left~=0
+  local accelerationLimit=self.gravity*math.tan(math.rad(self.tilt))
+  local ax,az
+  if moving then
+   -- A held key requests a sustained tilt, not a capped horizontal speed.
+   -- Body forward +Z and left -X are rotated into the world by measured yaw.
+   self.motion='TRAVEL'
+   local norm=math.max(1,math.sqrt(command.forward^2+command.left^2))
+   ax=accelerationLimit*(command.forward*math.sin(yaw)-command.left*math.cos(yaw))/norm
+   az=accelerationLimit*(command.forward*math.cos(yaw)+command.left*math.sin(yaw))/norm
+   self.target.x=k.x.x self.target.z=k.z.x
+  else
+   if self.motion=='TRAVEL' then self.motion='BRAKE' end
+   if self.motion=='BRAKE' then
+    -- Start levelling before speed crosses zero: rotor/radio lag otherwise
+    -- carries the braking tilt into a reverse acceleration and a pendulum.
+    ax=-.9*(k.x.v+.4*self.linearAcceleration.x)
+    az=-.9*(k.z.v+.4*self.linearAcceleration.z)
+    self.target.x=k.x.x self.target.z=k.z.x
+    if math.sqrt(k.x.v^2+k.z.v^2)<.12 and math.abs(p.pitch)<1.5 and math.abs(p.roll)<1.5 and math.abs(self.rates.pitch)<2 and math.abs(self.rates.roll)<2 then self.motion='HOLD' end
+   end
+   if self.motion=='HOLD' then
+    -- Capture the stopping point instead of pulling back to the release point.
+    local ux=clip(.3*(self.target.x-k.x.x),-self.speed,self.speed)
+    local uz=clip(.3*(self.target.z-k.z.x),-self.speed,self.speed)
+    ax=.9*(ux-k.x.v) az=.9*(uz-k.z.v)
+   end
+  end
+  local norm=math.sqrt(ax^2+az^2)
+  if norm>accelerationLimit then ax=ax*accelerationLimit/norm az=az*accelerationLimit/norm end
   local bodyRight=ax*math.cos(yaw)-az*math.sin(yaw)
   local bodyForward=ax*math.sin(yaw)+az*math.cos(yaw)
-  local pitchTarget=clip(math.deg(math.atan(bodyForward/self.gravity)),-self.tilt,self.tilt)
-  local rollTarget=clip(-math.deg(math.atan(bodyRight/self.gravity)),-self.tilt,self.tilt)
+  local function attitude(scale)
+   return math.atan(bodyForward*scale/self.gravity),-math.atan(bodyRight*scale/self.gravity)
+  end
+  local attitudeScale=1
+  if self.physics then
+   -- No arbitrary airspeed ceiling. Reduce tilt only when the predicted maximum
+   -- thrust cannot support weight at this velocity/pressure. A 10% reserve
+   -- leaves room for attitude corrections and the lag of the measured angle.
+   local spec=self.physics
+   local function supported(scale)
+    local pitch,roll=attitude(scale)
+    local upX=math.sin(yaw)*math.sin(pitch)*math.cos(roll)-math.cos(yaw)*math.sin(roll)
+    local upY=math.cos(pitch)*math.cos(roll)
+    local upZ=math.cos(yaw)*math.sin(pitch)*math.cos(roll)+math.sin(yaw)*math.sin(roll)
+    local inflow=k.x.v*upX+k.y.v*upY+k.z.v*upZ
+    local maximum=0
+    for _,rotor in ipairs(self.diagnostics.rotors) do maximum=maximum+M.Physics.force(spec.source,rotor.pressure,inflow,spec.thrust,spec.airflow) end
+    return maximum*upY>=p.mass*self.gravity*1.10
+   end
+   if not supported(1) then
+    local lo,hi=0,1
+    for _=1,10 do local middle=(lo+hi)/2;if supported(middle) then lo=middle else hi=middle end end
+    attitudeScale=lo
+   end
+  end
+  local pitchTarget,rollTarget=attitude(attitudeScale)
+  pitchTarget=math.deg(pitchTarget) rollTarget=math.deg(rollTarget)
   local errorY=self.target.y-k.y.x
   local desiredY=clip(errorY,-self.climb,self.climb)
   local vertical=2*(desiredY-k.y.v)+self.integral
@@ -260,7 +315,7 @@ function M.new(rows,pose,config)
    local value=clip(values[i]+self.quant[i],r[2],r[3])
    signals[i]=clip(math.floor(value+.5),r[2],r[3]) self.quant[i]=clip(value-signals[i],-.5,.5)
   end
-  return signals,{scale=scale,altitude=k.y.x,targetY=self.target.y,verticalSpeed=k.y.v,pitchTarget=pitchTarget,rollTarget=rollTarget,massChanged=math.abs(p.mass-self.mass)/self.mass>.02,ready=self.samples>=3}
+  return signals,{scale=scale,altitude=k.y.x,targetY=self.target.y,verticalSpeed=k.y.v,horizontalSpeed=math.sqrt(k.x.v^2+k.z.v^2),pitchTarget=pitchTarget,rollTarget=rollTarget,motion=self.motion,liftLimited=attitudeScale<.99,massChanged=math.abs(p.mass-self.mass)/self.mass>.02,ready=self.samples>=3}
  end
  return s
 end
@@ -281,7 +336,7 @@ if not s then
   local f={label=ui.label(entry[2]),value=ui.textfield(140)} f.value.setValue(entry[3]);s.physicalFields[entry[1]]=f
  end
  s.noise.setValue('0.0025') s.process.setValue('4') s.speed.setValue('2') s.climb.setValue('1') s.tilt.setValue('8')
- s.help=ui.label('Bruit position R / acceleration Q / vitesse / montee / inclinaison max')
+ s.help=ui.label('R / Q / vitesse retour maintien / montee / inclinaison deplacement')
  for i,name in ipairs(names) do s.rotors[i]={label=ui.label(name..': Link puis trim,min,max,dY,dPitch,dRoll,repli'),a=ui.itempicker(),b=ui.itempicker(),row=ui.textfield(300)} end
  _G.MintCraftQuad=s
 end
@@ -290,7 +345,7 @@ for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity
 for _,key in ipairs({'noise','process','speed','climb','tilt'}) do addElement(s[key]) end
 for _,r in ipairs(s.rotors) do addElement(r.label) addElement(r.a) addElement(r.b) addElement(r.row) end
 local emit=output
-if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') end
+if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') output('Horizontal speed',0) end
 local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
@@ -457,7 +512,7 @@ if server then
     s.owner.rows=s.core.model.rows s.info=info
     local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
     -- Requests, not actuator ACKs: expose the whole path on the existing panel.
-    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
+    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN '..info.motion..(info.liftLimited and ' LIFT_LIMIT' or '')..' Vh='..n(info.horizontalSpeed)..' m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
    end
   end
  end
@@ -474,13 +529,14 @@ s.label.setText(s.reason or modelWhy or 'Configurer les quatre sorties et le mod
 if not server and not s.owner then
  -- Keep a typed reason available even when mass/clock prerequisites fail.
  emit('Last fault',s.fault and s.fault.message or '')
- emit('Status',s.reason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0)
+ emit('Status',s.reason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0) emit('Horizontal speed',0)
  return
 end
 emit('Last fault',s.fault and s.fault.message or '')
 local active=s.phase=='active'
 emit('Active',active and 1 or 0) emit('Flight qualified',0)
 emit('Kalman ready',active and s.info and s.info.ready and 1 or 0)
+emit('Horizontal speed',active and s.info and s.info.horizontalSpeed or 0)
 emit('Altitude',s.info and s.info.altitude or 0) emit('Target altitude',s.core and s.core.target.y or s.fault and s.fault.target or 0)
 local diagnostics=s.core and s.core.diagnostics or s.fault and s.fault.diagnostics
 emit('Maximum thrust',diagnostics and diagnostics.maxThrust or 0) emit('Weight',diagnostics and diagnostics.required or 0) emit('Pressure',diagnostics and diagnostics.pressure or 0)

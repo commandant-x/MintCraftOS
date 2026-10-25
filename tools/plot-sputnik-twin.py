@@ -11,6 +11,7 @@ parser.add_argument('--before', type=Path, required=True)
 parser.add_argument('--after', type=Path, required=True)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--resonance', action='store_true')
+parser.add_argument('--travel', action='store_true')
 args = parser.parse_args()
 before_metadata = json.loads((args.before / 'summary.json').read_text())
 after_metadata = json.loads((args.after / 'summary.json').read_text())
@@ -32,6 +33,11 @@ if args.resonance:
                 ('inertia_quarter', 'Inerties × 0,25'),
                 ('inertia_eighth', 'Inerties × 0,125'),
                 ('inertia_quarter_delay2', 'Inerties × 0,25 + retard')]
+if args.travel:
+    selected = [('held_forward_20s', 'W maintenu 20 s, inclinaison 8°'),
+                ('held_forward_no_drag', 'W maintenu, sans traînée du corps'),
+                ('held_forward_tilt15', 'W maintenu, inclinaison 15°'),
+                ('travel_mass_loss', 'W maintenu et masse réduite en vol')]
 fig, axes = plt.subplots(3, 4, figsize=(17, 9), sharex='col')
 for col, (name, title) in enumerate(selected):
     axes[0, col].set_title(title, fontsize=10)
@@ -39,19 +45,23 @@ for col, (name, title) in enumerate(selected):
         with (directory / (name + '.csv')).open() as source:
             data = list(csv.DictReader(source))
         t = [float(r['time']) for r in data]
-        primary = [(float(r['vx']) ** 2 + float(r['vz']) ** 2) ** .5 for r in data] if args.resonance else [float(r['y']) - float(r['target_y']) for r in data]
+        primary = [(float(r['vx']) ** 2 + float(r['vz']) ** 2) ** .5 for r in data] if args.resonance or args.travel else [float(r['y']) - float(r['target_y']) for r in data]
         curves = [primary,
-                  [float(r['tilt']) for r in data],
+                  [float(r['pitch'] if args.travel else r['tilt']) for r in data],
                   [max(float(r['r' + str(i)]) for i in range(1, 5))
                    - min(float(r['r' + str(i)]) for i in range(1, 5)) for r in data]]
         for row, curve in enumerate(curves):
             axes[row, col].plot(t, curve, color=color, linewidth=.9, label=label)
-    axes[1, col].axhline(25, color='gray', linestyle='--', linewidth=.6)
+    axes[1, col].axhline(0 if args.travel else 25, color='gray', linestyle='--', linewidth=.6)
+    if args.travel:
+        duration = 20 if name in ('held_forward_20s', 'travel_mass_loss') else 15
+        for row in range(3):
+            axes[row, col].axvspan(4, 4 + duration, color='green', alpha=.055)
     for row in range(3):
         axes[row, col].grid(alpha=.2)
     axes[2, col].set_xlabel('Temps (s)')
-axes[0, 0].set_ylabel('Vitesse horizontale (m/s)' if args.resonance else 'Altitude − cible (m)')
-axes[1, 0].set_ylabel('Inclinaison (°)')
+axes[0, 0].set_ylabel('Vitesse horizontale (m/s)' if args.resonance or args.travel else 'Altitude − cible (m)')
+axes[1, 0].set_ylabel('Tangage (°)' if args.travel else 'Inclinaison (°)')
 axes[2, 0].set_ylabel('Écart max−min des signaux 0..15')
 axes[0, 0].legend()
 arm_x = abs(assumptions['rotors_local_m'][0][0])

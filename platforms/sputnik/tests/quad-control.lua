@@ -43,6 +43,23 @@ local function step(command)
  return info
 end
 local neutral={forward=0,left=0,vertical=0}
+-- Held directional input is a tilt command, independent of horizontal speed.
+local travelPose={tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'}
+local travelCore=assert(Q.new(rows,travelPose))
+for _=1,30 do
+ travelPose.tick=travelPose.tick+1;travelPose.z=travelPose.z+.5 -- 10m/s, above old speed=2 ceiling.
+ local _,travelInfo=travelCore:step(travelPose,{forward=1,left=0,vertical=0})
+ assert(travelInfo.motion=='TRAVEL' and math.abs(travelInfo.pitchTarget-8)<1e-9,'held W chased horizontal speed instead of retaining tilt')
+end
+travelPose.tick=travelPose.tick+1
+local _,brakeInfo=travelCore:step(travelPose,neutral)
+assert(brakeInfo.motion=='BRAKE' and brakeInfo.pitchTarget<0,'release did not request forward braking')
+local fastPose={tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'}
+local fastCore=assert(Q.new(rows,fastPose));fastCore.filters.z.v=600
+fastPose.tick=101;fastPose.z=30
+assert(fastCore:step(fastPose,{forward=1,left=0,vertical=0}),'tracked speed was rejected as a position jump')
+fastPose.tick=102;fastPose.z=1000
+assert(not fastCore:step(fastPose,neutral),'unpredicted teleport was accepted')
 for _=1,100 do step(neutral) end
 for _=1,20 do step({forward=0,left=0,vertical=1}) end
 for _=1,400 do step(neutral) end

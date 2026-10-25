@@ -72,6 +72,12 @@ local cases={
  {name='attitude_noise_01deg',angleNoise=.1,pitch=4,roll=-3,seconds=35},
  {name='inertia_eighth',inertiaScale=.125,pitch=4,roll=-3,seconds=35},
  {name='inertia_quarter_delay2',inertiaScale=.25,delay=2,pitch=4,roll=-3,seconds=35},
+ {name='held_forward_20s',command='W',duration=20,seconds=70,expectTravel=true},
+ {name='held_forward_no_drag',command='W',duration=15,seconds=65,drag=0,angularDrag=0,expectTravel=true},
+ {name='held_forward_tilt15',command='W',duration=15,seconds=65,tilt=15,expectTravel=true},
+ {name='held_forward_heavy',command='W',duration=12,seconds=60,mass=85,stress=true,expectLiftLimit=true},
+ {name='held_forward_endurance',command='W',duration=80,seconds=220,drag=0,angularDrag=0,expectTravel=true,stress=true},
+ {name='travel_mass_loss',command='W',duration=20,seconds=70,massLoss=true,expectTravel=true},
  {name='slow_spool',spool=.08,pitch=4,roll=-3,seconds=40,stress=true},
  {name='com_offset_10cm',com={.1,0,0},seconds=30,stress=true},
  {name='com_offset_25cm',com={.25,0,0},seconds=30,stress=true},
@@ -90,7 +96,7 @@ if MINTCRAFT_TWIN_CASES then
  cases=selected
 end
 local summary=assert(io.open(outDir..'/summary.csv','w'))
-summary:write('scenario,stress,status,final_altitude_error_m,max_altitude_error_m,min_altitude_m,max_tilt_deg,final_speed_ms,final_horizontal_error_m,max_rotor_spread,first_fault,tail_tilt_rms_deg,tail_speed_rms_ms,response50_s\n')
+summary:write('scenario,stress,status,final_altitude_error_m,max_altitude_error_m,min_altitude_m,max_tilt_deg,final_speed_ms,final_horizontal_error_m,max_rotor_spread,first_fault,tail_tilt_rms_deg,tail_speed_rms_ms,time_to_1ms_s,held_pitch_mean_deg,held_pitch_std_deg,peak_speed_ms,max_backtrack_m,lift_limited_frames,final_mode\n')
 for _,case in ipairs(cases) do
  local w={tick=100,pos={0,80,0},v={0,0,0},q=orientation(case.pitch or 0,case.yaw or 0,case.roll or 0),omega={0,0,0},
  mass=case.mass or profile.mass,I={profile.ix*(case.inertiaScale or 1),profile.iy*(case.inertiaScale or 1),profile.iz*(case.inertiaScale or 1)},bus={},tx={},queue={},rpm={},requested={},actual={},com=case.com or {0,0,0},time=0}
@@ -132,6 +138,7 @@ for _,case in ipairs(cases) do
  keyboard.MintCraftTypewriter.verified.v=true
  local qs=quad.MintCraftQuad;qs.checked.v=true;qs.physical.v=true
  qs.physicalFields.armX.value.v=tostring(profile.armX);qs.physicalFields.armZ.value.v=tostring(profile.armZ);qs.physicalFields.height.value.v=tostring(profile.height)
+ qs.tilt.v=tostring(case.tilt or 8)
  local channels={}
  for i,r in ipairs(qs.rotors) do r.a.v='minecraft:paper';r.b.v='minecraft:'..rotorItems[i];channels[i]=r.a.v..','..r.b.v end
  local function graph()
@@ -152,9 +159,11 @@ for _,case in ipairs(cases) do
  local maxTilt,maxError,minHeight,maxSpread=0,0,80,0
  local firstFault,lastTarget,activeLost=nil,80,false
  local tailTilt,tailSpeed,tailCount,response50=0,0,0,-1
+ local heldSum,heldSquare,heldCount,peakSpeed,backtrack,liftLimitedFrames=0,0,0,0,0,0
+ local releasePosition,releaseDirection,furthest=nil,nil,0
  local lastTargetX,lastTargetZ=quad.MintCraftQuad.core.target.x,quad.MintCraftQuad.core.target.z
  local trace=assert(io.open(outDir..'/'..case.name..'.csv','w'))
- trace:write('time,x,y,z,target_y,vx,vy,vz,pitch,yaw,roll,tilt,active,mass,r1,r2,r3,r4,rpm1,rpm2,rpm3,rpm4\n')
+ trace:write('time,x,y,z,target_y,vx,vy,vz,pitch,yaw,roll,tilt,active,mass,r1,r2,r3,r4,rpm1,rpm2,rpm3,rpm4,pitch_target,roll_target,mode\n')
  local steps=case.seconds*20
  for frame=1,steps do
   w.tick=w.tick+1;w.time=frame/20
@@ -174,6 +183,8 @@ for _,case in ipairs(cases) do
   graph()
   if quad.MintCraftQuad.core then lastTargetX=quad.MintCraftQuad.core.target.x;lastTargetZ=quad.MintCraftQuad.core.target.z end
   if quad.outputs.Active~=1 then activeLost=true end
+  local info=quad.MintCraftQuad.info
+  if info and info.liftLimited then liftLimitedFrames=liftLimitedFrames+1 end
   if not firstFault and quad.outputs['Last fault']~='' then firstFault=quad.outputs['Last fault'] end
   lastTarget=quad.outputs['Target altitude'] or lastTarget
   local low,high=15,0
@@ -215,11 +226,22 @@ for _,case in ipairs(cases) do
   end
   local p,y,r=euler(w.q);local tilt=math.deg(math.acos(clamp(rotate(w.q,{0,1,0})[2],-1,1)))
   maxTilt=math.max(maxTilt,tilt);maxError=math.max(maxError,math.abs(w.pos[2]-lastTarget));minHeight=math.min(minHeight,w.pos[2])
+  local horizontalSpeed=math.sqrt(w.v[1]^2+w.v[3]^2);peakSpeed=math.max(peakSpeed,horizontalSpeed)
+  if case.command=='W' and w.time>=8 and w.time<4+(case.duration or 2) then heldSum=heldSum+p;heldSquare=heldSquare+p*p;heldCount=heldCount+1 end
+  if case.command=='W' and w.time>=4+(case.duration or 2) then
+   if not releasePosition then
+    releasePosition={w.pos[1],w.pos[3]};releaseDirection=horizontalSpeed>.01 and {w.v[1]/horizontalSpeed,w.v[3]/horizontalSpeed} or {0,1}
+   end
+   local progress=(w.pos[1]-releasePosition[1])*releaseDirection[1]+(w.pos[3]-releasePosition[2])*releaseDirection[2]
+   furthest=math.max(furthest,progress);backtrack=math.max(backtrack,furthest-progress)
+  end
   if w.time>case.seconds-10 then tailTilt=tailTilt+tilt^2;tailSpeed=tailSpeed+dot(w.v,w.v);tailCount=tailCount+1 end
   if case.command=='W' and response50<0 and w.time>=4 and w.time<4+(case.duration or 2) and w.v[3]>=1 then response50=w.time-4 end
   local values={w.time,w.pos[1],w.pos[2],w.pos[3],lastTarget,w.v[1],w.v[2],w.v[3],p,y,r,tilt,quad.outputs.Active,w.mass}
   for i=1,4 do values[#values+1]=w.actual[i] end;for i=1,4 do values[#values+1]=w.rpm[i] end
+  values[#values+1]=info and info.pitchTarget or 0;values[#values+1]=info and info.rollTarget or 0
   for j,v in ipairs(values) do values[j]=string.format('%.6f',v) end
+  values[#values+1]=quad.outputs.Active~=1 and 'FAULT' or info and info.motion or 'LEGACY'
   trace:write(table.concat(values,',')..'\n')
   if w.pos[2]<-50 or w.pos[2]>350 then break end -- Test-world boundary, not a controller timeout.
  end
@@ -228,11 +250,16 @@ for _,case in ipairs(cases) do
  local horizontal=math.sqrt((w.pos[1]-lastTargetX)^2+(w.pos[3]-lastTargetZ)^2)
  local tiltRms=tailCount>0 and math.sqrt(tailTilt/tailCount) or math.huge
  local speedRms=tailCount>0 and math.sqrt(tailSpeed/tailCount) or math.huge
+ local heldMean=heldCount>0 and heldSum/heldCount or 0
+ local heldStd=heldCount>0 and math.sqrt(math.max(0,heldSquare/heldCount-heldMean^2)) or 0
  local pass=not activeLost and finalError<.3 and speed<.2 and horizontal<.3 and maxTilt<25 and tiltRms<2 and speedRms<.2
+ if case.expectTravel then pass=pass and heldMean>.7*(case.tilt or 8) and heldStd<1.5 and peakSpeed>8 and backtrack<.5 end
  local status=pass and 'PASS' or 'FAIL'
+ if case.expectLiftLimit and pass and liftLimitedFrames>0 and peakSpeed<.2 then status='LIFT_LIMIT' end
  if MINTCRAFT_TWIN_ASSERT then assert(pass,'Independent twin regression failed: '..case.name) end
  local function csv(s) return '"'..tostring(s):gsub('"','""')..'"' end
- summary:write(string.format('%s,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s,%.6f,%.6f,%.6f\n',case.name,tostring(case.stress or false),status,finalError,maxError,minHeight,maxTilt,speed,horizontal,maxSpread,csv(firstFault or ''),tiltRms,speedRms,response50))
+ local finalMode=quad.outputs.Active~=1 and 'FAULT' or quad.MintCraftQuad.info and quad.MintCraftQuad.info.motion or 'LEGACY'
+ summary:write(string.format('%s,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%s\n',case.name,tostring(case.stress or false),status,finalError,maxError,minHeight,maxTilt,speed,horizontal,maxSpread,csv(firstFault or ''),tiltRms,speedRms,response50,heldMean,heldStd,peakSpeed,backtrack,liftLimitedFrames,finalMode))
  summary:flush()
  print(string.format('%s: %s error=%.3fm tilt=%.2fdeg speed=%.3fm/s fault=%s',case.name,status,finalError,maxTilt,speed,firstFault or 'none'))
 end

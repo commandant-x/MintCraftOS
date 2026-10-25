@@ -81,7 +81,8 @@ metadata = {
     },
     'criteria': {'active_throughout': True, 'final_altitude_error_m_lt': .3,
                  'final_speed_ms_lt': .2, 'final_horizontal_error_m_lt': .3,
-                 'maximum_tilt_deg_lt': 25, 'last_10s_tilt_rms_deg_lt': 2, 'last_10s_speed_rms_ms_lt': .2},
+                 'maximum_tilt_deg_lt': 25, 'last_10s_tilt_rms_deg_lt': 2, 'last_10s_speed_rms_ms_lt': .2,
+                 'sustained_travel_cases': {'mean_pitch_fraction_gt': .7, 'pitch_std_deg_lt': 1.5, 'peak_horizontal_speed_ms_gt': 8, 'release_backtrack_m_lt': .5}},
     'limitations': ['Mass and dimensions are user parameters; inertia/COM/rotor response not measured',
                     'No collision, terrain, joints, constraints or Create stress network solver',
                     'No full inertia tensor, rotor gyroscopic torques or ground effect',
@@ -104,13 +105,13 @@ text = [f'# Sputnik {version} — banc numérique 3D', '',
         'erreur horizontale finale < 0,3 m et inclinaison maximale < 25°. '
         'Sur les dix dernières secondes : inclinaison RMS < 2° et vitesse RMS < 0,2 m/s. '
         'Une réussite ne borne pas les excursions transitoires : elles sont indiquées séparément.', '',
-        '| Scénario | Stress | Résultat | Erreur finale (m) | Inclinaison max (°) | RMS angle (°) | RMS vitesse (m/s) | T50 (s) | Défaut |',
+        '| Scénario | Stress | Résultat | Erreur finale (m) | Inclinaison max (°) | RMS angle (°) | RMS vitesse (m/s) | T1 (s) | Défaut |',
         '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |']
 for r in rows:
     text.append(f'| {r["scenario"]} | {r["stress"]} | {r["status"]} | '
                 f'{float(r["final_altitude_error_m"]):.3f} | '
                 f'{float(r["max_tilt_deg"]):.2f} | {float(r["tail_tilt_rms_deg"]):.3f} | '
-                f'{float(r["tail_speed_rms_ms"]):.3f} | {float(r["response50_s"]):.2f} | '
+                f'{float(r["tail_speed_rms_ms"]):.3f} | {float(r["time_to_1ms_s"]):.2f} | '
                 f'{r["first_fault"].replace("|", "/") or "—"} |')
 text += ['', f'Paramètres de base : {args.mass:g} kg, inerties diagonales supposées {args.ix:g}/{args.iy:g}/{args.iz:g} kg·m², '
          f'demi-largeur {args.arm_x:g} m, demi-longueur {args.arm_z:g} m, rotors à {args.height:+g} m de Sputnik, altitude initiale Y=80, centre de masse centré, '
@@ -118,8 +119,8 @@ text += ['', f'Paramètres de base : {args.mass:g} kg, inerties diagonales suppo
          'Les amortissements 0,05 s⁻¹ sont hypothétiques ; un cas les supprime complètement.', '',
          'Les signaux 0..15 sont des réductions : 0 = 256 RPM, 1 = 224 RPM et 15 = arrêt. '
          'Les traces CSV contiennent les signaux réellement appliqués par la plante et les quatre régimes.', '',
-         'RMS : moyenne quadratique sur les dix dernières secondes. T50 : délai depuis l’appui W '
-         'pour atteindre 1 m/s vers l’avant (50 % de la consigne de 2 m/s) ; −1 signifie non atteint '
+         'RMS : moyenne quadratique sur les dix dernières secondes. T1 : délai depuis l’appui W '
+         'pour atteindre 1 m/s vers l’avant ; −1 signifie non atteint '
          'pendant l’appui ou non applicable. L’erreur maximale transitoire reste disponible dans le CSV.', '',
          'La masse et les dimensions sont des paramètres déclarés ; les inerties, le centre de masse et la mécanique ne sont pas mesurés. '
          'Le moteur physique Sable et le réseau cinétique Create ne sont pas lancés. '
@@ -135,7 +136,11 @@ try:
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     selected = ['level_drop_2ms', 'cold_rotors', 'tilt_pitch_5deg', 'com_offset_10cm']
-    fig, axes = plt.subplots(3, 4, figsize=(17, 9), sharex='col')
+    available = {r['scenario'] for r in rows}
+    selected = [name for name in selected if name in available]
+    if not selected:
+        selected = [r['scenario'] for r in rows[:4]]
+    fig, axes = plt.subplots(3, len(selected), figsize=(4.25 * len(selected), 9), sharex='col', squeeze=False)
     for col, name in enumerate(selected):
         data = list(csv.DictReader((args.output / (name + '.csv')).open()))
         t = [float(r['time']) for r in data]
@@ -151,7 +156,7 @@ try:
     axes[0, 0].set_ylabel('Altitude − cible (m)')
     axes[1, 0].set_ylabel('Inclinaison (°)')
     axes[2, 0].set_ylabel('Signaux transmission 0..15')
-    axes[2, 3].legend(title='Rotor', ncol=4, loc='upper right', fontsize=7)
+    axes[2, -1].legend(title='Rotor', ncol=4, loc='upper right', fontsize=7)
     fig.suptitle('Sputnik — modèle numérique provisoire, hypothèses non mesurées en jeu')
     fig.tight_layout()
     fig.savefig(args.output / 'flight-traces.png', dpi=130)

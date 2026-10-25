@@ -15,6 +15,7 @@ local function env(name,path)
  e.addElement=function() end;e.display=function() end
  e.getShipMass=function() return w.mass end;e.getInertiaTensor=function() return w.ix,500,w.iz end
  e.getPosition=function() return w.x,w.y,w.z end;e.getOrientation=function() return w.pitch,0,w.roll end
+ e.getVelocity=function() return w.rates.x,w.rates.y,w.rates.z end
  e.getUniverseTime=function() return w.tick end;e.getDimension=function() return 'minecraft:overworld' end
  e.receiveWirelessRedstone=function(a,b) return w.bus[a..','..b] or 0 end
  e.transmitWirelessRedstone=function(a,b,value)
@@ -84,6 +85,7 @@ for _=1,10 do step() end
 assert(quad.outputs.Active==1 and keyboard.outputs['Commands valid']==1,'complete graph did not activate: '..tostring(quad.outputs.Status))
 assert(consent.outputs.Enable==1 and w.bus[enable]==15,'physical ON strength was not isolated from controller permission')
 assert(audit.outputs.Mass==65 and audit.outputs['Inertia X']==250 and audit.outputs['Inertia Y']==500 and audit.outputs['Pose valid']==1,'audit lost native mass/inertia')
+assert(type(audit.outputs['Horizontal speed'])=='number','native horizontal speed missing from audit')
 local start=w.y;local initialTarget=quad.outputs['Target altitude']
 w.bus[keyChannels.Space]=15
 for _=1,40 do step() end
