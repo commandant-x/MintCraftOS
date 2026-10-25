@@ -5,7 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.2.1'
+VERSION='0.2.2'
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
  'output_characterization','tilt_response','known_flight','motion_progress',
@@ -82,25 +82,25 @@ def native_universal():
  model=source(BASE/'src/vehicle_model.lua')
  fields=model[model.index('M.fields=')+len('M.fields='):model.index('\nlocal numeric=')]
  defaults=model[model.index('function M.defaults('):model.index('function M.validate(')]
- mount='local GROUP_DEFAULT=1\nlocal MountFields='+fields+'\n'+wrapped('MountDefaults','local M={}\n'+defaults+'\nreturn M.defaults')+source(BASE/'src/mount-node.lua')
- return {'autopilot-control':prefix+source(BASE/'src/autopilot-node.lua'),'mount-group':mount,'mount-bus':source(BASE/'src/mount-bus.lua'),'mount-setup':source(BASE/'src/setup-node.lua'),'flight-commands':source(BASE/'src/command-node.lua'),'local-map':source(BASE/'src/map-node.lua')}
+ mount_prefix='local GROUP_DEFAULT=1\nlocal MountFields='+fields+'\n'+wrapped('MountDefaults','local M={}\n'+defaults+'\nreturn M.defaults')
+ mount=mount_prefix+source(BASE/'src/mount-node.lua')
+ simple=mount_prefix+'local PROFILE_DEFAULT=1\n'+source(BASE/'src/mount-simple.lua')
+ slim_bus=source(BASE/'src/groups-simple.lua').replace('GROUP_COUNT','4').replace('GROUP_INPUTS',','.join("input('Group "+str(i)+"','string')" for i in range(1,5))).replace('OBSERVATION_INPUTS',','.join("input('Observation "+str(i)+"','string')" for i in range(1,5)))
+ return {'autopilot-control':prefix+source(BASE/'src/autopilot-node.lua'),'mount-group':mount,'mount-simple':simple,'groups-simple':slim_bus,'mount-bus':source(BASE/'src/mount-bus.lua'),'mount-setup':source(BASE/'src/setup-node.lua'),'flight-commands':source(BASE/'src/command-node.lua'),'local-map':source(BASE/'src/map-node.lua')}
 def architecture_graph(scripts,consent,profile,count,slug,label):
  # Keep the exact flight writer; reduce only editor forms, pins and rendering.
  setup=scripts['mount-setup'].replace("profile=ui.slider('Architecture',1,5,300)","profile=ui.label('Architecture fixe: "+label+"')")
  setup=setup.replace('s.profile.setValue(1);','').replace('math.floor(s.profile.getValue()+.5)',str(profile))
  setup=setup.replace('Montage commun: 1 Quad / 2 Ballon / 3 Venator / 4 Helicoptere / 5 Hybride','Montage '+label)
- bus=scripts['mount-bus']
- for prefix in ('Group','Observation'):
-  bus=re.sub(r"input\('"+prefix+r" (\d+)','string'\),?",lambda m:m.group(0) if int(m.group(1))<=count else '',bus)
- bus=bus.replace('for i=1,32 do','for i=1,'+str(count)+' do')
+ bus=source(BASE/'src/groups-simple.lua').replace('GROUP_COUNT',str(count)).replace('GROUP_INPUTS',','.join("input('Group "+str(i)+"','string')" for i in range(1,count+1))).replace('OBSERVATION_INPUTS',','.join("input('Observation "+str(i)+"','string')" for i in range(1,count+1)))
  nodes=[('enable',consent,20,40),('keyboard',scripts['typewriter'],20,400),('montage',setup,350,40),('commands',scripts['flight-commands'],750,40),('autopilot',scripts['autopilot-control'],1300,40),('groups',bus,1300,700)]
  edges=[('enable','Enable','autopilot','Enable'),('enable','Binding','autopilot','Enable binding'),('enable','Enable','keyboard','Enable'),('keyboard','Bindings','autopilot','Keyboard bindings'),('montage','Settings','autopilot','Settings'),('commands','Request','autopilot','Request'),('autopilot','Acknowledged revision','commands','Acknowledged revision'),('autopilot','Status','commands','Status'),('autopilot','Position','commands','Position')]
  for pin in ('Groups A','Groups B','Observations A','Observations B'): edges.append(('groups',pin,'autopilot',pin))
  for pin in ('Commands valid','Forward demand','Left demand','Vertical demand'): edges.append(('keyboard',pin,'autopilot',pin))
  for i in range(1,count+1):
   name='group-'+str(i)
-  code=scripts['mount-group'].replace('local GROUP_DEFAULT=1\n','local GROUP_DEFAULT='+str(i)+'\n',1)
-  code=code.replace('local defaults=MountDefaults(1,GROUP_DEFAULT)','local defaults=MountDefaults('+str(profile)+',GROUP_DEFAULT)')
+  code=scripts['mount-simple'].replace('local GROUP_DEFAULT=1\n','local GROUP_DEFAULT='+str(i)+'\n',1)
+  code=code.replace('local PROFILE_DEFAULT=1\n','local PROFILE_DEFAULT='+str(profile)+'\n')
   nodes.append((name,code,20+(i-1)*450,1250))
   edges.extend([('montage','Architecture',name,'Architecture'),(name,'Group','groups','Group '+str(i)),(name,'Shaft observation','groups','Observation '+str(i))])
  # Different variants must not reuse node UUIDs when pasted into another graph.
@@ -213,7 +213,7 @@ def main():
   for path in sorted(source_paths):
    if path.is_file():
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1'):
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2'):
    reports=BASE/'reports'/report_name
    if reports.exists():
     for path in sorted(reports.rglob('*')):

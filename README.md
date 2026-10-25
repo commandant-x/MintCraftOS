@@ -1,4 +1,4 @@
-> **Sputnik 0.2.1 (Lua, sans CC)** : [choisir le TXT de son architecture](platforms/sputnik/README.md), [montage et pilotage](platforms/sputnik/AUTOPILOT.md), [état des fonctionnalités](platforms/sputnik/IMPLEMENTATION-STATUS.md). Les versions CC décrites ensuite constituent une autre plateforme.
+> **Sputnik 0.2.2 (Lua, sans CC)** : [choisir le TXT de son architecture](platforms/sputnik/README.md), [montage et pilotage](platforms/sputnik/AUTOPILOT.md), [état des fonctionnalités](platforms/sputnik/IMPLEMENTATION-STATUS.md). Les versions CC décrites ensuite constituent une autre plateforme.
 
 # MintCraft OS
 

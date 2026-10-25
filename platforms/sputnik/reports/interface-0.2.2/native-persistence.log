@@ -1,0 +1,7 @@
+SLF4J(W): Class path contains multiple SLF4J providers.
+SLF4J(W): Found provider [org.slf4j.simple.SimpleServiceProvider@71dac704]
+SLF4J(W): Found provider [org.apache.logging.slf4j.SLF4JServiceProvider@123772c4]
+SLF4J(W): See https://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J(I): Actual provider is of type [org.slf4j.simple.SimpleServiceProvider@71dac704]
+Native compact form: source RPM, sails, shared members, XYZ, expert parameters and copy field retained across fresh evaluator reload
+Minecraft SNBT: 1 clipboard artifacts parsed AND binary-serialized; old 108508-byte failure reproduced, UUID/Lua/pin links round-trip exact; optional actual Sputnik CODEC

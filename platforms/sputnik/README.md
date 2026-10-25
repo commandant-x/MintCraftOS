@@ -1,4 +1,4 @@
-# Autopilote Sputnik 0.2.1 — un TXT par architecture
+# Autopilote Sputnik 0.2.2 — un TXT par architecture
 
 Choisir **un seul** graphe :
 
@@ -9,7 +9,7 @@ Choisir **un seul** graphe :
 | Venator | [mintcraft-venator-autopilot.clipboard.txt](dist/mintcraft-venator-autopilot.clipboard.txt) | 4 sustentations, 2 banques de propulsion | 12 / 35 |
 | Hélicoptère | [mintcraft-helicopter-autopilot.clipboard.txt](dist/mintcraft-helicopter-autopilot.clipboard.txt) | 1 sustentation, 1 propulsion, 2 commandes de lacet | 10 / 29 |
 
-L’architecture et les modèles de groupe sont préchargés. Les groupes restent désactivés et les fréquences vierges : configurer le montage réel avant activation. Chaque variante conserve exactement le contrôleur de vol de la 0.2.0. Les limites de calibration et de vol restent celles documentées dans [AUTOPILOT.md](AUTOPILOT.md).
+L’architecture et les modèles de groupe sont préchargés. Les groupes restent désactivés et les fréquences vierges : configurer le montage réel avant activation. Chaque variante conserve exactement le contrôleur de vol de la 0.2.0. Les nouveaux formulaires simples gardent la puissance, le type, les voiles et les positions ; la direction verticale est automatique sur les sustentations. Les autres propriétés restent accessibles dans le champ Expert ou par import complet MCV1. Les limites de calibration et de vol restent celles documentées dans [AUTOPILOT.md](AUTOPILOT.md).
 
 La carte et le second afficheur ne sont plus inclus. L’agrégateur n’affiche que les entrées des quatre ou six groupes, au lieu de 32. Cela réduit les formulaires, les connexions et le rendu de l’éditeur ; ce n’est pas une mesure de FPS ni une réduction annoncée du coût du calcul physique. Le graphe [universel avancé](dist/mintcraft-autopilot.clipboard.txt) reste disponible pour les montages personnalisés, avec huit formulaires et sa carte.
 
@@ -20,13 +20,23 @@ La carte et le second afficheur ne sont plus inclus. L’agrégateur n’affiche
 3. Dans le fond vide de l’éditeur Sputnik, coller avec **Ctrl+V**, puis sauvegarder. Le collage ajoute tout le graphe ; ne pas coller le TXT dans l’éditeur Lua d’un nœud.
 4. Ne pas conserver l’ancien graphe en parallèle. Suivre [Montage → essais → pilotage](AUTOPILOT.md). Renseigner les fréquences et les caractéristiques propres à chaque hélice. Le nouveau pilote exige un passage physique Enable OFF avant activation.
 
-Le [ZIP courant](dist/mintcraft-sputnik-0.2.1.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
+Le [ZIP courant](dist/mintcraft-sputnik-0.2.2.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
 
 Le contrôleur continue côté serveur après fermeture de l’éditeur. Une mise à jour ne doit pas s’effectuer en vol : l’expiration Link peut ramener un signal à zéro, qui signifie plein régime pour certaines transmissions.
 
+## Piloter sans choisir un numéro de mode
+
+Saisir la hauteur puis cliquer **Tenir cette altitude**. **Maintenir ici** capture la hauteur courante ; **Suivre vitesse et cap** utilise les deux autres champs. Les boutons **Tester le montage**, **Pause essais** et **Reprendre essais** gardent les tests accessibles. Sauvegarder puis fermer l’éditeur transmet la demande ; le panneau montre la révision acceptée. Les routes, points et commandes spécialisées restent sous **Navigation et commandes avancées**.
+
+## Réglages avancés conservés
+
+Un formulaire moteur ne montre plus de champ Direction à confondre avec Position. Dans **Expert**, on peut par exemple déclarer `gain=20;neutral=8` pour une réponse locale connue, ou `dx=0;dy=1;dz=0;alpha=0.2;run=15` pour personnaliser direction, rampe et polarité du clutch. Les propriétés déjà présentes dans les champs simples se modifient dans ces champs, pas en double dans Expert. Toute propriété du contrat MCV1 reste représentable et l’import restitue les propriétés supplémentaires dans Expert. Ces réglages restent déclarés, sans scan ou preuve physique automatique.
+
+L’agrégateur simple lit toujours les formulaires : il n’a plus de case d’import global qui pourrait les masquer avec deux champs vides. Pour un montage hybride ou pour les formulaires complets, le graphe universel avancé reste disponible.
+
 ## Garder les fréquences déjà renseignées
 
-Avant de retirer l’ancien graphe, au sol et désarmé : dans l’agrégateur `mount-bus`, cliquer **Exporter les formulaires vers les deux champs**, sauvegarder et conserver les deux textes. Dans l’agrégateur de la nouvelle variante, coller ces textes et cocher **Utiliser les descripteurs importés**. Cela conserve les propriétés et fréquences des groupes exportés ; vérifier qu’ils correspondent bien à l’architecture choisie. Les fréquences du levier et du clavier ainsi que les réglages généraux sont à reporter séparément. Un nouvel armement exige OFF et une vérification du montage.
+Avant de retirer l’ancien graphe, au sol et désarmé : dans chaque formulaire moteur, cliquer **Exporter ce groupe** et conserver le texte MCV1. Dans le nouveau formulaire correspondant, coller ce texte dans **Copie / import du groupe complet**, puis cliquer **Charger ce groupe depuis le champ**. Les fréquences et propriétés avancées du groupe sont conservées. Les fréquences du levier et du clavier ainsi que les réglages généraux sont à reporter séparément. Vérifier le montage et repasser physiquement par OFF avant activation.
 
 ## Carte facultative
 
@@ -34,7 +44,7 @@ Importer uniquement [mintcraft-local-map.clipboard.txt](dist/mintcraft-local-map
 
 ## Résultats et limites
 
-Voir les [tests des graphes séparés](reports/architecture-0.2.1/README.md), le [banc numérique](reports/universal-0.2.0/README.md) et [les fonctions restant à terminer](IMPLEMENTATION-STATUS.md). Les simulations ne constituent pas une validation dans Minecraft. Les virages serrés du ballon et certains cas de faibles inerties restent expérimentaux.
+Voir les [tests des graphes séparés](reports/interface-0.2.2/README.md), le [banc numérique](reports/universal-0.2.0/README.md) et [les fonctions restant à terminer](IMPLEMENTATION-STATUS.md). Les simulations ne constituent pas une validation dans Minecraft. Les virages serrés du ballon et certains cas de faibles inerties restent expérimentaux.
 
 <details>
 <summary>Anciennes éditions 0.1.x et outils séparés — documentation historique</summary>
@@ -87,7 +97,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.2.1.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.2.2.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

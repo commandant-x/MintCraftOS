@@ -1,0 +1,151 @@
+{
+  "version": "0.2.2",
+  "scope": "UI-only simplification; same physical flight controller",
+  "minecraftFlightTested": false,
+  "fpsMeasured": false,
+  "controllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092",
+  "graphs": {
+    "quad": {
+      "file": "mintcraft-quad-autopilot.clipboard.txt",
+      "profile": 1,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "balloon": {
+      "file": "mintcraft-balloon-autopilot.clipboard.txt",
+      "profile": 2,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "venator": {
+      "file": "mintcraft-venator-autopilot.clipboard.txt",
+      "profile": 3,
+      "groups": 6,
+      "nodes": 12,
+      "connections": 35,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "helicopter": {
+      "file": "mintcraft-helicopter-autopilot.clipboard.txt",
+      "profile": 4,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    }
+  },
+  "nativeSources": {
+    "aero_physics.lua": "2a0c1d5697773750849ae4d8d07e58e773bdad9e6ba08a84b76ccdad747147c3",
+    "architecture-selector.lua": "9c6c6b826cd49c9744c594061cfcc257acdd4f08125ff25c95e5fe4626bda848",
+    "autopilot-node.lua": "1d97130adcbacdce89618f7e6c5b2df61e1ff8f75318406fe158870eae7f55e1",
+    "bank-test-node.lua": "8dd44270619f1ef663bfabb6e0060cff764d74ed564642d3573f168ef48767d9",
+    "bank_probe.lua": "9db363b26f7f0e7110ac696eed9148e61f84b951c2aa57c5c38e26553630beef",
+    "command-node.lua": "d75608bd131098757418e6feb97d41eb52d09a3bf350aa0f3508bbf18ed2b8ba",
+    "dashboard.lua": "be6543f4b64dbda57ca7ff70bd17b0bc60f702bd79f73c4e35bcb5e9dbb6d6bd",
+    "drive-console.lua": "c27294d891454c4fbcb64ee26f0282f7091028e0f36ed563b4d204c1fdead25d",
+    "drive_mixer.lua": "197262e4a49b67faca7e685362bcf5c30fbbd9f8b0c88a7dd4249c7fdcf21fc5",
+    "flight-telemetry.lua": "639096e161aaf16e68c4d0629378664c7a4420c17acc0ccfea32ecb8c9b08ee6",
+    "flight_calibration.lua": "a749b6f0dc4a425ceb329b5313b21f4f16c78c3ae56dcf5bb6761d0921646a2d",
+    "flight_core.lua": "e2e832fc00770c3cbce5abba8533cc0d68bb7788f43a516a2565d3ed2a637084",
+    "flight_mission.lua": "4d055e05ec7a08b67a26e4d08941dd751830cdf7bc49f71c8f7a34e72321ea04",
+    "gateway.lua": "d50e3d7f1ada57da314436199ef3635815a3712409471c73eeb2a09c74327d14",
+    "groups-simple.lua": "108256fa1da9226c9737cc7eb0709fb0387fec9bfb710f590b1e3d43303c6181",
+    "import-test.lua": "f7cf6999f7e798f178fff3b45bd7e27611203c3ad775b7856429f341caff84bc",
+    "link-test.lua": "a0190b8d65a31882c1433f959c4cd2a44ec32f3ea44545986f7f9df569263041",
+    "map-node.lua": "3d3ea74e8836811a9dd60171413891dde0e82547641b314f7ca45ea469b4d0d0",
+    "mount-bus.lua": "a587c0f3a885e03084035aaf92c21cb4430701aa1177fdba3274276954628d5b",
+    "mount-node.lua": "e4461d3093c86ce5a97b03ef40c1262fb0942f8f0bab0212134e415977e161d3",
+    "mount-simple.lua": "42b3c7d933c4a2043e651abcfc1c6118e2660ced8584b31d6468f1b9c72b52cc",
+    "portable.lua": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
+    "quad-node.lua": "eb1be52450ab7a3634134539260a1d4886cfce5b210cae02fa3a2c9117d60724",
+    "quad_control.lua": "cdd95cb55648543daef18a3863a82f846de7e7b9e133e1412e901638a06f13fd",
+    "radio.lua": "a54cf3b54cb32dc40db65860b021ec06c07b9a7e79beaa745921e731909a0226",
+    "setup-node.lua": "b42c1d43f0d67712a29df9193e04a5b4ec54c44ec3f772d4589194d8c61b7689",
+    "test-enable.lua": "b7930cbf5793b8b17a7b5340aa25aea29fe79f70ed9e390a7b60c38fb6180c36",
+    "test-sequencer.lua": "1ca026f2613e7c828c7550e2d329cff8c3638fba72ba7c40b4187621ba10f9b4",
+    "typewriter.lua": "88d3bab76fa896a8c6ac581c4cbb0ebffd2e4010ea83cf1b3a00a17843dbce14",
+    "vehicle-console.lua": "7ecb4ded524fa41d9d7e518f82bc6e42a642f1f1e2f7e177b221a1cd82764d26",
+    "vehicle_model.lua": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877"
+  },
+  "artifacts": {
+    "mintcraft-mount-simple.lua": {
+      "bytes": 8617,
+      "sha256": "319500998146984801aca89568d397d2c32d7f252f827b46e6b97e0c5fdf586c"
+    },
+    "mintcraft-mount-simple.clipboard.txt": {
+      "bytes": 12504,
+      "sha256": "e85eb76f5028bf4c2fb019e1724aa71551768a35f822e0d60e16aa9ca92d3065"
+    },
+    "mintcraft-groups-simple.lua": {
+      "bytes": 1408,
+      "sha256": "d75dbe9343e3b95ec1951bc27e5dba5c2fd2f1b945e75f836c8e7044fe39c645"
+    },
+    "mintcraft-groups-simple.clipboard.txt": {
+      "bytes": 3604,
+      "sha256": "2a315fefe1f9aaa0114b259870ded20d382acb5b0a666cd6703c4445a22ff68d"
+    },
+    "mintcraft-mount-setup.lua": {
+      "bytes": 2620,
+      "sha256": "b42c1d43f0d67712a29df9193e04a5b4ec54c44ec3f772d4589194d8c61b7689"
+    },
+    "mintcraft-mount-setup.clipboard.txt": {
+      "bytes": 4000,
+      "sha256": "0169d3ffddf489d4cb676efe167e8155a044fcf0ec14cf7e32deb94c0e0ea1ce"
+    },
+    "mintcraft-flight-commands.lua": {
+      "bytes": 5924,
+      "sha256": "d75608bd131098757418e6feb97d41eb52d09a3bf350aa0f3508bbf18ed2b8ba"
+    },
+    "mintcraft-flight-commands.clipboard.txt": {
+      "bytes": 8660,
+      "sha256": "842dd783272bd80741b999acfd10d98132c98338cbc03cd216eaf3bf847bcf5a"
+    },
+    "mintcraft-autopilot.clipboard.txt": {
+      "bytes": 211252,
+      "sha256": "0bfc2eb2fc72b751602733d98099fb7aaf1a01586ba7e7e01635b3d5d2465c85"
+    },
+    "mintcraft-quad-autopilot.clipboard.txt": {
+      "bytes": 163532,
+      "sha256": "ea5a47b360b38aad6dd332cbde77f0aa249821f048f09c025dfb73e28cb16294"
+    },
+    "mintcraft-balloon-autopilot.clipboard.txt": {
+      "bytes": 163620,
+      "sha256": "741130b0a211c5bae05c1dc32c9061a068fa90e82a6c26e8dcfe875cbb37174f"
+    },
+    "mintcraft-venator-autopilot.clipboard.txt": {
+      "bytes": 190304,
+      "sha256": "ee577ed56196cb794a6e09cd4ce78bc003eeabe2b7d05bf90b077216b3448657"
+    },
+    "mintcraft-helicopter-autopilot.clipboard.txt": {
+      "bytes": 163684,
+      "sha256": "7937ae2c93a93601d3883ef3352a5d3578b07dfca37610faac96e73a28a20b2c"
+    }
+  },
+  "widgetCounts": {
+    "quad": 197,
+    "balloon": 200,
+    "venator": 261,
+    "helicopter": 200
+  },
+  "previousWidgetCounts": {
+    "quad": 308,
+    "balloon": 308,
+    "venator": 424,
+    "helicopter": 308
+  },
+  "logs": {
+    "interface-validation.log": "347f5625d9c18fed253a867547735e9b4261c80cb0b67ed9d28d6519be70f71a",
+    "native-persistence.log": "2b1b4f0df3f12f2cdffe6ac2409b8f61ad2ea8cb4a969a449b8ab1c9d750625f",
+    "full-regression.log": "4a6eab9d3311f143df827c65a6af021cf0c4f9bfb366e6dcbde73a3c0c5b741c"
+  },
+  "allRecordedRunsPassed": true,
+  "nativePersistenceScope": "Actual WTextField/WSlider and fresh native evaluator. Item pickers are inert stubs because registry initialization needs the running mod loader; their values are covered separately by LuaJ import/export fixtures."
+}

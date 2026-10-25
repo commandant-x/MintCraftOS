@@ -3,6 +3,7 @@
 import base64, argparse, hashlib, json, os, pathlib, shutil, subprocess, tempfile, zipfile
 ROOT=pathlib.Path(__file__).resolve().parent.parent
 parser=argparse.ArgumentParser()
+parser.add_argument('--interface-only',action='store_true',help='Skip rigid-body benchmarks for UI-only changes; run native LuaJ fixtures, SDK and real SNBT/NBT checks')
 parser.add_argument('--cosmonautics-jar',type=pathlib.Path,required=True)
 parser.add_argument('--sable-jar',type=pathlib.Path,help='Optional audited Sable JAR for actual pressure-curve oracle')
 parser.add_argument('--java-home',type=pathlib.Path)
@@ -67,21 +68,22 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  readable=folder/'native-readable.lua';readable.write_text(builder.native_universal()['autopilot-control'])
  equivalence=folder/'equivalence-bootstrap.lua';equivalence.write_text('MINTCRAFT_UNCOMPACTED='+json.dumps(str(readable))+'\n')
  execute([java,'-cp',cp,'VerifySputnikLua',equivalence,'platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua','platforms/sputnik/tests/link-test.lua','platforms/sputnik/tests/quad-graph.lua','platforms/sputnik/tests/architecture-selector.lua','platforms/sputnik/tests/universal-flight.lua','platforms/sputnik/tests/universal-native.lua'])
- # Prevent the low-inertia resonance from returning behind a favourable plant.
- twin_bootstrap=folder/'twin-bootstrap.lua'
- twin_bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT='+json.dumps(str(folder))+'\n'
-  +'MINTCRAFT_TWIN_PROFILE={mass=32,armX=3,armZ=5,height=1,ix=250,iy=400,iz=230}\n'
-  +'MINTCRAFT_TWIN_CASES={"inertia_quarter","inertia_eighth","inertia_quarter_delay2","held_forward_20s","course_left_arc","steer_at_rest"}\nMINTCRAFT_TWIN_ASSERT=true\n')
- execute([java,'-cp',cp,'VerifySputnikLua',twin_bootstrap,'tools/sputnik-digital-twin.lua'])
- # Regression gate for the new universal controller, including heterogeneous PWM.
- universal=folder/'universal-bootstrap.lua'
- universal.write_text('MINTCRAFT_UNIVERSAL_PROFILES={1,5}\nMINTCRAFT_UNIVERSAL_CASES={"hover","mass","cruise"}\nMINTCRAFT_UNIVERSAL_ASSERT=true\n')
- execute([java,'-cp',cp,'VerifySputnikLua',universal,'tools/sputnik-universal-twin.lua'])
- # Modular bearings must retain their separate force law and damping under travel.
- twin_bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT='+json.dumps(str(folder))+'\n'
-  +'MINTCRAFT_TWIN_PROFILE={mass=32,armX=3,armZ=5,height=1,ix=250,iy=400,iz=230,sails={12,12,12,12}}\n'
-  +'MINTCRAFT_TWIN_CASES={"tilt_pitch_5deg","held_forward_20s","mass_loss_15percent"}\nMINTCRAFT_TWIN_ASSERT=true\n')
- execute([java,'-cp',cp,'VerifySputnikLua',twin_bootstrap,'tools/sputnik-digital-twin.lua'])
+ if not args.interface_only:
+  # Prevent the low-inertia resonance from returning behind a favourable plant.
+  twin_bootstrap=folder/'twin-bootstrap.lua'
+  twin_bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT='+json.dumps(str(folder))+'\n'
+   +'MINTCRAFT_TWIN_PROFILE={mass=32,armX=3,armZ=5,height=1,ix=250,iy=400,iz=230}\n'
+   +'MINTCRAFT_TWIN_CASES={"inertia_quarter","inertia_eighth","inertia_quarter_delay2","held_forward_20s","course_left_arc","steer_at_rest"}\nMINTCRAFT_TWIN_ASSERT=true\n')
+  execute([java,'-cp',cp,'VerifySputnikLua',twin_bootstrap,'tools/sputnik-digital-twin.lua'])
+  # Regression gate for the new universal controller, including heterogeneous PWM.
+  universal=folder/'universal-bootstrap.lua'
+  universal.write_text('MINTCRAFT_UNIVERSAL_PROFILES={1,5}\nMINTCRAFT_UNIVERSAL_CASES={"hover","mass","cruise"}\nMINTCRAFT_UNIVERSAL_ASSERT=true\n')
+  execute([java,'-cp',cp,'VerifySputnikLua',universal,'tools/sputnik-universal-twin.lua'])
+  # Modular bearings must retain their separate force law and damping under travel.
+  twin_bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT='+json.dumps(str(folder))+'\n'
+   +'MINTCRAFT_TWIN_PROFILE={mass=32,armX=3,armZ=5,height=1,ix=250,iy=400,iz=230,sails={12,12,12,12}}\n'
+   +'MINTCRAFT_TWIN_CASES={"tilt_pitch_5deg","held_forward_20s","mass_loss_15percent"}\nMINTCRAFT_TWIN_ASSERT=true\n')
+  execute([java,'-cp',cp,'VerifySputnikLua',twin_bootstrap,'tools/sputnik-digital-twin.lua'])
  bootstrap=folder/'bootstrap.lua'
  text="getUniverseTime=function() return 0 end\nlocal sdk=assert(loadfile('platforms/sputnik/dist/sdk/mintcraft-library.lua'))()\nlocal host=require\nlocal included={\n"
  text+=''.join('['+json.dumps(name)+']=true,\n' for name in manifest['modules'])
@@ -97,7 +99,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
    assert actual==(ROOT/'platforms/sputnik/tests/fixtures/sable-pressure.csv').read_bytes(),'Actual Sable pressure oracle changed'
   execute([javac,'-proc:none','-cp',args.minecraft_classpath,'-d',folder,ROOT/'tools/VerifySputnikClipboard.java'])
   pairs=[]
-  for name in ('autopilot-control','mount-group','mount-bus','mount-setup','flight-commands','local-map','architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
+  for name in ('mount-simple','groups-simple','autopilot-control','mount-group','mount-bus','mount-setup','flight-commands','local-map','architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
    base='platforms/sputnik/dist/mintcraft-'+name;pairs.extend([base+'.clipboard.txt',base+'.lua'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-two-bank-tests.clipboard.txt','@graph'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-flight-audit.clipboard.txt','@graph:2:1'])

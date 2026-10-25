@@ -67,6 +67,37 @@ public final class VerifySputnikClipboard {
    pins=(java.util.List<?>)nodeType.getMethod("getOutputs").invoke(restored);
    if(((Number)pins.get(0).getClass().getMethod("getValue").invoke(pins.get(0))).doubleValue()!=1) throw new AssertionError("Graph restart restored active Lua runtime");
   }
+  if(Boolean.getBoolean("mintcraft.sputnik.payload")) {
+   // Compact fields keep a fixed order: verify real native widget persistence,
+   // not just serialization of empty clipboard placeholders.
+   Class<?> nt=Class.forName("dev.devce.websnodelib.api.WNode");
+   Class<?> gt=Class.forName("dev.devce.websnodelib.api.WGraph");
+   Class<?> factory=Class.forName("dev.devce.rocketnautics.registry.RocketNodes");
+   Object graph=gt.getConstructor().newInstance();
+   Object node=nt.getConstructor(net.minecraft.resources.ResourceLocation.class,String.class,int.class,int.class).newInstance(net.minecraft.resources.ResourceLocation.parse("rocketnautics:lua_script"),"Compact form persistence",0,0);
+   gt.getMethod("addNode",nt).invoke(graph,node);factory.getMethod("setupLuaEvaluatorPublic",nt).invoke(null,node);
+   // Item registries require a running mod loader. Keep frequency pickers inert
+   // here; LuaJ graph fixtures separately cover their import/export values.
+   String code="ui.itempicker=function() return {getItem=function() return nil end,setItem=function() end} end\n"+Files.readString(Path.of("platforms/sputnik/dist/mintcraft-mount-simple.lua"));
+   ((CompoundTag)nt.getMethod("getCustomData").invoke(node)).putString("code",code);nt.getMethod("evaluate").invoke(node);
+   if(((CompoundTag)nt.getMethod("getCustomData").invoke(node)).getBoolean("err")) throw new AssertionError("Actual compact form evaluation failed: "+((CompoundTag)nt.getMethod("getCustomData").invoke(node)).getString("errMsg"));
+   var elements=(java.util.List<?>)nt.getMethod("getElements").invoke(node);
+   var fields=new java.util.ArrayList<Object>();
+   for(Object element:elements) if(element.getClass().getSimpleName().equals("WTextField")) fields.add(element);
+   String[] expected={"224","16","2","-4","1","6","gain=20;neutral=7;fallback=15;run=15","MCV1 copy retained"};
+   if(fields.size()!=expected.length) throw new AssertionError("Unexpected compact widget order");
+   for(int j=0;j<expected.length;j++) fields.get(j).getClass().getMethod("setValue",String.class).invoke(fields.get(j),expected[j]);
+   for(Object element:elements) if(element.getClass().getSimpleName().equals("WSlider")) element.getClass().getMethod("setValue",double.class).invoke(element,2.0);
+   CompoundTag saved=(CompoundTag)nt.getMethod("save").invoke(node);
+   Object freshGraph=gt.getConstructor().newInstance();
+   Object fresh=nt.getConstructor(net.minecraft.resources.ResourceLocation.class,String.class,int.class,int.class).newInstance(net.minecraft.resources.ResourceLocation.parse("rocketnautics:lua_script"),"Compact reload",0,0);
+   gt.getMethod("addNode",nt).invoke(freshGraph,fresh);factory.getMethod("setupLuaEvaluatorPublic",nt).invoke(null,fresh);
+   ((CompoundTag)nt.getMethod("getCustomData").invoke(fresh)).putString("code",code);nt.getMethod("evaluate").invoke(fresh);
+   nt.getMethod("load",CompoundTag.class).invoke(fresh,saved);nt.getMethod("evaluate").invoke(fresh);
+   fields.clear();for(Object element:(java.util.List<?>)nt.getMethod("getElements").invoke(fresh)) if(element.getClass().getSimpleName().equals("WTextField")) fields.add(element);
+   for(int j=0;j<expected.length;j++) if(!fields.get(j).getClass().getMethod("getValue").invoke(fields.get(j)).equals(expected[j])) throw new AssertionError("Compact reload lost field "+j);
+   System.out.println("Native compact form: source RPM, sails, shared members, XYZ, expert parameters and copy field retained across fresh evaluator reload");
+  }
   // Reproduce the user's 108508-byte failure in the real NBT binary writer.
   var oversized=new CompoundTag(); oversized.putString("code","x".repeat(108508));
   try {
