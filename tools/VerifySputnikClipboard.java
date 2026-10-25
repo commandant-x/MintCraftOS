@@ -20,6 +20,19 @@ public final class VerifySputnikClipboard {
      var distField=Class.forName("net.neoforged.fml.loading.FMLLoader").getDeclaredField("dist");
      distField.setAccessible(true);distField.set(null,dedicated);
   }
+  if(Boolean.getBoolean("mintcraft.sputnik.payload")) {
+   // Real native selector persistence, not a Lua mock of a dropdown.
+   Class<?> slider=Class.forName("dev.devce.websnodelib.api.elements.WSlider");
+   var ctor=slider.getConstructor(String.class,double.class,double.class,int.class);
+   for(int choice=1;choice<=4;choice++) {
+    Object original=ctor.newInstance("Architecture",1.0,4.0,360);
+    slider.getMethod("setValue",double.class).invoke(original,(double)choice);
+    CompoundTag saved=(CompoundTag)slider.getMethod("save").invoke(original);
+    Object restored=ctor.newInstance("Architecture",1.0,4.0,360);
+    slider.getMethod("load",CompoundTag.class).invoke(restored,saved);
+    if(((Number)slider.getMethod("getValue").invoke(restored)).doubleValue()!=choice) throw new AssertionError("Native architecture selection not persisted");
+   }
+  }
   // Reproduce the user's 108508-byte failure in the real NBT binary writer.
   var oversized=new CompoundTag(); oversized.putString("code","x".repeat(108508));
   try {

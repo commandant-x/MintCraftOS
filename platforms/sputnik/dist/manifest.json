@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -11,9 +11,10 @@
   "nativeNodeModifiedUtf8Budget": 60000,
   "developerLibraryImportableAsSingleNode": false,
   "nodeModifiedUtf8Bytes": {
+    "architecture-selector": 1552,
     "flight-telemetry": 2081,
     "link-test": 2188,
-    "quad-control": 35695,
+    "quad-control": 36477,
     "typewriter": 4713,
     "vehicle-mixer": 6745,
     "bank-test": 15545,
@@ -57,6 +58,14 @@
       "bytes": 109218,
       "sha256": "1e830563d9f7379ca50c2103182d86078e7abe59fab56b6848fad3edf0d82bc7"
     },
+    "mintcraft-architecture-selector.lua": {
+      "bytes": 1552,
+      "sha256": "9c6c6b826cd49c9744c594061cfcc257acdd4f08125ff25c95e5fe4626bda848"
+    },
+    "mintcraft-architecture-selector.clipboard.txt": {
+      "bytes": 2736,
+      "sha256": "3e508d37fb0d03b8278df823bee49fa0751ddb3294b4589e1128c6fb8ee89ee6"
+    },
     "mintcraft-flight-telemetry.lua": {
       "bytes": 2081,
       "sha256": "639096e161aaf16e68c4d0629378664c7a4420c17acc0ccfea32ecb8c9b08ee6"
@@ -74,12 +83,12 @@
       "sha256": "85eeff4abc1a6dfeb6e910d5bf23f4df7c2209bb8b516d65bbeefcc047f2b23e"
     },
     "mintcraft-quad-control.lua": {
-      "bytes": 35695,
-      "sha256": "71a9dd3537679b057e5a266eb55ae006db0c586baa2442e9e31a0a9c229bae7b"
+      "bytes": 36477,
+      "sha256": "c844cd78d854e0010bcc0535c9d700d18c3619a51eae3a1a675ae6e121182d5a"
     },
     "mintcraft-quad-control.clipboard.txt": {
-      "bytes": 50340,
-      "sha256": "2e65df055ec8bae6a8911530a7fb9292b33a633d1213f24968aaba9da0c5902b"
+      "bytes": 51504,
+      "sha256": "9006f6c60ffb13193fa9c8b2ee891b19929c7f02586b6494efaeb2eeea569b2b"
     },
     "mintcraft-typewriter.lua": {
       "bytes": 4713,
@@ -170,8 +179,8 @@
       "sha256": "4a146ee014f9dca0194e1e76a45dc5a6a4aee80d0b8618c9f17f1b276e21c0f4"
     },
     "mintcraft-quad-flight.clipboard.txt": {
-      "bytes": 67468,
-      "sha256": "747ae3f1d7912f4b779191f766838f432c96f12d6644b12c2ce18c57eee9a512"
+      "bytes": 71492,
+      "sha256": "eacf38a0d1331ef8433a360486c2f8a101f3ef5e326226073f0574cea75c7a58"
     }
   }
 }

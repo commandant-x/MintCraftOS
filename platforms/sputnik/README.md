@@ -1,4 +1,11 @@
-# MintCraft Sputnik 0.1.18
+# MintCraft Sputnik 0.1.19
+
+**0.1.19 : sélecteur d’architecture enregistré dans le graphe.**
+Quad, ballon, Venator et hélicoptère sont proposés. **Seul le quad possède
+actuellement un contrôleur de vol natif opérationnel** ; les autres choix
+affichent leur câblage prévu et refusent le démarrage du contrôleur quad.
+Un changement en vol reste en attente jusqu’au levier OFF.
+Voir [le sélecteur](QUAD-FLIGHT.md#sélecteur-darchitecture--0119).
 
 **0.1.18 : Q/D courbent progressivement la trajectoire avec quatre hélices fixes.**
 Le nez reste sans commande de lacet. Une case conserve le mode latéral classique.
@@ -32,7 +39,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.18.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.19.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -352,7 +359,7 @@ panneau ajouté d'un côté) ou une association avant/arrière erronée peut dé
 la stabilisation malgré une masse totale correctement lue.
 
 Le graphe complet destiné à une installation neuve contient ces deux nœuds en
-plus : **six nœuds, seize connexions**. Une correction séparée arrondit la toute
+plus, avec le sélecteur depuis la 0.1.19 : **sept nœuds, dix-sept connexions**. Une correction séparée arrondit la toute
 première consigne rotor, qui pouvait être fractionnaire dans le mode physique ;
 le modèle reste fractionnaire en interne, seules les sorties matérielles sont
 entières. Les essais de bout en bout couvrent levier, clavier, propagation du

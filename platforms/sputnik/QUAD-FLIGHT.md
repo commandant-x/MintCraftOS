@@ -1,10 +1,33 @@
-# Quad natif Sputnik 0.1.18 — contrôleur expérimental
+# Quad natif Sputnik 0.1.19 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
 dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
 masse, de la pression et de la géométrie confirmée. Le mode manuel historique
 reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Sélecteur d’architecture — 0.1.19
+
+Importer `mintcraft-quad-flight.clipboard.txt` à la place de l’ancien graphe.
+Le nouveau nœud **MintCraft architecture** est déjà relié au contrôleur.
+Déplacer son sélecteur : **1 Quad, 2 Ballon, 3 Venator, 4 Hélicoptère**.
+Le nom sélectionné apparaît sous le curseur ; enregistrer/fermer l’éditeur
+pour synchroniser la configuration serveur. La position du curseur est
+sauvegardée par l’élément natif Sputnik, sans saisie d’un numéro dans du Lua.
+
+**Pour voler avec le quad actuel, conserver 1 Quad.** Les trois autres choix
+présentent l’architecture prévue mais leur boucle de vol native reste à porter.
+Ils refusent donc l’armement du quad ; sélectionner un nom ne transforme pas
+quatre sorties de sustentation en transmissions, inverseurs ou gouvernes.
+Les mélangeurs de demandes et les tests de groupes existants restent disponibles
+séparément, sans devenir des contrôleurs de vol par ce menu.
+
+Changer le choix en vol laisse le contrôleur quad courant actif et affiche
+`ARCHITECTURE_EN_ATTENTE`. Le choix s’applique au passage du levier sur OFF,
+qui utilise toujours le repli des anciennes fréquences ; cela n’est pas un
+atterrissage automatique. Sélectionner ensuite Quad, vérifier le montage puis
+réarmer. Le contrôleur seul reste compatible avec les anciens graphes sans
+fil Architecture (entrée 0 = Quad historique).
 
 ## Quatre hélices fixes : courber la trajectoire — 0.1.18
 
@@ -255,11 +278,12 @@ revenir à la version précédente.
 ## Import et branchement
 
 Sauvegarder le graphe actuel. Importer `mintcraft-quad-flight.clipboard.txt` dans
-le fond vide de l'éditeur Sputnik puis F pour cadrer les six nœuds. Sauvegarder,
+le fond vide de l'éditeur Sputnik puis F pour cadrer les sept nœuds. Sauvegarder,
 fermer et rouvrir avant de configurer les widgets. Ce graphe **ajoute** un lecteur
 de levier, un clavier et un contrôleur : ne pas conserver un autre émetteur qui
 commande les mêmes rotors. L'ancien graphe Venator n'est pas modifié.
 
+- `architecture` : sélecteur Quad/Ballon/Venator/Hélicoptère ; conserver Quad pour le vol actuel.
 - `quad-enable` : fréquence dédiée à un levier physique ; arrêt d'autorisation à 0.
 - `quad-keyboard` : les six fréquences du Linked Typewriter, décrites dans README.
 - `quad-controller` : **quatre paires de sélecteurs d'objets Link**, dans l'ordre

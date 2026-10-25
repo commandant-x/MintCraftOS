@@ -29,6 +29,13 @@ local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
 local forward=input('Forward demand') local left=input('Left demand') local vertical=input('Vertical demand')
+-- Zero preserves standalone/old graphs without the new selector.
+local requestedArchitecture=input('Architecture')
+if requestedArchitecture==0 then requestedArchitecture=1 end
+-- A requested change never interrupts active lift or retargets its channels.
+if s.phase~='active' and (not s.owner or enabled==0) then s.architecture=requestedArchitecture end
+local architecture=s.architecture or 1
+local architecturePending=requestedArchitecture~=architecture
 local function finite(v) return Quad.finite(v) end
 local function item(v) return type(v)=='string' and #v<=192 and v~='minecraft:air' and v:match('^[a-z0-9_.%-]+:[a-z0-9_./%-]+$') end
 local function read(name)
@@ -44,6 +51,7 @@ local rows,pairs_,seen,parts={}, {},{},{}
 local physical=s.physical.isChecked()
 local valid=true local problems={}
 local function reject(code,why) valid=false problems[#problems+1]=code..': '..why end
+if architecture~=1 then reject('ARCHITECTURE','profil '..tostring(architecture)..': controleur de vol non porte; choisir Quad') end
 if not s.checked.isChecked() then reject('CONFIRM','case reprise/modele non cochee sur serveur') end
 if type(transmitWirelessRedstone)~='function' then reject('API','emission Link indisponible') end
 -- Reject collisions across keyboard, physical enable and all four rotor outputs.
@@ -221,13 +229,15 @@ if s.owner and s.phase~='active' then
 end
 if server then s.tick=tick end
 s.signature=signature
-s.label.setText(s.reason or modelWhy or 'Configurer les quatre sorties et le modele mesure')
+local presentedReason=s.reason
+if architecturePending then presentedReason=(presentedReason or '')..' | ARCHITECTURE_EN_ATTENTE: mettre levier OFF pour appliquer' end
+s.label.setText(presentedReason or modelWhy or 'Configurer les quatre sorties et le modele mesure')
 emit('Body yaw controlled',0)
 emit('Track heading',s.core and s.core.course or 0)
 if not server and not s.owner then
  -- Keep a typed reason available even when mass/clock prerequisites fail.
  emit('Last fault',s.fault and s.fault.message or '')
- emit('Status',s.reason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0) emit('Horizontal speed',0)
+ emit('Status',presentedReason) emit('Active',0) emit('Kalman ready',0) emit('Flight qualified',0) emit('Horizontal speed',0)
  return
 end
 emit('Last fault',s.fault and s.fault.message or '')
@@ -238,9 +248,9 @@ emit('Horizontal speed',active and s.info and s.info.horizontalSpeed or 0)
 emit('Altitude',s.info and s.info.altitude or 0) emit('Target altitude',s.core and s.core.target.y or s.fault and s.fault.target or 0)
 local diagnostics=s.core and s.core.diagnostics or s.fault and s.fault.diagnostics
 emit('Maximum thrust',diagnostics and diagnostics.maxThrust or 0) emit('Weight',diagnostics and diagnostics.required or 0) emit('Pressure',diagnostics and diagnostics.pressure or 0)
-emit('Status',s.reason or modelWhy or 'Inactif')
+emit('Status',presentedReason or modelWhy or 'Inactif')
 if type(display)=='function' and server then
- display('MC_QUAD',s.reason or 'Inactif')
+ display('MC_QUAD',presentedReason or 'Inactif')
  if diagnostics and diagnostics.rotors then
   for i,r in ipairs(diagnostics.rotors) do display('MC_ROTOR_'..i,'Fmax '..string.format('%.1f',r.maximum)..' / RPM0 '..string.format('%.1f',r.rpm)..' / signal '..string.format('%.2f',r.trim)) end
  end
