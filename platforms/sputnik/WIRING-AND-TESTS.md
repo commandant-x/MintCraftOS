@@ -1,3 +1,5 @@
+> **0.2.0 :** le nouveau graphe commun est `mintcraft-autopilot.clipboard.txt`. Voir [AUTOPILOT.md](AUTOPILOT.md). Les mélangeurs, sondes et branchements quad décrits ci-dessous restent des outils séparés ; ne pas les faire émettre en parallèle avec le nouveau pilote.
+
 # Brancher Sputnik et tester automatiquement les deux sens
 
 Cible : Cosmonautics **26.08.307**, Create 6.0.10. Aucun CC:Tweaked ni addon serveur

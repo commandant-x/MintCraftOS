@@ -1,3 +1,5 @@
+> **0.2.0 :** le nouveau graphe commun est `mintcraft-autopilot.clipboard.txt`. Voir [AUTOPILOT.md](AUTOPILOT.md). Les mélangeurs, sondes et branchements quad décrits ci-dessous restent des outils séparés ; ne pas les faire émettre en parallèle avec le nouveau pilote.
+
 # Périmètre du portage Sputnik
 
 | Fonction MintCraftOS | Édition Sputnik sans nouveau mod | Limite vérifiée |

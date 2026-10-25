@@ -1,3 +1,25 @@
+# Autopilote commun 0.2.0
+
+Importer **[mintcraft-autopilot.clipboard.txt](dist/mintcraft-autopilot.clipboard.txt)** pour le nouveau montage commun, les contrôleurs, la calibration et la navigation locale. Voir **[AUTOPILOT.md](AUTOPILOT.md)** pour le branchement et **[IMPLEMENTATION-STATUS.md](IMPLEMENTATION-STATUS.md)** pour les fonctions encore incomplètes. Les graphes quad ci-dessous restent des références héritées et ne doivent pas émettre en parallèle sur les mêmes fréquences.
+
+## Installation du nouveau graphe
+
+1. Télécharger [le TXT complet](dist/mintcraft-autopilot.clipboard.txt) et copier **tout son contenu**, sans guillemets ni espaces ajoutés.
+2. Au sol, couper mécaniquement les moteurs indépendamment de Sputnik. Exporter votre ancien montage, puis retirer son contrôleur pour éviter deux émetteurs concurrents.
+3. Dans le fond vide de l’éditeur Sputnik, coller avec **Ctrl+V**, puis sauvegarder. Le collage ajoute tout le graphe ; ne pas coller le TXT dans l’éditeur Lua d’un nœud.
+4. Suivre [Montage → essais → pilotage](AUTOPILOT.md). Renseigner les fréquences et les caractéristiques propres à chaque hélice. Le nouveau pilote exige un passage physique Enable OFF avant activation.
+
+Le [ZIP courant](dist/mintcraft-sputnik-0.2.0.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
+
+Le contrôleur continue côté serveur après fermeture de l’éditeur. Une mise à jour ne doit pas s’effectuer en vol : l’expiration Link peut ramener un signal à zéro, qui signifie plein régime pour certaines transmissions.
+
+## Résultats et limites
+
+Voir le [banc numérique](reports/universal-0.2.0/README.md) et [les fonctions restant à terminer](IMPLEMENTATION-STATUS.md). Les simulations ne constituent pas une validation dans Minecraft. Les virages serrés du ballon et certains cas de faibles inerties restent expérimentaux.
+
+<details>
+<summary>Anciennes éditions 0.1.x et outils séparés — documentation historique</summary>
+
 # MintCraft Sputnik 0.1.20
 
 **0.1.20 : modèle des hélices modulaires Propeller Bearing.**
@@ -46,7 +68,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.20.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.2.0.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.
@@ -415,3 +437,5 @@ niveaux demandés (`R=a/b/c/d`), avec masse et altitude cible. Les tests couvren
 le réarmement sans redémarrage, les 16 états réels de la transmission et un
 stationnaire simulé entre les états 0/1 ; la mécanique du véhicule réel reste
 à vérifier.
+
+</details>

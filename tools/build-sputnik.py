@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build stock Sputnik Lua and its actual Base64/SNBT clipboard format; no downloads."""
 from pathlib import Path
-import base64, hashlib, json, re, struct, uuid, zipfile
+import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
+from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
@@ -58,6 +59,30 @@ def graph_clipboard(nodes,edges,types=None):
  text='{nodes:['+','.join(records)+'],conns:['+','.join(connections)+']}'
  return base64.b64encode(text.encode()).decode()
 def clipboard(name,code): return graph_clipboard([(name,code,40,40)],[])
+def native_universal():
+ def wrapped(name,text): return 'local '+name+'=(function()\n'+text+'\nend)()\n'
+ response=source(ROOT/'system/navigation/response_model.lua')
+ # Verbatim existing allocator/quantizer and validators, without CC provenance IO.
+ response=response[response.index('local M={}'):response.index('-- Coupled error diffusion')]
+ response=response.replace('local floors={.01,.01,.01,.1,.1,.1}\n','')
+ geometry=source(ROOT/'system/navigation/geometry.lua').replace('local addon = require("system.libraries.addon")','local addon = Portable')
+ geometry=geometry[:geometry.index('function M.heading(')]+'return M\n'
+ geometry=geometry.replace('function M.wrap(angle) return (angle + 180) % 360 - 180 end\n','')
+ progress=source(ROOT/'system/navigation/motion_progress.lua').replace("local A=require('system.libraries.addon')",'local A=Portable')
+ for original,short in [('Collecting physical progress evidence','Collecte progres'),('Physical errors are not converging; no qualification granted by waiting','Pas de convergence'),('Observed errors converge or remain within the diagnostic band','Progres observe')]: progress=progress.replace(original,short)
+ filters=source(BASE/'src/quad_control.lua');filters=filters[filters.index('local M={}'):filters.index('local function inverse')]
+ physics=source(BASE/'src/aero_physics.lua');physics=physics[:physics.index('-- Effective per-RPM coefficients')]+'return M\n'
+ prefix=wrapped('Portable',source(BASE/'src/portable.lua'))+wrapped('Geometry',geometry)+wrapped('Physics',physics)
+ prefix+=wrapped('Response','local A=Portable\n'+response+'\nreturn M')+wrapped('Progress',progress)+wrapped('Filter',filters+'\nreturn M')
+ vehicle=source(BASE/'src/vehicle_model.lua');vehicle=vehicle[:vehicle.index('function M.defaults(')]+vehicle[vehicle.index('function M.validate('):]
+ prefix+=wrapped('Vehicle',vehicle)+wrapped('Mission',source(BASE/'src/flight_mission.lua'))+wrapped('Calibration',source(BASE/'src/flight_calibration.lua'))+wrapped('Flight',source(BASE/'src/flight_core.lua'))
+ names=['Portable','Geometry','Physics','Response','Progress','Filter','Vehicle','Mission','Calibration','Flight']
+ prefix='if not _G.MintCraftFlightModules then\n'+prefix+'\n_G.MintCraftFlightModules={'+','.join(names)+'}\nend\nlocal __modules=_G.MintCraftFlightModules\nlocal '+','.join(names)+'='+','.join('__modules['+str(i)+']' for i in range(1,len(names)+1))+'\n'
+ model=source(BASE/'src/vehicle_model.lua')
+ fields=model[model.index('M.fields=')+len('M.fields='):model.index('\nlocal numeric=')]
+ defaults=model[model.index('function M.defaults('):model.index('function M.validate(')]
+ mount='local GROUP_DEFAULT=1\nlocal MountFields='+fields+'\n'+wrapped('MountDefaults','local M={}\n'+defaults+'\nreturn M.defaults')+source(BASE/'src/mount-node.lua')
+ return {'autopilot-control':prefix+source(BASE/'src/autopilot-node.lua'),'mount-group':mount,'mount-bus':source(BASE/'src/mount-bus.lua'),'mount-setup':source(BASE/'src/setup-node.lua'),'flight-commands':source(BASE/'src/command-node.lua'),'local-map':source(BASE/'src/map-node.lua')}
 def main():
  out=BASE/'dist';out.mkdir(exist_ok=True)
  prefix,modules=bundle()
@@ -69,6 +94,12 @@ def main():
  vehicle="local Mixer=(function()\n"+source(BASE/'src/drive_mixer.lua')+"\nend)()\n"+source(BASE/'src/vehicle-console.lua')
  quad="local Physics=(function()\n"+source(BASE/'src/aero_physics.lua')+"\nend)()\nlocal Quad=(function()\n"+source(BASE/'src/quad_control.lua')+"\nend)()\nQuad.Physics=Physics\n"+source(BASE/'src/quad-node.lua')
  scripts={'architecture-selector':source(BASE/'src/architecture-selector.lua'),'flight-telemetry':source(BASE/'src/flight-telemetry.lua'),'link-test':source(BASE/'src/link-test.lua'),'quad-control':quad,'typewriter':source(BASE/'src/typewriter.lua'),'vehicle-mixer':vehicle,'bank-test':bank,'test-sequencer':sequencer,'test-enable':consent,'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
+ scripts.update(native_universal())
+ # Token whitespace compaction preserves literals/operators and source lines.
+ # Readable module sources remain the source of truth.
+ aliases={name:'_'+str(i) for i,name in enumerate(['Portable','Geometry','Physics','Response','Progress','Filter','Vehicle','Mission','Calibration','Flight'])}
+ aliases.update({name:'_'+chr(65+i) for i,name in enumerate(['worldAx','worldAz','desiredYaw','worldRate','requestedSpeed','provisional'])})
+ scripts['autopilot-control']=compact(scripts['autopilot-control'],aliases,keep_lines=False,private_identifiers=True,explicit_methods=True)
  artifacts={}
  (out/'sdk').mkdir(exist_ok=True)
  (out/'profiles').mkdir(exist_ok=True)
@@ -112,23 +143,56 @@ def main():
  path=out/'mintcraft-quad-flight.clipboard.txt'
  path.write_text(graph_clipboard(quad_nodes,quad_edges,{'quad-status':'websnodelib:string_display','flight-screen':'websnodelib:string_display'}),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.1.20','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
+ # Universal graph: exactly one physical writer, independent montage/consignes/map.
+ universal_nodes=[('mount-bus',scripts['mount-bus'],1100,700),('pilot-enable',consent,20,40),('montage',scripts['mount-setup'],350,40),('pilot-keyboard',scripts['typewriter'],20,500),('pilot-commands',scripts['flight-commands'],700,40),('autopilot',scripts['autopilot-control'],1600,40),('pilot-status',"input('Text','string')",2250,40),('local-map',scripts['local-map'],2250,300)]
+ universal_edges=[('mount-bus','Groups A','autopilot','Groups A'),('mount-bus','Groups B','autopilot','Groups B'),('mount-bus','Observations A','autopilot','Observations A'),('mount-bus','Observations B','autopilot','Observations B'),('pilot-enable','Enable','autopilot','Enable'),('pilot-enable','Binding','autopilot','Enable binding'),('pilot-enable','Enable','pilot-keyboard','Enable'),('montage','Settings','autopilot','Settings'),('pilot-commands','Request','autopilot','Request'),('autopilot','Acknowledged revision','pilot-commands','Acknowledged revision'),('autopilot','Status','pilot-commands','Status'),('autopilot','Position','pilot-commands','Position'),('autopilot','Status','pilot-status','Text'),('pilot-keyboard','Bindings','autopilot','Keyboard bindings')]
+ for pin in ('Commands valid','Forward demand','Left demand','Vertical demand'): universal_edges.append(('pilot-keyboard',pin,'autopilot',pin))
+ for pin in ('Geometry','Route','Position','Trace'): universal_edges.append(('autopilot',pin,'local-map',pin))
+ for i in range(1,9):
+  name='groupe-'+str(i);code=scripts['mount-group'].replace('local GROUP_DEFAULT=1\n','local GROUP_DEFAULT='+str(i)+'\n',1)
+  universal_nodes.append((name,code,350+(i-1)%4*500,1100+(i-1)//4*1600))
+  universal_edges.extend([('montage','Architecture',name,'Architecture'),(name,'Group','mount-bus','Group '+str(i)),(name,'Shaft observation','mount-bus','Observation '+str(i))])
+ path=out/'mintcraft-autopilot.clipboard.txt'
+ path.write_text(graph_clipboard(universal_nodes,universal_edges,{'pilot-status':'websnodelib:string_display'}),encoding='utf-8')
+ artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+ manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.2.0','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
+  'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
+  'nativeSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((BASE/'src').glob('*.lua'))},
   'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
- archive=out/'mintcraft-sputnik-0.1.20.zip'
+ archive=out/'mintcraft-sputnik-0.2.0.zip'
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
    z.writestr(entry,path.read_bytes())
-  for name in ('README.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','LICENSE'):
+  for name in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','LICENSE'):
    path=ROOT/name if name=='LICENSE' else BASE/name
    if path.exists():
     entry=zipfile.ZipInfo(name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
+ # Readable sources, test programs and completed reports accompany this edition.
+  source_paths=set((BASE/'src').glob('*.lua')) | set((BASE/'tests').rglob('*')) | set((BASE/'profiles').glob('*.json'))
+  source_paths.update(BASE.glob('*.md'));source_paths.add(ROOT/'LICENSE')
+  source_paths.update(ROOT/(name.replace('.','/')+'.lua') for name in MODULES)
+  source_paths.update(ROOT/'tests'/(name+'.lua') for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight'))
+  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
+  for path in sorted(source_paths):
+   if path.is_file():
+    entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
+  reports=BASE/'reports/universal-0.2.0'
+  if reports.exists():
+   for path in sorted(reports.rglob('*')):
+    if path.is_file() and path.suffix in ('.json','.csv','.md','.log','.png'):
+     entry=zipfile.ZipInfo('reports/'+path.relative_to(reports).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
+ for previous in out.glob('mintcraft-sputnik-*.zip'):
+  if previous!=archive: previous.unlink()
  sums=''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(out).as_posix()+'\n' for p in sorted(out.rglob('*')) if p.is_file() and p.name!='SHA256SUMS')
  (out/'SHA256SUMS').write_text(sums)
  print('Sputnik:',len(modules),'pure modules;',len(scripts),'native node scripts;',archive.stat().st_size,'bytes ZIP')
-if __name__=='__main__':main()
+if __name__=='__main__':
+ lock=Path(tempfile.gettempdir())/('mintcraft-sputnik-build-'+hashlib.sha256(str(ROOT).encode()).hexdigest()[:20]+'.lock')
+ with lock.open('a') as handle:
+  fcntl.flock(handle,fcntl.LOCK_EX);main()

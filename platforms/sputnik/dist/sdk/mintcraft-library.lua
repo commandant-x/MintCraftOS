@@ -176,10 +176,17 @@ function M.angularVelocity(previous,current,dt)
  local factor=n<1e-9 and 2/dt or 2*M.atan2(n,w)/(n*dt)
  return {x=x*factor,y=y*factor,z=z*factor}
 end
+function M.rotate(value,orientation)
+ local v=addon.vec(value) local q=M.orientation(orientation)
+ if not v or not q then return nil end
+ local tx,ty,tz=2*(q.y*v.z-q.z*v.y),2*(q.z*v.x-q.x*v.z),2*(q.x*v.y-q.y*v.x)
+ return {x=v.x+q.w*tx+q.y*tz-q.z*ty,y=v.y+q.w*ty+q.z*tx-q.x*tz,z=v.z+q.w*tz+q.x*ty-q.y*tx}
+end
 function M.bodyVector(value,orientation)
  local q=M.orientation(orientation) if not q then return nil end
- return M.transform(value,{position={x=0,y=0,z=0},rotationPoint={x=0,y=0,z=0},scale={x=1,y=1,z=1},orientation={x=-q.x,y=-q.y,z=-q.z,w=q.w}})
+ return M.rotate(value,{x=-q.x,y=-q.y,z=-q.z,w=q.w})
 end
+
 function M.heading(orientation)
   if type(orientation)~="table" then return nil end
   local x,y,z,w=quaternion(orientation)
@@ -423,6 +430,24 @@ function M.allocate(model,wanted)
   for i=1,6 do v[i]=values[i]/model.scale[i] norm=norm+v[i]^2 end
   if not A.finite(norm) then return nil,'Response magnitude outside numeric domain' end
   columns[j]={v=v,norm=norm,low=c.low,high=c.high} outputs[j]=0
+ end
+ -- A regularized six-axis least-squares seed preserves collective directions
+ -- when torque columns dwarf translation (e.g. low-inertia multicopters).
+ -- Box projection plus the existing descent still enforces actuator bounds.
+ local gram,peak={},0
+ for i=1,6 do gram[i]={};for k=1,6 do local sum=0;for _,c in ipairs(columns) do sum=sum+c.v[i]*c.v[k] end;gram[i][k]=sum;peak=math.max(peak,math.abs(sum)) end;gram[i][7]=normalized[i] end
+ if not A.finite(peak) then return nil,'Response Gram overflow' end
+ -- Preserve the established descent solution when the collective is already
+ -- well conditioned; a different null-space seed can worsen heterogeneous PWM.
+ if gram[3][3]>0 and peak/gram[3][3]>100 then
+ for i=1,6 do gram[i][i]=gram[i][i]+math.max(1,peak)*1e-10 end
+ for i=1,6 do
+  local pivot=i;for row=i+1,6 do if math.abs(gram[row][i])>math.abs(gram[pivot][i]) then pivot=row end end
+  gram[i],gram[pivot]=gram[pivot],gram[i]
+  local divisor=gram[i][i];for k=i,7 do gram[i][k]=gram[i][k]/divisor end
+  for row=1,6 do if row~=i then local factor=gram[row][i];for k=i,7 do gram[row][k]=gram[row][k]-factor*gram[i][k] end end end
+ end
+ for j,c in ipairs(columns) do local value=0;for i=1,6 do value=value+c.v[i]*gram[i][7] end;outputs[j]=math.max(c.low,math.min(c.high,value));for i=1,6 do residual[i]=residual[i]-c.v[i]*outputs[j] end end
  end
  for _=1,96 do
   local largest=0
@@ -1212,7 +1237,7 @@ function M.new()
     if current~=0 then if sign~=0 and current~=sign then turns=turns+1 end sign=current end
    end
    local rms=math.sqrt(last/16) local threshold=axis<=3 and .25 or 3
-   if rms>threshold and last>=first*.9 then
+   if rms>threshold and last>=first*.9 and math.sqrt(first/16)-rms<(axis<=3 and .1 or 1) then
     self.axes[axis]=turns>=6 and 'nondecaying-oscillation' or 'no-measured-convergence'
    end
   end

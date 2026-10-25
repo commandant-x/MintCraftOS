@@ -1,0 +1,4 @@
+1 damage PASS error=0.009201392 tilt=5.0629225 speed=0.053755242 fault=nil phase=nil mission=nil yaw=0.47444084 wy=3.1205977E-4 reason=nil
+5 damage PASS error=0.25766647 tilt=3.3610718 speed=0.14911771 fault=nil phase=nil mission=nil yaw=-0.7139643 wy=-0.019534692 reason=nil
+Universal independent plant 2/2; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter

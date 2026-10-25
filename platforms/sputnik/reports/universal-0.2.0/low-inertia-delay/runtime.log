@@ -1,0 +1,8 @@
+1 hover PASS error=0.009212075 tilt=0.38175204 speed=0.007127244 fault=nil phase=nil mission=nil yaw=0.0015919469 wy=1.1487963E-4 reason=nil
+1 forward PASS error=0.0059132315 tilt=13.511608 speed=0.015259638 fault=nil phase=nil mission=nil yaw=-0.06592678 wy=2.6625243E-4 reason=nil
+1 mass PASS error=0.0040147114 tilt=0.34315467 speed=0.015125027 fault=nil phase=nil mission=nil yaw=-0.0065151714 wy=-1.1582161E-4 reason=nil
+5 hover FAIL error=2.2666895 tilt=25.978916 speed=1.8322209 fault=nil phase=nil mission=nil yaw=-9.327207 wy=-0.13257186 reason=nil
+5 forward FAIL error=11.288002 tilt=23.496527 speed=1.8459285 fault=nil phase=nil mission=nil yaw=4.8718586 wy=0.041751172 reason=nil
+5 mass FAIL error=12.279094 tilt=25.764433 speed=1.8018084 fault=nil phase=nil mission=nil yaw=-36.10408 wy=-1.2765259 reason=nil
+Universal independent plant 3/6; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter

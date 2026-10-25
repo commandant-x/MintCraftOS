@@ -39,10 +39,17 @@ function M.angularVelocity(previous,current,dt)
  local factor=n<1e-9 and 2/dt or 2*M.atan2(n,w)/(n*dt)
  return {x=x*factor,y=y*factor,z=z*factor}
 end
+function M.rotate(value,orientation)
+ local v=addon.vec(value) local q=M.orientation(orientation)
+ if not v or not q then return nil end
+ local tx,ty,tz=2*(q.y*v.z-q.z*v.y),2*(q.z*v.x-q.x*v.z),2*(q.x*v.y-q.y*v.x)
+ return {x=v.x+q.w*tx+q.y*tz-q.z*ty,y=v.y+q.w*ty+q.z*tx-q.x*tz,z=v.z+q.w*tz+q.x*ty-q.y*tx}
+end
 function M.bodyVector(value,orientation)
  local q=M.orientation(orientation) if not q then return nil end
- return M.transform(value,{position={x=0,y=0,z=0},rotationPoint={x=0,y=0,z=0},scale={x=1,y=1,z=1},orientation={x=-q.x,y=-q.y,z=-q.z,w=q.w}})
+ return M.rotate(value,{x=-q.x,y=-q.y,z=-q.z,w=q.w})
 end
+
 function M.heading(orientation)
   if type(orientation)~="table" then return nil end
   local x,y,z,w=quaternion(orientation)

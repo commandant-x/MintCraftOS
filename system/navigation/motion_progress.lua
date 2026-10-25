@@ -22,7 +22,7 @@ function M.new()
     if current~=0 then if sign~=0 and current~=sign then turns=turns+1 end sign=current end
    end
    local rms=math.sqrt(last/16) local threshold=axis<=3 and .25 or 3
-   if rms>threshold and last>=first*.9 then
+   if rms>threshold and last>=first*.9 and math.sqrt(first/16)-rms<(axis<=3 and .1 or 1) then
     self.axes[axis]=turns>=6 and 'nondecaying-oscillation' or 'no-measured-convergence'
    end
   end

@@ -33,6 +33,40 @@ public final class VerifySputnikClipboard {
     if(((Number)slider.getMethod("getValue").invoke(restored)).doubleValue()!=choice) throw new AssertionError("Native architecture selection not persisted");
    }
   }
+  if(Boolean.getBoolean("mintcraft.sputnik.payload")) {
+   // The actual host keeps an existing node/evaluator when loading unchanged UUID/code.
+   // A committed widget update must not reset Lua flight state.
+   Class<?> nodeType=Class.forName("dev.devce.websnodelib.api.WNode");
+   Object node=nodeType.getConstructor(net.minecraft.resources.ResourceLocation.class,String.class,int.class,int.class).newInstance(net.minecraft.resources.ResourceLocation.parse("rocketnautics:lua_script"),"Persistence fixture",0,0);
+   Class<?> graphType=Class.forName("dev.devce.websnodelib.api.WGraph");
+   Object graph=graphType.getConstructor().newInstance();graphType.getMethod("addNode",nodeType).invoke(graph,node);
+   Class.forName("dev.devce.rocketnautics.registry.RocketNodes").getMethod("setupLuaEvaluatorPublic",nodeType).invoke(null,node);
+   CompoundTag data=(CompoundTag)nodeType.getMethod("getCustomData").invoke(node);
+   data.putString("code","_G.flightCounter=(_G.flightCounter or 0)+1\noutput('Counter',_G.flightCounter)");
+   nodeType.getMethod("evaluate").invoke(node);
+   CompoundTag saved=(CompoundTag)graphType.getMethod("save").invoke(graph);
+   graphType.getMethod("load",CompoundTag.class).invoke(graph,saved);
+   nodeType.getMethod("evaluate").invoke(node);
+   var pins=(java.util.List<?>)nodeType.getMethod("getOutputs").invoke(node);
+   if(((Number)pins.get(0).getClass().getMethod("getValue").invoke(pins.get(0))).doubleValue()!=2) throw new AssertionError("Actual graph save/load reset unchanged Lua controller");
+   // Changing source recreates globals; a fresh graph never restores runtime state.
+   data=(CompoundTag)nodeType.getMethod("getCustomData").invoke(node);
+   data.putString("code",data.getString("code")+"\n-- source revision");
+   nodeType.getMethod("evaluate").invoke(node);
+   pins=(java.util.List<?>)nodeType.getMethod("getOutputs").invoke(node);
+   if(((Number)pins.get(0).getClass().getMethod("getValue").invoke(pins.get(0))).doubleValue()!=1) throw new AssertionError("Changed source kept old Lua globals");
+   Object restarted=graphType.getConstructor().newInstance();
+   // A standalone harness has no registered Minecraft node factory. Construct
+   // the fresh evaluator as the game factory does, then load its persisted tag.
+   Object restored=nodeType.getConstructor(net.minecraft.resources.ResourceLocation.class,String.class,int.class,int.class).newInstance(net.minecraft.resources.ResourceLocation.parse("rocketnautics:lua_script"),"Restart fixture",0,0);
+   Class.forName("dev.devce.rocketnautics.registry.RocketNodes").getMethod("setupLuaEvaluatorPublic",nodeType).invoke(null,restored);
+   nodeType.getMethod("load",CompoundTag.class).invoke(restored,saved.getList("nodes",10).getCompound(0));
+   graphType.getMethod("addNode",nodeType).invoke(restarted,restored);
+   graphType.getMethod("load",CompoundTag.class).invoke(restarted,saved);
+   nodeType.getMethod("evaluate").invoke(restored);
+   pins=(java.util.List<?>)nodeType.getMethod("getOutputs").invoke(restored);
+   if(((Number)pins.get(0).getClass().getMethod("getValue").invoke(pins.get(0))).doubleValue()!=1) throw new AssertionError("Graph restart restored active Lua runtime");
+  }
   // Reproduce the user's 108508-byte failure in the real NBT binary writer.
   var oversized=new CompoundTag(); oversized.putString("code","x".repeat(108508));
   try {

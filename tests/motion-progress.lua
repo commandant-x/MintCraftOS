@@ -20,3 +20,9 @@ assert(not m:observe({0/0,0,0,0,0,0},{0,0,0,0,0,0},101),'nonfinite sample accept
 assert(m:observe({0,0,0,0,0,0},{0,0,0,0,0,0},102) and #m.samples==1,'discontinuous history treated as continuous')
 assert(m.state==nil,'progress diagnostic granted control authority')
 print('Physical progress: bounded observations distinguish persistent oscillation, stalled error and damped settling; gaps/duplicates/nonfinite values cannot grant qualification')
+do
+ local far=M.new()
+ for i=1,100 do far:observe({10000-i*.5,0,0,0,0,0},{-1,0,0,0,0,0},i*.5) end
+ assert(next(far.axes)==nil,'constant real progress at long distance was refused by a relative-error threshold')
+ print('Long-range progress: absolute measured improvement avoids an implicit travel-distance limit')
+end

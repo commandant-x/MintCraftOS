@@ -37,6 +37,24 @@ function M.allocate(model,wanted)
   if not A.finite(norm) then return nil,'Response magnitude outside numeric domain' end
   columns[j]={v=v,norm=norm,low=c.low,high=c.high} outputs[j]=0
  end
+ -- A regularized six-axis least-squares seed preserves collective directions
+ -- when torque columns dwarf translation (e.g. low-inertia multicopters).
+ -- Box projection plus the existing descent still enforces actuator bounds.
+ local gram,peak={},0
+ for i=1,6 do gram[i]={};for k=1,6 do local sum=0;for _,c in ipairs(columns) do sum=sum+c.v[i]*c.v[k] end;gram[i][k]=sum;peak=math.max(peak,math.abs(sum)) end;gram[i][7]=normalized[i] end
+ if not A.finite(peak) then return nil,'Response Gram overflow' end
+ -- Preserve the established descent solution when the collective is already
+ -- well conditioned; a different null-space seed can worsen heterogeneous PWM.
+ if gram[3][3]>0 and peak/gram[3][3]>100 then
+ for i=1,6 do gram[i][i]=gram[i][i]+math.max(1,peak)*1e-10 end
+ for i=1,6 do
+  local pivot=i;for row=i+1,6 do if math.abs(gram[row][i])>math.abs(gram[pivot][i]) then pivot=row end end
+  gram[i],gram[pivot]=gram[pivot],gram[i]
+  local divisor=gram[i][i];for k=i,7 do gram[i][k]=gram[i][k]/divisor end
+  for row=1,6 do if row~=i then local factor=gram[row][i];for k=i,7 do gram[row][k]=gram[row][k]-factor*gram[i][k] end end end
+ end
+ for j,c in ipairs(columns) do local value=0;for i=1,6 do value=value+c.v[i]*gram[i][7] end;outputs[j]=math.max(c.low,math.min(c.high,value));for i=1,6 do residual[i]=residual[i]-c.v[i]*outputs[j] end end
+ end
  for _=1,96 do
   local largest=0
   for j,c in ipairs(columns) do

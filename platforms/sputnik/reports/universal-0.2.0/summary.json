@@ -1,0 +1,250 @@
+{
+  "version": "0.2.0",
+  "tested_in_minecraft": false,
+  "qualified": false,
+  "controller_sha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092",
+  "plant_sha256": "12405a0d6288321e04ecee668ea952f63e26ab9a31ebf5bd21c660765283f687",
+  "defaults_sha256": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877",
+  "reference_passed": 49,
+  "reference_total": 50,
+  "stress_passed": 5,
+  "stress_total": 12,
+  "damage_passed": 2,
+  "damage_total": 2,
+  "runs": {
+    "profile-1": {
+      "passed": 10,
+      "total": 10,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 1,
+        "delay": 1,
+        "noise": 0,
+        "comX": 0,
+        "rotorFactor": 1
+      }
+    },
+    "profile-2": {
+      "passed": 9,
+      "total": 10,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 1,
+        "delay": 1,
+        "noise": 0,
+        "comX": 0,
+        "rotorFactor": 1
+      }
+    },
+    "profile-3": {
+      "passed": 10,
+      "total": 10,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 1,
+        "delay": 1,
+        "noise": 0,
+        "comX": 0,
+        "rotorFactor": 1
+      }
+    },
+    "profile-4": {
+      "passed": 10,
+      "total": 10,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 1,
+        "delay": 1,
+        "noise": 0,
+        "comX": 0,
+        "rotorFactor": 1
+      }
+    },
+    "profile-5": {
+      "passed": 10,
+      "total": 10,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 1,
+        "delay": 1,
+        "noise": 0,
+        "comX": 0,
+        "rotorFactor": 1
+      }
+    },
+    "low-inertia-delay": {
+      "passed": 3,
+      "total": 6,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 0.25,
+        "delay": 2,
+        "noise": 0.01,
+        "comX": 0,
+        "rotorFactor": 1
+      }
+    },
+    "offset-weak-rotor": {
+      "passed": 2,
+      "total": 6,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 1,
+        "delay": 1,
+        "noise": 0,
+        "comX": 0.5,
+        "rotorFactor": 0.7
+      }
+    },
+    "mass-damage": {
+      "passed": 2,
+      "total": 2,
+      "fixture": {
+        "mass": 32,
+        "inertiaScale": 1,
+        "delay": 1,
+        "noise": 0,
+        "comX": 0,
+        "rotorFactor": 1
+      }
+    }
+  },
+  "failures": [
+    {
+      "run": "profile-2",
+      "profile": "2",
+      "scenario": "mission",
+      "status": "FAIL",
+      "altitude_error": "1.0019250867373017",
+      "max_tilt": "0.0",
+      "final_speed": "0.01426784267519913",
+      "max_error": "1.1242717713749641",
+      "peak_horizontal_speed": "1.2917855571745658",
+      "max_horizontal_displacement": "3.726395346432178",
+      "max_yaw": "179.77684078548648",
+      "tail_speed_rms": "0.012308268850205736",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    },
+    {
+      "run": "low-inertia-delay",
+      "profile": "5",
+      "scenario": "hover",
+      "status": "FAIL",
+      "altitude_error": "2.2666896304825315",
+      "max_tilt": "25.978916757798235",
+      "final_speed": "1.8322209581060933",
+      "max_error": "11.499186679667886",
+      "peak_horizontal_speed": "3.7820920712281776",
+      "max_horizontal_displacement": "22.808252605263142",
+      "max_yaw": "9.88979841983471",
+      "tail_speed_rms": "2.3556933130719226",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    },
+    {
+      "run": "low-inertia-delay",
+      "profile": "5",
+      "scenario": "forward",
+      "status": "FAIL",
+      "altitude_error": "11.2880020833028",
+      "max_tilt": "23.496527609183627",
+      "final_speed": "1.845928508898503",
+      "max_error": "11.2880020833028",
+      "peak_horizontal_speed": "3.20027617486458",
+      "max_horizontal_displacement": "11.7158894995047",
+      "max_yaw": "4.871858488830977",
+      "tail_speed_rms": "1.820581105180054",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    },
+    {
+      "run": "low-inertia-delay",
+      "profile": "5",
+      "scenario": "mass",
+      "status": "FAIL",
+      "altitude_error": "12.279094093307478",
+      "max_tilt": "25.764432648636518",
+      "final_speed": "1.8018083024638514",
+      "max_error": "12.62671486190004",
+      "peak_horizontal_speed": "3.0287012590750275",
+      "max_horizontal_displacement": "17.647141114531784",
+      "max_yaw": "36.10407894062789",
+      "tail_speed_rms": "1.9776053513354146",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    },
+    {
+      "run": "offset-weak-rotor",
+      "profile": "1",
+      "scenario": "hover",
+      "status": "FAIL",
+      "altitude_error": "4.8809994697762704E-4",
+      "max_tilt": "5.754208099189503",
+      "final_speed": "0.7888177133168954",
+      "max_error": "0.5302132668660846",
+      "peak_horizontal_speed": "1.0344373381218466",
+      "max_horizontal_displacement": "43.143683351589836",
+      "max_yaw": "0.6560251363753224",
+      "tail_speed_rms": "0.7929484747145186",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    },
+    {
+      "run": "offset-weak-rotor",
+      "profile": "1",
+      "scenario": "forward",
+      "status": "FAIL",
+      "altitude_error": "0.014687192415550498",
+      "max_tilt": "12.366167024852713",
+      "final_speed": "0.796424286362325",
+      "max_error": "0.6403238029602818",
+      "peak_horizontal_speed": "4.158897006290429",
+      "max_horizontal_displacement": "53.54504703884001",
+      "max_yaw": "2.059326169043204",
+      "tail_speed_rms": "0.7936470094179767",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    },
+    {
+      "run": "offset-weak-rotor",
+      "profile": "5",
+      "scenario": "hover",
+      "status": "FAIL",
+      "altitude_error": "0.1870117910557667",
+      "max_tilt": "3.997240384471376",
+      "final_speed": "0.30528018033922333",
+      "max_error": "0.81444950260952",
+      "peak_horizontal_speed": "0.44718123699932866",
+      "max_horizontal_displacement": "16.353379083758426",
+      "max_yaw": "0.24366259576748608",
+      "tail_speed_rms": "0.3697189473922209",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    },
+    {
+      "run": "offset-weak-rotor",
+      "profile": "5",
+      "scenario": "forward",
+      "status": "FAIL",
+      "altitude_error": "0.06412934010047877",
+      "max_tilt": "12.383219958692388",
+      "final_speed": "0.34624874890441537",
+      "max_error": "2.5201148800721427",
+      "peak_horizontal_speed": "2.849735222926672",
+      "max_horizontal_displacement": "16.919482497184067",
+      "max_yaw": "1.5151096753322673",
+      "tail_speed_rms": "0.3890155741424542",
+      "cruise_pitch_mean": "0.0",
+      "cruise_pitch_std": "0.0",
+      "first_fault": ""
+    }
+  ]
+}

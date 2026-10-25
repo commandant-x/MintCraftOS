@@ -18,9 +18,9 @@ spec=importlib.util.spec_from_file_location('sputnik_build',ROOT/'tools/build-sp
 assert builder.nbt_utf8_size('a')==1 and builder.nbt_utf8_size('\0')==2 and builder.nbt_utf8_size('é')==2 and builder.nbt_utf8_size('😀')==6
 dist=ROOT/'platforms/sputnik/dist'; manifest=json.loads((dist/'manifest.json').read_text())
 assert hashlib.sha256(args.cosmonautics_jar.read_bytes()).hexdigest()==manifest['hostJarSha256'],'Different Cosmonautics JAR: audit its APIs before claiming compatibility'
-first=(dist/'mintcraft-sputnik-0.1.20.zip').read_bytes()
+first=(dist/'mintcraft-sputnik-0.2.0.zip').read_bytes()
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
-assert first==(dist/'mintcraft-sputnik-0.1.20.zip').read_bytes(),'Non-deterministic distribution'
+assert first==(dist/'mintcraft-sputnik-0.2.0.zip').read_bytes(),'Non-deterministic distribution'
 for name,record in manifest['artifacts'].items():
  data=(dist/name).read_bytes();assert len(data)==record['bytes'] and hashlib.sha256(data).hexdigest()==record['sha256']
  if name.endswith('.lua') and not name.startswith('sdk/'):
@@ -36,13 +36,32 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
    if name.startswith('dev/devce/rocketnautics/shaded/luaj/') and name.endswith('.class'):target.writestr(name,src.read(name))
  execute([javac,'-cp',runtime,'-d',folder,ROOT/'tools/VerifySputnikLua.java'])
  cp=str(folder)+os.pathsep+str(runtime)
- execute([java,'-cp',cp,'VerifySputnikLua','platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua','platforms/sputnik/tests/link-test.lua','platforms/sputnik/tests/quad-graph.lua','platforms/sputnik/tests/architecture-selector.lua'])
+ # Check lexical compaction in the actual LuaJ parser, including quoted '--'.
+ programs=["local x=1 -- comment\nlocal y=2;return x-y,- -x,.5+1e-2,1 .. 'x'",
+  "local s='--literal';local t=[=[long\nstring]=];return s,t,0x10",
+  "--[[long comment\n]] return (function(a) return (a or 1)+2 end)(3)",
+  "local t={v=2};function t:f(x) return self.v+x end;return t:f(3)",
+  "local alpha,beta=2,3;local t={alpha=4;beta=5};return alpha+beta,t.alpha,t.beta"]
+ def lua_literal(value):
+  eq='='
+  while ']'+eq+']' in value: eq+='='
+  return '['+eq+'['+value+']'+eq+']'
+ lexical=folder/'lexical.lua'
+ lexical.write_text('\n'.join('do local a={assert(load('+lua_literal(program)+'))()} local b={assert(load('+lua_literal(builder.compact(program))+'))()} assert(#a==#b) for i=1,#a do assert(a[i]==b[i],"Lua compaction changed semantics") end end' for program in programs))
+ execute([java,'-cp',cp,'VerifySputnikLua',lexical])
+ readable=folder/'native-readable.lua';readable.write_text(builder.native_universal()['autopilot-control'])
+ equivalence=folder/'equivalence-bootstrap.lua';equivalence.write_text('MINTCRAFT_UNCOMPACTED='+json.dumps(str(readable))+'\n')
+ execute([java,'-cp',cp,'VerifySputnikLua',equivalence,'platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua','platforms/sputnik/tests/link-test.lua','platforms/sputnik/tests/quad-graph.lua','platforms/sputnik/tests/architecture-selector.lua','platforms/sputnik/tests/universal-flight.lua','platforms/sputnik/tests/universal-native.lua'])
  # Prevent the low-inertia resonance from returning behind a favourable plant.
  twin_bootstrap=folder/'twin-bootstrap.lua'
  twin_bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT='+json.dumps(str(folder))+'\n'
   +'MINTCRAFT_TWIN_PROFILE={mass=32,armX=3,armZ=5,height=1,ix=250,iy=400,iz=230}\n'
   +'MINTCRAFT_TWIN_CASES={"inertia_quarter","inertia_eighth","inertia_quarter_delay2","held_forward_20s","course_left_arc","steer_at_rest"}\nMINTCRAFT_TWIN_ASSERT=true\n')
  execute([java,'-cp',cp,'VerifySputnikLua',twin_bootstrap,'tools/sputnik-digital-twin.lua'])
+ # Regression gate for the new universal controller, including heterogeneous PWM.
+ universal=folder/'universal-bootstrap.lua'
+ universal.write_text('MINTCRAFT_UNIVERSAL_PROFILES={1,5}\nMINTCRAFT_UNIVERSAL_CASES={"hover","mass","cruise"}\nMINTCRAFT_UNIVERSAL_ASSERT=true\n')
+ execute([java,'-cp',cp,'VerifySputnikLua',universal,'tools/sputnik-universal-twin.lua'])
  # Modular bearings must retain their separate force law and damping under travel.
  twin_bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT='+json.dumps(str(folder))+'\n'
   +'MINTCRAFT_TWIN_PROFILE={mass=32,armX=3,armZ=5,height=1,ix=250,iy=400,iz=230,sails={12,12,12,12}}\n'
@@ -63,10 +82,11 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
    assert actual==(ROOT/'platforms/sputnik/tests/fixtures/sable-pressure.csv').read_bytes(),'Actual Sable pressure oracle changed'
   execute([javac,'-proc:none','-cp',args.minecraft_classpath,'-d',folder,ROOT/'tools/VerifySputnikClipboard.java'])
   pairs=[]
-  for name in ('architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
+  for name in ('autopilot-control','mount-group','mount-bus','mount-setup','flight-commands','local-map','architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
    base='platforms/sputnik/dist/mintcraft-'+name;pairs.extend([base+'.clipboard.txt',base+'.lua'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-two-bank-tests.clipboard.txt','@graph'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-flight-audit.clipboard.txt','@graph:2:1'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-quad-flight.clipboard.txt','@graph:7:17'])
+  pairs.extend(['platforms/sputnik/dist/mintcraft-autopilot.clipboard.txt','@graph:16:46'])
   execute([java,'-Dmintcraft.sputnik.payload=true','-cp',str(folder)+os.pathsep+args.minecraft_classpath+os.pathsep+str(args.cosmonautics_jar),'VerifySputnikClipboard',*pairs])
 print('Sputnik distribution, deterministic build, hashes, actual LuaJ runtime and portable physics passed; no Minecraft world test performed')

@@ -1,0 +1,83 @@
+Sputnik: 17 pure modules; 20 native node scripts; 612675 bytes ZIP
+Sputnik: 17 pure modules; 20 native node scripts; 612675 bytes ZIP
+Sputnik LuaJ: 1 fixture chunks passed in actual Cosmonautics interpreter
+Sputnik port: no CC/files/HTTP, actual SDK modules, no boot actuation, explicit physical arm/STOP/remap/clock guards, malformed signal refusal and unauthenticated stale radio semantics passed
+Venator demands: forward/reverse/pivot/neutral steering, shared ratio limits, four independent bounded lifts, collective priority, measured-only nonextrapolating RPM selection and horizontal STOP preserving lift passed; no actuation
+Balloon five-channel demands and quad body-tilt intents: exclusive spring, independent lift validity, no invented yaw, no actuator writes passed
+Bank experiment: opposed movements + shaft spin evidence, real neutral stopping, no timer-only pass, blocked/wrong reverse/no feedback refusal, envelope/mass/world/clock guards and no flight certificate passed
+Native two-bank commissioning: one-tick graph links, sequential real fixture motion + shaft feedback, no simultaneous banks, stop-before-reverse, completion latch, physical STOP, missing feedback and duplicate channel refusal passed; lift untouched
+Typewriter: six unique receivers, diagonal normalization, opposites, vertical intent, release, low-before-enable, remap/malformed/clock/mass refusal; no actuator writes passed
+Keyboard recovery: actual OFF followed by held-key ON waits for release and resumes at neutral; no held-key auto-arm or startup-high bypass
+Native quad: Kalman covariance/velocity, measured rank, integer bounded allocation, altitude capture, tilt forward/strafe/braking, mass change retaining altitude; simplified near-level physics only
+Native rotor adapter: four mapped Links, no boot action, physical low-high gate, measured fallback, frozen old mapping, latched fault/rearm and mass-context loss passed; no world flight proof
+Native automatic physical mode: blank manual rows, API mass/inertia, density-derived trim, four real Link calls and mass update passed
+Detailed refusal diagnostics: confirmation, missing typed bindings, collisions, fields, held key and absent server mass; invalid movement commands allow neutral stabilisation
+Failure latch regression: original attitude error and measurements survive held-high Enable, later faults and BASELINE logic; explicit low rearm clears it; prior target/weight retained
+Recovery regression: explicit low acknowledges fault despite invalid model, frozen fallback stays refreshed, invalid configuration cannot arm, tilted aircraft waits for level then rearms without a script restart
+Competing TX diagnostic: stronger network strength reported as a warning, never treated as physical ACK and never bypasses control guards
+Binary permission regression: strengths 1..15 produce identical motor traces; no ready keyboard still holds altitude; level descent increases all four rotors together; valid Space later changes target
+Direct Link intent: fresh Space/release override previous graph demand, malformed input holds, keyboard validity remains required
+Native modular adapter: per-rotor saved counts, graph override, missing-count refusal, bearing coefficient model and frozen fallback on live layout change passed
+Audited Aero physics: actual Sable pressure oracle, zero bypass and 1..15 transmission states, velocity-dependent thrust, mass/inertia/geometry auto model, spool-lag altitude/tilt/braking and in-flight mass update passed; simulated plant only
+Zero bypass regression: heavy quad between actual 256/224-RPM states climbs and holds in the lagged simulation
+Modular physics: sail^1.5 thrust, sqrt(sail) airflow/spool, four independent areas, equal support forces with different trims and invalid-count refusal passed
+Isolated lamp radio: no vehicle/calibration needed, explicit low-high gate, TTL refresh, old-frequency cleanup, remap latch and clock-independent operation/native client no-op passed; no physical reception proof
+Complete quad graph: native enable/6-key receiver/controller/audit, one-tick propagation, Space changing target and lift, W changing motion, braking/hold, live mass/inertia update; synthetic radio/physics only
+Architecture selector: four names, restored choice, no actuation, unavailable backend refusal, pending live change, old fallback and OFF rearm passed
+Native architecture 1: bounded motor outputs at measured mass; no hardware proof
+Native architecture 2: bounded motor outputs at measured mass; no hardware proof
+Native architecture 3: bounded motor outputs at measured mass; no hardware proof
+Native architecture 4: bounded motor outputs at measured mass; no hardware proof
+Universal contracts: serialization, duplicate rejection, quaternion convention, live/replayed consignes, declared-zone detour and measured 20-sample calibration passed
+Readable/compact native equivalence: five architectures, quaternion motion, live requests, mass change and calibration traces matched
+Universal regressions: direct-command interruption, cache revalidation and 32 bounded independent groups passed
+Reversal regression: stopped-power shift frame, fresh/stale shaft separation and no fabricated gearshift ACK passed
+Manual steering selector: no fabricated stationary yaw, lateral quad demand available separately
+Estimator initialization: available native velocity is retained, without resetting an active target
+Mission approach regression: settling within arrival band stays active; distant nonconvergence still pauses
+Heading-branch regression: noisy perpendicular target preserves a continuous nose request
+Native long-route regression: no distance-induced false progress stop
+Mass adaptation contract: altitude/estimator preserved, no active tests and observed-change latch retained
+Latched reversal: changing intent preserves stop/shift ordering until completion
+Universal native: single writer, boot gate, initial bounded trim, hot target keeps estimator, stale command refusal, frozen actuator/Enable bindings, mapping handoff, no restored mission and mechanical cut passed
+Native command panel: committed request is persistent, versioned and idempotent across redraws
+Native montage/map: enum choices, per-group import/export, explicit shaft sample validity, bounded transport and declared-only renderer passed
+Calibration persistence: partial results, client-cache reassertion and fresh rerun from candidates passed
+Native GUI and fault regressions: current-position point, named route save/load, point selection, declared hull and sustained fallback after telemetry fault passed
+Native global group import/export: persisted descriptors, explicit override and bounded invalid-import refusal passed
+Native output regression: local-response and inverse-transmission clutch stops are distinct; fault report stays current
+Sputnik LuaJ: 13 fixture chunks passed in actual Cosmonautics interpreter
+inertia_quarter: PASS error=9.91345167406621E-4m tilt=4.980575117799331deg speed=0.0026213240430025563m/s fault=none
+inertia_eighth: PASS error=0.0026224321750305535m tilt=4.965532597238109deg speed=0.003111494810184587m/s fault=none
+inertia_quarter_delay2: PASS error=0.0018233902850397499m tilt=4.975561294692075deg speed=7.577097925495645E-4m/s fault=none
+held_forward_20s: PASS error=0.005295680630354127m tilt=10.049333730641633deg speed=0.0037093484664594135m/s fault=none
+course_left_arc: PASS error=5.281231107545636E-4m tilt=9.132044962836988deg speed=0.0011593990669647731m/s fault=none
+steer_at_rest: PASS error=6.14912897361819E-4m tilt=0.0deg speed=0.016605763521141733m/s fault=none
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter
+1 hover PASS error=2.4942317E-4 tilt=0 speed=0.001738149 fault=nil phase=nil mission=nil yaw=-1.1479934E-32 wy=1.4099216E-34 reason=nil
+1 mass PASS error=6.163763E-4 tilt=0 speed=0.003257089 fault=nil phase=nil mission=nil yaw=-2.7009157E-33 wy=-6.83569E-35 reason=nil
+1 cruise PASS error=0.0011168252 tilt=9.1827755 speed=0.015653586 fault=nil phase=nil mission=nil yaw=-0.013124775 wy=-1.2240434E-4 reason=nil
+5 hover PASS error=0.04414557 tilt=1.155892 speed=0.039533645 fault=nil phase=nil mission=nil yaw=-0.03227159 wy=0.0020632092 reason=nil
+5 mass PASS error=0.2291212 tilt=3.2968812 speed=0.17989467 fault=nil phase=nil mission=nil yaw=0.055861395 wy=0.0015031259 reason=nil
+5 cruise PASS error=0.16801032 tilt=14.555701 speed=0.11753223 fault=nil phase=nil mission=nil yaw=0.6005367 wy=0.007522023 reason=nil
+Universal independent plant 6/6; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter
+tilt_pitch_5deg: PASS error=0.007725624528418962m tilt=4.999218187231042deg speed=0.007161421925289107m/s fault=none
+held_forward_20s: PASS error=0.005753974424379749m tilt=16.567477715232783deg speed=0.017784699156742276m/s fault=none
+mass_loss_15percent: PASS error=0.001400944874191623m tilt=0.0deg speed=0.02681050394150625m/s fault=none
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter
+Measured response model: six-axis coupled allocation, signed feasibility, local nonextrapolated bounds, nine architecture/fault domains, units/identity/ACK evidence and noise rejection passed
+Allocation regression: regularized seed preserves feasible low-inertia collective
+Measured feedback physics: nine simplified architectures, coupled asymmetric/offset allocation, real pose/quaternion derivatives, 16-level outputs, unavailable axes, braking and stale-sensor refusal passed; simulation only
+Passive tilt identification: observed up/acceleration/velocity coupling, neutral acceleration correction, drag/wind separation, bounded sufficient statistics and rank/noise/identity/ACK refusals passed
+Physical progress: bounded observations distinguish persistent oscillation, stalled error and damped settling; gaps/duplicates/nonfinite values cannot grant qualification
+Long-range progress: absolute measured improvement avoids an implicit travel-distance limit
+Measured multirotor physics: real gravity/thrust-direction drift, production quaternion derivatives, existing attitude trials, passive lateral fit, separate X/Z motion/return checks, 16-level control and local target braking passed; simulation only
+Sputnik LuaJ: 6 fixture chunks passed in actual Cosmonautics interpreter
+SLF4J(W): Class path contains multiple SLF4J providers.
+SLF4J(W): Found provider [org.slf4j.simple.SimpleServiceProvider@71dac704]
+SLF4J(W): Found provider [org.apache.logging.slf4j.SLF4JServiceProvider@123772c4]
+SLF4J(W): See https://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J(I): Actual provider is of type [org.slf4j.simple.SimpleServiceProvider@71dac704]
+Minecraft SNBT: 24 clipboard artifacts parsed AND binary-serialized; old 108508-byte failure reproduced, UUID/Lua/pin links round-trip exact; optional actual Sputnik CODEC
+Sputnik distribution, deterministic build, hashes, actual LuaJ runtime and portable physics passed; no Minecraft world test performed

@@ -62,3 +62,13 @@ partial=assert(R.fit(channels,rows,provenance))
 for _,axis in ipairs(R.axes) do assert(not partial.axes[axis].allocatable) end
 assert(not R.allocate(model,{0/0,0,0,0,0,0}))
 print('Measured response model: six-axis coupled allocation, signed feasibility, local nonextrapolated bounds, nine architecture/fault domains, units/identity/ACK evidence and noise rejection passed')
+-- A feasible collective must not be lost when low inertia makes opposing
+-- torque columns much larger than translation. All channels remain bounded.
+do
+ local model={columns={},scale={1,1,1,1,1,1}}
+ for i=1,4 do model.columns[i]={id=tostring(i),response={0,0,1,i<=2 and -100 or 100,0,i%2==1 and -100 or 100},low=0,high=15,neutral=0} end
+ local result=assert(R.allocate(model,{0,0,11,0,0,0}))
+ assert(math.abs(result.actual[3]-11)<1e-3 and math.abs(result.actual[4])<1e-3 and math.abs(result.actual[6])<1e-3,'feasible collective lost to torque conditioning')
+ for _,signal in pairs(result.delta) do assert(signal>=0 and signal<=15) end
+ print('Allocation regression: regularized seed preserves feasible low-inertia collective')
+end

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.20",
+  "version": "0.2.0",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -9,12 +9,55 @@
   "qualifiedAutopilot": false,
   "defaultActuation": false,
   "nativeNodeModifiedUtf8Budget": 60000,
+  "contracts": {
+    "mount": "MCV1",
+    "settings": "MCU1 (10 legacy / 11 current fields)",
+    "request": "MCC1",
+    "candidateModel": "MCAL1",
+    "missionSchema": 1,
+    "observations": {
+      "schema": 1,
+      "encoding": "id,rpm,universeTick",
+      "meaning": "optional observed shaft speed; no gearshift ACK"
+    }
+  },
+  "nativeSources": {
+    "aero_physics.lua": "2a0c1d5697773750849ae4d8d07e58e773bdad9e6ba08a84b76ccdad747147c3",
+    "architecture-selector.lua": "9c6c6b826cd49c9744c594061cfcc257acdd4f08125ff25c95e5fe4626bda848",
+    "autopilot-node.lua": "1d97130adcbacdce89618f7e6c5b2df61e1ff8f75318406fe158870eae7f55e1",
+    "bank-test-node.lua": "8dd44270619f1ef663bfabb6e0060cff764d74ed564642d3573f168ef48767d9",
+    "bank_probe.lua": "9db363b26f7f0e7110ac696eed9148e61f84b951c2aa57c5c38e26553630beef",
+    "command-node.lua": "969be8404e136a5c549e3a3fa84ac1005b1f933587e7589c5e3c2dccb25b69f8",
+    "dashboard.lua": "be6543f4b64dbda57ca7ff70bd17b0bc60f702bd79f73c4e35bcb5e9dbb6d6bd",
+    "drive-console.lua": "c27294d891454c4fbcb64ee26f0282f7091028e0f36ed563b4d204c1fdead25d",
+    "drive_mixer.lua": "197262e4a49b67faca7e685362bcf5c30fbbd9f8b0c88a7dd4249c7fdcf21fc5",
+    "flight-telemetry.lua": "639096e161aaf16e68c4d0629378664c7a4420c17acc0ccfea32ecb8c9b08ee6",
+    "flight_calibration.lua": "a749b6f0dc4a425ceb329b5313b21f4f16c78c3ae56dcf5bb6761d0921646a2d",
+    "flight_core.lua": "e2e832fc00770c3cbce5abba8533cc0d68bb7788f43a516a2565d3ed2a637084",
+    "flight_mission.lua": "4d055e05ec7a08b67a26e4d08941dd751830cdf7bc49f71c8f7a34e72321ea04",
+    "gateway.lua": "d50e3d7f1ada57da314436199ef3635815a3712409471c73eeb2a09c74327d14",
+    "import-test.lua": "f7cf6999f7e798f178fff3b45bd7e27611203c3ad775b7856429f341caff84bc",
+    "link-test.lua": "a0190b8d65a31882c1433f959c4cd2a44ec32f3ea44545986f7f9df569263041",
+    "map-node.lua": "3d3ea74e8836811a9dd60171413891dde0e82547641b314f7ca45ea469b4d0d0",
+    "mount-bus.lua": "a587c0f3a885e03084035aaf92c21cb4430701aa1177fdba3274276954628d5b",
+    "mount-node.lua": "e4461d3093c86ce5a97b03ef40c1262fb0942f8f0bab0212134e415977e161d3",
+    "portable.lua": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
+    "quad-node.lua": "eb1be52450ab7a3634134539260a1d4886cfce5b210cae02fa3a2c9117d60724",
+    "quad_control.lua": "cdd95cb55648543daef18a3863a82f846de7e7b9e133e1412e901638a06f13fd",
+    "radio.lua": "a54cf3b54cb32dc40db65860b021ec06c07b9a7e79beaa745921e731909a0226",
+    "setup-node.lua": "67c1ee7e1b34d17ea9e387b4a45dbfb6850aac1fbbea85f21db1090e46e28f40",
+    "test-enable.lua": "b7930cbf5793b8b17a7b5340aa25aea29fe79f70ed9e390a7b60c38fb6180c36",
+    "test-sequencer.lua": "1ca026f2613e7c828c7550e2d329cff8c3638fba72ba7c40b4187621ba10f9b4",
+    "typewriter.lua": "88d3bab76fa896a8c6ac581c4cbb0ebffd2e4010ea83cf1b3a00a17843dbce14",
+    "vehicle-console.lua": "7ecb4ded524fa41d9d7e518f82bc6e42a642f1f1e2f7e177b221a1cd82764d26",
+    "vehicle_model.lua": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877"
+  },
   "developerLibraryImportableAsSingleNode": false,
   "nodeModifiedUtf8Bytes": {
     "architecture-selector": 1552,
     "flight-telemetry": 2081,
     "link-test": 2188,
-    "quad-control": 40307,
+    "quad-control": 40039,
     "typewriter": 4713,
     "vehicle-mixer": 6745,
     "bank-test": 15545,
@@ -24,21 +67,27 @@
     "import-test": 102,
     "dashboard": 3755,
     "link-gateway": 3012,
-    "numeric-radio": 1269
+    "numeric-radio": 1269,
+    "autopilot-control": 59966,
+    "mount-group": 6817,
+    "mount-bus": 3734,
+    "mount-setup": 1957,
+    "flight-commands": 5174,
+    "local-map": 2279
   },
   "modules": {
     "system.libraries.addon": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
     "system.ascendancy.contracts": "bdc7466cb6a538bed085efa8c18860c7fc4c0bbefd2fc4c25b80255c769b9c1a",
-    "system.navigation.geometry": "bc8d120343b44488954532ab1ee28aee80bf1094f624133ab0bcfbb43a4d52cd",
+    "system.navigation.geometry": "c1068d56c173b3206aaffc8846c9eece3524aa2f4157424cc48208dc9404647b",
     "system.navigation.state_estimator": "dffed28f0c58cd20488e5498754a4bed707442f0a5c72fdeff5b46f1c3a70c14",
     "system.navigation.authority": "176dded383106c5aef275ec7ff352ff4ca6e064c1090d92a39e4f558ba09482d",
-    "system.navigation.response_model": "5843348978aba76d09d59c65ca61df006d7729bcf1ca57e843b4bcd0692325b5",
+    "system.navigation.response_model": "f4507ffe1221a77a3f37d6319493bc050dde12bc3153b93b03f8926dacfea246",
     "system.navigation.measured_controller": "912f129c722a65f4fc248f1d00e5dba64291bee989edbec2015962b669dea696",
     "system.navigation.closed_loop_qualification": "3b1425638dab67654c0f0e659a0138bd537a515aa85d055d701cb2e959782343",
     "system.navigation.output_characterization": "ddd325eb69c14d7043150ea21314455b3b993379eee8bffd3c157cfa963375d4",
     "system.navigation.tilt_response": "78435d6aff3ac1287a4819735ecda3f507591eaeeacd53cf4dc9f9b48bfd6c1a",
     "system.navigation.known_flight": "ed1a45e35ba3cb6f91247ecac504b18cfe94108429030c886966da14264bb4f0",
-    "system.navigation.motion_progress": "f348d0cf8843cbc5d93c1e832e32a05e89b9bc99fcdb1e9f1e642c9e1d4dc6a3",
+    "system.navigation.motion_progress": "bf31016d74a179a8db7f1a276acf9e065d0d7d1030ca4a0cd9d86e4c69076180",
     "system.navigation.altitude_model": "a919f935f501b23d73c239956ba502aaddd32a82a39ead6857c154928f0344da",
     "system.navigation.altitude_sweep": "a1bf31b674f6e2986f20d4803fa52d80cb800c31320e06551b6256d379145100",
     "system.navigation.sweep_progress": "6a5f8fc4b7c5c57656db87f9d37fc42895bad45af021f2aa2ea74e1070ed0b59",
@@ -59,8 +108,8 @@
       "sha256": "10cb98fd29382497af52c59ce9105cb45c89d8f2879689d5186f0b0ea2ace845"
     },
     "sdk/mintcraft-library.lua": {
-      "bytes": 109218,
-      "sha256": "1e830563d9f7379ca50c2103182d86078e7abe59fab56b6848fad3edf0d82bc7"
+      "bytes": 110842,
+      "sha256": "5da7383c922899980055989032cf9f08311ef9ede2733785aabf7758a49cf1ed"
     },
     "mintcraft-architecture-selector.lua": {
       "bytes": 1552,
@@ -87,12 +136,12 @@
       "sha256": "85eeff4abc1a6dfeb6e910d5bf23f4df7c2209bb8b516d65bbeefcc047f2b23e"
     },
     "mintcraft-quad-control.lua": {
-      "bytes": 40307,
-      "sha256": "39ae1aee4b68ca2aa7ecbf2aa33a7ea73a7172c9dd87b25a575718ee5a76de7c"
+      "bytes": 40039,
+      "sha256": "dd95a5c44d288857ac69dc2cea27b6eaea25a0a75e388da3ca207523bb80f38d"
     },
     "mintcraft-quad-control.clipboard.txt": {
-      "bytes": 57668,
-      "sha256": "21c410f8d24796e4f923eadc99ec64014848066851e777cec8a08675daf6dc84"
+      "bytes": 57312,
+      "sha256": "f0a556f0475ddca0bc2203465511c07078bf416121c4db86d5b7a32838348aae"
     },
     "mintcraft-typewriter.lua": {
       "bytes": 4713,
@@ -174,6 +223,54 @@
       "bytes": 2932,
       "sha256": "6b7efd7843439efe6fc64b866893c1828e2983dd9564296a350f9d3f0425c9fd"
     },
+    "mintcraft-autopilot-control.lua": {
+      "bytes": 59966,
+      "sha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "mintcraft-autopilot-control.clipboard.txt": {
+      "bytes": 83788,
+      "sha256": "bb0f04c07914384f9bdae459d058a5484cd32126181877100685dab308c87ad4"
+    },
+    "mintcraft-mount-group.lua": {
+      "bytes": 6817,
+      "sha256": "5ba09bbe373e18ffeb8df934a7c28138d1b29b76b1ac9129dad8ee2d7d13b596"
+    },
+    "mintcraft-mount-group.clipboard.txt": {
+      "bytes": 10100,
+      "sha256": "50f026fd3de3b21828515f711799961b1e33bf656f21d4892fe66fd1ba53c38a"
+    },
+    "mintcraft-mount-bus.lua": {
+      "bytes": 3734,
+      "sha256": "a587c0f3a885e03084035aaf92c21cb4430701aa1177fdba3274276954628d5b"
+    },
+    "mintcraft-mount-bus.clipboard.txt": {
+      "bytes": 13488,
+      "sha256": "4b05ce30afea83a6f03c652f6c945c00e44e5edf09e9d32afd5b61e5ec77ea7b"
+    },
+    "mintcraft-mount-setup.lua": {
+      "bytes": 1957,
+      "sha256": "67c1ee7e1b34d17ea9e387b4a45dbfb6850aac1fbbea85f21db1090e46e28f40"
+    },
+    "mintcraft-mount-setup.clipboard.txt": {
+      "bytes": 3116,
+      "sha256": "efa692f4ec17eed2e03cebb0f738d52840fdc874910f4a35926d26b046d52aa3"
+    },
+    "mintcraft-flight-commands.lua": {
+      "bytes": 5174,
+      "sha256": "969be8404e136a5c549e3a3fa84ac1005b1f933587e7589c5e3c2dccb25b69f8"
+    },
+    "mintcraft-flight-commands.clipboard.txt": {
+      "bytes": 7660,
+      "sha256": "9b20fa9739540ae782eed991bc3eab1c54583bf76c6f837f560232a2fb6bbf5f"
+    },
+    "mintcraft-local-map.lua": {
+      "bytes": 2279,
+      "sha256": "3d3ea74e8836811a9dd60171413891dde0e82547641b314f7ca45ea469b4d0d0"
+    },
+    "mintcraft-local-map.clipboard.txt": {
+      "bytes": 3768,
+      "sha256": "705dc8e12fc8e4c6052bc542f70b8207b2981405ed1d7fe02630b2d56e953a9f"
+    },
     "mintcraft-flight-audit.clipboard.txt": {
       "bytes": 5196,
       "sha256": "3a5586b80b718e42ab043637c48391509f145d4da312532f6c9442fcd7da3bc1"
@@ -183,8 +280,12 @@
       "sha256": "4a146ee014f9dca0194e1e76a45dc5a6a4aee80d0b8618c9f17f1b276e21c0f4"
     },
     "mintcraft-quad-flight.clipboard.txt": {
-      "bytes": 77656,
-      "sha256": "9ae765fa039c8da9e82198c2da9af0055b8d4c39c6eb10f0821c38a3346c2dcd"
+      "bytes": 77296,
+      "sha256": "59de9c85478343125611b78f1151a58006538ef7fa761a6851ecd7ff3dd3fdd2"
+    },
+    "mintcraft-autopilot.clipboard.txt": {
+      "bytes": 209368,
+      "sha256": "73f4ee8b73c54f9727dbcf961b8fdb117c866f53f2d0195ffc0a9adead0a6e82"
     }
   }
 }

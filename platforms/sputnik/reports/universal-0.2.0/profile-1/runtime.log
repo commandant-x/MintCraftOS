@@ -1,0 +1,12 @@
+1 hover PASS error=2.4942317E-4 tilt=0 speed=0.001738149 fault=nil phase=nil mission=nil yaw=-1.1479934E-32 wy=1.4099216E-34 reason=nil
+1 altitude PASS error=4.6018486E-5 tilt=0 speed=0.0014355186 fault=nil phase=nil mission=nil yaw=9.711222E-32 wy=3.0420528E-35 reason=nil
+1 forward PASS error=7.30378E-5 tilt=8.366846 speed=0.009424114 fault=nil phase=nil mission=nil yaw=-0.008377729 wy=-2.2170458E-5 reason=nil
+1 reverse PASS error=3.8273848E-4 tilt=8.366841 speed=0.01040118 fault=nil phase=nil mission=nil yaw=0.0043114396 wy=3.5323235E-5 reason=nil
+1 turn PASS error=0.0013908813 tilt=7.944684 speed=0.012491781 fault=nil phase=nil mission=nil yaw=-2.2435236 wy=-0.0067235655 reason=nil
+1 mass PASS error=6.163763E-4 tilt=0 speed=0.003257089 fault=nil phase=nil mission=nil yaw=-2.7009157E-33 wy=-6.83569E-35 reason=nil
+1 calibration PASS error=2.9085696E-4 tilt=4.23067 speed=0.021419136 fault=nil phase=COMPLETE mission=nil yaw=0.052173227 wy=4.578965E-6 reason=nil
+1 mission PASS error=0.0012271636 tilt=5.3541365 speed=0.013720781 fault=nil phase=COMPLETE mission=MISSION_COMPLETE yaw=0.03171487 wy=-3.9435043E-5 reason=Arrivee: maintien, pas atterrissage
+1 mission_straight PASS error=1.6421292E-4 tilt=6.7311616 speed=0.004664525 fault=nil phase=COMPLETE mission=MISSION_COMPLETE yaw=0.048126433 wy=-4.1471932E-5 reason=Arrivee: maintien, pas atterrissage
+1 cruise PASS error=0.0011168252 tilt=9.1827755 speed=0.015653586 fault=nil phase=nil mission=nil yaw=-0.013124775 wy=-1.2240434E-4 reason=nil
+Universal independent plant 10/10; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter

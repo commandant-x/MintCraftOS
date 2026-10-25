@@ -3,29 +3,20 @@
 local M={}
 local function finite(v) return type(v)=='number' and v==v and math.abs(v)<math.huge end
 local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
+-- Frozen Hermite coefficients of the audited default Sable Overworld curve.
+local curves={
+ {-38.366277027041093,63,1.5,-0.60819766216224658,0.12186043243265754,-0.013662770270410851},
+ {63,263,1,-0.80000000000000004,0.30745006364544203,-0.058121099528220421},
+ {263,280,0.44932896411722156,-0.030554369559971067,0.001038458967571973,-2.2762716708216169e-05},
+ {280,320,0.41979029080811425,-0.067166446529298277,-0.28545739774951751,-0.067166446529298374},
+}
 function M.pressure(y)
  if not finite(y) then return nil end
- -- DimensionPhysics.createDefault: sea=63, min=-64, logicalHeight=384 (Overworld).
- local sea,top=63,320 local smoothing=top-40
- local current=math.max(-64,math.log(1.5)/-.004+sea) local points={}
- for _=1,16 do
-  local p=math.exp(-.004*(current-sea)) points[#points+1]={current,p,-.004*p}
-  if current>=smoothing then break end
-  if current<sea and current+200>=sea then current=sea
-  elseif current<smoothing and current+200>=smoothing then current=smoothing
-  else current=current+200 end
- end
- local last=points[#points] points[#points+1]={top,0,-2*last[2]/(top-smoothing)}
- if y<points[1][1] then return points[1][2] end
- for i=1,#points-1 do
-  local a,b=points[i],points[i+1]
-  if y<b[1] then
-   local dx,dy=b[1]-a[1],b[2]-a[2] local t=(y-a[1])/dx
-   local cubic=(a[3]+b[3])*dx-2*dy
-   local quadratic=3*dy-(2*a[3]+b[3])*dx
-   return math.max(((cubic*t+quadratic)*t+dx*a[3])*t+a[2],0)
-  end
- end
+ if y<curves[1][1] then return 1.5 end
+ for _,c in ipairs(curves) do if y<c[2] then
+  local t=(y-c[1])/(c[2]-c[1])
+  return math.max(((c[6]*t+c[5])*t+c[4])*t+c[3],0)
+ end end
  return 0
 end
 function M.rpm(source,signal)

@@ -1,3 +1,5 @@
+> **Sputnik 0.2.0 (Lua, sans CC)** : [graphe complet à importer](platforms/sputnik/dist/mintcraft-autopilot.clipboard.txt), [montage et pilotage](platforms/sputnik/AUTOPILOT.md), [état des fonctionnalités](platforms/sputnik/IMPLEMENTATION-STATUS.md). Les versions CC décrites ensuite constituent une autre plateforme.
+
 # MintCraft OS
 
 MintCraft OS is a CraftOS environment for CC:Tweaked 1.21.1 / NeoForge.
