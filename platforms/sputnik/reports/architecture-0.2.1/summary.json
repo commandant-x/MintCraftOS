@@ -1,0 +1,53 @@
+{
+  "version": "0.2.1",
+  "testedInMinecraft": false,
+  "fpsMeasured": false,
+  "flightControllerUnchanged": true,
+  "graphs": {
+    "quad": {
+      "file": "mintcraft-quad-autopilot.clipboard.txt",
+      "profile": 1,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "balloon": {
+      "file": "mintcraft-balloon-autopilot.clipboard.txt",
+      "profile": 2,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "venator": {
+      "file": "mintcraft-venator-autopilot.clipboard.txt",
+      "profile": 3,
+      "groups": 6,
+      "nodes": 12,
+      "connections": 35,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "helicopter": {
+      "file": "mintcraft-helicopter-autopilot.clipboard.txt",
+      "profile": 4,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    }
+  },
+  "graphHashes": {
+    "mintcraft-quad-autopilot.clipboard.txt": "d7ccac53ac1aa003334bfd096e3e22eabf52a13ed8d3406d3c6873744cf06205",
+    "mintcraft-balloon-autopilot.clipboard.txt": "8237178825866d6bb2a2a441689d9c863e12f9aa8265e5cd27c852db0a2f0fde",
+    "mintcraft-venator-autopilot.clipboard.txt": "cdc21ccd4439076a90d6ec64191ae3c22d9e5de9517160289561982f28128bca",
+    "mintcraft-helicopter-autopilot.clipboard.txt": "96b07eb4b9048dbc3bdc8728d37f94015dc5b5aa701a2c339cf91d03a412bc12"
+  },
+  "exitCode": 0,
+  "validationLogSha256": "78a4c876bb774c5790243d02dd2d192df2f61f789f57b2e8bc55a518f42dde22",
+  "hostSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e"
+}

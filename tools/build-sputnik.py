@@ -5,6 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
+VERSION='0.2.1'
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
  'output_characterization','tilt_response','known_flight','motion_progress',
@@ -83,6 +84,29 @@ def native_universal():
  defaults=model[model.index('function M.defaults('):model.index('function M.validate(')]
  mount='local GROUP_DEFAULT=1\nlocal MountFields='+fields+'\n'+wrapped('MountDefaults','local M={}\n'+defaults+'\nreturn M.defaults')+source(BASE/'src/mount-node.lua')
  return {'autopilot-control':prefix+source(BASE/'src/autopilot-node.lua'),'mount-group':mount,'mount-bus':source(BASE/'src/mount-bus.lua'),'mount-setup':source(BASE/'src/setup-node.lua'),'flight-commands':source(BASE/'src/command-node.lua'),'local-map':source(BASE/'src/map-node.lua')}
+def architecture_graph(scripts,consent,profile,count,slug,label):
+ # Keep the exact flight writer; reduce only editor forms, pins and rendering.
+ setup=scripts['mount-setup'].replace("profile=ui.slider('Architecture',1,5,300)","profile=ui.label('Architecture fixe: "+label+"')")
+ setup=setup.replace('s.profile.setValue(1);','').replace('math.floor(s.profile.getValue()+.5)',str(profile))
+ setup=setup.replace('Montage commun: 1 Quad / 2 Ballon / 3 Venator / 4 Helicoptere / 5 Hybride','Montage '+label)
+ bus=scripts['mount-bus']
+ for prefix in ('Group','Observation'):
+  bus=re.sub(r"input\('"+prefix+r" (\d+)','string'\),?",lambda m:m.group(0) if int(m.group(1))<=count else '',bus)
+ bus=bus.replace('for i=1,32 do','for i=1,'+str(count)+' do')
+ nodes=[('enable',consent,20,40),('keyboard',scripts['typewriter'],20,400),('montage',setup,350,40),('commands',scripts['flight-commands'],750,40),('autopilot',scripts['autopilot-control'],1300,40),('groups',bus,1300,700)]
+ edges=[('enable','Enable','autopilot','Enable'),('enable','Binding','autopilot','Enable binding'),('enable','Enable','keyboard','Enable'),('keyboard','Bindings','autopilot','Keyboard bindings'),('montage','Settings','autopilot','Settings'),('commands','Request','autopilot','Request'),('autopilot','Acknowledged revision','commands','Acknowledged revision'),('autopilot','Status','commands','Status'),('autopilot','Position','commands','Position')]
+ for pin in ('Groups A','Groups B','Observations A','Observations B'): edges.append(('groups',pin,'autopilot',pin))
+ for pin in ('Commands valid','Forward demand','Left demand','Vertical demand'): edges.append(('keyboard',pin,'autopilot',pin))
+ for i in range(1,count+1):
+  name='group-'+str(i)
+  code=scripts['mount-group'].replace('local GROUP_DEFAULT=1\n','local GROUP_DEFAULT='+str(i)+'\n',1)
+  code=code.replace('local defaults=MountDefaults(1,GROUP_DEFAULT)','local defaults=MountDefaults('+str(profile)+',GROUP_DEFAULT)')
+  nodes.append((name,code,20+(i-1)*450,1250))
+  edges.extend([('montage','Architecture',name,'Architecture'),(name,'Group','groups','Group '+str(i)),(name,'Shaft observation','groups','Observation '+str(i))])
+ # Different variants must not reuse node UUIDs when pasted into another graph.
+ rename=lambda name:slug+'-'+name
+ return [(rename(n),c,x,y) for n,c,x,y in nodes],[(rename(a),b,rename(c),d) for a,b,c,d in edges]
+
 def main():
  out=BASE/'dist';out.mkdir(exist_ok=True)
  prefix,modules=bundle()
@@ -155,16 +179,23 @@ def main():
  path=out/'mintcraft-autopilot.clipboard.txt'
  path.write_text(graph_clipboard(universal_nodes,universal_edges,{'pilot-status':'websnodelib:string_display'}),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- manifest={'schema':1,'edition':'MintCraft Sputnik','version':'0.2.0','target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
+ architecture_graphs={}
+ for profile,count,slug,label in ((1,4,'quad','Quad'),(2,4,'balloon','Ballon'),(3,6,'venator','Venator'),(4,4,'helicopter','Helicoptere')):
+  nodes,edges=architecture_graph(scripts,consent,profile,count,slug,label)
+  path=out/('mintcraft-'+slug+'-autopilot.clipboard.txt')
+  path.write_text(graph_clipboard(nodes,edges),encoding='utf-8')
+  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+  architecture_graphs[slug]={'file':path.name,'profile':profile,'groups':count,'nodes':len(nodes),'connections':len(edges),'mapIncluded':False,'flightControllerSha256':hashlib.sha256(scripts['autopilot-control'].encode()).hexdigest()}
+ manifest={'schema':1,'edition':'MintCraft Sputnik','version':VERSION,'target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
   'nativeSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((BASE/'src').glob('*.lua'))},
-  'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
+  'architectureGraphs':architecture_graphs,'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
- archive=out/'mintcraft-sputnik-0.2.0.zip'
+ archive=out/('mintcraft-sputnik-'+VERSION+'.zip')
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
@@ -182,11 +213,12 @@ def main():
   for path in sorted(source_paths):
    if path.is_file():
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  reports=BASE/'reports/universal-0.2.0'
-  if reports.exists():
-   for path in sorted(reports.rglob('*')):
-    if path.is_file() and path.suffix in ('.json','.csv','.md','.log','.png'):
-     entry=zipfile.ZipInfo('reports/'+path.relative_to(reports).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
+  for report_name in ('universal-0.2.0','architecture-0.2.1'):
+   reports=BASE/'reports'/report_name
+   if reports.exists():
+    for path in sorted(reports.rglob('*')):
+     if path.is_file() and path.suffix in ('.json','.csv','.md','.log','.png'):
+      entry=zipfile.ZipInfo('reports/'+report_name+'/'+path.relative_to(reports).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
  for previous in out.glob('mintcraft-sputnik-*.zip'):
   if previous!=archive: previous.unlink()
  sums=''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(out).as_posix()+'\n' for p in sorted(out.rglob('*')) if p.is_file() and p.name!='SHA256SUMS')

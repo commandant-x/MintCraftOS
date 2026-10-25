@@ -13,7 +13,7 @@ expected={'controller_sha256':digest(dist/'mintcraft-autopilot-control.lua'),
 validation=json.loads((base/'validation.json').read_text())
 assert validation['exit_code']==0 and validation['controller_sha256']==expected['controller_sha256']
 assert validation['validation_log_sha256']==digest(base/'validation.log'),'Validation log changed'
-assert validation['host_sha256']==manifest['hostJarSha256'] and validation['version']==manifest['version']
+assert validation['host_sha256']==manifest['hostJarSha256'] and validation['version']=='0.2.0'
 assert validation['native_sources']==manifest['nativeSources'],'Native fixtures belong to other sources'
 assert validation['clipboard_sha256']==digest(dist/'mintcraft-autopilot.clipboard.txt'),'Validated graph changed'
 runs={}
@@ -21,14 +21,14 @@ for name in [f'profile-{i}' for i in range(1,6)]+['low-inertia-delay','offset-we
  folder=base/name;data=json.loads((folder/'summary.json').read_text())
  assert all(data[k]==v for k,v in expected.items()),'Outdated source snapshot: '+name
  assert data['csv_sha256']==digest(folder/'summary.csv'),'Torn/mismatched CSV: '+name
- assert data['host_sha256']==manifest['hostJarSha256'] and data['version']==manifest['version']
+ assert data['host_sha256']==manifest['hostJarSha256'] and data['version']==validation['version']
  rows=list(csv.DictReader((folder/'summary.csv').open()))
  assert rows==data['scenarios'] and len(rows)==data['total']
  runs[name]=data
 reference=[r for name,d in runs.items() if name.startswith('profile-') for r in d['scenarios']]
 stress=[r for name,d in runs.items() if name in ('low-inertia-delay','offset-weak-rotor') for r in d['scenarios']]
 damage=runs['mass-damage']['scenarios']
-report=dict(version=manifest['version'],tested_in_minecraft=False,qualified=False,**expected,
+report=dict(version=validation['version'],compatible_distribution_version=manifest['version'],tested_in_minecraft=False,qualified=False,**expected,
  reference_passed=sum(r['status']=='PASS' for r in reference),reference_total=len(reference),
  stress_passed=sum(r['status']=='PASS' for r in stress),stress_total=len(stress),
  damage_passed=sum(r['status']=='PASS' for r in damage),damage_total=len(damage),
@@ -39,7 +39,7 @@ buffer=io.StringIO();writer=csv.DictWriter(buffer,fieldnames=['run']+list(refere
 for name,d in runs.items():
  for r in d['scenarios']:writer.writerow(dict(run=name,**r))
 (base/'summary.csv').write_text(buffer.getvalue())
-text=['# Autopilote Sputnik '+manifest['version']+' — résultats','',
+text=['# Autopilote Sputnik '+validation['version']+' — résultats','',
  f"Référence : **{report['reference_passed']}/{report['reference_total']}**. Stress : **{report['stress_passed']}/{report['stress_total']}**. Changement de masse avec réponse dégradée : **{report['damage_passed']}/{report['damage_total']}**.",'',
  '**Le code Lua livré est exécuté dans LuaJ de Cosmonautics. La mécanique est une plante synthétique indépendante, pas une copie mesurée du véhicule Minecraft.**','',
  'Les sources, le programme mécanique et les CSV sont vérifiés par empreinte avant agrégation. Une exécution travaille dans un dossier privé et verrouille sa destination. Les résultats incomplets ou provenant d\'un autre contrôleur sont refusés.','',

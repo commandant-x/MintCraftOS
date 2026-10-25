@@ -18,9 +18,10 @@ spec=importlib.util.spec_from_file_location('sputnik_build',ROOT/'tools/build-sp
 assert builder.nbt_utf8_size('a')==1 and builder.nbt_utf8_size('\0')==2 and builder.nbt_utf8_size('é')==2 and builder.nbt_utf8_size('😀')==6
 dist=ROOT/'platforms/sputnik/dist'; manifest=json.loads((dist/'manifest.json').read_text())
 assert hashlib.sha256(args.cosmonautics_jar.read_bytes()).hexdigest()==manifest['hostJarSha256'],'Different Cosmonautics JAR: audit its APIs before claiming compatibility'
-first=(dist/'mintcraft-sputnik-0.2.0.zip').read_bytes()
+archive=dist/('mintcraft-sputnik-'+manifest['version']+'.zip')
+first=archive.read_bytes()
 execute([shutil.which('python3') or 'python',ROOT/'tools/build-sputnik.py'])
-assert first==(dist/'mintcraft-sputnik-0.2.0.zip').read_bytes(),'Non-deterministic distribution'
+assert first==archive.read_bytes(),'Non-deterministic distribution'
 for name,record in manifest['artifacts'].items():
  data=(dist/name).read_bytes();assert len(data)==record['bytes'] and hashlib.sha256(data).hexdigest()==record['sha256']
  if name.endswith('.lua') and not name.startswith('sdk/'):
@@ -49,6 +50,20 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  lexical=folder/'lexical.lua'
  lexical.write_text('\n'.join('do local a={assert(load('+lua_literal(program)+'))()} local b={assert(load('+lua_literal(builder.compact(program))+'))()} assert(#a==#b) for i=1,#a do assert(a[i]==b[i],"Lua compaction changed semantics") end end' for program in programs))
  execute([java,'-cp',cp,'VerifySputnikLua',lexical])
+ architecture_bootstrap=folder/'architecture-bootstrap.lua'
+ architecture_graphs=[]
+ scripts=builder.native_universal();scripts['typewriter']=(dist/'mintcraft-typewriter.lua').read_text();scripts['autopilot-control']=(dist/'mintcraft-autopilot-control.lua').read_text()
+ for slug,record in manifest['architectureGraphs'].items():
+  nodes,edges=builder.architecture_graph(scripts,builder.source(builder.BASE/'src/test-enable.lua'),record['profile'],record['groups'],slug,{'quad':'Quad','balloon':'Ballon','venator':'Venator','helicopter':'Helicoptere'}[slug])
+  assert builder.graph_clipboard(nodes,edges)==(dist/record['file']).read_text(),'Graph fixture differs from imported clipboard'
+  assert len(nodes)==6+record['groups'] and len(edges)==17+3*record['groups']
+  assert sum('transmitWirelessRedstone' in code for _,code,_,_ in nodes)==1,'More than one physical writer'
+  bus=next(code for name,code,_,_ in nodes if name==slug+'-groups')
+  assert len(builder.pins(bus)['input'])==2*record['groups'],'Unused group pins returned'
+  graph='{slug='+json.dumps(slug)+',profile='+str(record['profile'])+',groups='+str(record['groups'])+',nodes={'+','.join('{name='+json.dumps(n)+',code='+lua_literal(c)+'}' for n,c,x,y in nodes)+'},edges={'+','.join('{'+','.join(json.dumps(v) for v in edge)+'}' for edge in edges)+'}}'
+  architecture_graphs.append(graph)
+ architecture_bootstrap.write_text('MINTCRAFT_ARCHITECTURE_GRAPHS={'+','.join(architecture_graphs)+'}\n')
+ execute([java,'-cp',cp,'VerifySputnikLua',architecture_bootstrap,'platforms/sputnik/tests/architecture-graphs.lua'])
  readable=folder/'native-readable.lua';readable.write_text(builder.native_universal()['autopilot-control'])
  equivalence=folder/'equivalence-bootstrap.lua';equivalence.write_text('MINTCRAFT_UNCOMPACTED='+json.dumps(str(readable))+'\n')
  execute([java,'-cp',cp,'VerifySputnikLua',equivalence,'platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua','platforms/sputnik/tests/link-test.lua','platforms/sputnik/tests/quad-graph.lua','platforms/sputnik/tests/architecture-selector.lua','platforms/sputnik/tests/universal-flight.lua','platforms/sputnik/tests/universal-native.lua'])
@@ -88,5 +103,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
   pairs.extend(['platforms/sputnik/dist/mintcraft-flight-audit.clipboard.txt','@graph:2:1'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-quad-flight.clipboard.txt','@graph:7:17'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-autopilot.clipboard.txt','@graph:16:46'])
+  for record in manifest['architectureGraphs'].values():
+   pairs.extend(['platforms/sputnik/dist/'+record['file'],'@graph:'+str(record['nodes'])+':'+str(record['connections'])])
   execute([java,'-Dmintcraft.sputnik.payload=true','-cp',str(folder)+os.pathsep+args.minecraft_classpath+os.pathsep+str(args.cosmonautics_jar),'VerifySputnikClipboard',*pairs])
 print('Sputnik distribution, deterministic build, hashes, actual LuaJ runtime and portable physics passed; no Minecraft world test performed')

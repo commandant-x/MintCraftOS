@@ -1,21 +1,40 @@
-# Autopilote commun 0.2.0
+# Autopilote Sputnik 0.2.1 — un TXT par architecture
 
-Importer **[mintcraft-autopilot.clipboard.txt](dist/mintcraft-autopilot.clipboard.txt)** pour le nouveau montage commun, les contrôleurs, la calibration et la navigation locale. Voir **[AUTOPILOT.md](AUTOPILOT.md)** pour le branchement et **[IMPLEMENTATION-STATUS.md](IMPLEMENTATION-STATUS.md)** pour les fonctions encore incomplètes. Les graphes quad ci-dessous restent des références héritées et ne doivent pas émettre en parallèle sur les mêmes fréquences.
+Choisir **un seul** graphe :
+
+| Véhicule | TXT à copier intégralement | Groupes | Nœuds / connexions |
+| --- | --- | ---: | ---: |
+| Quad | [mintcraft-quad-autopilot.clipboard.txt](dist/mintcraft-quad-autopilot.clipboard.txt) | 4 sustentations | 10 / 29 |
+| Ballon | [mintcraft-balloon-autopilot.clipboard.txt](dist/mintcraft-balloon-autopilot.clipboard.txt) | 1 sustentation, 1 propulsion, 2 gouvernes | 10 / 29 |
+| Venator | [mintcraft-venator-autopilot.clipboard.txt](dist/mintcraft-venator-autopilot.clipboard.txt) | 4 sustentations, 2 banques de propulsion | 12 / 35 |
+| Hélicoptère | [mintcraft-helicopter-autopilot.clipboard.txt](dist/mintcraft-helicopter-autopilot.clipboard.txt) | 1 sustentation, 1 propulsion, 2 commandes de lacet | 10 / 29 |
+
+L’architecture et les modèles de groupe sont préchargés. Les groupes restent désactivés et les fréquences vierges : configurer le montage réel avant activation. Chaque variante conserve exactement le contrôleur de vol de la 0.2.0. Les limites de calibration et de vol restent celles documentées dans [AUTOPILOT.md](AUTOPILOT.md).
+
+La carte et le second afficheur ne sont plus inclus. L’agrégateur n’affiche que les entrées des quatre ou six groupes, au lieu de 32. Cela réduit les formulaires, les connexions et le rendu de l’éditeur ; ce n’est pas une mesure de FPS ni une réduction annoncée du coût du calcul physique. Le graphe [universel avancé](dist/mintcraft-autopilot.clipboard.txt) reste disponible pour les montages personnalisés, avec huit formulaires et sa carte.
 
 ## Installation du nouveau graphe
 
-1. Télécharger [le TXT complet](dist/mintcraft-autopilot.clipboard.txt) et copier **tout son contenu**, sans guillemets ni espaces ajoutés.
+1. Télécharger le TXT de votre architecture dans le tableau ci-dessus et copier **tout son contenu**, sans guillemets ni espaces ajoutés.
 2. Au sol, couper mécaniquement les moteurs indépendamment de Sputnik. Exporter votre ancien montage, puis retirer son contrôleur pour éviter deux émetteurs concurrents.
 3. Dans le fond vide de l’éditeur Sputnik, coller avec **Ctrl+V**, puis sauvegarder. Le collage ajoute tout le graphe ; ne pas coller le TXT dans l’éditeur Lua d’un nœud.
-4. Suivre [Montage → essais → pilotage](AUTOPILOT.md). Renseigner les fréquences et les caractéristiques propres à chaque hélice. Le nouveau pilote exige un passage physique Enable OFF avant activation.
+4. Ne pas conserver l’ancien graphe en parallèle. Suivre [Montage → essais → pilotage](AUTOPILOT.md). Renseigner les fréquences et les caractéristiques propres à chaque hélice. Le nouveau pilote exige un passage physique Enable OFF avant activation.
 
-Le [ZIP courant](dist/mintcraft-sputnik-0.2.0.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
+Le [ZIP courant](dist/mintcraft-sputnik-0.2.1.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
 
 Le contrôleur continue côté serveur après fermeture de l’éditeur. Une mise à jour ne doit pas s’effectuer en vol : l’expiration Link peut ramener un signal à zéro, qui signifie plein régime pour certaines transmissions.
 
+## Garder les fréquences déjà renseignées
+
+Avant de retirer l’ancien graphe, au sol et désarmé : dans l’agrégateur `mount-bus`, cliquer **Exporter les formulaires vers les deux champs**, sauvegarder et conserver les deux textes. Dans l’agrégateur de la nouvelle variante, coller ces textes et cocher **Utiliser les descripteurs importés**. Cela conserve les propriétés et fréquences des groupes exportés ; vérifier qu’ils correspondent bien à l’architecture choisie. Les fréquences du levier et du clavier ainsi que les réglages généraux sont à reporter séparément. Un nouvel armement exige OFF et une vérification du montage.
+
+## Carte facultative
+
+Importer uniquement [mintcraft-local-map.clipboard.txt](dist/mintcraft-local-map.clipboard.txt), puis relier les quatre sorties `Geometry`, `Route`, `Position`, `Trace` du contrôleur aux entrées du même nom de la carte. Aucun deuxième contrôleur n’est nécessaire. Laisser la carte absente si l’éditeur ralentit.
+
 ## Résultats et limites
 
-Voir le [banc numérique](reports/universal-0.2.0/README.md) et [les fonctions restant à terminer](IMPLEMENTATION-STATUS.md). Les simulations ne constituent pas une validation dans Minecraft. Les virages serrés du ballon et certains cas de faibles inerties restent expérimentaux.
+Voir les [tests des graphes séparés](reports/architecture-0.2.1/README.md), le [banc numérique](reports/universal-0.2.0/README.md) et [les fonctions restant à terminer](IMPLEMENTATION-STATUS.md). Les simulations ne constituent pas une validation dans Minecraft. Les virages serrés du ballon et certains cas de faibles inerties restent expérimentaux.
 
 <details>
 <summary>Anciennes éditions 0.1.x et outils séparés — documentation historique</summary>
@@ -68,7 +87,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.2.0.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.2.1.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

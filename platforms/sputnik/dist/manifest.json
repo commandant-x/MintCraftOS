@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -51,6 +51,44 @@
     "typewriter.lua": "88d3bab76fa896a8c6ac581c4cbb0ebffd2e4010ea83cf1b3a00a17843dbce14",
     "vehicle-console.lua": "7ecb4ded524fa41d9d7e518f82bc6e42a642f1f1e2f7e177b221a1cd82764d26",
     "vehicle_model.lua": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877"
+  },
+  "architectureGraphs": {
+    "quad": {
+      "file": "mintcraft-quad-autopilot.clipboard.txt",
+      "profile": 1,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "balloon": {
+      "file": "mintcraft-balloon-autopilot.clipboard.txt",
+      "profile": 2,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "venator": {
+      "file": "mintcraft-venator-autopilot.clipboard.txt",
+      "profile": 3,
+      "groups": 6,
+      "nodes": 12,
+      "connections": 35,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    },
+    "helicopter": {
+      "file": "mintcraft-helicopter-autopilot.clipboard.txt",
+      "profile": 4,
+      "groups": 4,
+      "nodes": 10,
+      "connections": 29,
+      "mapIncluded": false,
+      "flightControllerSha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092"
+    }
   },
   "developerLibraryImportableAsSingleNode": false,
   "nodeModifiedUtf8Bytes": {
@@ -286,6 +324,22 @@
     "mintcraft-autopilot.clipboard.txt": {
       "bytes": 209368,
       "sha256": "73f4ee8b73c54f9727dbcf961b8fdb117c866f53f2d0195ffc0a9adead0a6e82"
+    },
+    "mintcraft-quad-autopilot.clipboard.txt": {
+      "bytes": 152928,
+      "sha256": "d7ccac53ac1aa003334bfd096e3e22eabf52a13ed8d3406d3c6873744cf06205"
+    },
+    "mintcraft-balloon-autopilot.clipboard.txt": {
+      "bytes": 153020,
+      "sha256": "8237178825866d6bb2a2a441689d9c863e12f9aa8265e5cd27c852db0a2f0fde"
+    },
+    "mintcraft-venator-autopilot.clipboard.txt": {
+      "bytes": 174904,
+      "sha256": "cdc21ccd4439076a90d6ec64191ae3c22d9e5de9517160289561982f28128bca"
+    },
+    "mintcraft-helicopter-autopilot.clipboard.txt": {
+      "bytes": 153080,
+      "sha256": "96b07eb4b9048dbc3bdc8728d37f94015dc5b5aa701a2c339cf91d03a412bc12"
     }
   }
 }
