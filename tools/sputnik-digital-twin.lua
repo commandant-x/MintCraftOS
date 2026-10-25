@@ -147,6 +147,7 @@ for _,case in ipairs(cases) do
  keyboard.MintCraftTypewriter.verified.v=true
  local qs=quad.MintCraftQuad;qs.checked.v=true;qs.physical.v=true
  qs.physicalFields.armX.value.v=tostring(profile.armX);qs.physicalFields.armZ.value.v=tostring(profile.armZ);qs.physicalFields.height.value.v=tostring(profile.height)
+ if profile.sails then qs.modular.v=true;for i=1,4 do qs.sails[i].v=tostring(profile.sails[i]) end end
  qs.tilt.v=tostring(case.tilt or 8)
  if qs.steering then qs.steering.v=case.classic~=true end
  local channels={}
@@ -164,7 +165,7 @@ for _,case in ipairs(cases) do
  for _=1,6 do w.tick=w.tick+1;graph() end
  assert(quad.outputs.Active==1,'fixture cannot arm: '..tostring(quad.outputs.Status))
  local neutral=w.mass*11/(4*pressure(w.pos[2]+profile.height))
- for i=1,4 do w.rpm[i]=case.cold and 0 or neutral end
+ for i=1,4 do local coefficient=profile.sails and .2*profile.sails[i]^1.5 or 1;w.rpm[i]=case.cold and 0 or neutral/coefficient end
  w.v[2]=case.drop or 0
  local maxTilt,maxError,minHeight,maxSpread=0,0,80,0
  local firstFault,lastTarget,activeLost=nil,80,false
@@ -210,7 +211,7 @@ for _,case in ipairs(cases) do
    local target=signal==0 and 256 or 256*(15-signal)/16
    if case.reverse and signal>0 then target=signal==15 and 0 or 256*16/(15-signal);if target>256 then target=0 end end
    -- Aeronautics updates propeller rotation once per Minecraft tick (not physics substep).
-   w.rpm[i]=w.rpm[i]+(case.spool or .15)*(target-w.rpm[i])
+   w.rpm[i]=w.rpm[i]+(case.spool or (profile.sails and .4/math.sqrt(profile.sails[i]) or .15))*(target-w.rpm[i])
   end
   maxSpread=math.max(maxSpread,high-low)
   -- Ten 5ms rigid-body substeps per graph tick; no Euler-angle plant integration.
@@ -220,7 +221,9 @@ for _,case in ipairs(cases) do
     local r={loc[1]-w.com[1],loc[2]-w.com[2],loc[3]-w.com[3]};local rw=rotate(w.q,r)
     local rotational=rotate(w.q,cross(w.omega,r))
     local axial=dot({w.v[1]+rotational[1],w.v[2]+rotational[2],w.v[3]+rotational[3]},up)
-    local rpm=w.rpm[i];local f=rpm>1/30 and rpm*pressure(w.pos[2]+rw[2])*clamp(1-axial/(.1*rpm),0,1) or 0
+    local count=profile.sails and profile.sails[i]
+    local coefficient=count and .2*count^1.5 or 1;local flow=count and .05*math.sqrt(count) or .1
+    local rpm=w.rpm[i];local f=rpm>1/30 and coefficient*rpm*pressure(w.pos[2]+rw[2])*clamp(1-axial/(flow*rpm),0,1) or 0
     if i==1 and case.weak then f=f*case.weak end
     force=force+f;local tau=cross(r,{0,f,0});for j=1,3 do torque[j]=torque[j]+tau[j] end
    end

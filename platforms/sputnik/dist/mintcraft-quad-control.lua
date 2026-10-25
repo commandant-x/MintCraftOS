@@ -49,6 +49,17 @@ function M.force(rpm,pressure,axialVelocity,thrust,airflow)
  local flow=airflow*rpm
  return thrust*rpm*pressure*clamp((flow-axialVelocity)/flow,0,1)
 end
+-- Effective per-RPM coefficients from actual PropellerBearingBlockEntity.
+-- N counts WINDMILL_SAILS blocks, including valid copycat sail materials.
+function M.rotor(spec,index)
+ if type(spec)~='table' then return nil,'Physical rotor specification required' end
+ if not spec.modular then return {thrust=spec.thrust,airflow=spec.airflow,alpha=.15} end
+ local n=type(spec.sails)=='table' and spec.sails[index]
+ if not finite(n) or n%1~=0 or n<1 or n>4096 then return nil,'Rotor '..tostring(index)..': nombre de blocs de voile entier 1..4096 requis' end
+ local thrust,airflow=spec.bearingThrust or .2,spec.bearingAirflow or .05
+ if not finite(thrust) or thrust<=0 or not finite(airflow) or airflow<=0 then return nil,'Coefficients du Propeller Bearing positifs requis' end
+ return {thrust=n^1.5*thrust,airflow=math.sqrt(n)*airflow,alpha=.4/math.sqrt(n),sails=n}
+end
 function M.rows(spec,pose,velocity)
  if type(spec)~='table' or type(pose)~='table' or pose.dimension~='minecraft:overworld' then return nil,'Default Overworld physics only' end
  for _,key in ipairs({'source','thrust','airflow','armX','armZ','gravity'}) do
@@ -65,22 +76,24 @@ function M.rows(spec,pose,velocity)
  local locations={{-spec.armX,spec.armZ},{spec.armX,spec.armZ},{-spec.armX,-spec.armZ},{spec.armX,-spec.armZ}}
  local rows={} local diagnostics={rotors={},maxThrust=0,required=pose.mass*spec.gravity,pressure=M.pressure(pose.y),rpmAtZero=M.rpm(spec.source,0)}
  for i,location in ipairs(locations) do
+  local rotor,why=M.rotor(spec,i) if not rotor then return nil,why end
+  local thrust,airflow=rotor.thrust,rotor.airflow
   local x,z=location[1],location[2]
   local height=pose.y+spec.height*up[2]+x*math.sin(r)*math.cos(p)-z*math.sin(p)
   local pressure=M.pressure(height)
   if not pressure or pressure<=0 then return nil,'No atmospheric pressure at a rotor' end
   local v=axial+math.rad(velocity.roll)*x-math.rad(velocity.pitch)*z
   local maxRpm=M.rpm(spec.source,0)
-  local maximum=M.force(maxRpm,pressure,v,spec.thrust,spec.airflow)
+  local maximum=M.force(maxRpm,pressure,v,thrust,airflow)
   diagnostics.maxThrust=diagnostics.maxThrust+maximum
-  diagnostics.rotors[i]={pressure=pressure,maximum=maximum,rpm=maxRpm}
+  diagnostics.rotors[i]={pressure=pressure,maximum=maximum,rpm=maxRpm,thrust=thrust,airflow=airflow,alpha=rotor.alpha,sails=rotor.sails}
   local required=pose.mass*spec.gravity/4
   if not maximum or required>=maximum then return nil,'Insufficient lift at this mass/altitude/inflow',diagnostics end
-  local equilibriumRPM=required/(spec.thrust*pressure)+math.max(0,v)/spec.airflow
+  local equilibriumRPM=required/(thrust*pressure)+math.max(0,v)/airflow
   local trim=M.signal(spec.source,equilibriumRPM)
   if trim<=0 or trim>=15 then return nil,'No interior lift margin' end
   diagnostics.rotors[i].trim=trim
-  local slope=-spec.thrust*pressure*spec.source/(trim<1 and 8 or 16)
+  local slope=-thrust*pressure*spec.source/(trim<1 and 8 or 16)
   rows[i]={trim,0,15,slope/pose.mass,math.deg(-z*slope/pose.ix),math.deg(x*slope/pose.iz),clamp(math.floor(trim+.5),0,14)}
  end
  return rows,diagnostics
@@ -304,7 +317,7 @@ function M.new(rows,pose,config)
     local upZ=math.cos(yaw)*math.sin(pitch)*math.cos(roll)+math.sin(yaw)*math.sin(roll)
     local inflow=k.x.v*upX+k.y.v*upY+k.z.v*upZ
     local maximum=0
-    for _,rotor in ipairs(self.diagnostics.rotors) do maximum=maximum+M.Physics.force(spec.source,rotor.pressure,inflow,spec.thrust,spec.airflow) end
+    for _,rotor in ipairs(self.diagnostics.rotors) do maximum=maximum+M.Physics.force(spec.source,rotor.pressure,inflow,rotor.thrust,rotor.airflow) end
     return maximum*upY>=p.mass*self.gravity*1.10
    end
    if not supported(1) then
@@ -324,13 +337,18 @@ function M.new(rows,pose,config)
   if self.physics then
    -- Approximate the two rising rotors' passive airflow damping per inertia.
    -- More damping requires more proportional authority to track a tilt promptly.
-   local spec=self.physics;local flowSlope=spec.thrust*self.diagnostics.pressure/spec.airflow
-   pitchGain=clip(3+6*spec.armZ^2*flowSlope/p.ix,4,40)
-   rollGain=clip(3+6*spec.armX^2*flowSlope/p.iz,4,40)
+   local spec=self.physics;local flowSlope=0
+   for _,rotor in ipairs(self.diagnostics.rotors) do flowSlope=flowSlope+rotor.thrust*rotor.pressure/rotor.airflow end
+   pitchGain=clip(3+1.5*spec.armZ^2*flowSlope/p.ix,4,40)
+   rollGain=clip(3+1.5*spec.armX^2*flowSlope/p.iz,4,40)
   end
   -- Fresh measured angles avoid another position-estimator delay. Rate and
   -- acceleration feedback damp the lagged rotors; all actuator bounds remain.
-  local demand={vertical,pitchGain*(pitchTarget-p.pitch)-4.5*self.rates.pitch-.6*self.angularAcceleration.pitch,rollGain*(rollTarget-p.roll)-4.5*self.rates.roll-.6*self.angularAcceleration.roll}
+  -- Modular bearings spool more slowly; stronger rate/acceleration damping
+  -- is exercised in the independent sail-count plant, without changing small props.
+  local dampingRate,dampingAcceleration=4.5,.6
+  if self.physics and self.physics.modular then dampingRate=8;dampingAcceleration=1.2 end
+  local demand={vertical,pitchGain*(pitchTarget-p.pitch)-dampingRate*self.rates.pitch-dampingAcceleration*self.angularAcceleration.pitch,rollGain*(rollTarget-p.roll)-dampingRate*self.rates.roll-dampingAcceleration*self.angularAcceleration.roll}
   local values,scale=M.allocate(self.model,demand)
   -- Anti-windup: adapt hover bias in flight, never run a mass-triggered sweep.
   if scale>.99 then self.integral=clip(self.integral+.2*errorY*dt,-3,3) end
@@ -354,7 +372,7 @@ if not s then
  s={rotors={},low=0,phase='off',label=ui.label('Quad experimental: modele mesure obligatoire'),
   checked=ui.checkbox('Reprise physique et modele/geometrie verifies; essais experimentaux'),
   noise=ui.textfield(140),process=ui.textfield(140),speed=ui.textfield(140),climb=ui.textfield(140),tilt=ui.textfield(140)}
- s.physical=ui.checkbox('Calcul physique: petits rotors verticaux identiques, quad symetrique centre, reglages par defaut verifies')
+ s.physical=ui.checkbox('Calcul physique: rotors verticaux, quad symetrique centre, reglages par defaut verifies')
  s.physicalFields={}
  for _,entry in ipairs({{'source','RPM source avant transmission','256'},{'thrust','Coefficient poussee Aero','1'},{'airflow','Coefficient ecoulement Aero','0.1'},{'armX','Demi-largeur depuis centre de masse (blocs)',''},{'armZ','Demi-longueur depuis centre de masse (blocs)',''},{'height','Hauteur rotors moins hauteur Sputnik (blocs)','0'},{'gravity','Gravite Sable par defaut','11'}}) do
   local f={label=ui.label(entry[2]),value=ui.textfield(140)} f.value.setValue(entry[3]);s.physicalFields[entry[1]]=f
@@ -363,6 +381,12 @@ if not s then
  s.help=ui.label('R / Q / vitesse retour maintien / montee / inclinaison deplacement')
  for i,name in ipairs(names) do s.rotors[i]={label=ui.label(name..': Link puis trim,min,max,dY,dPitch,dRoll,repli'),a=ui.itempicker(),b=ui.itempicker(),row=ui.textfield(300)} end
  s.steering=ui.checkbox('Q/D: virage de trajectoire (nez non pilote)') s.steering.setChecked(true)
+ s.modular=ui.checkbox('Helices modulaires Propeller Bearing (voiles)')
+ s.modularHelp=ui.label('Voiles par rotor AG/AD/RG/RD, pas le moyeu ni les bras. Sens de poussee vers le haut verifie.')
+ s.sails={} s.sailLabels={} for i=1,4 do s.sails[i]=ui.textfield(140);s.sails[i].setValue('12');s.sailLabels[i]=ui.label(names[i]..': nombre de blocs de voile') end
+ s.bearingThrust=ui.textfield(140);s.bearingThrust.setValue('0.2')
+ s.bearingAirflow=ui.textfield(140);s.bearingAirflow.setValue('0.05')
+ s.bearingHelp=ui.label('Coefficients serveur Propeller Bearing: poussee puis airflow (defauts 0.2 / 0.05)')
  s.direct=ui.checkbox('Consignes clavier Link directes (latence reduite)') s.direct.setChecked(true)
  _G.MintCraftQuad=s
 end
@@ -372,13 +396,18 @@ for _,key in ipairs({'noise','process','speed','climb','tilt'}) do addElement(s[
 for _,r in ipairs(s.rotors) do addElement(r.label) addElement(r.a) addElement(r.b) addElement(r.row) end
 addElement(s.steering)
 addElement(s.direct)
+-- Append widgets: never shift the existing frequency/configuration fields.
+addElement(s.modular) addElement(s.modularHelp)
+for i,field in ipairs(s.sails) do addElement(s.sailLabels[i]);addElement(field) end
+addElement(s.bearingHelp) addElement(s.bearingThrust) addElement(s.bearingAirflow)
 local emit=output
-if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') output('Horizontal speed',0) output('Track heading',0) output('Body yaw controlled',0) end
+if false then output('Status','string') output('Active',0) output('Altitude',0) output('Target altitude',0) output('Kalman ready',0) output('Flight qualified',0) output('Maximum thrust',0) output('Weight',0) output('Pressure',0) output('Last fault','string') output('Horizontal speed',0) output('Track heading',0) output('Body yaw controlled',0) output('Front left sail count',0) output('Front right sail count',0) output('Rear left sail count',0) output('Rear right sail count',0) end
 local keyboardBindings=input('Keyboard bindings','string')
 local enableBinding=input('Enable binding','string')
 local enabled=input('Flight Enable') local keys=input('Commands valid')
 local forward=input('Forward demand') local left=input('Left demand') local vertical=input('Vertical demand')
 -- Zero preserves standalone/old graphs without the new selector.
+local sailInputs={input('Front left sails'),input('Front right sails'),input('Rear left sails'),input('Rear right sails')}
 local requestedArchitecture=input('Architecture')
 if requestedArchitecture==0 then requestedArchitecture=1 end
 -- A requested change never interrupts active lift or retargets its channels.
@@ -442,7 +471,19 @@ for _,key in ipairs({'noise','process','speed','climb','tilt'}) do config[key]=t
  if not finite(config[key]) or config[key]<=0 then reject('PARAM_'..key,'valeur positive requise') end end
 local physicsWhy
 if physical then
- config.physics={}
+ config.physics={modular=s.modular.isChecked()}
+ parts[#parts+1]=tostring(config.physics.modular)
+ if config.physics.modular then
+  config.physics.sails={}
+  for i,field in ipairs(s.sails) do
+   local count=sailInputs[i]~=0 and sailInputs[i] or tonumber(field.getValue());config.physics.sails[i]=count
+   parts[#parts+1]=tostring(count)
+   if not finite(count) or count%1~=0 or count<1 or count>4096 then reject('SAILS_'..i,'nombre de blocs de voile 1..4096 requis') end
+  end
+  config.physics.bearingThrust=tonumber(s.bearingThrust.getValue());config.physics.bearingAirflow=tonumber(s.bearingAirflow.getValue())
+  parts[#parts+1]=tostring(config.physics.bearingThrust);parts[#parts+1]=tostring(config.physics.bearingAirflow)
+  for _,key in ipairs({'bearingThrust','bearingAirflow'}) do if not finite(config.physics[key]) or config.physics[key]<=0 then reject('BEARING','coefficient positif requis') end end
+ end
  for _,key in ipairs({'source','thrust','airflow','armX','armZ','height','gravity'}) do
   config.physics[key]=tonumber(s.physicalFields[key].value.getValue())
   parts[#parts+1]=tostring(config.physics[key])
@@ -503,7 +544,7 @@ local function fallback(why)
   local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
   s.fault={cause=tostring(why),tick=tick,mass=mass,pitch=pitch,roll=roll,requested=s.lastRequested,
    target=s.core and s.core.target.y or nil,diagnostics=s.core and s.core.diagnostics or nil}
-  s.fault.message='FAULT: '..tostring(why)..' | pitch='..n(pitch)..' roll='..n(roll)..' m='..n(mass)..(s.radioOverride and ' | '..s.radioOverride or '')
+  s.fault.message='FAULT: '..tostring(why)..' | pitch='..n(pitch)..' roll='..n(roll)..(config.physics and config.physics.modular and ' MODULAIRE' or '')..' m='..n(mass)..(s.radioOverride and ' | '..s.radioOverride or '')
  end
  if s.owner then
   local values={} for i,r in ipairs(s.owner.rows) do values[i]=r[7] end
@@ -565,7 +606,7 @@ if server then
     s.owner.rows=s.core.model.rows s.info=info
     local function n(value) return finite(value) and string.format('%.1f',value) or '?' end
     -- Requests, not actuator ACKs: expose the whole path on the existing panel.
-    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN '..info.motion..(info.steering and ' TRAJ='..n(info.course)..' NEZ='..n(yaw) or '')..(info.liftLimited and ' LIFT_LIMIT' or '')..' Vh='..n(info.horizontalSpeed)..' '..inputPath..' m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
+    s.reason=(s.radioOverride and s.radioOverride..' | ' or '')..'RUN '..info.motion..(info.steering and ' TRAJ='..n(info.course)..' NEZ='..n(yaw) or '')..(info.liftLimited and ' LIFT_LIMIT' or '')..' Vh='..n(info.horizontalSpeed)..' '..inputPath..(config.physics and config.physics.modular and ' MODULAIRE' or '')..' m='..n(mass)..' K='..tostring(keys)..' F='..n(command.forward)..' L='..n(command.left)..' Y='..n(command.vertical)..' R='..table.concat(values,'/')..' h='..n(info.altitude)..'>'..n(info.targetY)
    end
   end
  end
@@ -581,6 +622,9 @@ s.signature=signature
 local presentedReason=s.reason
 if architecturePending then presentedReason=(presentedReason or '')..' | ARCHITECTURE_EN_ATTENTE: mettre levier OFF pour appliquer' end
 s.label.setText(presentedReason or modelWhy or 'Configurer les quatre sorties et le modele mesure')
+for i,name in ipairs({'Front left sail count','Front right sail count','Rear left sail count','Rear right sail count'}) do
+ emit(name,config.physics and config.physics.modular and config.physics.sails[i] or 0)
+end
 emit('Body yaw controlled',0)
 emit('Track heading',s.core and s.core.course or 0)
 if not server and not s.owner then

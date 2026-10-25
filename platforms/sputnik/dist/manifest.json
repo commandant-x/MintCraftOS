@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -14,7 +14,7 @@
     "architecture-selector": 1552,
     "flight-telemetry": 2081,
     "link-test": 2188,
-    "quad-control": 36477,
+    "quad-control": 40307,
     "typewriter": 4713,
     "vehicle-mixer": 6745,
     "bank-test": 15545,
@@ -50,6 +50,10 @@
       "bytes": 1517,
       "sha256": "77690c67604a546ac738fc76df94e1423c6eb0ef81082cad52c8f81bd5617003"
     },
+    "profiles/aeronautics-1.3.2-modular.json": {
+      "bytes": 1380,
+      "sha256": "bf167a065a570e1ace96a6bbd5626d383791498179272d2df0499121de238cbc"
+    },
     "profiles/venator.json": {
       "bytes": 1803,
       "sha256": "10cb98fd29382497af52c59ce9105cb45c89d8f2879689d5186f0b0ea2ace845"
@@ -83,12 +87,12 @@
       "sha256": "85eeff4abc1a6dfeb6e910d5bf23f4df7c2209bb8b516d65bbeefcc047f2b23e"
     },
     "mintcraft-quad-control.lua": {
-      "bytes": 36477,
-      "sha256": "c844cd78d854e0010bcc0535c9d700d18c3619a51eae3a1a675ae6e121182d5a"
+      "bytes": 40307,
+      "sha256": "39ae1aee4b68ca2aa7ecbf2aa33a7ea73a7172c9dd87b25a575718ee5a76de7c"
     },
     "mintcraft-quad-control.clipboard.txt": {
-      "bytes": 51504,
-      "sha256": "9006f6c60ffb13193fa9c8b2ee891b19929c7f02586b6494efaeb2eeea569b2b"
+      "bytes": 57668,
+      "sha256": "21c410f8d24796e4f923eadc99ec64014848066851e777cec8a08675daf6dc84"
     },
     "mintcraft-typewriter.lua": {
       "bytes": 4713,
@@ -179,8 +183,8 @@
       "sha256": "4a146ee014f9dca0194e1e76a45dc5a6a4aee80d0b8618c9f17f1b276e21c0f4"
     },
     "mintcraft-quad-flight.clipboard.txt": {
-      "bytes": 71492,
-      "sha256": "eacf38a0d1331ef8433a360486c2f8a101f3ef5e326226073f0574cea75c7a58"
+      "bytes": 77656,
+      "sha256": "9ae765fa039c8da9e82198c2da9af0055b8d4c39c6eb10f0821c38a3346c2dcd"
     }
   }
 }

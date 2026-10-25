@@ -23,6 +23,7 @@ parser.add_argument('--height', type=float, default=1)
 parser.add_argument('--ix', type=float, default=250)
 parser.add_argument('--iy', type=float, default=400)
 parser.add_argument('--iz', type=float, default=230)
+parser.add_argument('--sails', help='Four comma-separated modular sail counts; omit for small props')
 parser.add_argument('--controller-file', type=Path, help='Explicit alternate controller for before/after comparison')
 parser.add_argument('--controller-version', help='Required label for alternate controller')
 parser.add_argument('--cases', help='Comma-separated scenario names; omit for the whole suite')
@@ -30,6 +31,8 @@ args = parser.parse_args()
 profile = dict(mass=args.mass, armX=args.arm_x, armZ=args.arm_z, height=args.height, ix=args.ix, iy=args.iy, iz=args.iz)
 assert all(math.isfinite(v) for v in profile.values())
 assert all(v > 0 for k, v in profile.items() if k != 'height')
+sails = [int(x) for x in args.sails.split(',')] if args.sails else None
+assert sails is None or len(sails)==4 and all(1<=x<=4096 for x in sails)
 assert not args.controller_file or args.controller_version, 'Label the alternate controller version'
 controller = (args.controller_file or ROOT / 'platforms/sputnik/dist/mintcraft-quad-control.lua').resolve()
 args.output = args.output.resolve()
@@ -53,6 +56,7 @@ with tempfile.TemporaryDirectory(prefix='sputnik-twin-') as tmp:
     bootstrap = folder / 'bootstrap.lua'
     bootstrap.write_text('MINTCRAFT_TWIN_OUTPUT=' + json.dumps(str(args.output)) + '\n'
                          + 'MINTCRAFT_TWIN_PROFILE={' + ','.join(k + '=' + repr(v) for k, v in profile.items()) + '}\n'
+                         + ('MINTCRAFT_TWIN_PROFILE.sails={' + ','.join(str(x) for x in sails) + '}\n' if sails else '')
                          + 'MINTCRAFT_TWIN_CONTROLLER=' + json.dumps(str(controller)) + '\n'
                          + ('MINTCRAFT_TWIN_CASES={' + ','.join(json.dumps(n) for n in args.cases.split(',')) + '}\n' if args.cases else ''))
     command = [str(args.java_home / 'bin/java'), '-cp', str(folder) + os.pathsep + str(runtime),
@@ -72,10 +76,11 @@ metadata = {
         'mass_kg': args.mass, 'inertia_diagonal_kg_m2': [args.ix, args.iy, args.iz],
         'initial_altitude_m': 80,
         'rotors_local_m': [[sx * args.arm_x, args.height, sz * args.arm_z] for sx, sz in [(-1, 1), (1, 1), (-1, -1), (1, -1)]],
-        'source_rpm': 256, 'gravity_ms2': 11, 'spool_alpha_per_50ms': .15,
+        'source_rpm': 256, 'gravity_ms2': 11, 'sails': sails,
+        'spool_alpha_per_50ms': [.4/math.sqrt(n) for n in sails] if sails else .15,
         'controller_hz': 20, 'rigid_body_hz': 200, 'radio_delay_ticks': 1,
         'transmission_rpm': 'signal 0:256; integer 1..15:256*(15-signal)/16',
-        'thrust': 'rpm * pressure * clamp(1 - axial_velocity/(0.1*rpm), 0, 1)',
+        'thrust': '0.2*N^1.5*rpm*pressure*clamp(1-axial/(0.05*sqrt(N)*rpm),0,1)' if sails else 'rpm * pressure * clamp(1 - axial_velocity/(0.1*rpm), 0, 1)',
         'pressure': '1m linear interpolation of 421 samples from actual Java Sable oracle',
         'baseline_linear_angular_damping_s_1': .05,
     },

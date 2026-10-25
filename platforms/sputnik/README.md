@@ -1,4 +1,11 @@
-# MintCraft Sputnik 0.1.19
+# MintCraft Sputnik 0.1.20
+
+**0.1.20 : modèle des hélices modulaires Propeller Bearing.**
+Nombre de blocs de voile indépendant par rotor, quatre champs et quatre entrées
+de graphe ; poussée, airflow, trim et gains utilisent les coefficients des
+Propeller Bearings. Pour quatre hélices de 12 voiles : saisir 12/12/12/12 et
+activer le mode modulaire dans `quad-controller`.
+Voir [le branchement et les limites](QUAD-FLIGHT.md#hélices-modulaires--0120).
 
 **0.1.19 : sélecteur d’architecture enregistré dans le graphe.**
 Quad, ballon, Venator et hélicoptère sont proposés. **Seul le quad possède
@@ -39,7 +46,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.1.19.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.1.20.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

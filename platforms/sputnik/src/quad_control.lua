@@ -213,7 +213,7 @@ function M.new(rows,pose,config)
     local upZ=math.cos(yaw)*math.sin(pitch)*math.cos(roll)+math.sin(yaw)*math.sin(roll)
     local inflow=k.x.v*upX+k.y.v*upY+k.z.v*upZ
     local maximum=0
-    for _,rotor in ipairs(self.diagnostics.rotors) do maximum=maximum+M.Physics.force(spec.source,rotor.pressure,inflow,spec.thrust,spec.airflow) end
+    for _,rotor in ipairs(self.diagnostics.rotors) do maximum=maximum+M.Physics.force(spec.source,rotor.pressure,inflow,rotor.thrust,rotor.airflow) end
     return maximum*upY>=p.mass*self.gravity*1.10
    end
    if not supported(1) then
@@ -233,13 +233,18 @@ function M.new(rows,pose,config)
   if self.physics then
    -- Approximate the two rising rotors' passive airflow damping per inertia.
    -- More damping requires more proportional authority to track a tilt promptly.
-   local spec=self.physics;local flowSlope=spec.thrust*self.diagnostics.pressure/spec.airflow
-   pitchGain=clip(3+6*spec.armZ^2*flowSlope/p.ix,4,40)
-   rollGain=clip(3+6*spec.armX^2*flowSlope/p.iz,4,40)
+   local spec=self.physics;local flowSlope=0
+   for _,rotor in ipairs(self.diagnostics.rotors) do flowSlope=flowSlope+rotor.thrust*rotor.pressure/rotor.airflow end
+   pitchGain=clip(3+1.5*spec.armZ^2*flowSlope/p.ix,4,40)
+   rollGain=clip(3+1.5*spec.armX^2*flowSlope/p.iz,4,40)
   end
   -- Fresh measured angles avoid another position-estimator delay. Rate and
   -- acceleration feedback damp the lagged rotors; all actuator bounds remain.
-  local demand={vertical,pitchGain*(pitchTarget-p.pitch)-4.5*self.rates.pitch-.6*self.angularAcceleration.pitch,rollGain*(rollTarget-p.roll)-4.5*self.rates.roll-.6*self.angularAcceleration.roll}
+  -- Modular bearings spool more slowly; stronger rate/acceleration damping
+  -- is exercised in the independent sail-count plant, without changing small props.
+  local dampingRate,dampingAcceleration=4.5,.6
+  if self.physics and self.physics.modular then dampingRate=8;dampingAcceleration=1.2 end
+  local demand={vertical,pitchGain*(pitchTarget-p.pitch)-dampingRate*self.rates.pitch-dampingAcceleration*self.angularAcceleration.pitch,rollGain*(rollTarget-p.roll)-dampingRate*self.rates.roll-dampingAcceleration*self.angularAcceleration.roll}
   local values,scale=M.allocate(self.model,demand)
   -- Anti-windup: adapt hover bias in flight, never run a mass-triggered sweep.
   if scale>.99 then self.integral=clip(self.integral+.2*errorY*dt,-3,3) end

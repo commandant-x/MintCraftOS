@@ -276,3 +276,18 @@ assert(straightInfo.course==requestedCourse,'releasing steering reset the reques
 local resting=assert(Q.new(rows,{tick=100,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'},{steering=true}))
 local _,restInfo=resting:step({tick=101,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=100,dimension='minecraft:overworld'},{forward=0,left=1,vertical=0})
 assert(restInfo.motion=='HOLD' and restInfo.pitchTarget==0 and restInfo.rollTarget==0,'steering at rest pretended to command body yaw')
+-- Four modular counts may be supplied by graph pins, zero uses saved UI value.
+_G.MintCraftQuad=nil;sends={};pose={tick=5000,x=0,y=80,z=0,pitch=0,yaw=0,roll=0,mass=32,dimension='minecraft:overworld'}
+inputs['Flight Enable']=0;inputs['Vertical demand']=0;inputs['Forward demand']=0;inputs['Left demand']=0
+getInertiaTensor=function() return 250,400,230 end
+node();s=_G.MintCraftQuad;s.checked.value=true;s.physical.value=true;s.modular.value=true
+s.physicalFields.armX.value.value='3';s.physicalFields.armZ.value.value='5';s.physicalFields.height.value.value='1'
+for i,r in ipairs(s.rotors) do r.a.value='minecraft:paper';r.b.value='minecraft:rotor_'..i end
+s.sails[1].value='';tick();assert(outputs.Status:find('SAILS_1',1,true) and #sends==0,'missing count silently guessed')
+inputs['Front left sails']=12;tick();tick();tick();inputs['Flight Enable']=15;tick()
+assert(outputs.Active==1 and s.core.physics.sails[1]==12 and s.core.physics.sails[4]==12,'graph count did not override empty UI field')
+assert(math.abs(s.core.diagnostics.rotors[1].thrust-.2*12^1.5)<1e-9,'native controller kept small-prop thrust')
+local frozen=s.owner.pairs[1][2]
+inputs['Front left sails']=16;tick();assert(outputs.Active==0 and outputs['Last fault']:find('CONFIG_CHANGED',1,true),'live count change silently retuned active rotor')
+assert(sends[#sends-3][2]==frozen,'count change retargeted fallback')
+print('Native modular adapter: per-rotor saved counts, graph override, missing-count refusal, bearing coefficient model and frozen fallback on live layout change passed')

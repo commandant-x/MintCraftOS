@@ -48,6 +48,17 @@ function M.force(rpm,pressure,axialVelocity,thrust,airflow)
  local flow=airflow*rpm
  return thrust*rpm*pressure*clamp((flow-axialVelocity)/flow,0,1)
 end
+-- Effective per-RPM coefficients from actual PropellerBearingBlockEntity.
+-- N counts WINDMILL_SAILS blocks, including valid copycat sail materials.
+function M.rotor(spec,index)
+ if type(spec)~='table' then return nil,'Physical rotor specification required' end
+ if not spec.modular then return {thrust=spec.thrust,airflow=spec.airflow,alpha=.15} end
+ local n=type(spec.sails)=='table' and spec.sails[index]
+ if not finite(n) or n%1~=0 or n<1 or n>4096 then return nil,'Rotor '..tostring(index)..': nombre de blocs de voile entier 1..4096 requis' end
+ local thrust,airflow=spec.bearingThrust or .2,spec.bearingAirflow or .05
+ if not finite(thrust) or thrust<=0 or not finite(airflow) or airflow<=0 then return nil,'Coefficients du Propeller Bearing positifs requis' end
+ return {thrust=n^1.5*thrust,airflow=math.sqrt(n)*airflow,alpha=.4/math.sqrt(n),sails=n}
+end
 function M.rows(spec,pose,velocity)
  if type(spec)~='table' or type(pose)~='table' or pose.dimension~='minecraft:overworld' then return nil,'Default Overworld physics only' end
  for _,key in ipairs({'source','thrust','airflow','armX','armZ','gravity'}) do
@@ -64,22 +75,24 @@ function M.rows(spec,pose,velocity)
  local locations={{-spec.armX,spec.armZ},{spec.armX,spec.armZ},{-spec.armX,-spec.armZ},{spec.armX,-spec.armZ}}
  local rows={} local diagnostics={rotors={},maxThrust=0,required=pose.mass*spec.gravity,pressure=M.pressure(pose.y),rpmAtZero=M.rpm(spec.source,0)}
  for i,location in ipairs(locations) do
+  local rotor,why=M.rotor(spec,i) if not rotor then return nil,why end
+  local thrust,airflow=rotor.thrust,rotor.airflow
   local x,z=location[1],location[2]
   local height=pose.y+spec.height*up[2]+x*math.sin(r)*math.cos(p)-z*math.sin(p)
   local pressure=M.pressure(height)
   if not pressure or pressure<=0 then return nil,'No atmospheric pressure at a rotor' end
   local v=axial+math.rad(velocity.roll)*x-math.rad(velocity.pitch)*z
   local maxRpm=M.rpm(spec.source,0)
-  local maximum=M.force(maxRpm,pressure,v,spec.thrust,spec.airflow)
+  local maximum=M.force(maxRpm,pressure,v,thrust,airflow)
   diagnostics.maxThrust=diagnostics.maxThrust+maximum
-  diagnostics.rotors[i]={pressure=pressure,maximum=maximum,rpm=maxRpm}
+  diagnostics.rotors[i]={pressure=pressure,maximum=maximum,rpm=maxRpm,thrust=thrust,airflow=airflow,alpha=rotor.alpha,sails=rotor.sails}
   local required=pose.mass*spec.gravity/4
   if not maximum or required>=maximum then return nil,'Insufficient lift at this mass/altitude/inflow',diagnostics end
-  local equilibriumRPM=required/(spec.thrust*pressure)+math.max(0,v)/spec.airflow
+  local equilibriumRPM=required/(thrust*pressure)+math.max(0,v)/airflow
   local trim=M.signal(spec.source,equilibriumRPM)
   if trim<=0 or trim>=15 then return nil,'No interior lift margin' end
   diagnostics.rotors[i].trim=trim
-  local slope=-spec.thrust*pressure*spec.source/(trim<1 and 8 or 16)
+  local slope=-thrust*pressure*spec.source/(trim<1 and 8 or 16)
   rows[i]={trim,0,15,slope/pose.mass,math.deg(-z*slope/pose.ix),math.deg(x*slope/pose.iz),clamp(math.floor(trim+.5),0,14)}
  end
  return rows,diagnostics

@@ -88,3 +88,24 @@ for _=1,20 do step({forward=0,left=0,vertical=1}) end
 for _=1,800 do step(neutral) end
 assert(math.abs(pose.y-64.5)<.3 and math.abs(rates.y)<.2,'zero-bypass interpolation destabilized heavy quad')
 print('Zero bypass regression: heavy quad between actual 256/224-RPM states climbs and holds in the lagged simulation')
+-- Modular bearing uses sail power, not the small-propeller coefficients.
+local modular={source=256,thrust=1,airflow=.1,armX=3,armZ=5,height=1,gravity=11,modular=true,sails={12,12,12,12},bearingThrust=.2,bearingAirflow=.05}
+local mp={tick=2000,mass=32,ix=250,iz=230,x=0,y=80,z=0,pitch=0,roll=0,yaw=0,dimension='minecraft:overworld'}
+local mr,md=assert(P.rows(modular,mp))
+for i,r in ipairs(mr) do
+ local rotor=assert(P.rotor(modular,i))
+ assert(math.abs(rotor.thrust-.2*12^1.5)<1e-10 and math.abs(rotor.airflow-.05*math.sqrt(12))<1e-10)
+ assert(math.abs(rotor.alpha-.4/math.sqrt(12))<1e-10)
+ local force=P.force(P.rpm(256,r[1]),md.rotors[i].pressure,0,rotor.thrust,rotor.airflow)
+ assert(math.abs(force-32*11/4)<1e-9,'modular hover does not balance actual weight')
+end
+modular.sails={8,12,16,20}
+local unequal,ud=assert(P.rows(modular,mp))
+assert(unequal[1][1]<unequal[4][1],'different sail areas received identical trim')
+for i,r in ipairs(unequal) do
+ local rotor=P.rotor(modular,i)
+ assert(math.abs(P.force(P.rpm(256,r[1]),ud.rotors[i].pressure,0,rotor.thrust,rotor.airflow)-88)<1e-9,'per-rotor equilibrium changed force balance')
+end
+for _,invalid in ipairs({0,-1,1.5,4097,0/0}) do modular.sails[1]=invalid;assert(not P.rows(modular,mp),'invalid modular count accepted') end
+modular.sails={};assert(not P.rows(modular,mp),'missing rotor count guessed')
+print('Modular physics: sail^1.5 thrust, sqrt(sail) airflow/spool, four independent areas, equal support forces with different trims and invalid-count refusal passed')

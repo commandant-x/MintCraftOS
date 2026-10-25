@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "scope": "Fixed upward Propeller Bearings, symmetric centered quad, configured sail counts; not detected from Link",
+  "version": "Aeronautics 1.3.2 / Simulated 1.3.2 / Sable 2.0.6",
+  "aeronauticsJarSha256": "97fbf1e27f38674145b8521b140613dc8258bea7efca456dc2686e22bd683933",
+  "defaults": {
+    "bearingThrust": 0.2,
+    "bearingAirflow": 0.05,
+    "countPerRotor": 12
+  },
+  "formulas": {
+    "sailPower": "sum 1 per WINDMILL_SAILS block; COPYCAT_PANEL resolved to non-air Material first",
+    "thrust": "N^1.5 * effectiveRPM * bearingThrust",
+    "airflow": "sqrt(N) * effectiveRPM * bearingAirflow",
+    "spoolAlphaPerTick": "0.4 / sqrt(N)",
+    "effectiveRPM": "abs(rotationSpeed * 3.3333333); rotation target = inputRPM * 0.3; thrust direction separately verified",
+    "force": "thrust * pressure * clamp(1 - axialVelocity / airflow, 0, 1)"
+  },
+  "methods": [
+    "PropellerBearingBlockEntity.getSailPower/findSails/getThrust/getAirflow/getDirectionIndependentSpeed/updateRotationSpeed",
+    "BlockEntityPropeller.getScaledThrust/getAirflowScaling"
+  ],
+  "limitations": [
+    "Sail count is configured, not read from an actual rotor",
+    "No assembly/direction/shaft ACK from wireless command",
+    "No off-center geometry or tilt actuators",
+    "Heterogeneous counts and extreme inertia/delay/travel cases have remaining simulation failures"
+  ]
+}

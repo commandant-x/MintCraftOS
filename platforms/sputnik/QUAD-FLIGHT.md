@@ -1,10 +1,54 @@
-# Quad natif Sputnik 0.1.19 — contrôleur expérimental
+# Quad natif Sputnik 0.1.20 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.
 Le Kalman et la stabilisation sont intégrés à ce nœud, pas simplement présents
 dans le SDK. Le mode physique automatique ci-dessous calcule le modèle à partir de la
 masse, de la pression et de la géométrie confirmée. Le mode manuel historique
 reste disponible. Les tests sont des simulations ; aucun vol Minecraft n'a été réalisé.
+
+## Hélices modulaires — 0.1.20
+
+La masse lue dans Sputnik reste la masse réelle ; elle ne suffit pas à retrouver
+la poussée d’une hélice construite avec des voiles. Le modèle des petites hélices
+n’est pas applicable à un Propeller Bearing modulaire.
+
+Dans `quad-controller`, conserver **Calcul physique**, puis cocher
+**Hélices modulaires Propeller Bearing (voiles)** en bas du nœud. Renseigner
+**le nombre total de blocs de voile de chaque rotor** dans les quatre champs
+Avant gauche, Avant droite, Arrière gauche, Arrière droite. Pour le montage
+annoncé : **12 / 12 / 12 / 12**. Le moyeu et les bras ne comptent pas.
+Les voiles sont les blocs du tag `WINDMILL_SAILS`, y compris un matériau copycat
+reconnu par le mod. Un nombre négatif, non entier ou absent refuse le démarrage.
+
+Les entrées `Front left sails`, `Front right sails`, `Rear left sails`,
+`Rear right sails` permettent de fournir ces valeurs par le graphe : **0 utilise
+le champ enregistré ; un entier positif remplace ce champ**. Elles ne sont pas
+des capteurs : l’API de Sputnik ne permet pas d’interroger les voiles d’une
+hélice au travers de sa fréquence Link. Aucun balayage des périphériques
+voisins ne prouve leur appartenance à ces quatre rotors.
+
+Les coefficients spécifiques aux Propeller Bearings ont leurs propres champs,
+par défaut **poussée 0,2 ; airflow 0,05**. Ils sont indépendants des anciens
+champs des petites hélices. À pression 1, pour N voiles et un régime R :
+`F = 0,2 × N^1,5 × R`, `airflow = 0,05 × √N × R`.
+Le mod applique un rattrapage de régime `alpha = 0,4 / √N` par tick.
+Le modèle calcule donc le trim et les sensibilités propres à chaque rotor,
+ainsi que la réserve de poussée et les gains d’attitude correspondants.
+**Quatre pales ne signifie pas quatre voiles** : compter les blocs.
+
+Conserver la transmission **0 = plein régime, 15 = arrêt** et vérifier que les
+quatre hélices sont assemblées, avec une poussée vers le haut. Ce mode ne
+commande pas le réglage de direction ou l’assemblage du Propeller Bearing.
+Remesurer la demi-largeur et la demi-longueur **entre centre de masse et axes
+des rotors**, ainsi que leur hauteur par rapport à Sputnik. Les anciennes
+valeurs 3/5/+1 ne sont pas déduites de la capture du nouveau véhicule.
+Faire toute modification de voiles, de paramètres ou de fréquences levier OFF.
+Une valeur modifiée en vol est un changement de configuration ; le contrôleur
+conserve le repli des anciennes sorties. Un changement de masse seul continue
+à être adapté sans relancer un balayage d’altitude.
+
+Les essais sont décrits dans `reports/modular-0.1.20/README.md` ; ce sont des
+simulations, sans vol Minecraft ni validation d’une géométrie déduite de l’image.
 
 ## Sélecteur d’architecture — 0.1.19
 
