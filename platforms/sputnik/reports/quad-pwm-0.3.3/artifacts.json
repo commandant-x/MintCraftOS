@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "archives": {
+    "native-pwm-traces.zip": {
+      "bytes": 10947896,
+      "sha256": "beb9b4b5186b4bb8faddb7ca99ea63fc61e06545ee067609e7453877e036f50a"
+    },
+    "native-pwm-plots.zip": {
+      "bytes": 3821724,
+      "sha256": "de75bd3e7d64ebda84b8fe3f53db2f3138ea5275d46e048a9ca679d3dd58e5af"
+    }
+  },
+  "trace_count": 80,
+  "classified_cases": 82,
+  "controllers": {
+    "fixed": "01af264048eb62bea330778bfc574b7a283adf44b432dc89897e61594940f1d9",
+    "baseline": "e7399163d4a2a5d9ab9e5da1bfd2c4e06f30c951236f2b27f11ba4c61bc615ac",
+    "defaults": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877",
+    "pressure": "5f5b0496628baf3e94289ec480532ef87a799b3d30420d2d37e455f2d1c6993c",
+    "java_runner": "7d897d1f20d73e096acd3587eab7f1cfcc8401af7cc1c0decf1df48b976d733c",
+    "criteria": "23ae43b19fb80b6f0f13b13c2bc0b53e5e0b106804ba825e65d8b9cf8c2639f5",
+    "diagnostics": "f9676b0d6578cf79a334f67c497bf944a6c0663550ccdc391f496d88126cc8c2",
+    "runner": "e14581f7410fff24fc34c95e80185e64d475307f7dbde242963562bbc1127a69"
+  },
+  "scope": "Fixed physical 256 RPM, native LuaJ simulation, not Minecraft qualification"
+}

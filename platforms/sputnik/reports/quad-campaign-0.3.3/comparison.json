@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "baseline": "../quad-campaign-0.3.2/results.json",
+  "scope": "Same 24 fixtures/24 motions/criteria at 20deg, fixed 256 RPM",
+  "transitions": [
+    {
+      "before": "FAIL",
+      "after": "FAIL",
+      "count": 150
+    },
+    {
+      "before": "FAIL",
+      "after": "PASS",
+      "count": 9
+    },
+    {
+      "before": "PASS",
+      "after": "FAIL",
+      "count": 8
+    },
+    {
+      "before": "PASS",
+      "after": "PASS",
+      "count": 385
+    },
+    {
+      "before": "REFUSED",
+      "after": "REFUSED",
+      "count": 24
+    }
+  ],
+  "regressions": [
+    {
+      "fixture": "light-16kg",
+      "movement": "turn-left",
+      "failures": [
+        "active_height"
+      ]
+    },
+    {
+      "fixture": "light-16kg",
+      "movement": "turn-right",
+      "failures": [
+        "active_height"
+      ]
+    },
+    {
+      "fixture": "low-inertia",
+      "movement": "climb-forward",
+      "failures": [
+        "braking"
+      ]
+    },
+    {
+      "fixture": "narrow",
+      "movement": "left",
+      "failures": [
+        "transient_tilt"
+      ]
+    },
+    {
+      "fixture": "narrow",
+      "movement": "right",
+      "failures": [
+        "transient_tilt"
+      ]
+    },
+    {
+      "fixture": "paired-rotors",
+      "movement": "turn-left",
+      "failures": [
+        "active_height"
+      ]
+    },
+    {
+      "fixture": "paired-rotors",
+      "movement": "turn-right",
+      "failures": [
+        "active_height"
+      ]
+    },
+    {
+      "fixture": "telemetry-delay",
+      "movement": "reverse-left",
+      "failures": [
+        "braking"
+      ]
+    }
+  ]
+}

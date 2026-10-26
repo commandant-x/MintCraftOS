@@ -27,20 +27,8 @@ function M.signals(meta,values,quant)
   local neutral=math.floor(requested[tostring(g.id)]+.5)
   qmodel.columns[i]={id=tostring(g.id),neutral=neutral,low=-neutral,high=15-neutral,response=response}
  end
- -- Coupled error diffusion, exact in blocks of eight; fixed work for 32 groups.
- local equal,lo,hi=true,math.huge,-math.huge
- for i,m in ipairs(meta) do
-  local g=m.group;local base=meta[1].group;local wanted=requested[tostring(g.id)]
-  lo=math.min(lo,wanted);hi=math.max(hi,wanted)
-  equal=equal and g.kind==base.kind and g.source==base.source and g.sails==base.sails and g.members==base.members
- end
- if equal and hi-lo<.08 then
-  local wanted=(lo+hi)/2;local lower=math.floor(wanted)
-  quant.collective=(quant.collective or 0)+(wanted-lower)
-  local value=lower;if quant.collective>=1 then value=math.min(15,lower+1);quant.collective=quant.collective-1 end
-  local out={};for _,m in ipairs(meta) do out[tostring(m.group.id)]=value end
-  quant.error=nil;quant.clipped=false;return out
- end
+ -- One coupled quantizer at every demand size: never discard weak moments
+ -- or reset their residual when the four analog requests become nearly equal.
  local target={};for j=1,6 do target[j]=quant.error and quant.error[j] or 0 end
  local choices,selected={},{}
  for i,c in ipairs(qmodel.columns) do

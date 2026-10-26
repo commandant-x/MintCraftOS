@@ -1,4 +1,4 @@
-> 0.3.2 : allocation quad à priorité collective, modèles séparés par rotor et compensation du retard ; voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Les réussites et échecs synthétiques sont publiés séparément de la validation Minecraft.
+> 0.3.3 : petites corrections de couple conservées par la modulation quad à 256 RPM, sans changement mécanique ; voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte du vol Minecraft.
 
 # Quad natif Sputnik 0.1.20 — contrôleur expérimental
 

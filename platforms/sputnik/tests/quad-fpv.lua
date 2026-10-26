@@ -6,7 +6,7 @@ local function loadBundle(path)
  e.ui={label=field,textfield=function() return field('') end};e.addElement=function() end;e.input=function() return 0 end;e.output=function() end;e.getUniverseTime=function() return 0 end;e.getShipMass=function() return 0 end
  return assert(load(read(path)..'\nreturn _G.MintCraftFlightModules','fpv','t',e))()
 end
-local A=loadBundle('platforms/sputnik/dist/mintcraft-autopilot-quad-fpv.lua');local B=loadBundle(assert(MINTCRAFT_FPV_READABLE))
+local A=loadBundle(MINTCRAFT_FPV_DISTRIBUTED or 'platforms/sputnik/dist/mintcraft-autopilot-quad-fpv.lua');local B=loadBundle(assert(MINTCRAFT_FPV_READABLE))
 local defs=assert(load(read('platforms/sputnik/src/vehicle_model.lua'),'defaults','t',{Portable=A[1],math=math,type=type,ipairs=ipairs,pairs=pairs,tostring=tostring,tonumber=tonumber}))()
 local function groups()
  local gs={};for i=1,4 do local g=defs.defaults(1,i);g.kind='bearing';g.sails=12;g.thrust=.2;g.airflow=.05;g.powerA='minecraft:paper';g.powerB='minecraft:motor_'..i;gs[i]=g end;return gs
@@ -46,6 +46,25 @@ for _,torque in ipairs({0,100,-100}) do
  local values,proof=A[7].solve(model,{0,0,11,torque,0,torque});assert(values,proof)
  assert(math.abs(proof.actual[3]-11)<1e-8,'Attitude demand destroyed feasible collective')
  for _,v in ipairs(values) do assert(v>=0 and v<=15) end
+end
+-- Sub-level torque remains physically represented even near equal lift requests.
+-- Measure the emitted RPM/force average, independently of the allocator proof.
+local physics=A[3]
+for _,torque in ipairs({.01,-.01}) do
+ local values=assert(A[7].solve(model,{0,0,11,torque,0,0}))
+ local _,meta=A[7].matrix(gs,p,{x=0,y=0,z=0},p.mass,{1,1,1,1})
+ for i,m in ipairs(meta) do m.column=model.columns[i].response end
+ local quant={};local up,moment=0,0
+ for frame=1,2048 do
+  local out=assert(A[7].signals(meta,values,quant))
+  for i,m in ipairs(meta) do
+   local rpm=physics.rpm(m.group.source,out[tostring(m.group.id)])
+   local force=physics.force(rpm,m.pressure,m.axial,m.thrust,m.airflow)*m.group.members
+   up=up+force/p.mass;moment=moment-m.group.z*force/p.ix
+  end
+ end
+ assert(math.abs(up/2048-11)<.05,'Near-hover modulation lost mean lift')
+ assert(math.abs(moment/2048-torque)<.003,'Weak signed torque was rounded away near hover')
 end
 local _,reason=A[7].decode('INVALID_GROUP');assert(reason:find('formulaire',1,true),'Opaque descriptor error returned')
 assert(not a:step(pose(300),{forward=0,left=0,vertical=0},sa),'Repeated observation accepted')

@@ -5,7 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.3.2'
+VERSION='0.3.3'
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
  'output_characterization','tilt_response','known_flight','motion_progress',
@@ -235,11 +235,11 @@ def main():
   source_paths.update(BASE.glob('*.md'));source_paths.add(ROOT/'LICENSE')
   source_paths.update(ROOT/(name.replace('.','/')+'.lua') for name in MODULES)
   source_paths.update(ROOT/'tests'/(name+'.lua') for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight'))
-  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
+  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
   for path in sorted(source_paths):
    if path.is_file() and path.name not in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.2'):
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.3'):
    reports=BASE/'reports'/report_name
    if reports.exists():
     for path in sorted(reports.rglob('*')):

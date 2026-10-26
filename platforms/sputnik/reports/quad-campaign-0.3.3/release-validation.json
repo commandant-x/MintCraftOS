@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "version": "0.3.3",
+  "hardware_changed": false,
+  "source_rpm": 256,
+  "integer_transmission_range": [
+    0,
+    15
+  ],
+  "new_configuration_fields": 0,
+  "quad_controller_sha256": "01af264048eb62bea330778bfc574b7a283adf44b432dc89897e61594940f1d9",
+  "generic_controller_sha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092",
+  "clipboard_sha256": "f3d4b4727f800e6679807a0b72136e9e91250e55f1d7be6a5b06b020f6c4c1ad",
+  "package_sha256": "4881981bfd5381963a2b5d74837e1e231d2d0f91cf0d56d48ebaa835c17992af",
+  "package_bytes": 996577,
+  "quad_node_modified_utf8_bytes": 59327,
+  "validation": {
+    "native_sdk_contracts": true,
+    "snbt_binary_nbt_codec_artifacts": 32,
+    "compact_readable_parity": true,
+    "weak_signed_torque_old_fails_new_passes": true,
+    "full_campaign_classifications_verified": 576,
+    "full_campaign_raw_traces_verified": 552,
+    "fixed_source_classifications_verified": 82,
+    "fixed_source_physical_traces_verified": 80,
+    "timestep_classification_agreement": "4/4",
+    "deterministic_package": true
+  },
+  "qualified": false,
+  "tested_in_minecraft": false,
+  "limits": [
+    "158 historical-criteria failures, 24 refusals and 8 regressions remain in broad campaign",
+    "Strong radio delay and very small inertia domains remain experimental",
+    "Inversion can still lose about 11m; no real-world joint/contact qualification"
+  ]
+}

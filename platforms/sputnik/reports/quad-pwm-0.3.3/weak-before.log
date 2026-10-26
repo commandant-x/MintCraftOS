@@ -1,0 +1,7 @@
+Exception in thread "main" dev.devce.rocketnautics.shaded.luaj.vm2.LuaError: @platforms/sputnik/tests/quad-fpv.lua:67 Weak signed torque was rounded away near hover
+	at dev.devce.rocketnautics.shaded.luaj.vm2.LuaValue.error(Unknown Source)
+	at dev.devce.rocketnautics.shaded.luaj.vm2.lib.BaseLib$_assert.invoke(Unknown Source)
+	at dev.devce.rocketnautics.shaded.luaj.vm2.lib.VarArgFunction.call(Unknown Source)
+	at dev.devce.rocketnautics.shaded.luaj.vm2.LuaClosure.execute(Unknown Source)
+	at dev.devce.rocketnautics.shaded.luaj.vm2.LuaClosure.call(Unknown Source)
+	at VerifySputnikLua.main(VerifySputnikLua.java:8)

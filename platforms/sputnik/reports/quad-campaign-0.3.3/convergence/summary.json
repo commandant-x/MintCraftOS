@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "base_plant_sha256": "2cb272b9fc1a203f26508575d1a642dbfd40923ac9b521afb55e2966d025fd1f",
+  "refined_plant_sha256": "4ffe2916dbbc0906a11c035771ad9c51bb11adf792e8442f6de5e7b948f17706",
+  "control_hz": 20,
+  "physics_hz": [
+    200,
+    400
+  ],
+  "cases": [
+    {
+      "controller": "fpv",
+      "movement": "hover",
+      "status_200": "PASS",
+      "status_400": "PASS",
+      "classification_agrees": true,
+      "failures_200": [],
+      "failures_400": [],
+      "metrics_400": {
+        "final_height_error": 0.0014896999999933769,
+        "min_altitude": 79.980385,
+        "max_altitude": 80.0108919,
+        "max_tilt": 0.0,
+        "final_speed": 0.00625507808,
+        "transient_height_peak": 0.019615000000001714,
+        "max_rope_extension": 0.0,
+        "tail_height_peak": 0.003457999999994854,
+        "tail_height_rms": 0.001574283060126114,
+        "tail_height_span": 0.006748099999995816,
+        "tail_tilt": 0.0,
+        "tail_speed_rms": 0.010898746648301493,
+        "tail_vertical_rms": 0.010898746648301493,
+        "active_dx": -2.639882657e-16,
+        "active_dy": 0.009661399999998821,
+        "active_dz": 1.425992295e-15,
+        "peak_horizontal_speed": 4.732831804283406e-16
+      },
+      "metric_delta_400_minus_200": {
+        "transient_height_peak": -0.00011949999999671945,
+        "tail_height_span": -0.0016877000000050657,
+        "tail_speed_rms": -0.00014518317697009148
+      },
+      "trace_sha256": "fa9ae6ac1613c426be45afe2fdb34d4791df40e02291bc54f74da8a3832840c4"
+    },
+    {
+      "controller": "fpv",
+      "movement": "forward-left",
+      "status_200": "PASS",
+      "status_400": "PASS",
+      "classification_agrees": true,
+      "failures_200": [],
+      "failures_400": [],
+      "metrics_400": {
+        "final_height_error": 0.0005198000000063985,
+        "min_altitude": 79.3185278,
+        "max_altitude": 80.2223658,
+        "max_tilt": 20.125751,
+        "final_speed": 0.00691038510574825,
+        "transient_height_peak": 0.6814722000000017,
+        "max_rope_extension": 0.0,
+        "tail_height_peak": 0.01899299999999471,
+        "tail_height_rms": 0.010597884142204658,
+        "tail_height_span": 0.01847319999998831,
+        "tail_tilt": 0.205940139,
+        "tail_speed_rms": 0.01533605469764614,
+        "tail_vertical_rms": 0.01352621909137933,
+        "active_attitude_rms": 1.4660759577158078,
+        "active_height_peak": 0.6814722000000017,
+        "active_dx": -18.3959396,
+        "active_dy": -0.5853862999999961,
+        "active_dz": 17.0892804,
+        "peak_horizontal_speed": 11.529645591434502,
+        "brake_seconds": 4.85
+      },
+      "metric_delta_400_minus_200": {
+        "transient_height_peak": 0.0001450999999974556,
+        "tail_height_span": -0.019738000000003808,
+        "tail_speed_rms": -0.011391972971098441,
+        "active_attitude_rms": -0.004780367908590488
+      },
+      "trace_sha256": "83758621fe020e12caed8dc5215b57ae8f35f6f7afc4ed619b3c5eb9bd663f45"
+    },
+    {
+      "controller": "fpv",
+      "movement": "turn-left",
+      "status_200": "PASS",
+      "status_400": "PASS",
+      "classification_agrees": true,
+      "failures_200": [],
+      "failures_400": [],
+      "metrics_400": {
+        "final_height_error": 0.003680000000002792,
+        "min_altitude": 79.3497386,
+        "max_altitude": 80.3234646,
+        "max_tilt": 20.4117187,
+        "final_speed": 0.006709611473449963,
+        "transient_height_peak": 0.6502614000000051,
+        "max_rope_extension": 0.0,
+        "tail_height_peak": 0.01740470000000016,
+        "tail_height_rms": 0.007885036085662957,
+        "tail_height_span": 0.03429830000000322,
+        "tail_tilt": 0.180271184,
+        "tail_speed_rms": 0.01815269912469442,
+        "tail_vertical_rms": 0.016191655672288932,
+        "active_attitude_rms": 1.3005816905140417,
+        "active_height_peak": 0.6502614000000051,
+        "active_dx": -13.9385613,
+        "active_dy": -0.31791379999999947,
+        "active_dz": 21.1751169,
+        "peak_horizontal_speed": 10.904996119740924,
+        "trajectory_turn_deg": -52.51512283214134,
+        "brake_seconds": 4.5
+      },
+      "metric_delta_400_minus_200": {
+        "transient_height_peak": 0.006381700000005708,
+        "tail_height_span": 0.014524000000008641,
+        "tail_speed_rms": 0.0017625875131970607,
+        "active_attitude_rms": 0.010467004577841887
+      },
+      "trace_sha256": "c3b00f77ee21fe727abc27c95c7115e37f7b995a0a3949b37ca12245ca59661f"
+    },
+    {
+      "controller": "fpv",
+      "movement": "load-swing",
+      "status_200": "PASS",
+      "status_400": "PASS",
+      "classification_agrees": true,
+      "failures_200": [],
+      "failures_400": [],
+      "metrics_400": {
+        "final_height_error": 3.649999999311149e-05,
+        "min_altitude": 78.5921725,
+        "max_altitude": 80.5244044,
+        "max_tilt": 8.22076958,
+        "final_speed": 0.03370820802267871,
+        "transient_height_peak": 1.4078274999999962,
+        "max_rope_extension": 1.24344979e-14,
+        "tail_height_peak": 0.02003809999999362,
+        "tail_height_rms": 0.008642135667075765,
+        "tail_height_span": 0.029913499999992155,
+        "tail_tilt": 0.373462597,
+        "tail_speed_rms": 0.03287138628249196,
+        "tail_vertical_rms": 0.02480650224634332,
+        "active_dx": 0.25850268883,
+        "active_dy": 0.4100810999999993,
+        "active_dz": 0.0016650531902443145,
+        "peak_horizontal_speed": 0.46049197654175505
+      },
+      "metric_delta_400_minus_200": {
+        "transient_height_peak": -0.0034763999999967155,
+        "tail_height_span": -0.009916100000012307,
+        "tail_speed_rms": -0.002525764273785043
+      },
+      "trace_sha256": "deae6c3b958a801d91e9027dc5696a2502f263a99529dc10ced8926e9699d1d1"
+    }
+  ],
+  "scope": "Timestep sensitivity of four representative reference motions; not proof of physical fidelity or convergence for every fixture"
+}

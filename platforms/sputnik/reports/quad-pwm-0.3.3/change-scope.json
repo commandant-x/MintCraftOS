@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "readable_prefix_identical": true,
+  "readable_suffix_identical": true,
+  "only_changed_function": "Vehicle.signals",
+  "physical_source_rpm": 256,
+  "new_configuration_fields": 0,
+  "gains_changed": false,
+  "geometry_changed": false,
+  "observer_changed": false
+}
