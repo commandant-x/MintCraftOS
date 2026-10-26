@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "archives": {
+    "campaign-traces-standard.zip": {
+      "sha256": "6511219c52068f5b471ad60a21931a08ce0e14b3d548fe2ab78da311f1cec7c0",
+      "bytes": 65803846
+    },
+    "campaign-traces-fpv.zip": {
+      "sha256": "f1e9a5ec023aedfcec33b9a0a59705ab980a783965469d811a775e2d0e22968e",
+      "bytes": 58664134
+    },
+    "campaign-plots-standard.zip": {
+      "sha256": "0d25c865cf4fd1b9de7b81027ea614d0ce9fa313932c5cb350154873c5bf636b",
+      "bytes": 23444614
+    },
+    "campaign-plots-fpv.zip": {
+      "sha256": "bb49edbd98d29688f017891abb673e4e27a2b93d4b74661adc3ad3cdb4b16034",
+      "bytes": 21516969
+    }
+  },
+  "renderer_sha256": "c1aaf7028c096f1dcf61a4dc76d0e5993da6901590377e4403240b87c35192d8",
+  "campaign_sha256": "2db1452ca0b6b713dd0b5226662a7afaf6c314a8f2ae41f2cd10f4ffa7784652",
+  "results_sha256": "616c6ab03409f6c6031c68d26a39399077a0344815956966fb555cacb214c643",
+  "trace_count": 1056,
+  "executed_simulated_seconds": 61454.95
+}
