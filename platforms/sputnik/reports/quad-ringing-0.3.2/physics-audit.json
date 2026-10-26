@@ -1,0 +1,14 @@
+{
+  "jars": {
+    "aeronautics-1.3.2.jar": "97fbf1e27f38674145b8521b140613dc8258bea7efca456dc2686e22bd683933",
+    "simulated-1.3.2.jar": "fdf9d250996a084b52fced3a5b0089e879a5cac05dc7bcf295ac1f4ebe5e2bff",
+    "sable-neoforge-1.21.1-2.0.6.jar": "9c199157843bf953a47dff625fc5bb41c01a90538d35ad18e6996bbcb8a617c2"
+  },
+  "class_name": "dev.eriksonn.aeronautics.content.blocks.propeller.bearing.propeller_bearing.PropellerBearingBlockEntity",
+  "method": "updateRotationSpeed",
+  "observed_lerp_coefficient": "0.4f / sqrt(totalSailPower)",
+  "equivalent_tau_seconds": "-0.05 / ln(1-alpha)",
+  "tick_rate_assumption_hz": 20,
+  "tool": "JDK21 javap -c -p",
+  "scope": "Bytecode coefficient audit; no Minecraft flight validation"
+}

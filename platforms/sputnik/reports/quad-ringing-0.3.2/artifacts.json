@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "archives": {
+    "exploratory-traces-1.zip": {
+      "bytes": 59256081,
+      "sha256": "ab158f62643cb5238d2cf6b49cef2ada8ff58a227b45e25c974261bbf01e52c9"
+    },
+    "exploratory-traces-2.zip": {
+      "bytes": 57030855,
+      "sha256": "184e45b7ac6c7426f519e8a7081c35783de663394cac69399babb0fbe689eaad"
+    },
+    "exploratory-traces-3.zip": {
+      "bytes": 19088294,
+      "sha256": "e778152d9fa1914fc149b2c66901628d187065afe0fd483ecb0c974edded045a"
+    },
+    "exploratory-traces-4.zip": {
+      "bytes": 11265245,
+      "sha256": "b564da15800352c66bc14d54909b276d0f0dbeffe846f379ab5f961520aa99ed"
+    },
+    "exploratory-traces-5.zip": {
+      "bytes": 14873551,
+      "sha256": "70007c4a0c5c547637f2d4b37f6c4a998033d841484906de62a503c9a0e9de32"
+    },
+    "exploratory-traces-6.zip": {
+      "bytes": 18589638,
+      "sha256": "761b4794aa500b4b060b4d681fdbf62a317776d88478e4950532a5e4412b4d8a"
+    },
+    "native-interventions.zip": {
+      "bytes": 8463656,
+      "sha256": "8aac1022362d7c160105b2698ad20a0cb045025e2c639d6dcde26bb6d495e6cc"
+    }
+  },
+  "unchanged_controller_sha256": "e7399163d4a2a5d9ab9e5da1bfd2c4e06f30c951236f2b27f11ba4c61bc615ac",
+  "source_commit": "a4d9d388de3629bc223885b3b6a97a2059b07a76",
+  "native_cases_verified": 72,
+  "native_prior_traces_analyzed": 552,
+  "exploratory_cases_verified": 1692,
+  "scope": "Research only; shipped controller and TXT unchanged"
+}

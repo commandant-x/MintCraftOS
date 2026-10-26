@@ -1,0 +1,26 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/PX4/PX4-user_guide/main/en/config_mc/filter_tuning.md",
+    "retrieved": "2026-10-26",
+    "sha256": "a4845db1aef1841b8477aa4a40e12de37b44d3098e7d52ced301afb82e787395",
+    "bytes": 11811
+  },
+  {
+    "url": "https://raw.githubusercontent.com/PX4/PX4-user_guide/main/en/config_mc/pid_tuning_guide_multicopter.md",
+    "retrieved": "2026-10-26",
+    "sha256": "c26add50888b595f691aa839f66fca8b80ea136df2d141bc5135856627a33155",
+    "bytes": 17560
+  },
+  {
+    "url": "https://raw.githubusercontent.com/PX4/PX4-Autopilot/main/src/lib/rate_control/rate_control.cpp",
+    "retrieved": "2026-10-26",
+    "sha256": "4d15054c43b545c340260f5f7ff13383b0fb9bfbdd2649ea49b6bf03a21b9135",
+    "bytes": 4645
+  },
+  {
+    "url": "https://raw.githubusercontent.com/PX4/PX4-Autopilot/main/src/modules/mc_pos_control/PositionControl/PositionControl.cpp",
+    "retrieved": "2026-10-26",
+    "sha256": "6195d98ae81358f323b7699568a744b489b11bfceb682e7826abbaead3bab7df",
+    "bytes": 10596
+  }
+]
