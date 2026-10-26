@@ -1,3 +1,5 @@
+> 0.3.0 : profil quad rapide séparé, voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte ; ne pas confondre avec une qualification Minecraft.
+
 # Autopilote Sputnik 0.2.2 — un TXT par architecture
 
 Choisir **un seul** graphe :

@@ -1,0 +1,6 @@
+6 climb FAIL error=0.017235087 tailTilt=0 speed=0.007887409 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.99177 stretch=0 fault=nil
+6 brake FAIL error=0.051201846 tailTilt=0.31886303 speed=0.023262987 recovery=0 climb90=0 tilt90=1 stop=6.7 firstUpright=0 minimumY=76.707054 stretch=0 fault=nil
+6 flip180 FAIL error=0.0061737164 tailTilt=0 speed=3.79314E-5 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.99177 stretch=0 fault=Rotation non observable
+6 rope32 FAIL error=8.371795 tailTilt=0 speed=0.0122217005 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=71.628204 stretch=0 fault=nil
+Quad independent cable plant 0/4; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter

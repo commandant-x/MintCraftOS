@@ -5,7 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.2.2'
+VERSION='0.3.0'
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
  'output_characterization','tilt_response','known_flight','motion_progress',
@@ -87,6 +87,22 @@ def native_universal():
  simple=mount_prefix+'local PROFILE_DEFAULT=1\n'+source(BASE/'src/mount-simple.lua')
  slim_bus=source(BASE/'src/groups-simple.lua').replace('GROUP_COUNT','4').replace('GROUP_INPUTS',','.join("input('Group "+str(i)+"','string')" for i in range(1,5))).replace('OBSERVATION_INPUTS',','.join("input('Observation "+str(i)+"','string')" for i in range(1,5)))
  return {'autopilot-control':prefix+source(BASE/'src/autopilot-node.lua'),'mount-group':mount,'mount-simple':simple,'groups-simple':slim_bus,'mount-bus':source(BASE/'src/mount-bus.lua'),'mount-setup':source(BASE/'src/setup-node.lua'),'flight-commands':source(BASE/'src/command-node.lua'),'local-map':source(BASE/'src/map-node.lua')}
+def native_quad_fpv():
+ # Dedicated writer: never inject experimental attitude control into other profiles.
+ text=native_universal()['autopilot-control']
+ start=text.index('function M.signals(meta,values,quant)');end=text.index('function M.capabilities(',start)
+ text=text[:start]+source(BASE/'src/quad-pwm.lua')+'\n'+text[end:]
+ start=text.index('function M.capabilities(');end=text.index('return M\n',start)
+ text=text[:start]+source(BASE/'src/quad-capabilities.lua')+'\n'+text[end:]
+ start=text.index(' function s:step(p,command,lastSignals,feedback)');end=text.rfind('end)()',start,text.index('_G.MintCraftFlightModules={'))
+ return (text[:start]+source(BASE/'src/quad-flight-step.lua')+text[end:]).replace('c.tilt>20','c.tilt>45')
+
+def fpv_graph(scripts,consent):
+ scripts=dict(scripts);scripts['autopilot-control']=scripts['autopilot-quad-fpv']
+ scripts['mount-setup']=scripts['mount-setup'].replace("'Consigne montee m/s','1'","'Consigne montee m/s','4'").replace("'Inclinaison deplacement: 0 < deg <= 20','8'","'Inclinaison deplacement: 0 < deg <= 45','25'").replace("'tilt',0,20,","'tilt',0,45,").replace('valeur <= 20 deg','valeur <= 45 deg').replace("'Deceleration de planification estimee m/s2','1'","'Deceleration de planification estimee m/s2','4'")
+ scripts['mount-simple']=scripts['mount-simple'].replace('local base=MountDefaults(PROFILE_DEFAULT,GROUP_DEFAULT)','local base=MountDefaults(PROFILE_DEFAULT,GROUP_DEFAULT);base.kind=\'bearing\';base.sails=12')
+ return architecture_graph(scripts,consent,1,4,'quad-fpv','Quad FPV experimental: 4 modulaires identiques')
+
 def architecture_graph(scripts,consent,profile,count,slug,label):
  # Keep the exact flight writer; reduce only editor forms, pins and rendering.
  setup=scripts['mount-setup'].replace("profile=ui.slider('Architecture',1,5,300)","profile=ui.label('Architecture fixe: "+label+"')")
@@ -119,11 +135,13 @@ def main():
  quad="local Physics=(function()\n"+source(BASE/'src/aero_physics.lua')+"\nend)()\nlocal Quad=(function()\n"+source(BASE/'src/quad_control.lua')+"\nend)()\nQuad.Physics=Physics\n"+source(BASE/'src/quad-node.lua')
  scripts={'architecture-selector':source(BASE/'src/architecture-selector.lua'),'flight-telemetry':source(BASE/'src/flight-telemetry.lua'),'link-test':source(BASE/'src/link-test.lua'),'quad-control':quad,'typewriter':source(BASE/'src/typewriter.lua'),'vehicle-mixer':vehicle,'bank-test':bank,'test-sequencer':sequencer,'test-enable':consent,'drive-mixer':mixer,'import-test':source(BASE/'src/import-test.lua'),'dashboard':source(BASE/'src/dashboard.lua'),'link-gateway':source(BASE/'src/gateway.lua'),'numeric-radio':source(BASE/'src/radio.lua')}
  scripts.update(native_universal())
+ scripts['autopilot-quad-fpv']=native_quad_fpv()
  # Token whitespace compaction preserves literals/operators and source lines.
  # Readable module sources remain the source of truth.
  aliases={name:'_'+str(i) for i,name in enumerate(['Portable','Geometry','Physics','Response','Progress','Filter','Vehicle','Mission','Calibration','Flight'])}
  aliases.update({name:'_'+chr(65+i) for i,name in enumerate(['worldAx','worldAz','desiredYaw','worldRate','requestedSpeed','provisional'])})
  scripts['autopilot-control']=compact(scripts['autopilot-control'],aliases,keep_lines=False,private_identifiers=True,explicit_methods=True)
+ scripts['autopilot-quad-fpv']=compact(scripts['autopilot-quad-fpv'],aliases,keep_lines=False,private_identifiers=True,explicit_methods=True)
  artifacts={}
  (out/'sdk').mkdir(exist_ok=True)
  (out/'profiles').mkdir(exist_ok=True)
@@ -186,12 +204,16 @@ def main():
   path.write_text(graph_clipboard(nodes,edges),encoding='utf-8')
   artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
   architecture_graphs[slug]={'file':path.name,'profile':profile,'groups':count,'nodes':len(nodes),'connections':len(edges),'mapIncluded':False,'flightControllerSha256':hashlib.sha256(scripts['autopilot-control'].encode()).hexdigest()}
+ nodes,edges=fpv_graph(scripts,consent)
+ path=out/'mintcraft-quad-fpv.clipboard.txt';path.write_text(graph_clipboard(nodes,edges),encoding='utf-8')
+ artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
  manifest={'schema':1,'edition':'MintCraft Sputnik','version':VERSION,'target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
   'nativeSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((BASE/'src').glob('*.lua'))},
+  'experimentalQuadFpv':{'file':'mintcraft-quad-fpv.clipboard.txt','nodes':10,'connections':29,'scope':'four identical modular vertical rotors; synthetic validation only','controllerSha256':hashlib.sha256(scripts['autopilot-quad-fpv'].encode()).hexdigest()},
   'architectureGraphs':architecture_graphs,'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
@@ -200,7 +222,7 @@ def main():
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
    z.writestr(entry,path.read_bytes())
-  for name in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','LICENSE'):
+  for name in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
    path=ROOT/name if name=='LICENSE' else BASE/name
    if path.exists():
     entry=zipfile.ZipInfo(name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
@@ -209,11 +231,11 @@ def main():
   source_paths.update(BASE.glob('*.md'));source_paths.add(ROOT/'LICENSE')
   source_paths.update(ROOT/(name.replace('.','/')+'.lua') for name in MODULES)
   source_paths.update(ROOT/'tests'/(name+'.lua') for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight'))
-  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
+  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
   for path in sorted(source_paths):
-   if path.is_file():
+   if path.is_file() and path.name not in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2'):
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.0'):
    reports=BASE/'reports'/report_name
    if reports.exists():
     for path in sorted(reports.rglob('*')):

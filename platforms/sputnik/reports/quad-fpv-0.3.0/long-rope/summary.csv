@@ -1,0 +1,4 @@
+profile,scenario,status,altitude_error,max_tilt,final_speed,tail_speed_rms,tail_tilt,min_altitude,max_altitude,target_altitude,first_upright_seconds,recovery_seconds,climb90_seconds,tilt90_seconds,brake_seconds,release_speed,rope_stretch,first_fault
+6,rope32,PASS,0.004205381,0,0.00127712,0.016820716,0,78.9698,80.25678,80,0,0,0,0,0,0,0,""
+6,rope-swing,FAIL,0.043768946,21.665504,0.91493887,1.8057264,19.57213,78.72407,82.41791,80,0,0,0,0,0,0,5.0746962E-11,""
+6,rope-release,PASS,0.0024396393,0,0.043069664,0.025237316,0,78.9698,80.613014,80,0,0,0,0,0,0,0,""

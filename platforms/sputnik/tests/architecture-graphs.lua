@@ -54,7 +54,7 @@ for _,graph in ipairs(assert(MINTCRAFT_ARCHITECTURE_GRAPHS,'Missing generated-gr
  assert(state.writes==0,'Boot-high armed a light graph')
  assert(at('montage').outputs.Architecture==graph.profile,'Wrong preselected architecture')
  assert(at('montage').outputs.Settings:match('^MCU1;'..graph.profile..';'),'Wrong saved settings profile')
- local pilot=at('autopilot');assert(nodes[graph.slug..'-autopilot'].source==ownerSource,'Light graph changed flight controller')
+ local pilot=at('autopilot');assert(nodes[graph.slug..'-autopilot'].source==(graph.fpv and read('platforms/sputnik/dist/mintcraft-autopilot-quad-fpv.lua') or ownerSource),'Light graph changed flight controller')
  state.bus[enablePair]=0;frame();frame();frame();state.bus[enablePair]=15;frame()
  assert(pilot.outputs.Active==1,graph.slug..': '..tostring(pilot.outputs.Status))
  local core=pilot.MintCraftPilot.core;assert(#core.groups==graph.groups)
@@ -88,7 +88,7 @@ for _,graph in ipairs(assert(MINTCRAFT_ARCHITECTURE_GRAPHS,'Missing generated-gr
  mountRun();assert(env.outputs.Group==saved,'Rejected import destroyed the current montage')
  editor.advanced.setValue('dx=3;dz=5');mountRun();assert(env.outputs.Group=='INVALID_GROUP' and editor.status.getValue():find('direction',1,true),'Non-unit direction not explained')
  editor.advanced.setValue('');mountRun();local vertical=assert(vehicle.decode(env.outputs.Group));assert(vertical.dx==0 and vertical.dy==1 and vertical.dz==0,'Coordinates leaked into thrust direction')
- settings.fields.tilt.value.setValue('30');nodes[graph.slug..'-montage'].run();assert(settings.help.getValue():find('20',1,true),'Tilt range not explained at entry')
+ settings.fields.tilt.value.setValue(graph.fpv and '46' or '30');nodes[graph.slug..'-montage'].run();assert(settings.help.getValue():find(graph.fpv and '45' or '20',1,true),'Tilt range not explained at entry')
  settings.fields.tilt.value.setValue('8');settings.fields.margin.value.setValue('-.5');nodes[graph.slug..'-montage'].run();assert(settings.help.getValue():find('Rayon',1,true),'Negative hull radius accepted by UI')
  print('Light architecture '..graph.slug..': '..#graph.nodes..' nodes, '..#graph.edges..' links, '..widgets..' widgets; correct presets, sole unchanged writer, boot-high gate, physical OFF and hot altitude passed')
 end

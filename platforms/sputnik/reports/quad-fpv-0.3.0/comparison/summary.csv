@@ -1,0 +1,5 @@
+profile,scenario,status,altitude_error,max_tilt,final_speed,tail_speed_rms,tail_tilt,min_altitude,max_altitude,target_altitude,first_upright_seconds,recovery_seconds,climb90_seconds,tilt90_seconds,brake_seconds,release_speed,rope_stretch,first_fault
+6,climb,FAIL,0.017235087,0,0.007887409,0.015417551,0,79.99177,91.75211,88.0,0,0,0,0,0,0,0,""
+6,brake,FAIL,0.051201846,28.990236,0.023262987,0.025273629,0.31886303,76.707054,84.69821,80,0,0,0,1,6.7,15.939282,0,""
+6,flip180,FAIL,0.0061737164,0,3.79314E-5,0,0,79.99177,80,80,0,0,0,0,0,0,0,"Rotation non observable"
+6,rope32,FAIL,8.371795,0,0.0122217005,0.007775928,0,71.628204,80,80,0,0,0,0,0,0,0,""

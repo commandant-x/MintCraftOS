@@ -1,4 +1,6 @@
-# État d'implémentation — Autopilote Sputnik 0.2.x
+> 0.3.0 : profil quad rapide séparé, voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte ; ne pas confondre avec une qualification Minecraft.
+
+# État d'implémentation — Autopilote Sputnik 0.3.0
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 
@@ -12,3 +14,7 @@ Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les con
 | F Missions | Planificateur 3D local borné, zones/marges déclarées, routes XYZ, pause/reprise/retour, freinage passif, trace, points de coque déclarée, vues natives 2D/3D, maintien final | Contraintes de virage et de freinage garanties sur toute la trajectoire ; cartes terrain impossibles sans source réelle |
 
 Le banc indépendant distingue les succès, les échecs et les hypothèses. Les mesures de déplacement ne deviennent pas des ACK matériels. Le drapeau global de qualification reste faux. La livraison n'a pas été essayée dans le monde Minecraft du joueur.
+
+## Ajout 0.3.0 : quad rapide séparé
+
+Quantification collective synchronisée, réponse verticale directe, référence d’inclinaison amortie, réserve de portance prédictive, compensation passive de charge non exposée par la masse et récupération sans verrouillage sur angle. Référence modulaire identique : 12/12 scénarios synthétiques LuaJ passent. Stress faible inertie/retard : 2/4 ; corde longue avec balancement : 2/3. Ces échecs restent ouverts. Le profil rapide refuse les petites hélices et les hélices hétérogènes ; le contrôleur standard reste inchangé. Les missions et la calibration du profil rapide ne sont pas qualifiées par ces essais de stabilisation.

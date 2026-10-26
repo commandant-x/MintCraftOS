@@ -1,3 +1,5 @@
+> 0.3.0 : profil quad rapide séparé, voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte ; ne pas confondre avec une qualification Minecraft.
+
 # Quad natif Sputnik 0.1.20 — contrôleur expérimental
 
 Cette version ajoute réellement un nœud qui émet vers **quatre fréquences Link**.

@@ -63,11 +63,19 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
   assert len(builder.pins(bus)['input'])==2*record['groups'],'Unused group pins returned'
   graph='{slug='+json.dumps(slug)+',profile='+str(record['profile'])+',groups='+str(record['groups'])+',nodes={'+','.join('{name='+json.dumps(n)+',code='+lua_literal(c)+'}' for n,c,x,y in nodes)+'},edges={'+','.join('{'+','.join(json.dumps(v) for v in edge)+'}' for edge in edges)+'}}'
   architecture_graphs.append(graph)
+ scripts['autopilot-quad-fpv']=(dist/'mintcraft-autopilot-quad-fpv.lua').read_text()
+ nodes,edges=builder.fpv_graph(scripts,builder.source(builder.BASE/'src/test-enable.lua'))
+ assert builder.graph_clipboard(nodes,edges)==(dist/'mintcraft-quad-fpv.clipboard.txt').read_text()
+ graph='{slug="quad-fpv",fpv=true,profile=1,groups=4,nodes={'+','.join('{name='+json.dumps(n)+',code='+lua_literal(c)+'}' for n,c,x,y in nodes)+'},edges={'+','.join('{'+','.join(json.dumps(v) for v in edge)+'}' for edge in edges)+'}}'
+ architecture_graphs.append(graph)
  architecture_bootstrap.write_text('MINTCRAFT_ARCHITECTURE_GRAPHS={'+','.join(architecture_graphs)+'}\n')
  execute([java,'-cp',cp,'VerifySputnikLua',architecture_bootstrap,'platforms/sputnik/tests/architecture-graphs.lua'])
  readable=folder/'native-readable.lua';readable.write_text(builder.native_universal()['autopilot-control'])
  equivalence=folder/'equivalence-bootstrap.lua';equivalence.write_text('MINTCRAFT_UNCOMPACTED='+json.dumps(str(readable))+'\n')
  execute([java,'-cp',cp,'VerifySputnikLua',equivalence,'platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua','platforms/sputnik/tests/link-test.lua','platforms/sputnik/tests/quad-graph.lua','platforms/sputnik/tests/architecture-selector.lua','platforms/sputnik/tests/universal-flight.lua','platforms/sputnik/tests/universal-native.lua'])
+ fpv_readable=folder/'fpv-readable.lua';fpv_readable.write_text(builder.native_quad_fpv())
+ fpv_boot=folder/'fpv-bootstrap.lua';fpv_boot.write_text('MINTCRAFT_FPV_READABLE='+json.dumps(str(fpv_readable))+'\n')
+ execute([java,'-cp',cp,'VerifySputnikLua',fpv_boot,'platforms/sputnik/tests/quad-fpv.lua'])
  if not args.interface_only:
   # Prevent the low-inertia resonance from returning behind a favourable plant.
   twin_bootstrap=folder/'twin-bootstrap.lua'
@@ -99,12 +107,13 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
    assert actual==(ROOT/'platforms/sputnik/tests/fixtures/sable-pressure.csv').read_bytes(),'Actual Sable pressure oracle changed'
   execute([javac,'-proc:none','-cp',args.minecraft_classpath,'-d',folder,ROOT/'tools/VerifySputnikClipboard.java'])
   pairs=[]
-  for name in ('mount-simple','groups-simple','autopilot-control','mount-group','mount-bus','mount-setup','flight-commands','local-map','architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
+  for name in ('autopilot-quad-fpv','mount-simple','groups-simple','autopilot-control','mount-group','mount-bus','mount-setup','flight-commands','local-map','architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
    base='platforms/sputnik/dist/mintcraft-'+name;pairs.extend([base+'.clipboard.txt',base+'.lua'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-two-bank-tests.clipboard.txt','@graph'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-flight-audit.clipboard.txt','@graph:2:1'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-quad-flight.clipboard.txt','@graph:7:17'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-autopilot.clipboard.txt','@graph:16:46'])
+  pairs.extend(['platforms/sputnik/dist/mintcraft-quad-fpv.clipboard.txt','@graph:10:29'])
   for record in manifest['architectureGraphs'].values():
    pairs.extend(['platforms/sputnik/dist/'+record['file'],'@graph:'+str(record['nodes'])+':'+str(record['connections'])])
   execute([java,'-Dmintcraft.sputnik.payload=true','-cp',str(folder)+os.pathsep+args.minecraft_classpath+os.pathsep+str(args.cosmonautics_jar),'VerifySputnikClipboard',*pairs])

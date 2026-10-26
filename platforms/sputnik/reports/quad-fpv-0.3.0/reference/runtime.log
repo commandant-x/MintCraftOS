@@ -1,0 +1,14 @@
+6 hover PASS error=0.0047118017 tailTilt=0 speed=0.008082188 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.98809 stretch=0 fault=nil
+6 tilt PASS error=0.0353069 tailTilt=0.8021578 speed=0.102415055 recovery=1.15 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.74063 stretch=0 fault=nil
+6 flip90 PASS error=0.12720878 tailTilt=0.5352804 speed=0.07965378 recovery=2 climb90=0 tilt90=0 stop=0 firstUpright=1.4 minimumY=76.720985 stretch=0 fault=nil
+6 flip150 PASS error=0.026623689 tailTilt=0.50939494 speed=0.08267445 recovery=7.15 climb90=0 tilt90=0 stop=0 firstUpright=1.45 minimumY=61.70778 stretch=0 fault=nil
+6 flip180 PASS error=0.015739668 tailTilt=0.7262457 speed=0.12465774 recovery=4.6 climb90=0 tilt90=0 stop=0 firstUpright=0.9 minimumY=69.08326 stretch=0 fault=nil
+6 climb PASS error=0.010037027 tailTilt=0 speed=0.007869844 recovery=0 climb90=0.85 tilt90=0 stop=0 firstUpright=0 minimumY=79.989624 stretch=0 fault=nil
+6 brake PASS error=0.019549591 tailTilt=0.49522316 speed=0.06597519 recovery=0 climb90=0 tilt90=0.7 stop=4 firstUpright=0 minimumY=79.579185 stretch=0 fault=nil
+6 rope12 PASS error=0.0128636435 tailTilt=0 speed=0.011918285 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.53843 stretch=0 fault=nil
+6 rope32 PASS error=0.004205381 tailTilt=0 speed=0.00127712 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.9698 stretch=0 fault=nil
+6 rope-swing PASS error=0.038254045 tailTilt=0.76159525 speed=0.056420404 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.49336 stretch=7.3097084E-13 fault=nil
+6 rope-release PASS error=0.0074251266 tailTilt=0 speed=0.012558857 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.53843 stretch=0 fault=nil
+6 rope-offset PASS error=0.011003103 tailTilt=1.549592 speed=0.09057163 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.55403 stretch=2.1138646E-13 fault=nil
+Quad independent cable plant 12/12; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter
