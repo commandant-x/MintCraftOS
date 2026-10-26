@@ -5,7 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.3.3'
+VERSION='0.3.4'
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
  'output_characterization','tilt_response','known_flight','motion_progress',
@@ -90,6 +90,18 @@ def native_universal():
 def native_quad_fpv():
  # Dedicated writer: never inject experimental attitude control into other profiles.
  text=native_universal()['autopilot-control']
+ # The dedicated quad has no surface/linear paths or quaternion-error caller.
+ start=text.index('function M.attitudeError(');end=text.index('function M.coefficients(',start)
+ text=text[:start]+text[end:]
+ start=text.index('function M.matrix(');end=text.index('function M.solve(',start)
+ text=text[:start]+source(BASE/'src/quad-matrix.lua')+'\n'+text[end:]
+ # Preserve all shared validation; narrow only the already-supported quad domain.
+ old="if g.kind~='small' and g.kind~='bearing' and g.kind~='linear' and g.kind~='surface' then return nil,'Type moteur inconnu' end"
+ new="if (g.kind~='small' and g.kind~='bearing') or g.role~='lift' or g.dx~=0 or g.dy~=1 or g.dz~=0 then return nil,'FPV: helices verticales requises' end"
+ assert old in text;text=text.replace(old,new)
+ old="  if g.role~='lift' and g.role~='drive' and g.role~='yaw-left' and g.role~='yaw-right' and g.role~='pitch' and g.role~='roll' then return nil,'Role inconnu' end\n"
+ assert old in text;text=text.replace(old,'')
+ text=text.replace("  local n=math.sqrt(g.dx^2+g.dy^2+g.dz^2)\n  if math.abs(n-1)>.001 then return nil,'Direction de poussee normalisee requise' end\n",'')
  start=text.index('function M.solve(model,wanted)');end=text.index('function M.signals(',start)
  text=text[:start]+source(BASE/'src/quad-allocator.lua')+'\n'+text[end:]
  start=text.index('local Response=(function()');end=text.index('\nend)()',start)+len('\nend)()')
@@ -235,11 +247,15 @@ def main():
   source_paths.update(BASE.glob('*.md'));source_paths.add(ROOT/'LICENSE')
   source_paths.update(ROOT/(name.replace('.','/')+'.lua') for name in MODULES)
   source_paths.update(ROOT/'tests'/(name+'.lua') for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight'))
-  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
+  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-sputnik-quad-com.py','report-sputnik-quad-com.py','verify-sputnik-quad-com.py','quad_com_contract.py','test-quad-com-contract.py','sputnik-com-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
   for path in sorted(source_paths):
    if path.is_file() and path.name not in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.3'):
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.4'):
+   if report_name!='quad-fpv-0.3.4':
+    entry=zipfile.ZipInfo('reports/'+report_name+'/README.md',(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
+    link='https://github.com/commandant-x/MintCraftOS/tree/80fe2f7c3150dab1c108a4e5c303be458dc91568/platforms/sputnik/reports/'+report_name
+    z.writestr(entry,'# Historical evidence\n\nThe immutable sources, measurements and prior reports are available at '+link+' .\n');continue
    reports=BASE/'reports'/report_name
    if reports.exists():
     for path in sorted(reports.rglob('*')):

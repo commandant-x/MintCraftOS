@@ -1,4 +1,4 @@
-> 0.3.3 : petites corrections de couple conservées par la modulation quad à 256 RPM, sans changement mécanique ; voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte du vol Minecraft.
+> 0.3.4 : rééquilibrage passif du quad après déplacement de charge, sans modifier la consigne verticale ; voir [QUAD-FPV.md](QUAD-FPV.md). Contrôleurs standard inchangés. Domaine synthétique et échecs publiés, distincts du vol Minecraft.
 
 # Autopilote Sputnik 0.2.2 — un TXT par architecture
 

@@ -11,7 +11,7 @@ function M.signals(meta,values,quant)
   local g=m.group;local signal,slope
   if g.kind=='linear' or g.kind=='surface' then signal=values[i];slope=1
   else
-   local lead=quant.recovering and 1 or math.max(0,(-.05/math.log(1-m.alpha))/(slow/1.4)-1)
+   local lead=(quant.recovering or quant.trimBoost) and 1 or math.max(0,(-.05/math.log(1-m.alpha))/(slow/1.4)-1)
    local force=clip(desiredForce[i]+lead*(desiredForce[i]-estimatedForce[i]-difference/#meta)+(quant.verticalFast and 3 or 1)*difference/#meta,0,15*m.unit)
    local rpm=force<=0 and 0 or force/(g.members*m.thrust*m.pressure)+math.max(0,m.axial)/m.airflow
    if quant.refRate and not quant.recovering then

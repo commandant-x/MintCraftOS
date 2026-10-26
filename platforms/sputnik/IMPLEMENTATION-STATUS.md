@@ -1,6 +1,6 @@
-> 0.3.3 : petites corrections de couple conservées par la modulation quad à 256 RPM, sans changement mécanique ; voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte du vol Minecraft.
+> 0.3.4 : rééquilibrage passif du quad après déplacement de charge, sans modifier la consigne verticale ; voir [QUAD-FPV.md](QUAD-FPV.md). Contrôleurs standard inchangés. Domaine synthétique et échecs publiés, distincts du vol Minecraft.
 
-# État d'implémentation — Autopilote Sputnik 0.3.3
+# État d'implémentation — Autopilote Sputnik 0.3.4
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 
@@ -32,3 +32,7 @@ La campagne lourde 0.3.1 avait révélé que la validation précédente était i
 ## Correction 0.3.3 : modulation continue à régime fixe
 
 Suppression du raccourci qui remplaçait les demandes presque égales par une sortie commune et effaçait les petites corrections différentielles. Un seul quantificateur couplé conserve désormais le résidu de couple, y compris près du maintien. Régime source 256 RPM, transmissions 0–15, géométrie, gains et interface conservés ; aucune modification mécanique demandée. La régression couvre les faibles couples signés et les départs inclinés. Voir [les mesures comparées](reports/quad-pwm-0.3.3/README.md). La campagne publie toujours les cas en échec ; le plan A–F n'est pas entièrement qualifié.
+
+## Correction 0.3.4 : charge décentrée
+
+Le quad adapte les bras de levier effectifs à partir des commandes émises et des accélérations angulaires, conserve la cible verticale et utilise la famille complète des allocations bornées. Aucun nouveau champ de centre de masse ni impulsion de calibration. Le contrôleur standard reste identique. Les [72 scénarios de charge](reports/quad-com-0.3.4/README.md) publient 15/36 succès COM contre 6/36 auparavant et tous les échecs : cette adaptation ne qualifie pas tous les centres de masse, retards ou manœuvres. Les critères COM et les anciens critères de campagne sont séparés. Le plan A–F reste incomplet.

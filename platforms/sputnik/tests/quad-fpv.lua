@@ -66,6 +66,27 @@ for _,torque in ipairs({.01,-.01}) do
  assert(math.abs(up/2048-11)<.05,'Near-hover modulation lost mean lift')
  assert(math.abs(moment/2048-torque)<.003,'Weak signed torque was rounded away near hover')
 end
+-- Dedicated vertical model must preserve the general model for accepted rotors.
+local general=loadBundle('platforms/sputnik/dist/mintcraft-autopilot-control.lua')
+local varied=groups()
+for i,g in ipairs(varied) do g.kind=i==2 and 'small' or 'bearing';g.sails=8+i*4;g.members=i==3 and 2 or 1;g.thrust=g.kind=='small' and 1 or .2;g.airflow=g.kind=='small' and .1 or .05 end
+for t=1,100 do
+ local p={q=general[7].quaternion(30*math.sin(t),t*3,20*math.cos(t)),y=80,mass=32,ix=250,iy=400,iz=230}
+ local v={x=math.sin(t)*3,y=math.cos(t),z=t/10};local d={1,1,1,1}
+ local before,bmeta=general[7].matrix(varied,p,v,32,d);local after,ameta=A[7].matrix(varied,p,v,32,d)
+ for i=1,4 do
+  for j=1,6 do assert(math.abs(before.columns[i].response[j]-after.columns[i].response[j])<1e-12,'Vertical model specialization changed nominal physics') end
+  for _,k in ipairs({'unit','pressure','axial','thrust','airflow','alpha'}) do assert(math.abs(bmeta[i][k]-ameta[i][k])<1e-12) end
+ end
+end
+-- A center inside the support rectangle can require a non-minimum-norm solution.
+local model=A[7].matrix(gs,p,{x=0,y=0,z=0},p.mass,{1,1,1,1})
+for _,c in ipairs(model.columns) do c.response[4]=c.response[4]+3*p.mass/p.ix*c.response[3];c.response[6]=c.response[6]-2*p.mass/p.iz*c.response[3] end
+local levels,proof=A[7].solve(model,{0,0,11,0,0,0});assert(levels,proof)
+assert(math.abs(proof.actual[3]-11)<1e-7 and math.abs(proof.actual[4])<1e-7 and math.abs(proof.actual[6])<1e-7,'Inside-support corner lost equilibrium')
+local outside=A[7].matrix(gs,p,{x=0,y=0,z=0},p.mass,{1,1,1,1})
+for _,c in ipairs(outside.columns) do c.response[6]=c.response[6]-4*p.mass/p.iz*c.response[3] end
+assert(not A[7].solve(outside,{0,0,11,0,0,0}),'Outside-support equilibrium falsely accepted')
 local _,reason=A[7].decode('INVALID_GROUP');assert(reason:find('formulaire',1,true),'Opaque descriptor error returned')
 assert(not a:step(pose(300),{forward=0,left=0,vertical=0},sa),'Repeated observation accepted')
-print('FPV compact/readable parity, hot target without estimator reset, stale requests/observations and per-rotor models, collective priority and unsupported tilt refusal passed')
+print('FPV compact/readable parity, hot target without estimator reset, stale requests/observations and per-rotor models, collective priority and unsupported tilt refusal, 100-pose model equivalence and full support geometry passed')

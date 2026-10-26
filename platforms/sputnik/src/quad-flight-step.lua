@@ -1,10 +1,9 @@
- for _,g in ipairs(s.groups) do if (g.kind~='bearing' and g.kind~='small') or g.role~='lift' or g.dx~=0 or g.dy~=1 or g.dz~=0 then return nil,'FPV: helices verticales requises' end end
  if #s.groups~=4 or not s.capabilities.pitch.available or not s.capabilities.roll.available then return nil,'FPV: autorite insuffisante' end
  for i,g in ipairs(s.groups) do local m=metadata[i];s.spool[g.id]=allocation[i]*m.unit/(g.members*m.thrust*m.pressure)+math.max(0,m.axial)/m.airflow end
  s.response=.35;for _,g in ipairs(s.groups) do local alpha=select(3,V.coefficients(g));s.response=math.max(s.response,-.05/math.log(1-alpha)) end
  s.refAngle=vec(0,0,0);s.refRate=vec(0,0,0)
- -- Passive additive force and moment corrections; no physical identity claim.
- s.forceFilter=0;s.loadBias=0;s.torqueFilter=vec(0,0,0);s.pendingCommand=V.copy(s.initialSignals)
+ -- Passive force bias and effective torque balance; no measured COM claim.
+ s.forceFilter=0;s.loadBias=0;s.thrustFilter=0;s.thrustRate=0;s.torqueRate=vec(0,0,0);s.torqueFilter=vec(0,0,0);s.pendingCommand=V.copy(s.initialSignals)
  function s:step(p,command,lastSignals)
   local cfg=self.config;local why;p,why=M.pose(p);if not p then return nil,why end
   if p.dimension~=self.previous.dimension then return nil,'Dimension modifiee' end
@@ -96,10 +95,39 @@
   end
   torque.x=(torque.x-(p.iz-p.iy)*self.omega.y*self.omega.z)/p.ix
   torque.z=(torque.z-(p.iy-p.ix)*self.omega.x*self.omega.y)/p.iz
-  for _,axis in ipairs({'x','z'}) do self.torqueFilter[axis]=self.torqueFilter[axis]+dt/(.12+dt)*(torque[axis]-self.torqueFilter[axis]) end
+  for _,axis in ipairs({'x','z'}) do self.torqueRate[axis]=self.torqueRate[axis]+dt/(.025+dt)*(torque[axis]-self.torqueRate[axis]);self.torqueFilter[axis]=self.torqueFilter[axis]+dt/(.12+dt)*(self.torqueRate[axis]-self.torqueFilter[axis]) end
+  self.thrustRate=self.thrustRate+dt/(.025+dt)*(force-self.thrustRate);self.thrustFilter=self.thrustFilter+dt/(.12+dt)*(self.thrustRate-self.thrustFilter)
+  local oldBias=V.copy(self.angleBias)
+  local relative=math.max(.1,self.thrustFilter/(p.mass*p.gravity))
+  for _,axis in ipairs({'x','z'}) do
+   local key=axis=='x' and 'ix' or 'iz'
+   self.angleBias[axis]=self.angleBias[axis]*(p.mass/self.previous.mass)*(self.previous[key]/p[key]);oldBias[axis]=self.angleBias[axis]
+   if self.samples>4 and not recovering and not probe and up.y>.5 then
+    local goal=(self.torqueFilter[axis]-self.angularAcceleration[axis])/relative
+    self.angleBias[axis]=self.angleBias[axis]+dt/(.2+dt)*(goal-self.angleBias[axis])
+   end
+  end
+  local function compensate(bias)
+   for _,c in ipairs(model.columns) do
+    c.response[4]=c.response[4]-bias.x/p.gravity*c.response[3]
+    c.response[6]=c.response[6]-bias.z/p.gravity*c.response[3]
+   end
+  end
+  compensate(self.angleBias)
+  self.trimLimited=not V.solve(model,{0,0,0,0,0,0})
+  if self.trimLimited then
+   compensate(vec(oldBias.x-self.angleBias.x,0,oldBias.z-self.angleBias.z));self.angleBias=oldBias;ax,az=0,0
+  end
+  if self.quant.error then
+   local debt=self.quant.error;debt[3]=debt[3]*self.previous.mass/p.mass
+   for _,index in ipairs({4,6}) do
+    local axis=index==4 and 'x' or 'z';local key=index==4 and 'ix' or 'iz'
+    debt[index]=debt[index]*self.previous[key]/p[key]-(self.angleBias[axis]-oldBias[axis])/p.gravity*debt[3]*10
+   end
+  end
   self.pendingCommand=V.copy(lastSignals or self.initialSignals)
   self.forceFilter=self.forceFilter+dt/(.12+dt)*(force/p.mass*up.y-p.gravity-self.forceFilter)
-  if not recovering and up.y>.85 and math.abs(self.omega.x)+math.abs(self.omega.z)<.6 then
+  if not recovering and up.y>.85 and math.abs(self.omega.x)+math.abs(self.omega.z)<.6 and math.abs(self.angularAcceleration.x)+math.abs(self.angularAcceleration.z)<.5 then
    local bias=clip(self.forceFilter-self.acceleration.y,-p.gravity*.4,p.gravity*3)
    self.loadBias=self.loadBias+dt/(1+dt)*clip(bias-self.loadBias,-p.gravity*.5,p.gravity*.5)
   end
@@ -154,8 +182,8 @@
   local dr,da=8,1.2
   local angular=vec(clip(px,4,40)*error.x-dr*self.omega.x-da*self.angularAcceleration.x,0,clip(pz,4,40)*error.z-dr*self.omega.z-da*self.angularAcceleration.z)
   for _,axis in ipairs({'x','z'}) do
-   if self.samples>40 and math.abs(v.y)<.5 and not manual and not recovering and not probe and (not desired or cal and cal.phase=='BASELINE') and math.abs(error[axis])<.35 and math.abs(self.omega[axis])<.4 then self.angleBias[axis]=self.angleBias[axis]+dt/(1+dt)*(clip(self.torqueFilter[axis]-self.angularAcceleration[axis],-2,2)-self.angleBias[axis]) end
-   angular[axis]=clip(angular[axis]+self.angleBias[axis]+dr*self.refRate[axis]+(1+da)*referenceAcceleration[axis],recovering and -48 or -12,recovering and 48 or 12)
+
+   angular[axis]=clip(angular[axis]+dr*self.refRate[axis]+(1+da)*referenceAcceleration[axis],recovering and -48 or -12,recovering and 48 or 12)
   end
   local yError=self.target.y-self.filters.y.x
   local desiredVy=command.vertical~=0 and command.vertical*(cfg.climb or 4) or clip(yError,-(cfg.climb or 4),cfg.climb or 4)
@@ -172,12 +200,12 @@
   local values,allocation=V.solve(model,wanted);if not values then return nil,allocation end
   if probe then values[probe.index]=clip(values[probe.index]+probe.delta,0,15) end
   for i,m in ipairs(meta) do m.column=model.columns[i].response end
-  self.quant.trackingFast=(command.forward~=0 or command.left~=0 or self.quant.trackingFast and speed>.3) and math.abs(self.loadBias)<p.gravity*.1;self.quant.verticalFast=(command.vertical~=0 or math.abs(v.y)>.3) and not recovering;self.quant.refRate=self.refRate;self.quant.spool=self.spool;self.quant.recovering=recovering
+  self.quant.trimBoost=math.abs(self.angleBias.x-oldBias.x)+math.abs(self.angleBias.z-oldBias.z)>.1;self.quant.trackingFast=(command.forward~=0 or command.left~=0 or self.quant.trackingFast and speed>.3) and math.abs(self.loadBias)<p.gravity*.1;self.quant.verticalFast=(command.vertical~=0 or math.abs(v.y)>.3) and not recovering;self.quant.refRate=self.refRate;self.quant.spool=self.spool;self.quant.recovering=recovering
   local signals,why=V.signals(meta,values,self.quant);if not signals then return nil,why end
   if not recovering and math.abs(allocation.actual[3]-wanted[3])<.1 then self.integral=clip(self.integral+.15*yError*dt,-p.gravity*.8,p.gravity*2) end
   local capacity=0;for _,c in ipairs(model.columns) do capacity=capacity+c.response[3]*15 end
   self.verticalLimited=collective>capacity*.98
-  if self.verticalLimited and not recovering then self.phase='DEGRADED';if mission then mission:pause('Reserve verticale insuffisante') end end
+  if (self.verticalLimited or self.trimLimited) and not recovering then self.phase='DEGRADED';if mission then mission:pause(self.trimLimited and 'Correction couple hors support' or 'Reserve verticale insuffisante') end end
   if desired and not recovering then
    local key=cal and not cal.complete and cal.phase or mission and tostring(mission.index)..':'..tostring(mission.segment)
    if key~=self.progressKey then self.progressKey=key;self.progress=Progress.new() end
@@ -188,7 +216,7 @@
   self.previous=p
   local info={phase=self.phase,mode=self.mode,targetY=self.target.y,altitude=p.y,verticalSpeed=v.y,speed=speed,bodyYaw=p.yaw,course=self.course,bodyYawControlled=false,
    capabilities=caps,residual=allocation.normalizedResidual,saturated=allocation.saturated,pitchTarget=pitchTarget,rollTarget=rollTarget,mass=p.mass,
-   massChanged=math.abs(p.mass-self.referenceMass)>self.referenceMass*1e-6,rxConfirmed=false,shaftConfirmed=false,loadBias=self.loadBias,reason=recovering and 'Redressement actif; perte altitude possible' or cal and not cal.complete and cal.reason or self.liftLimited and 'Inclinaison adaptee a la portance disponible' or 'Correction verticale bornee; cause non identifiee'}
+   trimPitch=self.angleBias.x,trimRoll=self.angleBias.z,trimLimited=self.trimLimited,massChanged=math.abs(p.mass-self.referenceMass)>self.referenceMass*1e-6,rxConfirmed=false,shaftConfirmed=false,loadBias=self.loadBias,reason=recovering and 'Redressement actif; perte altitude possible' or self.trimLimited and 'Equilibrage limite par support declare' or cal and not cal.complete and cal.reason or self.liftLimited and 'Inclinaison adaptee a la portance disponible' or 'Equilibrage dynamique estime'}
   self.info=info;return signals,info
  end
  return s

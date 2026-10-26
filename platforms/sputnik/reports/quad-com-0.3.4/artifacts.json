@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "archives": {
+    "native-com-traces.zip": {
+      "bytes": 13180517,
+      "sha256": "959e3ade63ca0f54c797b921853cebbe99f14fbc3cf6adc0fd4bf916880e607e"
+    },
+    "native-com-plots.zip": {
+      "bytes": 1751465,
+      "sha256": "6318d32ebbb193e11fd829e61165b0c1b2dacd962df82d1cc34786fdac49803d"
+    }
+  },
+  "trace_count": 72,
+  "classified_cases": 72
+}
