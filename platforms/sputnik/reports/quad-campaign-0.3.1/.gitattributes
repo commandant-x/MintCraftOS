@@ -1,0 +1,3 @@
+# Immutable generated evidence: preserve bytes used by checksums on every platform.
+* -text
+*.csv whitespace=cr-at-eol
