@@ -1,4 +1,4 @@
-> 0.3.1 : correction du maintien résonant du profil quad rapide séparé, voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte ; ne pas confondre avec une qualification Minecraft.
+> 0.3.2 : allocation quad à priorité collective, modèles séparés par rotor et compensation du retard ; voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Les réussites et échecs synthétiques sont publiés séparément de la validation Minecraft.
 
 # Quad natif Sputnik 0.1.20 — contrôleur expérimental
 

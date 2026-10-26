@@ -32,7 +32,7 @@ def main():
  p=argparse.ArgumentParser(description=__doc__)
  p.add_argument('--cosmonautics-jar',type=Path,required=True);p.add_argument('--java-home',type=Path,required=True)
  p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True)
- p.add_argument('--jobs',type=int,default=4);p.add_argument('--seconds',type=int,default=60)
+ p.add_argument('--tilt',type=float,default=20);p.add_argument('--jobs',type=int,default=4);p.add_argument('--seconds',type=int,default=60)
  p.add_argument('--fixtures',default='all');p.add_argument('--cases',default='all');p.add_argument('--controllers',default='standard,fpv')
  p.add_argument('--resume',action='store_true');a=p.parse_args()
  assert 1<=a.jobs<=4 and a.seconds>=40
@@ -42,7 +42,8 @@ def main():
  assert digest(a.cosmonautics_jar)==m['hostJarSha256'],'Unaudited interpreter'
  dist=ROOT/'platforms/sputnik/dist'
  controllers={'standard':dist/'mintcraft-autopilot-control.lua','fpv':dist/'mintcraft-autopilot-quad-fpv.lua'}
- selected=a.controllers.split(',');assert len(set(selected))==len(selected) and set(selected)<=set(controllers)
+ selected=a.controllers.split(',');assert 0<a.tilt<=45 and ('standard' not in selected or a.tilt<=20)
+ assert len(set(selected))==len(selected) and set(selected)<=set(controllers)
  fs=fixtures();wanted=set(a.fixtures.split(','))
  if a.fixtures!='all':assert wanted<=set(f['id'] for f in fs);fs=[f for f in fs if f['id'] in wanted]
  cases=list(MOVEMENTS) if a.cases=='all' else a.cases.split(',');assert len(set(cases))==len(cases) and set(cases)<=set(MOVEMENTS)
@@ -50,7 +51,7 @@ def main():
  for name in selected:sources['controller_'+name]=controllers[name]
  for name in selected:
   file=controllers[name];assert digest(file)==m['artifacts'][file.name]['sha256'],'Controller differs from distribution'
- record=dict(schema=SCHEMA,distribution_version=m['version'],base_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),host_sha256=digest(a.cosmonautics_jar),sources={k:digest(v) for k,v in sources.items()},seconds=a.seconds,control_hz=20,physics_hz=200,tilt_degrees=20,climb_mps=4,cases=cases,controllers=selected,fixtures=fs,criteria=CRITERIA,protocols={k:MOVEMENTS[k] for k in cases},scope='Synthetic rigid body and unilateral cable; native LuaJ. No Minecraft world qualification.',assumptions=['No ground/contacts, collision mesh, stress network, propeller gyroscopic torque or faithful Minecraft joint solver','Actual full inertia and physical disturbance parameters are independent of controller estimator; API exposes only inertia diagonal','Pressure oracle from audited Sable; actual pressure factors/wind/spool/delays are declared fixture disturbances','Common tilt 20 degrees and climb 4m/s are accepted by both public graph configurations','Four fixed upward propellers: trajectory turns are measured, nose yaw is not a controlled criterion','Refusal remains REFUSED and never becomes a successful movement; all missing/incomplete traces fail'])
+ record=dict(schema=SCHEMA,distribution_version=m['version'],base_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),host_sha256=digest(a.cosmonautics_jar),sources={k:digest(v) for k,v in sources.items()},seconds=a.seconds,control_hz=20,physics_hz=200,tilt_degrees=a.tilt,climb_mps=4,cases=cases,controllers=selected,fixtures=fs,criteria=CRITERIA,protocols={k:MOVEMENTS[k] for k in cases},scope='Synthetic rigid body and unilateral cable; native LuaJ. No Minecraft world qualification.',assumptions=['No ground/contacts, collision mesh, stress network, propeller gyroscopic torque or faithful Minecraft joint solver','Actual full inertia and physical disturbance parameters are independent of controller estimator; API exposes only inertia diagonal','Pressure oracle from audited Sable; actual pressure factors/wind/spool/delays are declared fixture disturbances','Tilt is recorded explicitly; generic graph is limited to 20deg, specialised quad accepts up to 45deg; climb demand 4m/s','Four fixed upward propellers: trajectory turns are measured, nose yaw is not a controlled criterion','Refusal remains REFUSED and never becomes a successful movement; all missing/incomplete traces fail'])
  manifest_path=a.output/'campaign.json'
  if a.resume:
   assert manifest_path.exists() and json.loads(manifest_path.read_text())==record,'Resume requires exactly the same frozen inputs/criteria'
@@ -83,7 +84,7 @@ def main():
   stamp=folder/'done.json'
   if not (a.resume and stamp.exists()):
    worker_start=time.monotonic()
-   config=dict(fixture=f,seconds=a.seconds,cases=cases,controller=str(frozen['controller_'+c]),defaults=str(frozen['defaults']),pressure=str(frozen['pressure']),output=str(folder))
+   config=dict(fixture=f,tilt=a.tilt,seconds=a.seconds,cases=cases,controller=str(frozen['controller_'+c]),defaults=str(frozen['defaults']),pressure=str(frozen['pressure']),output=str(folder))
    boot=folder/'bootstrap.lua';boot.write_text('MINTCRAFT_CAMPAIGN='+lua(config)+'\n')
    with (folder/'runtime.log').open('w') as log:
     subprocess.run(jvm+[str(boot),str(frozen['plant'])],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=900)

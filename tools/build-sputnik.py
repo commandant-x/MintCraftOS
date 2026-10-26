@@ -5,7 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.3.1'
+VERSION='0.3.2'
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
  'output_characterization','tilt_response','known_flight','motion_progress',
@@ -90,18 +90,22 @@ def native_universal():
 def native_quad_fpv():
  # Dedicated writer: never inject experimental attitude control into other profiles.
  text=native_universal()['autopilot-control']
+ start=text.index('function M.solve(model,wanted)');end=text.index('function M.signals(',start)
+ text=text[:start]+source(BASE/'src/quad-allocator.lua')+'\n'+text[end:]
+ start=text.index('local Response=(function()');end=text.index('\nend)()',start)+len('\nend)()')
+ text=text[:start]+"local Response={axes={'forward','right','vertical','pitch','yaw','roll'}}"+text[end:]
  start=text.index('function M.signals(meta,values,quant)');end=text.index('function M.capabilities(',start)
  text=text[:start]+source(BASE/'src/quad-pwm.lua')+'\n'+text[end:]
  start=text.index('function M.capabilities(');end=text.index('return M\n',start)
  text=text[:start]+source(BASE/'src/quad-capabilities.lua')+'\n'+text[end:]
  start=text.index(' function s:step(p,command,lastSignals,feedback)');end=text.rfind('end)()',start,text.index('_G.MintCraftFlightModules={'))
- return (text[:start]+source(BASE/'src/quad-flight-step.lua')+text[end:]).replace('c.tilt>20','c.tilt>45')
+ return (text[:start]+source(BASE/'src/quad-flight-step.lua')+text[end:]).replace('c.tilt>20','c.tilt>45').replace('Descriptor schema/field count','incomplet: voir formulaire moteur').replace('for _,text in ipairs(descriptors) do','for groupIndex,text in ipairs(descriptors) do').replace('Vehicle.decode(text);if not g then return nil,why end',"Vehicle.decode(text);if not g then return nil,'Moteur '..groupIndex..': '..why end")
 
 def fpv_graph(scripts,consent):
  scripts=dict(scripts);scripts['autopilot-control']=scripts['autopilot-quad-fpv']
- scripts['mount-setup']=scripts['mount-setup'].replace("'Consigne montee m/s','1'","'Consigne montee m/s','4'").replace("'Inclinaison deplacement: 0 < deg <= 20','8'","'Inclinaison deplacement: 0 < deg <= 45','25'").replace("'tilt',0,20,","'tilt',0,45,").replace('valeur <= 20 deg','valeur <= 45 deg').replace("'Deceleration de planification estimee m/s2','1'","'Deceleration de planification estimee m/s2','4'")
+ scripts['mount-setup']=scripts['mount-setup'].replace("'Consigne montee m/s','1'","'Consigne montee m/s','4'").replace("'Inclinaison deplacement: 0 < deg <= 20','8'","'Inclinaison deplacement: 0 < deg <= 45','20'").replace("'tilt',0,20,","'tilt',0,45,").replace('valeur <= 20 deg','valeur <= 45 deg').replace("'Deceleration de planification estimee m/s2','1'","'Deceleration de planification estimee m/s2','4'")
  scripts['mount-simple']=scripts['mount-simple'].replace('local base=MountDefaults(PROFILE_DEFAULT,GROUP_DEFAULT)','local base=MountDefaults(PROFILE_DEFAULT,GROUP_DEFAULT);base.kind=\'bearing\';base.sails=12')
- return architecture_graph(scripts,consent,1,4,'quad-fpv','Quad FPV experimental: 4 modulaires identiques')
+ return architecture_graph(scripts,consent,1,4,'quad-fpv','Quad: 4 helices verticales')
 
 def architecture_graph(scripts,consent,profile,count,slug,label):
  # Keep the exact flight writer; reduce only editor forms, pins and rendering.
@@ -213,7 +217,7 @@ def main():
   'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
   'nativeSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((BASE/'src').glob('*.lua'))},
-  'experimentalQuadFpv':{'file':'mintcraft-quad-fpv.clipboard.txt','nodes':10,'connections':29,'scope':'four identical modular vertical rotors; synthetic validation only','controllerSha256':hashlib.sha256(scripts['autopilot-quad-fpv'].encode()).hexdigest()},
+  'experimentalQuadFpv':{'file':'mintcraft-quad-fpv.clipboard.txt','nodes':10,'connections':29,'scope':'four declared vertical rotors, per-rotor model and collective priority; synthetic validation only','controllerSha256':hashlib.sha256(scripts['autopilot-quad-fpv'].encode()).hexdigest()},
   'architectureGraphs':architecture_graphs,'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
@@ -235,7 +239,7 @@ def main():
   for path in sorted(source_paths):
    if path.is_file() and path.name not in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.1'):
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.2'):
    reports=BASE/'reports'/report_name
    if reports.exists():
     for path in sorted(reports.rglob('*')):

@@ -15,7 +15,7 @@ function M.signals(meta,values,quant)
    local force=clip(desiredForce[i]+lead*(desiredForce[i]-estimatedForce[i]-difference/#meta)+(quant.verticalFast and 3 or 1)*difference/#meta,0,15*m.unit)
    local rpm=force<=0 and 0 or force/(g.members*m.thrust*m.pressure)+math.max(0,m.axial)/m.airflow
    if quant.refRate and not quant.recovering then
-    local referenceAxial=m.axial+(quant.trackingFast and 1 or .5)*(quant.refRate.z*g.x-quant.refRate.x*g.z)
+    local referenceAxial=m.axial+.5*(quant.trackingFast and 1 or .5)*(quant.refRate.z*g.x-quant.refRate.x*g.z)
     rpm=rpm+(math.max(0,referenceAxial)-math.max(0,m.axial))/m.airflow
    end
    rpm=clip(rpm,0,g.source);signal=Physics.signal(g.source,rpm)

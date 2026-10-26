@@ -146,7 +146,7 @@ def main():
  '## Contrat de validation','',
  'L’assiette demandée pendant un déplacement peut être inclinée. Le suivi de cette assiette et le maintien vertical sont évalués pendant le mouvement ; le retour à une assiette horizontale et à une vitesse faible est évalué séparément en fin de parcours. Les courbes sont conservées même pour les échecs. Les cases grises sont des configurations refusées avant activation, pas des essais dynamiques réussis.','',
  'Les conditions exactes, empreintes et hypothèses figurent dans [campaign.json](campaign.json). Les résultats par critère sont dans [results.json](results.json), les mesures comparables dans [results.csv](results.csv). Les 20 Hz du contrôleur et 200 Hz du corps rigide sont des pas de simulation ; ils ne garantissent pas les performances du serveur.','',
- 'Les termes « architecture » désignent ici la géométrie et la motorisation des quadricoptères. Les ballons, Venator et hélicoptères ne sont pas inclus dans cette campagne. Le contrôleur rapide peut refuser les hélices petites ou hétérogènes ; le contrôleur standard est testé séparément.','',
+ 'Les termes « architecture » désignent ici la géométrie et la motorisation des quadricoptères. Les ballons, Venator et hélicoptères ne sont pas inclus dans cette campagne. Les contrôleurs effectivement exécutés sont listés dans campaign.json. Les refus de configuration sont conservés ; la comparaison avec une version antérieure est un rapport distinct.','',
  '## Seuils communs par phase','']
  for k,v in manifest['criteria'].items():text.append('- **'+k+'** : '+v)
  text+=['','## Mouvements et protocoles','']
@@ -161,7 +161,7 @@ def main():
  '## Reproduire','',
  'Installer `numpy`, `matplotlib` et `pypdf` pour le rendu et la vérification. Les versions utilisées sont conservées dans `environment.json` lorsque ce fichier accompagne la campagne.','',
  'Depuis ce dépôt, avec le JDK 21 et le JAR Cosmonautics 26.08.307 dont l’empreinte est contrôlée :','',
- '```sh','python3 tools/test-quad-campaign-contract.py','python3 tools/run-sputnik-quad-campaign.py --cosmonautics-jar /chemin/cosmonautics.jar --java-home /chemin/jdk-21 --output /tmp/quad-report --work /tmp/quad-work --jobs 4','python3 tools/report-sputnik-quad-campaign.py --output /tmp/quad-report --work /tmp/quad-work','```','',
+ '```sh','python3 tools/test-quad-campaign-contract.py','python3 tools/run-sputnik-quad-campaign.py --cosmonautics-jar /chemin/cosmonautics.jar --java-home /chemin/jdk-21 --output /tmp/quad-report --work /tmp/quad-work --controllers '+','.join(manifest['controllers'])+' --tilt '+str(manifest.get('tilt_degrees',20))+' --jobs 4','python3 tools/report-sputnik-quad-campaign.py --output /tmp/quad-report --work /tmp/quad-work','```','',
  'Utiliser des dossiers neufs. `--resume` exige exactement les mêmes sources, paramètres, critères et empreintes ; les traces terminées sont contrôlées avant réutilisation. Aucun téléchargement de JAR n’est effectué par le banc.']
  links=[]
  for path,label in [('FINDINGS.md','Conclusions et corrections prioritaires'),('METHOD.md','Méthode détaillée'),('convergence/README.md','Sensibilité 200/400 Hz')]:

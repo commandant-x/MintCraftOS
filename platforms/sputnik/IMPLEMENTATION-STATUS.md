@@ -1,6 +1,6 @@
-> 0.3.1 : correction du maintien résonant du profil quad rapide séparé, voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte ; ne pas confondre avec une qualification Minecraft.
+> 0.3.2 : allocation quad à priorité collective, modèles séparés par rotor et compensation du retard ; voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Les réussites et échecs synthétiques sont publiés séparément de la validation Minecraft.
 
-# État d'implémentation — Autopilote Sputnik 0.3.1
+# État d'implémentation — Autopilote Sputnik 0.3.2
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 
@@ -22,3 +22,9 @@ Quantification collective synchronisée, réponse verticale directe, référence
 ## Correction 0.3.1 : maintien résonant
 
 Retrait de l’adaptation multiplicative sensible à la chute, biais vertical additif borné, assiette de maintien moins agressive et freinage compensé après relâchement. Banc élargi aux démarrages à froid, perturbations diagonales, chute, retard accru et erreur de réponse rotor ; mesure crête-à-crête verticale ajoutée. Les résultats 0.3.0 ne suffisaient pas à valider ces situations. Voir les nouveaux rapports avant de conclure sur le domaine pris en charge.
+
+## Correction 0.3.2 : allocation et dynamique du quad
+
+Priorité collective en maintien, réponse par rotor, hélices petites/modulaires hétérogènes acceptées expérimentalement, observateur passif de couple et virage fondé sur la trajectoire mesurée. La récupération conserve une priorité d'assiette et peut perdre de la hauteur. Les défauts de descripteur identifient le moteur. Le sélecteur universel et les autres contrôleurs ne changent pas.
+
+La campagne lourde 0.3.1 avait révélé que la validation précédente était insuffisante : aucun montage accepté ne réussissait tous les 24 mouvements. La version corrigée est réévaluée avec les mêmes critères, sans transformer un refus en réussite. Voir [campagne 0.3.2](reports/quad-campaign-0.3.2/README.md). Le plan A–F reste incomplet ; les cas en échec ne sont pas déclarés opérationnels.

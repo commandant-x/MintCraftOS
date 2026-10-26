@@ -18,10 +18,10 @@ def main():
  report=a.report;work=a.work;m=json.loads((report/'campaign.json').read_text());r=json.loads((report/'results.json').read_text());artifacts=json.loads((report/'artifacts.json').read_text())
  finite_tree(m);finite_tree(r)
  mapping={'plant':'tools/sputnik-quad-campaign.lua','criteria':'tools/quad_campaign_contract.py','runner':'tools/run-sputnik-quad-campaign.py','java_runner':'tools/VerifySputnikLua.java','defaults':'platforms/sputnik/src/vehicle_model.lua','pressure':'platforms/sputnik/tests/fixtures/sable-pressure.csv','controller_standard':'platforms/sputnik/dist/mintcraft-autopilot-control.lua','controller_fpv':'platforms/sputnik/dist/mintcraft-autopilot-quad-fpv.lua'}
- for k,path in mapping.items():assert digest(ROOT/path)==m['sources'][k],k
+ for k,sha in m['sources'].items():assert digest(ROOT/mapping[k])==sha,k
  expected={(f['id'],c,case) for f in m['fixtures'] for c in m['controllers'] for case in m['cases']}
  assert len(r['results'])==len(expected)==r['total'] and {(x['fixture'],x['controller'],x['movement']) for x in r['results']}==expected
- assert dict(collections.Counter(x['status'] for x in r['results']))==r['counts']
+ counts=collections.Counter(x['status'] for x in r['results']);assert {s:counts[s] for s in ('PASS','FAIL','REFUSED')}==r['counts']
  assert len(list(csv.DictReader((report/'results.csv').open())))==r['total']
  actual_traces=0;trace_hashes={}
  for item in r['results']:
@@ -48,6 +48,6 @@ def main():
      count=len(PdfReader(io.BytesIO(z.read(n))).pages);assert count==expected_pages,(n,count,expected_pages);pages+=count;pdfs+=1
  assert archived_traces==actual_traces and pdfs==len(m['fixtures'])*len(m['controllers'])
  assert r['solver_steps']==10*sum(x['frames'] for x in r['results'])
- assert (ROOT/'platforms/sputnik/dist/mintcraft-sputnik-0.3.1.zip').stat().st_size<1000000
+ assert (ROOT/('platforms/sputnik/dist/mintcraft-sputnik-'+m['distribution_version']+'.zip')).stat().st_size<1000000
  print(f"Verified {r['total']} classifications from {actual_traces} exact traces, {pdfs} PDFs / {pages} pages, archive CRC/SHA-256 and unchanged <1MB flight package")
 if __name__=='__main__':main()

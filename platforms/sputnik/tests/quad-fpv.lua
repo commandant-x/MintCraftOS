@@ -34,8 +34,19 @@ p=pose(102);p.vx=1
 assert(passive:step(p,{forward=1,left=0,vertical=0},passive.initialSignals));assert(passive.quant.trackingFast)
 p=pose(103);p.vx=1
 assert(passive:step(p,{forward=0,left=0,vertical=0},passive.initialSignals));assert(passive.quant.trackingFast,'Release dropped braking flow compensation')
-local g=groups();g[2].sails=16;assert(not A[10].new(g,pose(100),cfg),'Unvalidated mixed fast profile accepted')
-g=groups();g[2].alpha=.2;assert(not A[10].new(g,pose(100),cfg),'Different rotor response accepted as identical')
-g=groups();for _,v in ipairs(g) do v.kind='small' end;assert(not A[10].new(g,pose(100),cfg),'Unvalidated small fast profile accepted')
+for kind=1,3 do
+ local g=groups();if kind==1 then g[2].sails=16 elseif kind==2 then for _,v in ipairs(g) do v.kind='small';v.thrust=1;v.airflow=.1 end else g[2].kind='small';g[2].thrust=1;g[2].airflow=.1 end
+ local c=assert(A[10].new(g,pose(100),cfg));assert(c:step(pose(101),{forward=0,left=0,vertical=0},c.initialSignals))
+end
+local g=groups();g[1].dx=.1;g[1].dy=math.sqrt(.99);assert(not A[10].new(g,pose(100),cfg),'Unsupported tilted motor silently accepted')
+-- Impossible moments must not consume the feasible vertical collective.
+local p=pose(100);p=assert(A[10].pose(p));local gs=groups()
+local model=assert(A[7].matrix(gs,p,{x=0,y=0,z=0},p.mass,{1,1,1,1}))
+for _,torque in ipairs({0,100,-100}) do
+ local values,proof=A[7].solve(model,{0,0,11,torque,0,torque});assert(values,proof)
+ assert(math.abs(proof.actual[3]-11)<1e-8,'Attitude demand destroyed feasible collective')
+ for _,v in ipairs(values) do assert(v>=0 and v<=15) end
+end
+local _,reason=A[7].decode('INVALID_GROUP');assert(reason:find('formulaire',1,true),'Opaque descriptor error returned')
 assert(not a:step(pose(300),{forward=0,left=0,vertical=0},sa),'Repeated observation accepted')
-print('FPV compact/readable parity, hot target without estimator reset, stale requests/observations and unsupported motor refusals passed')
+print('FPV compact/readable parity, hot target without estimator reset, stale requests/observations and per-rotor models, collective priority and unsupported tilt refusal passed')

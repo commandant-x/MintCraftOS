@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "baseline": "../quad-campaign-0.3.1/results.json",
+  "scope": "FPV only, identical fixture/movement criteria at 20deg",
+  "transitions": [
+    {
+      "old": "FAIL",
+      "new": "FAIL",
+      "count": 144
+    },
+    {
+      "old": "FAIL",
+      "new": "PASS",
+      "count": 202
+    },
+    {
+      "old": "PASS",
+      "new": "FAIL",
+      "count": 9
+    },
+    {
+      "old": "PASS",
+      "new": "PASS",
+      "count": 149
+    },
+    {
+      "old": "REFUSED",
+      "new": "FAIL",
+      "count": 6
+    },
+    {
+      "old": "REFUSED",
+      "new": "PASS",
+      "count": 42
+    },
+    {
+      "old": "REFUSED",
+      "new": "REFUSED",
+      "count": 24
+    }
+  ],
+  "regressions": [
+    {
+      "fixture": "light-16kg",
+      "movement": "descend-left",
+      "failures": [
+        "transient_height"
+      ]
+    },
+    {
+      "fixture": "light-16kg",
+      "movement": "recovery-diagonal",
+      "failures": [
+        "final_speed"
+      ]
+    },
+    {
+      "fixture": "paired-rotors",
+      "movement": "descend-left",
+      "failures": [
+        "transient_height"
+      ]
+    },
+    {
+      "fixture": "paired-rotors",
+      "movement": "recovery-diagonal",
+      "failures": [
+        "final_speed"
+      ]
+    },
+    {
+      "fixture": "slow-radio",
+      "movement": "recovery-diagonal",
+      "failures": [
+        "tail_tilt",
+        "tail_speed_rms",
+        "final_speed",
+        "recovery"
+      ]
+    },
+    {
+      "fixture": "wide",
+      "movement": "forward",
+      "failures": [
+        "transient_tilt"
+      ]
+    },
+    {
+      "fixture": "wide",
+      "movement": "reverse",
+      "failures": [
+        "transient_tilt"
+      ]
+    },
+    {
+      "fixture": "wide",
+      "movement": "descend-left",
+      "failures": [
+        "transient_height"
+      ]
+    },
+    {
+      "fixture": "wide",
+      "movement": "brake",
+      "failures": [
+        "transient_tilt"
+      ]
+    }
+  ]
+}

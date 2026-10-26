@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "version": "0.3.2",
+  "tested_in_minecraft": false,
+  "qualified": false,
+  "controller_sha256": "e7399163d4a2a5d9ab9e5da1bfd2c4e06f30c951236f2b27f11ba4c61bc615ac",
+  "generic_controller_sha256": "f62be0b6c8615597f61518f218198dac66afd645daa89562344c7039dcec4092",
+  "clipboard_sha256": "a086fd0832993983d1e030e3c355794d10935d9833589a4fa6a6325625efb3a0",
+  "package_sha256": "06af2a75e77f2f1e7aefaae523af6379f958643749a9fdf82aa0079a805faa6b",
+  "package_bytes": 962528,
+  "node_modified_utf8_bytes": 59958,
+  "validation": {
+    "native_luaj_contracts": true,
+    "compact_readable_parity": true,
+    "deterministic_distribution": true,
+    "snbt_binary_nbt_and_native_codec_artifacts": 32,
+    "campaign_classifications_verified": 576,
+    "raw_traces_verified": 552,
+    "pdf_pages_verified": 553,
+    "additional_25_degree_classifications_verified": 24,
+    "timestep_classification_agreement": "4/4"
+  },
+  "limits": [
+    "Synthetic 6DOF plant, not Minecraft world validation",
+    "159 dynamic failures and 24 configuration refusals remain",
+    "Nine prior FPV PASS cases regress",
+    "Inverted reference loses 10.39m before recovery"
+  ]
+}

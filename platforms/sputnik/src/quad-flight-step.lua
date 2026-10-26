@@ -1,12 +1,10 @@
- for _,g in ipairs(s.groups) do if g.kind~='bearing' or g.role~='lift' or g.dx~=0 or g.dy~=1 or g.dz~=0 then return nil,'FPV: helices verticales requises' end end
+ for _,g in ipairs(s.groups) do if (g.kind~='bearing' and g.kind~='small') or g.role~='lift' or g.dx~=0 or g.dy~=1 or g.dz~=0 then return nil,'FPV: helices verticales requises' end end
  if #s.groups~=4 or not s.capabilities.pitch.available or not s.capabilities.roll.available then return nil,'FPV: autorite insuffisante' end
  for i,g in ipairs(s.groups) do local m=metadata[i];s.spool[g.id]=allocation[i]*m.unit/(g.members*m.thrust*m.pressure)+math.max(0,m.axial)/m.airflow end
- s.refEnabled=true
- for _,g in ipairs(s.groups) do local a=s.groups[1];s.refEnabled=s.refEnabled and g.sails==a.sails and g.source==a.source and g.members==a.members and g.thrust==a.thrust and g.airflow==a.airflow and g.alpha==a.alpha end
- if not s.refEnabled then return nil,'FPV: quatre modulaires identiques requises' end
+ s.response=.35;for _,g in ipairs(s.groups) do local alpha=select(3,V.coefficients(g));s.response=math.max(s.response,-.05/math.log(1-alpha)) end
  s.refAngle=vec(0,0,0);s.refRate=vec(0,0,0)
- -- Legacy normalization stays fixed: adaptation below is additive only.
- s.forceFilter=0;s.loadBias=0;s.supportRatio=1;s.pendingCommand=V.copy(s.initialSignals)
+ -- Passive additive force and moment corrections; no physical identity claim.
+ s.forceFilter=0;s.loadBias=0;s.torqueFilter=vec(0,0,0);s.pendingCommand=V.copy(s.initialSignals)
  function s:step(p,command,lastSignals)
   local cfg=self.config;local why;p,why=M.pose(p);if not p then return nil,why end
   if p.dimension~=self.previous.dimension then return nil,'Dimension modifiee' end
@@ -19,7 +17,9 @@
    self.velocity[axis]=finite(p['v'..axis]) and .75*p['v'..axis]+.25*k.v or k.v
    self.acceleration[axis]=self.acceleration[axis]+dt/(.12+dt)*((self.velocity[axis]-old)/dt-self.acceleration[axis])
   end
-  local worldRate=Geometry.angularVelocity(self.previous.q,p.q,dt);if not worldRate then worldRate=vec(0,0,0);self:event('Rotation ambigue: tentative de redressement depuis attitude courante') end
+  local worldRate=Geometry.angularVelocity(self.previous.q,p.q,dt)
+  if worldRate and (worldRate.x^2+worldRate.y^2+worldRate.z^2)*dt^2>(math.pi-.1)^2 then worldRate=nil end
+  if not worldRate then worldRate=vec(0,0,0);self.omega=vec(0,0,0);self.angularAcceleration=vec(0,0,0);self:event('Rotation ambigue: tentative de redressement depuis attitude courante') end
   local rate=Geometry.bodyVector(worldRate,p.q)
   for _,axis in ipairs({'x','y','z'}) do
    local old=self.omega[axis];self.omega[axis]=old+dt/(.025+dt)*(rate[axis]-old)
@@ -55,7 +55,11 @@
   elseif command.forward~=0 or command.left~=0 then
    local f,l=command.forward,command.left
    if cfg.steering~=false then
-    if speed>.3 then self.course=self.course-l*math.deg(acceleration/math.max(.3,speed))*dt end
+    if speed>.3 then
+     local heading=math.rad(self.course);local along=v.x*math.sin(heading)+v.z*math.cos(heading)
+     if f==0 or f*along>0 then self.course=math.deg(Geometry.atan2(v.x,v.z))+(f<0 and 180 or 0) end
+    end
+    l=l*speed/math.sqrt(speed^2+(acceleration*(self.response+.35)*2)^2)
     local angle=math.rad(self.course)
     ax=acceleration*(f*math.sin(angle)-l*math.cos(angle));az=acceleration*(f*math.cos(angle)+l*math.sin(angle))
     if f==0 and speed<.3 then ax,az=0,0 end
@@ -73,23 +77,26 @@
    if mission then mission:pause('Redressement') end;if cal then cal:pause('Redressement') end
   elseif self.recovering then self.recovering=false;self:event('Assiette recuperee; maintien de la consigne') end
   local model,meta,offset=V.matrix(self.groups,p,v,self.referenceMass,self.directions);if not model then return nil,meta end
-  if recovering then
+  if true then
    for i,m in ipairs(meta) do
-    local g=m.group;local old=m.unit;m.axial=m.axial+self.omega.z*g.x-self.omega.x*g.z
+    local g=m.group;local old=m.unit;m.axial=m.axial+(recovering and 1 or .5)*(self.omega.z*g.x-self.omega.x*g.z)
     m.unit=Physics.force(g.source,m.pressure,m.axial,m.thrust,m.airflow)*g.members/15
     for j=1,6 do model.columns[i].response[j]=old>0 and model.columns[i].response[j]*m.unit/old or 0 end
    end
   end
   -- Predict only from the issued command history. This is not observed shaft RPM.
-  local force=0
+  local force=0;local torque=vec(0,0,0)
   for i,m in ipairs(meta) do
    local g=m.group;local alpha=select(3,V.coefficients(g));local previous=self.pendingCommand[tostring(g.id)] or self.initialSignals[tostring(g.id)]
-   local rpm=self.quant.rpm and self.quant.rpm[i] or self.spool[g.id]
+   local rpm=self.spool[g.id]
    rpm=rpm+(1-(1-alpha)^(dt*20))*(Physics.rpm(g.source,previous)-rpm)
    self.spool[g.id]=rpm
-   local axial=m.axial+(recovering and 0 or self.omega.z*g.x-self.omega.x*g.z)
-   force=force+Physics.force(rpm,m.pressure,axial,m.thrust,m.airflow)*g.members
+   local axial=m.axial+(recovering and 0 or .5)*(self.omega.z*g.x-self.omega.x*g.z)
+   local f=Physics.force(rpm,m.pressure,axial,m.thrust,m.airflow)*g.members;force=force+f;torque.x=torque.x-g.z*f;torque.z=torque.z+g.x*f
   end
+  torque.x=(torque.x-(p.iz-p.iy)*self.omega.y*self.omega.z)/p.ix
+  torque.z=(torque.z-(p.iy-p.ix)*self.omega.x*self.omega.y)/p.iz
+  for _,axis in ipairs({'x','z'}) do self.torqueFilter[axis]=self.torqueFilter[axis]+dt/(.12+dt)*(torque[axis]-self.torqueFilter[axis]) end
   self.pendingCommand=V.copy(lastSignals or self.initialSignals)
   self.forceFilter=self.forceFilter+dt/(.12+dt)*(force/p.mass*up.y-p.gravity-self.forceFilter)
   if not recovering and up.y>.85 and math.abs(self.omega.x)+math.abs(self.omega.z)<.6 then
@@ -110,7 +117,7 @@
      local thrust,flow=V.coefficients(g);local height=p.y+V.world(vec(g.x,g.y,g.z),q).y
      available=available+Physics.force(g.source,Physics.pressure(height),axial,thrust,flow)*g.members
     end
-    return available*axis.y>=p.mass*p.gravity*self.supportRatio*1.1
+    return available*axis.y>=p.mass*p.gravity*1.1
    end
    if not supported(1) then
     local lo,hi=0,1
@@ -120,13 +127,14 @@
   end
 
   local referenceAcceleration={x=0,z=0}
-  if recovering or not self.refEnabled then self.refAngle=vec(0,0,0);self.refRate=vec(0,0,0)
+  if recovering then self.refAngle=vec(0,0,0);self.refRate=vec(0,0,0)
   else
+   local referenceTime=math.max(.45,self.response)
    local targets={x=math.rad(pitchTarget),z=math.rad(rollTarget)};local arms={x=0,z=0}
    for _,g in ipairs(self.groups) do arms.x=math.max(arms.x,math.abs(g.z));arms.z=math.max(arms.z,math.abs(g.x)) end
    for _,axis in ipairs({'x','z'}) do
-    local limit=p.mass*p.gravity*self.supportRatio*arms[axis]/(axis=='x' and p.ix or p.iz)*.8
-    local acceleration=clip(4/(0.35^2)*(targets[axis]-self.refAngle[axis])-4/0.35*self.refRate[axis],-limit,limit)
+    local limit=p.mass*p.gravity*arms[axis]/(axis=='x' and p.ix or p.iz)*.8
+    local acceleration=clip(4/(referenceTime^2)*(targets[axis]-self.refAngle[axis])-4/referenceTime*self.refRate[axis],-limit,limit)
     self.refRate[axis]=self.refRate[axis]+acceleration*dt
     self.refAngle[axis]=self.refAngle[axis]+self.refRate[axis]*dt
     referenceAcceleration[axis]=acceleration
@@ -146,24 +154,25 @@
   local dr,da=8,1.2
   local angular=vec(clip(px,4,40)*error.x-dr*self.omega.x-da*self.angularAcceleration.x,0,clip(pz,4,40)*error.z-dr*self.omega.z-da*self.angularAcceleration.z)
   for _,axis in ipairs({'x','z'}) do
-   if self.samples>40 and math.abs(v.y)<.5 and not manual and not recovering and not probe and (not desired or cal and cal.phase=='BASELINE') and math.abs(error[axis])<.35 and math.abs(self.omega[axis])<.4 then self.angleBias[axis]=clip(self.angleBias[axis]+.5*error[axis]*dt,-2,2) end
+   if self.samples>40 and math.abs(v.y)<.5 and not manual and not recovering and not probe and (not desired or cal and cal.phase=='BASELINE') and math.abs(error[axis])<.35 and math.abs(self.omega[axis])<.4 then self.angleBias[axis]=self.angleBias[axis]+dt/(1+dt)*(clip(self.torqueFilter[axis]-self.angularAcceleration[axis],-2,2)-self.angleBias[axis]) end
    angular[axis]=clip(angular[axis]+self.angleBias[axis]+dr*self.refRate[axis]+(1+da)*referenceAcceleration[axis],recovering and -48 or -12,recovering and 48 or 12)
   end
   local yError=self.target.y-self.filters.y.x
   local desiredVy=command.vertical~=0 and command.vertical*(cfg.climb or 4) or clip(yError,-(cfg.climb or 4),cfg.climb or 4)
   local ay=(command.vertical~=0 and 4 or 2)*(desiredVy-v.y)+self.integral+self.loadBias-.15*self.acceleration.y
   if math.abs(v.y)>8 then ay=clip(ay,-p.gravity*.8,p.gravity*2) end
-  local collective=math.max(0,(ay+p.gravity)*self.supportRatio/math.max(.2,up.y))
+  local collective=math.max(0,(ay+p.gravity)/math.max(.2,up.y))
   if recovering then
    local capacity=0;for _,c in ipairs(model.columns) do capacity=capacity+c.response[3]*15 end
-   collective=up.y>.3 and math.min(capacity*.6,(p.gravity+clip(-3*v.y,0,p.gravity*2))*self.supportRatio/up.y) or math.min(p.gravity*5,capacity*.25)
+   collective=up.y>.3 and math.min(capacity*.6,(p.gravity+clip(-3*v.y,0,p.gravity*2))/up.y) or math.min(p.gravity*5,capacity*.25)
   end
+  model.attitudePriority=recovering
   local wanted={0,0,collective,angular.x,0,angular.z}
   for j=1,6 do wanted[j]=wanted[j]-offset[j] end
   local values,allocation=V.solve(model,wanted);if not values then return nil,allocation end
   if probe then values[probe.index]=clip(values[probe.index]+probe.delta,0,15) end
   for i,m in ipairs(meta) do m.column=model.columns[i].response end
-  self.quant.trackingFast=(command.forward~=0 or command.left~=0 or self.quant.trackingFast and speed>.3) and math.abs(self.loadBias)<p.gravity*.1;self.quant.verticalFast=command.vertical~=0;self.quant.refRate=self.refRate;self.quant.dt=dt;self.quant.spool=self.spool;self.quant.recovering=recovering
+  self.quant.trackingFast=(command.forward~=0 or command.left~=0 or self.quant.trackingFast and speed>.3) and math.abs(self.loadBias)<p.gravity*.1;self.quant.verticalFast=(command.vertical~=0 or math.abs(v.y)>.3) and not recovering;self.quant.refRate=self.refRate;self.quant.spool=self.spool;self.quant.recovering=recovering
   local signals,why=V.signals(meta,values,self.quant);if not signals then return nil,why end
   if not recovering and math.abs(allocation.actual[3]-wanted[3])<.1 then self.integral=clip(self.integral+.15*yError*dt,-p.gravity*.8,p.gravity*2) end
   local capacity=0;for _,c in ipairs(model.columns) do capacity=capacity+c.response[3]*15 end

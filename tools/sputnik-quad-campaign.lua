@@ -67,7 +67,7 @@ for _,name in ipairs(C.cases) do
   local x,y,z=rotate(w.q,{1,0,0}),rotate(w.q,{0,1,0}),rotate(w.q,{0,0,1})
   return {tick=tick,x=w.x+(fixture.noise or 0)*math.sin(tick*1.7),y=w.y+(fixture.noise or 0)*math.sin(tick*2.3),z=w.z+(fixture.noise or 0)*math.cos(tick*1.3),vx=w.v[1],vy=w.v[2],vz=w.v[3],pitch=math.deg(math.asin(clamp(-z[2],-1,1)))+(fixture.attitudeNoise or 0)*math.sin(tick*1.3),yaw=math.deg(math.atan2(z[1],z[3])),roll=math.deg(math.atan2(x[2],y[2]))+(fixture.attitudeNoise or 0)*math.cos(tick*1.7),mass=w.mass,ix=w.I[1],iy=w.I[2],iz=w.I[3],dimension='minecraft:overworld',gravity=11}
  end
- local config={gravity=11,climb=4,tilt=20,braking=4,margin=fixture.radius,protected={},steering=name=='turn-left' or name=='turn-right' or name=='slalom'}
+ local config={gravity=11,climb=4,tilt=C.tilt or 20,braking=4,margin=fixture.radius,protected={},steering=name=='turn-left' or name=='turn-right' or name=='slalom'}
  local ok,core,why=pcall(B[10].new,groups,pose(100),config)
  if not ok then row(events,{name,'ERROR',tostring(core),0,0,0})
  elseif not core then row(events,{name,'REFUSED',tostring(why),0,0,0})
