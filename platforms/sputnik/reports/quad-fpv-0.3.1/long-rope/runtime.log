@@ -1,0 +1,5 @@
+6 rope32 PASS error=0.012711233 tailTilt=0 speed=0.022882296 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=76.19742 stretch=0 span=0.026528096 vrms=0.013789177 fault=nil
+6 rope-swing FAIL error=0.06737042 tailTilt=21.711367 speed=1.8410071 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=74.844376 stretch=1.226006E-10 span=0.24598767 vrms=0.3952008 fault=nil
+6 rope-release PASS error=0.029491648 tailTilt=0 speed=0.04399197 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=76.19742 stretch=0 span=0.043531734 vrms=0.023914658 fault=nil
+Quad independent cable plant 2/3; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter

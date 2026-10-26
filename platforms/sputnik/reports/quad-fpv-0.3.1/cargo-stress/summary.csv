@@ -1,0 +1,5 @@
+profile,scenario,status,altitude_error,max_tilt,final_speed,tail_speed_rms,tail_tilt,min_altitude,max_altitude,target_altitude,first_upright_seconds,recovery_seconds,climb90_seconds,tilt90_seconds,brake_seconds,release_speed,rope_stretch,tail_height_span,tail_vertical_rms,first_fault
+6,hover,PASS,0.0029289334,0,0.02569052,0.024458429,0,79.96884,80.08489,80,0,0,0,0,0,0,0,0.022749402,0.024458429,""
+6,tilt,PASS,0.010095322,9.997012,0.069758736,0.099462695,0.13910857,79.55016,80.159454,80,0,0.8,0,0,0,0,0,0.07568084,0.038165893,""
+6,rope-swing,PASS,0.027740851,9.9031515,0.08658407,0.07547145,0.10286459,78.14261,80.870964,80,0,0,0,0,0,0,2.5757174E-14,0.08366048,0.060986347,""
+6,rope-offset,PASS,8.4469834E-4,9.429044,0.16349286,0.16264753,0.35592797,78.011215,81.00322,80,0,0,0,0,0,0,5.192051E-10,0.027938403,0.019990945,""

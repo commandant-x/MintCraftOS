@@ -13,7 +13,7 @@ local pressure={};for line in read('platforms/sputnik/tests/fixtures/sable-press
 local function air(y) if y<=-80 then return 1.5 elseif y>=320 then return 0 end;local n=math.floor(y);return pressure[n]+(pressure[n+1]-pressure[n])*(y-n) end
 local out=MINTCRAFT_UNIVERSAL_OUTPUT
 local summary=out and assert(io.open(out..'/summary.csv','w'))
-if summary then summary:write('profile,scenario,status,altitude_error,max_tilt,final_speed,tail_speed_rms,tail_tilt,min_altitude,max_altitude,target_altitude,first_upright_seconds,recovery_seconds,climb90_seconds,tilt90_seconds,brake_seconds,release_speed,rope_stretch,first_fault\n') end
+if summary then summary:write('profile,scenario,status,altitude_error,max_tilt,final_speed,tail_speed_rms,tail_tilt,min_altitude,max_altitude,target_altitude,first_upright_seconds,recovery_seconds,climb90_seconds,tilt90_seconds,brake_seconds,release_speed,rope_stretch,tail_height_span,tail_vertical_rms,first_fault\n') end
 local scenarios=MINTCRAFT_FPV_CASES or {'hover','tilt','flip90','flip150','flip180','climb','brake','rope12','rope32','rope-swing','rope-release','rope-offset'}
 local total,passed=0,0
 local fixture=MINTCRAFT_UNIVERSAL_FIXTURE or {}
@@ -33,35 +33,37 @@ for _,profile in ipairs(MINTCRAFT_UNIVERSAL_PROFILES or {1,6,5}) do
   local w={x=0,y=80,z=0,v={0,0,0},q={1,0,0,0},omega={0,0,0},rpm={},linear={},mass=baseMass,I={250*inertiaScale,400*inertiaScale,230*inertiaScale}}
   local function pose(tick)
    local vx,vy,vz=rotate(w.q,{1,0,0}),rotate(w.q,{0,1,0}),rotate(w.q,{0,0,1})
-   return {vx=w.v[1],vy=w.v[2],vz=w.v[3],tick=tick,x=w.x+(fixture.noise or 0)*math.sin(tick*1.7),y=w.y+(fixture.noise or 0)*math.sin(tick*2.3),z=w.z+(fixture.noise or 0)*math.cos(tick*1.3),pitch=math.deg(math.asin(clamp(-vz[2],-1,1))),yaw=math.deg(math.atan2(vz[1],vz[3])),roll=math.deg(math.atan2(vx[2],vy[2])),mass=w.mass,ix=w.I[1],iy=w.I[2],iz=w.I[3],dimension='minecraft:overworld',gravity=11}
+   return {vx=w.v[1],vy=w.v[2],vz=w.v[3],tick=tick,x=w.x+(fixture.noise or 0)*math.sin(tick*1.7),y=w.y+(fixture.noise or 0)*math.sin(tick*2.3),z=w.z+(fixture.noise or 0)*math.cos(tick*1.3),pitch=math.deg(math.asin(clamp(-vz[2],-1,1)))+(fixture.attitudeNoise or 0)*math.sin(tick*1.3),yaw=math.deg(math.atan2(vz[1],vz[3])),roll=math.deg(math.atan2(vx[2],vy[2]))+(fixture.attitudeNoise or 0)*math.cos(tick*1.7),mass=w.mass,ix=w.I[1],iy=w.I[2],iz=w.I[3],dimension='minecraft:overworld',gravity=11}
   end
   local core,why=B.Flight.new(groups,pose(100),{gravity=11,climb=4,tilt=25,braking=4,margin=1,protected={}})
   if not core then
    total=total+1;print(profile..' '..scenario..' REFUSED: '..tostring(why))
-   if summary then summary:write(string.format('%d,%s,REFUSED,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,%q\n',profile,scenario,tostring(why))) end
+   if summary then local row={profile,scenario,'REFUSED'};for i=4,20 do row[i]=0 end;row[21]=string.format('%q',tostring(why));summary:write(table.concat(row,',')..'\n') end
   else
   local signals=core.initialSignals
   for i,g in ipairs(groups) do
    if g.kind=='linear' or g.kind=='surface' then w.linear[i]=g.neutral else local t=g.kind=='bearing' and .2*g.sails^1.5 or 1;local share=profile==5 and (i%2==1 and 1/6 or 1/3) or 1/4;w.rpm[i]=g.role=='lift' and baseMass*11*share/(t*air(80)) or 0 end
   end
   if profile==2 or profile==4 then w.rpm[1]=profile==4 and baseMass*11/(.2*12^1.5*air(80)) or nil end
+  if scenario=='cold-hover' then for i in ipairs(w.rpm) do w.rpm[i]=0 end end
   local fault;local maxTilt,maxError,maxSpeed,maxHorizontal,maxYaw,maxX,tailSquare,tailCount,pitchSum,pitchSquare,pitchCount=0,0,0,0,0,0,0,0,0,0,0;local target=80
   local pending={};local initialSignals=B.Portable.copy(signals);local actualDirections={};for _,g in ipairs(groups) do actualDirections[g.id]=1 end
-  local seconds=40
+  local seconds=fixture.seconds or 60
   local ropeMass=fixture.ropeMass or (scenario=='rope32' and 32 or 12);local ropeActive=false;local ropePosition,ropeVelocity;local ropeLength=fixture.ropeLength or 5
   local anchor=scenario=='rope-offset' and {1,-1,0} or {0,-1,0}
   local recoveryTime,climbTime,tiltTime,stopTime,releaseSpeed,minimumY=0,0,0,0,0,80
-  local peakTailTilt,maxStretch,maximumY,firstUpright=0,0,80,0
+  local peakTailTilt,maxStretch,maximumY,firstUpright=0,0,80,0;local tailMin,tailMax,verticalSquare=math.huge,-math.huge,0
   local missionRequested=false;local damaged=false
   for step=1,seconds*20 do
    local now=step*.05
    if step==60 then
+    if scenario=='diagonal' or scenario=='heave' then local a=math.rad(3)/2;w.q={math.cos(a),math.sin(a)/math.sqrt(2),0,math.sin(a)/math.sqrt(2)};w.omega={.03,0,-.02};if scenario=='heave' then w.v[2]=-3 end end
     if scenario=='tilt' or scenario:match('^flip') then
      local degrees=scenario=='tilt' and 10 or tonumber(scenario:match('%d+'))
      local a=math.rad(degrees)/2;w.q={math.cos(a),0,0,math.sin(a)};w.omega={0,0,0}
     end
     if scenario:match('^rope') then
-     ropeActive=true;local r=rotate(w.q,anchor);local a=scenario=='rope-swing' and math.rad(20) or 0
+     ropeActive=true;local r=rotate(w.q,anchor);local a=(scenario=='rope-swing' or scenario=='rope-flight') and math.rad(20) or 0
      ropePosition={w.x+r[1]+ropeLength*math.sin(a),w.y+r[2]-ropeLength*math.cos(a),w.z+r[3]};ropeVelocity={w.v[1],w.v[2],w.v[3]}
     end
    end
@@ -76,7 +78,7 @@ for _,profile in ipairs(MINTCRAFT_UNIVERSAL_PROFILES or {1,6,5}) do
    end
    if scenario=='altitude' and step==40 then assert(core:apply({revision=1,mode='ALTITUDE',altitude=81,speed=0,heading=0},p));target=81 end
    if (scenario=='mass' or scenario=='damage') and step==120 then w.mass=baseMass*.875;p.mass=w.mass;w.I={220*inertiaScale,350*inertiaScale,200*inertiaScale};p.ix,p.iy,p.iz=w.I[1],w.I[2],w.I[3];if scenario=='damage' then damaged=true end end
-   local command={forward=scenario=='brake' and now>=3 and now<8 and 1 or 0,left=0,vertical=scenario=='climb' and now>=3 and now<5 and 1 or 0}
+   local command={forward=((scenario=='brake' and now>=3 and now<8) or (scenario=='rope-flight' and now>=8 and now<11)) and 1 or 0,left=0,vertical=scenario=='climb' and now>=3 and now<5 and 1 or 0}
    if scenario=='climb' then target=core.target.y end
    if scenario=='brake' and step==160 then releaseSpeed=math.sqrt(w.v[1]^2+w.v[3]^2) end
 
@@ -90,7 +92,7 @@ for _,profile in ipairs(MINTCRAFT_UNIVERSAL_PROFILES or {1,6,5}) do
     local signal=applied.signals[tostring(g.id)]
     if fixture.rotorDelays then local frame=pending[#pending-fixture.rotorDelays[i]];signal=frame and frame.signals[tostring(g.id)] or initialSignals[tostring(g.id)] end
     if g.kind=='linear' or g.kind=='surface' then w.linear[i]=w.linear[i]+.15*(signal-w.linear[i])
-    else local rpm=signal==0 and g.source or g.source*(15-signal)/16;local alpha=g.kind=='bearing' and .4/math.sqrt(g.sails) or .15;w.rpm[i]=w.rpm[i]+alpha*(rpm-w.rpm[i]) end
+    else local rpm=signal==0 and g.source or g.source*(15-signal)/16;local alpha=(g.kind=='bearing' and .4/math.sqrt(g.sails) or .15)*(fixture.spoolFactor or 1);w.rpm[i]=w.rpm[i]+alpha*(rpm-w.rpm[i]) end
    end
    if fixture.rotorDelays and #pending>8 then table.remove(pending,1) end
    signals=requested
@@ -171,20 +173,20 @@ for _,profile in ipairs(MINTCRAFT_UNIVERSAL_PROFILES or {1,6,5}) do
    if scenario=='cruise' and now>=10 and now<20 then pitchSum=pitchSum+p.pitch;pitchSquare=pitchSquare+p.pitch^2;pitchCount=pitchCount+1 end
    local horizontal=math.sqrt(w.v[1]^2+w.v[3]^2)
    maxSpeed=math.max(maxSpeed,horizontal);maxHorizontal=math.max(maxHorizontal,math.sqrt(w.x^2+w.z^2));maxX=math.max(maxX,math.abs(w.x));maxYaw=math.max(maxYaw,math.abs(pose(99999).yaw))
-   if now>seconds-10 then tailSquare=tailSquare+horizontal^2+w.v[2]^2;tailCount=tailCount+1 end
+   if now>seconds-10 then tailMin=math.min(tailMin,w.y);tailMax=math.max(tailMax,w.y);verticalSquare=verticalSquare+w.v[2]^2;tailSquare=tailSquare+horizontal^2+w.v[2]^2;tailCount=tailCount+1 end
    local up=rotate(w.q,{0,1,0});maxTilt=math.max(maxTilt,math.deg(math.acos(clamp(up[2],-1,1))));maxError=math.max(maxError,math.abs(w.y-target))
   end
   if scenario=='climb' then target=core.target.y end
   local error=math.abs(w.y-target);local speed=math.sqrt(w.v[1]^2+w.v[2]^2+w.v[3]^2)
-  local success=not fault and error<1 and speed<.3 and peakTailTilt<5 and math.sqrt(tailSquare/math.max(1,tailCount))<.35
+  local success=not fault and error<1 and speed<.3 and peakTailTilt<5 and tailMax-tailMin<1 and math.sqrt(tailSquare/math.max(1,tailCount))<.35
   if scenario=='tilt' or scenario:match('^flip') then success=success and recoveryTime>0 and recoveryTime<8 end
   if scenario=='climb' then success=success and climbTime>0 and climbTime<2 and w.y>84 end
   if scenario=='brake' then success=success and tiltTime>0 and tiltTime<1.5 and stopTime>0 and stopTime<releaseSpeed/(11*math.tan(math.rad(25)))+1.5 end
   if scenario:match('^rope') then success=success and maxStretch<.03 end
   total=total+1;if success then passed=passed+1 end
-  print(profile..' '..scenario..' '..(success and 'PASS' or 'FAIL')..' error='..error..' tailTilt='..peakTailTilt..' speed='..speed..' recovery='..recoveryTime..' climb90='..climbTime..' tilt90='..tiltTime..' stop='..stopTime..' firstUpright='..firstUpright..' minimumY='..minimumY..' stretch='..maxStretch..' fault='..tostring(fault))
+  print(profile..' '..scenario..' '..(success and 'PASS' or 'FAIL')..' error='..error..' tailTilt='..peakTailTilt..' speed='..speed..' recovery='..recoveryTime..' climb90='..climbTime..' tilt90='..tiltTime..' stop='..stopTime..' firstUpright='..firstUpright..' minimumY='..minimumY..' stretch='..maxStretch..' span='..(tailMax-tailMin)..' vrms='..math.sqrt(verticalSquare/math.max(1,tailCount))..' fault='..tostring(fault))
   if summary then
-   local row={profile,scenario,success and 'PASS' or 'FAIL',error,maxTilt,speed,math.sqrt(tailSquare/math.max(1,tailCount)),peakTailTilt,minimumY,maximumY,target,firstUpright,recoveryTime,climbTime,tiltTime,stopTime,releaseSpeed,maxStretch}
+   local row={profile,scenario,success and 'PASS' or 'FAIL',error,maxTilt,speed,math.sqrt(tailSquare/math.max(1,tailCount)),peakTailTilt,minimumY,maximumY,target,firstUpright,recoveryTime,climbTime,tiltTime,stopTime,releaseSpeed,maxStretch,tailMax>tailMin and tailMax-tailMin or 0,math.sqrt(verticalSquare/math.max(1,tailCount))}
    for i,v in ipairs(row) do row[i]=tostring(v) end
    summary:write(table.concat(row,',')..','..string.format('%q',tostring(fault or ''))..'\n')
   end

@@ -1,0 +1,15 @@
+6 hover PASS error=0.0036467046 tailTilt=0 speed=0.0047467677 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.975624 stretch=0 span=0.025117267 vrms=0.024348091 fault=nil
+6 tilt PASS error=0.012611891 tailTilt=0.017998597 speed=0.0202128 recovery=0.6 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.698006 stretch=0 span=0.026411068 vrms=0.023986353 fault=nil
+6 flip90 PASS error=0.03309947 tailTilt=0.100321926 speed=0.01910344 recovery=1.65 climb90=0 tilt90=0 stop=0 firstUpright=1.1 minimumY=77.79672 stretch=0 span=0.12656492 vrms=0.03907612 fault=nil
+6 flip150 PASS error=0.0017842918 tailTilt=0.027893927 speed=0.028404146 recovery=6.85 climb90=0 tilt90=0 stop=0 firstUpright=1.15 minimumY=68.323975 stretch=0 span=0.060803868 vrms=0.023632906 fault=nil
+6 flip180 PASS error=0.034320477 tailTilt=0.7447801 speed=0.06717925 recovery=5.35 climb90=0 tilt90=0 stop=0 firstUpright=0.9 minimumY=68.91015 stretch=0 span=0.115772575 vrms=0.04615334 fault=nil
+6 climb PASS error=0.0126217995 tailTilt=0 speed=0.030576775 recovery=0 climb90=0.9 tilt90=0 stop=0 firstUpright=0 minimumY=80 stretch=0 span=0.02010784 vrms=0.022448009 fault=nil
+6 brake PASS error=0.0041583064 tailTilt=0.57397246 speed=0.035769142 recovery=0 climb90=0 tilt90=1.25 stop=4.3 firstUpright=0 minimumY=78.90122 stretch=0 span=0.1352311 vrms=0.056222774 fault=nil
+6 rope12 PASS error=0.009218744 tailTilt=0 speed=0.05873531 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.64216 stretch=0 span=0.09038582 vrms=0.058955453 fault=nil
+6 rope32 PASS error=0.012711233 tailTilt=0 speed=0.022882296 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=76.19742 stretch=0 span=0.026528096 vrms=0.013789177 fault=nil
+6 rope-swing PASS error=0.017245421 tailTilt=0.52716535 speed=0.08814464 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.62825 stretch=8.881784E-15 span=0.24243194 vrms=0.0868117 fault=nil
+6 rope-flight PASS error=0.10912754 tailTilt=0.74948055 speed=0.06298263 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.55215 stretch=1.6591173E-12 span=0.19281505 vrms=0.06610157 fault=nil
+6 rope-release PASS error=0.00820468 tailTilt=0 speed=0.024476347 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.64216 stretch=0 span=0.02882881 vrms=0.024268568 fault=nil
+6 rope-offset PASS error=0.018455898 tailTilt=0.13345307 speed=0.011075328 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.491974 stretch=5.1622706E-11 span=0.046838723 vrms=0.022411227 fault=nil
+Quad independent cable plant 13/13; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter

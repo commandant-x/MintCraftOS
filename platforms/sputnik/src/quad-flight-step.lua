@@ -5,7 +5,8 @@
  for _,g in ipairs(s.groups) do local a=s.groups[1];s.refEnabled=s.refEnabled and g.sails==a.sails and g.source==a.source and g.members==a.members and g.thrust==a.thrust and g.airflow==a.airflow and g.alpha==a.alpha end
  if not s.refEnabled then return nil,'FPV: quatre modulaires identiques requises' end
  s.refAngle=vec(0,0,0);s.refRate=vec(0,0,0)
- s.forceFilter=0;s.supportRatio=1;s.pendingCommand=V.copy(s.initialSignals)
+ -- Legacy normalization stays fixed: adaptation below is additive only.
+ s.forceFilter=0;s.loadBias=0;s.supportRatio=1;s.pendingCommand=V.copy(s.initialSignals)
  function s:step(p,command,lastSignals)
   local cfg=self.config;local why;p,why=M.pose(p);if not p then return nil,why end
   if p.dimension~=self.previous.dimension then return nil,'Dimension modifiee' end
@@ -86,15 +87,14 @@
    local rpm=self.quant.rpm and self.quant.rpm[i] or self.spool[g.id]
    rpm=rpm+(1-(1-alpha)^(dt*20))*(Physics.rpm(g.source,previous)-rpm)
    self.spool[g.id]=rpm
-   local actualAxial=m.axial+(recovering and 0 or self.omega.z*g.x-self.omega.x*g.z)
-   local f=Physics.force(rpm,m.pressure,actualAxial,m.thrust,m.airflow)*g.members
-   force=force+f
+   local axial=m.axial+(recovering and 0 or self.omega.z*g.x-self.omega.x*g.z)
+   force=force+Physics.force(rpm,m.pressure,axial,m.thrust,m.airflow)*g.members
   end
   self.pendingCommand=V.copy(lastSignals or self.initialSignals)
   self.forceFilter=self.forceFilter+dt/(.12+dt)*(force/p.mass*up.y-p.gravity-self.forceFilter)
-  if up.y>.85 and not recovering and self.samples>5 and math.abs(self.omega.x)+math.abs(self.omega.z)<.6 and self.acceleration.y>-p.gravity*.7 and self.acceleration.y<p.gravity*2 then
-   local ratio=clip((self.forceFilter+p.gravity)/(self.acceleration.y+p.gravity),.6,5)
-   self.supportRatio=self.supportRatio+dt/((ratio<self.supportRatio and .15 or .4)+dt)*(ratio-self.supportRatio)
+  if not recovering and up.y>.85 and math.abs(self.omega.x)+math.abs(self.omega.z)<.6 then
+   local bias=clip(self.forceFilter-self.acceleration.y,-p.gravity*.4,p.gravity*3)
+   self.loadBias=self.loadBias+dt/(1+dt)*clip(bias-self.loadBias,-p.gravity*.5,p.gravity*.5)
   end
 
   local length=math.sqrt(ax*ax+az*az);if length>acceleration then ax,az=ax*acceleration/length,az*acceleration/length end
@@ -138,20 +138,20 @@
   local dot=clip(up.x*wantedUp.x+up.y*wantedUp.y+up.z*wantedUp.z,-1,1)
   local n=math.sqrt(cross.x^2+cross.y^2+cross.z^2)
   local error=n>1e-6 and Geometry.bodyVector(vec(cross.x*math.acos(dot)/n,cross.y*math.acos(dot)/n,cross.z*math.acos(dot)/n),p.q) or vec(dot<0 and math.pi or 0,0,0)
-  local px,pz,modular=3,3,false
-  for _,g in ipairs(self.groups) do
+  local px,pz=8,8
+  if recovering then for _,g in ipairs(self.groups) do
    local thrust,flow=V.coefficients(g);local damping=thrust*Physics.pressure(p.y+g.y)*g.members/flow
-   px=px+1.5*g.z^2*damping/p.ix;pz=pz+1.5*g.x^2*damping/p.iz;modular=modular or g.kind=='bearing'
-  end
-  local dr,da=modular and 8 or 6,modular and 1.2 or .6
+   px=px+1.5*g.z^2*damping/p.ix;pz=pz+1.5*g.x^2*damping/p.iz
+  end end
+  local dr,da=8,1.2
   local angular=vec(clip(px,4,40)*error.x-dr*self.omega.x-da*self.angularAcceleration.x,0,clip(pz,4,40)*error.z-dr*self.omega.z-da*self.angularAcceleration.z)
   for _,axis in ipairs({'x','z'}) do
-   if self.refEnabled and self.supportRatio>1.1 and not manual and not recovering and not probe and (not desired or cal and cal.phase=='BASELINE') and math.abs(error[axis])<.15 and math.abs(self.omega[axis])<.1 then self.angleBias[axis]=clip(self.angleBias[axis]+.5*error[axis]*dt,-2,2) end
+   if self.samples>40 and math.abs(v.y)<.5 and not manual and not recovering and not probe and (not desired or cal and cal.phase=='BASELINE') and math.abs(error[axis])<.35 and math.abs(self.omega[axis])<.4 then self.angleBias[axis]=clip(self.angleBias[axis]+.5*error[axis]*dt,-2,2) end
    angular[axis]=clip(angular[axis]+self.angleBias[axis]+dr*self.refRate[axis]+(1+da)*referenceAcceleration[axis],recovering and -48 or -12,recovering and 48 or 12)
   end
   local yError=self.target.y-self.filters.y.x
-  local desiredVy=command.vertical~=0 and command.vertical*(cfg.climb or 4) or clip(2*yError,-(cfg.climb or 4),cfg.climb or 4)
-  local ay=4*(desiredVy-v.y)+self.integral-.15*self.acceleration.y
+  local desiredVy=command.vertical~=0 and command.vertical*(cfg.climb or 4) or clip(yError,-(cfg.climb or 4),cfg.climb or 4)
+  local ay=(command.vertical~=0 and 4 or 2)*(desiredVy-v.y)+self.integral+self.loadBias-.15*self.acceleration.y
   if math.abs(v.y)>8 then ay=clip(ay,-p.gravity*.8,p.gravity*2) end
   local collective=math.max(0,(ay+p.gravity)*self.supportRatio/math.max(.2,up.y))
   if recovering then
@@ -163,9 +163,9 @@
   local values,allocation=V.solve(model,wanted);if not values then return nil,allocation end
   if probe then values[probe.index]=clip(values[probe.index]+probe.delta,0,15) end
   for i,m in ipairs(meta) do m.column=model.columns[i].response end
-  self.quant.trackingFast=(command.forward~=0 or command.left~=0) and self.supportRatio<1.1;self.quant.verticalFast=command.vertical~=0;self.quant.refRate=self.refRate;self.quant.dt=dt;self.quant.spool=self.spool;self.quant.recovering=recovering
+  self.quant.trackingFast=(command.forward~=0 or command.left~=0 or self.quant.trackingFast and speed>.3) and math.abs(self.loadBias)<p.gravity*.1;self.quant.verticalFast=command.vertical~=0;self.quant.refRate=self.refRate;self.quant.dt=dt;self.quant.spool=self.spool;self.quant.recovering=recovering
   local signals,why=V.signals(meta,values,self.quant);if not signals then return nil,why end
-  if not recovering and math.abs(allocation.actual[3]-wanted[3])<.1 then self.integral=clip(self.integral+.3*yError*dt,-p.gravity*.8,p.gravity*2) end
+  if not recovering and math.abs(allocation.actual[3]-wanted[3])<.1 then self.integral=clip(self.integral+.15*yError*dt,-p.gravity*.8,p.gravity*2) end
   local capacity=0;for _,c in ipairs(model.columns) do capacity=capacity+c.response[3]*15 end
   self.verticalLimited=collective>capacity*.98
   if self.verticalLimited and not recovering then self.phase='DEGRADED';if mission then mission:pause('Reserve verticale insuffisante') end end
@@ -179,7 +179,7 @@
   self.previous=p
   local info={phase=self.phase,mode=self.mode,targetY=self.target.y,altitude=p.y,verticalSpeed=v.y,speed=speed,bodyYaw=p.yaw,course=self.course,bodyYawControlled=false,
    capabilities=caps,residual=allocation.normalizedResidual,saturated=allocation.saturated,pitchTarget=pitchTarget,rollTarget=rollTarget,mass=p.mass,
-   massChanged=math.abs(p.mass-self.referenceMass)>self.referenceMass*1e-6,rxConfirmed=false,shaftConfirmed=false,reason=recovering and 'Redressement actif; perte altitude possible' or cal and not cal.complete and cal.reason or self.liftLimited and 'Inclinaison adaptee a la portance disponible' or 'Correction passive de sustentation; cause non identifiee'}
+   massChanged=math.abs(p.mass-self.referenceMass)>self.referenceMass*1e-6,rxConfirmed=false,shaftConfirmed=false,loadBias=self.loadBias,reason=recovering and 'Redressement actif; perte altitude possible' or cal and not cal.complete and cal.reason or self.liftLimited and 'Inclinaison adaptee a la portance disponible' or 'Correction verticale bornee; cause non identifiee'}
   self.info=info;return signals,info
  end
  return s

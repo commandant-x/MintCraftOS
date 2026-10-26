@@ -1,0 +1,6 @@
+6 hover PASS error=0.0029289334 tailTilt=0 speed=0.02569052 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.96884 stretch=0 span=0.022749402 vrms=0.024458429 fault=nil
+6 tilt PASS error=0.010095322 tailTilt=0.13910857 speed=0.069758736 recovery=0.8 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=79.55016 stretch=0 span=0.07568084 vrms=0.038165893 fault=nil
+6 rope-swing PASS error=0.027740851 tailTilt=0.10286459 speed=0.08658407 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.14261 stretch=2.5757174E-14 span=0.08366048 vrms=0.060986347 fault=nil
+6 rope-offset PASS error=8.4469834E-4 tailTilt=0.35592797 speed=0.16349286 recovery=0 climb90=0 tilt90=0 stop=0 firstUpright=0 minimumY=78.011215 stretch=5.192051E-10 span=0.027938403 vrms=0.019990945 fault=nil
+Quad independent cable plant 4/4; no Minecraft world qualification
+Sputnik LuaJ: 2 fixture chunks passed in actual Cosmonautics interpreter

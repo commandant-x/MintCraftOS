@@ -26,6 +26,14 @@ for tick=101,300 do
  for k,v in pairs(sa) do assert(v==sb[k] and v%1==0 and v>=0 and v<=15,'FPV compaction changed output') end
  assert(math.abs(a.target.y-b.target.y)<1e-10)
 end
+local passive=assert(A[10].new(groups(),pose(100),cfg))
+local p=pose(101);p.vx=1
+assert(passive:step(p,{forward=0,left=0,vertical=0},passive.initialSignals))
+assert(not passive.quant.trackingFast,'Passive drift was mistaken for an operator acceleration/braking command')
+p=pose(102);p.vx=1
+assert(passive:step(p,{forward=1,left=0,vertical=0},passive.initialSignals));assert(passive.quant.trackingFast)
+p=pose(103);p.vx=1
+assert(passive:step(p,{forward=0,left=0,vertical=0},passive.initialSignals));assert(passive.quant.trackingFast,'Release dropped braking flow compensation')
 local g=groups();g[2].sails=16;assert(not A[10].new(g,pose(100),cfg),'Unvalidated mixed fast profile accepted')
 g=groups();g[2].alpha=.2;assert(not A[10].new(g,pose(100),cfg),'Different rotor response accepted as identical')
 g=groups();for _,v in ipairs(g) do v.kind='small' end;assert(not A[10].new(g,pose(100),cfg),'Unvalidated small fast profile accepted')

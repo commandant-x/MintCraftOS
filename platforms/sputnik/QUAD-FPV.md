@@ -1,4 +1,4 @@
-# Quad FPV expérimental — 0.3.0
+# Quad FPV expérimental — 0.3.1
 
 Importer uniquement `dist/mintcraft-quad-fpv.clipboard.txt`. Ce graphe autonome remplace l'ancien graphe quad : retirer ses contrôleurs avant de réutiliser leurs fréquences. Exporter les groupes MCV1 avant remplacement, importer ces réglages dans les quatre formulaires. Configurer les six touches, le levier physique, chaque paire puissance et le rayon englobant réel. Au sol, passer le levier OFF avant le nouveau prévol. La fermeture de l'éditeur ne coupe pas le calcul serveur.
 
@@ -8,7 +8,9 @@ Les valeurs initiales deviennent montée 4 m/s, inclinaison 25°, freinage de pl
 
 Le contrôle utilise l'attitude quaternion, une référence d'inclinaison amortie et une estimation rapide de vitesse. À faible demande collective, les quatre transmissions identiques utilisent une quantification synchronisée pour éviter une alternance arbitraire entre coins. La demande horizontale est réduite lorsque le modèle prédit une réserve verticale insuffisante. Espace/Shift commandent directement la vitesse verticale ; au relâchement, le maintien reprend près de l'altitude courante.
 
-La correction de sustentation observe l'accélération verticale et la force estimée. Elle peut compenser une tension de corde dont la masse n'apparaît pas dans l'API, sans ajouter de champ utilisateur. Elle n'identifie ni la masse exacte de la charge ni la cause d'une réponse différente. Elle ne garantit pas le rejet d'un pendule arbitraire, d'un choc ou d'une charge supérieure à la poussée disponible.
+La correction de sustentation est désormais un biais **additif**, filtré et borné, obtenu par la différence entre accélération mesurée et réponse estimée des commandes. Il n'y a plus de division par l'accélération verticale augmentée de la gravité : ce dénominateur devenait faible en chute et pouvait amplifier la correction. La correction n'est ni une mesure de masse de la charge, ni un acquittement des moteurs. La cible d'altitude reste inchangée.
+
+L'assiette en maintien utilise un gain proportionnel borné plutôt qu'un gain qui augmente avec le rapport bras/inertie. Le contrôleur garde les corrections de redressement pour les fortes inclinaisons. Le freinage conserve la compensation de débit local après relâchement des touches. Les gains verticaux de maintien sont séparés de la commande directe Espace/Shift. Aucun nouveau paramètre de poids ou de corde n'est demandé.
 
 Une attitude renversée déclenche une tentative de redressement dans le domaine commandable, sans verrouillage exigeant un redémarrage. La mission et la calibration sont mises en pause. Le maintien vertical est physiquement impossible durant certaines parties d'un retournement : conserver de la hauteur et reprendre explicitement la mission après récupération. Aucun lacet du nez n'est ajouté aux quatre hélices fixes.
 
@@ -18,12 +20,12 @@ Une attitude renversée déclenche une tentative de redressement dans le domaine
 
 Ce modèle ne reproduit pas le solveur de joints Minecraft, les collisions, les réseaux de stress, l'effet de sol ou les couples gyroscopiques des hélices. Les temps de réponse sont ceux du banc à 20 Hz, pas une garantie de latence serveur. Les rapports publient les excursions et les échecs, notamment sous retard accru ou inerties différentes. La navigation/calibration partagent les contrats existants mais ne sont pas qualifiées par les seuls essais de stabilisation FPV.
 
-## Résultats de cette livraison
+## Régression 0.3.1
 
-- Référence : 12/12 scénarios réussis. Montée à 90 % de 4 m/s en 0,85 s ; freinage en 4,0 s après la séquence d'avance, contre 6,7 s pour le contrôleur standard soumis aux mêmes consignes dans ce banc.
-- Charge de 32 kg sous le véhicule de 32 kg, absente de sa télémétrie de masse : erreur finale verticale 0,005 m ; excursion descendante initiale 1,03 m. La consigne n'est pas remplacée par une recherche de trim.
-- Perturbations d'assiette : récupération à 90/150/180° réussie selon les critères du banc. Depuis Y=80, minima respectifs Y=76,72/61,71/69,08. La perte maximale est donc **18,3 m**, et doit être prise au sérieux.
-- Stress combiné (inerties divisées par quatre, retard de deux ticks, bruit de position 0,01 m) : **2/4 réussites**. Maintien et petite perturbation passent ; charge oscillante et charge décentrée échouent aux critères d'assiette/vitesse résiduelle. Ce domaine reste non validé.
+La version 0.3.0 a montré un maintien résonant chez l'utilisateur. Le banc précédent, démarré au régime de sustentation et testé principalement avec un retard et une réponse rotor nominaux, ne suffisait pas à exclure cette instabilité. Ses résultats historiques restent consultables dans Git ; ils ne constituent pas une validation de cette correction.
 
-Les sorties du banc et ses empreintes sont dans `reports/quad-fpv-0.3.0/`. Les valeurs nulles des colonnes de temps signifient « seuil non observé ou non applicable », jamais une réaction instantanée. Les anciens résultats universels qualifient uniquement le contrôleur standard dont l'empreinte reste inchangée.
-- Corde de 10 m, charge de 32 kg : maintien et largage passent, mais charge initialement oscillante échoue (oscillation résiduelle d'assiette proche de 20°). Le maintien de charges pendulaires arbitraires reste un travail ouvert ; aucune longueur de corde ne doit être saisie dans le contrôleur.
+Le banc dure maintenant 60 s et mesure également l'excursion verticale crête-à-crête et la vitesse verticale RMS sur les dix dernières secondes. Les nouveaux scénarios démarrent les rotors à zéro, perturbent simultanément tangage/roulis et introduisent une vitesse de chute. La régression combine inerties divisées par quatre, retard de trois ticks, réponse rotor deux fois plus lente, bruit de position 0,01 m et bruit d'attitude 0,1°. Ces paramètres sont des essais de robustesse, pas des mesures du véhicule du joueur.
+
+Les résultats et limites actualisés sont publiés dans `reports/quad-fpv-0.3.1/`. Le redressement peut toujours perdre de l'altitude ; le banc n'inclut pas les contacts, les contraintes du solveur Minecraft ni une mesure des fréquences reçues sur le véhicule. Il faut vérifier le nouveau maintien dans Minecraft avant de reprendre les essais de vitesse ou de charge.
+
+Résultats 0.3.1 : 13/13 scénarios de référence et 4/4 de résonance passent dans LuaJ. Sur la régression identique, l'ancien contrôleur ne réussit aucun des quatre scénarios avec jusqu'à 22,33 m d'excursion verticale résiduelle, contre au plus 0,50 m pour le correctif. Ces valeurs concernent les dix dernières secondes du banc. Le démarrage à froid peut encore perdre 2,78 m avant stabilisation. La corde longue déjà oscillante reste non validée (2/3 scénarios réussis).

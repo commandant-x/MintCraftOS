@@ -1,6 +1,6 @@
-> 0.3.0 : profil quad rapide séparé, voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte ; ne pas confondre avec une qualification Minecraft.
+> 0.3.1 : correction du maintien résonant du profil quad rapide séparé, voir [QUAD-FPV.md](QUAD-FPV.md). Les contrôleurs standard restent inchangés. Validation synthétique distincte ; ne pas confondre avec une qualification Minecraft.
 
-# État d'implémentation — Autopilote Sputnik 0.3.0
+# État d'implémentation — Autopilote Sputnik 0.3.1
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 
@@ -18,3 +18,7 @@ Le banc indépendant distingue les succès, les échecs et les hypothèses. Les 
 ## Ajout 0.3.0 : quad rapide séparé
 
 Quantification collective synchronisée, réponse verticale directe, référence d’inclinaison amortie, réserve de portance prédictive, compensation passive de charge non exposée par la masse et récupération sans verrouillage sur angle. Référence modulaire identique : 12/12 scénarios synthétiques LuaJ passent. Stress faible inertie/retard : 2/4 ; corde longue avec balancement : 2/3. Ces échecs restent ouverts. Le profil rapide refuse les petites hélices et les hélices hétérogènes ; le contrôleur standard reste inchangé. Les missions et la calibration du profil rapide ne sont pas qualifiées par ces essais de stabilisation.
+
+## Correction 0.3.1 : maintien résonant
+
+Retrait de l’adaptation multiplicative sensible à la chute, biais vertical additif borné, assiette de maintien moins agressive et freinage compensé après relâchement. Banc élargi aux démarrages à froid, perturbations diagonales, chute, retard accru et erreur de réponse rotor ; mesure crête-à-crête verticale ajoutée. Les résultats 0.3.0 ne suffisaient pas à valider ces situations. Voir les nouveaux rapports avant de conclure sur le domaine pris en charge.
