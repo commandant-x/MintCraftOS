@@ -1,3 +1,5 @@
+> Livraison 0.4.0 : [montage unifié, journal, protection et migration](OPERATIONS.md). Les limites physiques et les échecs des campagnes restent applicables.
+
 > 0.3.5 : amortissement du maintien avec charge suspendue, effort estimé sans nouvelle saisie ; voir [QUAD-FPV.md](QUAD-FPV.md). Profil expérimental, contrôleur standard inchangé.
 
 # Quad natif Sputnik 0.1.20 — contrôleur expérimental

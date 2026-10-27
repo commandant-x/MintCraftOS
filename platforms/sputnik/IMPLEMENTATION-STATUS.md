@@ -1,19 +1,29 @@
-> 0.3.5 : amortissement du maintien avec charge suspendue, effort estimé sans nouvelle saisie ; voir [QUAD-FPV.md](QUAD-FPV.md). Profil expérimental, contrôleur standard inchangé.
-
-# État d'implémentation — Autopilote Sputnik 0.3.5
+# État d'implémentation — Autopilote Sputnik 0.4.0
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 
 | Lot | Livré | Reste à valider ou compléter |
 | --- | --- | --- |
-| A Montage | Descripteur versionné commun, formulaires préchargés par architecture (4/6 groupes) et graphe avancé à huit formulaires extensibles à 32 groupes, fréquences/auxiliaires, voiles par rotor, groupes partagés, télémétrie native, conflits et montage figé en vol | Assistant en une seule fenêtre ; description de moteurs hétérogènes partageant une sortie ; géométrie COM réelle indisponible en Lua |
+| A Montage | Descripteur versionné commun, formulaire unique sélectionnant jusqu’à 32 groupes avec brouillons, bibliothèque et import/export, fréquences/auxiliaires, voiles par rotor, groupes partagés, télémétrie native, conflits et montage figé en vol | Description de moteurs hétérogènes partageant une sortie ; géométrie COM réelle indisponible en Lua |
 | B Contrôle | Allocation physique commune, quad hétérogène, sustentation locale, banques différentielles, gouverne dépendante du mouvement, lacet disponible, séquence inverseur mémorisée avec arrêt frais ou estimé, capacités séparées | Domaine gouverne/virages serrés ; réponses thermiques spécifiques ; toutes les variantes mécaniques réelles |
 | C Calibration | Repos mesuré 20 observations, sollicitations bornées depuis état connu, récupération, montée/descente, déplacement/retour et tests conditionnels, pause/abandon, sauvegarde des résultats partiels, candidats persistants protégés du cache client | Identification complète des courbes/retards et des couplages ; validation sélective sans séquence complète ; essais de reprise physique instrumentés |
-| D Interface | Montage/Pilotage/Navigation séparés, boutons nommés, formulaires moteur simples avec expert conservé, consignes persistantes et ACK logiciel, bibliothèque de routes, édition par point et position courante, clavier six touches, diagnostic, premier défaut, arrêt horizontal distinct de coupure | Navigation entièrement sans saisie, boutons/commutateurs dédiés prêts à l'emploi pour arrêt/coupure, commandes de lacet optionnelles |
+| D Interface | Montage/Pilotage/Navigation séparés, boutons nommés, formulaires moteur simples avec expert conservé, consignes persistantes et ACK logiciel, bibliothèque de routes, édition par point et position courante, clavier six touches, diagnostic, premier défaut, arrêt horizontal distinct de coupure | Navigation entièrement sans saisie et commandes de lacet optionnelles |
 | E Adaptation | Quaternions, allocation/quantification couplées, correction de masse et trim d’assiette en maintien sans changer la cible, récupération d'assiette, suspension horizontale si réserve verticale insuffisante | Validation systématique très faibles inerties et délais élevés ; adaptation de réponse/panne sans modèle renseigné |
 | F Missions | Planificateur 3D local borné, zones/marges déclarées, routes XYZ, pause/reprise/retour, freinage passif, trace, points de coque déclarée, vues natives 2D/3D, maintien final | Contraintes de virage et de freinage garanties sur toute la trajectoire ; cartes terrain impossibles sans source réelle |
 
 Le banc indépendant distingue les succès, les échecs et les hypothèses. Les mesures de déplacement ne deviennent pas des ACK matériels. Le drapeau global de qualification reste faux. La livraison n'a pas été essayée dans le monde Minecraft du joueur.
+
+## Livraison 0.4.0 : exploitation et preuves
+
+- Montage : formulaire unique, variantes dédiées à sept nœuds, brouillons inactifs conservés et bibliothèque complète avec paramètres mécaniques. Importer un montage ne confirme pas ses essais physiques.
+- Pilotage : consignes acquittées, commandes explicites retour/annulation/reprise manuelle, arrêt horizontal et coupure séparés. Modification d’une consigne sans recréer l’estimateur.
+- Diagnostic : journal borné MCF1/MCLOG1, premier défaut figé, export paginé, détection de lacunes et stationnarité sur observations fraîches. Rejeu LuaJ sur poses enregistrées ; pas de trajectoire contrefactuelle garantie.
+- Protection : réduction bornée de l’enveloppe d’inclinaison, comparaison de son effet puis retour au réglage précédent si aggravation observée. Pause horizontale en forte oscillation, sans coupure mécanique automatique.
+- Identification : candidat collectif passif, délai/corrélation et freinage observé. Ni identification indépendante de rotors corrélés ni autotuning complet des gains ne sont annoncés.
+- Navigation : carte locale déclarée 2D/3D dans le nœud opérations, point relatif, sélection de route et géométrie active distincte du brouillon. Aucun terrain observé sans source réelle.
+- Validation : tests natifs des six graphes, sérialisation réelle SNBT/NBT et 96 mouvements synthétiques documentés. À enveloppe inchangée, 32 traces sont identiques à la 0.3.5. Les configurations avec retard important restent en échec dans plusieurs mouvements.
+
+**Le plan complet reste partiellement ouvert** : qualification de toutes les architectures dans Minecraft, identification mécanique instrumentée, commandes de lacet facultatives, garantie de freinage/virage sur route et réutilisation sélective de calibration demandent encore des preuves. Les limites d’API ne sont pas remplacées par des données supposées. Voir [le guide](OPERATIONS.md) et [les résultats complets](reports/operations-physics-0.4.0/README.md).
 
 ## Ajout 0.3.0 : quad rapide séparé
 

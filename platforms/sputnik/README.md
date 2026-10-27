@@ -1,19 +1,21 @@
-> 0.3.5 : amortissement du maintien avec charge suspendue, effort estimé sans nouvelle saisie ; voir [QUAD-FPV.md](QUAD-FPV.md). Profil expérimental, contrôleur standard inchangé.
+# Autopilote Sputnik 0.4.0 — un TXT par architecture
 
-# Autopilote Sputnik 0.2.2 — un TXT par architecture
+Le montage utilise maintenant un seul formulaire de groupe sélectionné, avec ses voiles, sa position et ses fréquences. Les sept nœuds du graphe comprennent pilotage, montage, clavier et diagnostic/journal ; un seul contrôleur émet les commandes physiques.
 
-Choisir **un seul** graphe :
+| Véhicule | TXT à copier intégralement | Nœuds / connexions |
+| --- | --- | ---: |
+| Quad FPV expérimental | [mintcraft-quad-fpv.clipboard.txt](dist/mintcraft-quad-fpv.clipboard.txt) | 7 / 34 |
+| Quad standard | [mintcraft-quad-autopilot.clipboard.txt](dist/mintcraft-quad-autopilot.clipboard.txt) | 7 / 34 |
+| Ballon | [mintcraft-balloon-autopilot.clipboard.txt](dist/mintcraft-balloon-autopilot.clipboard.txt) | 7 / 34 |
+| Venator | [mintcraft-venator-autopilot.clipboard.txt](dist/mintcraft-venator-autopilot.clipboard.txt) | 7 / 34 |
+| Hélicoptère | [mintcraft-helicopter-autopilot.clipboard.txt](dist/mintcraft-helicopter-autopilot.clipboard.txt) | 7 / 34 |
+| Hybride/personnalisé | [mintcraft-hybrid-autopilot.clipboard.txt](dist/mintcraft-hybrid-autopilot.clipboard.txt) | 7 / 34 |
 
-| Véhicule | TXT à copier intégralement | Groupes | Nœuds / connexions |
-| --- | --- | ---: | ---: |
-| Quad | [mintcraft-quad-autopilot.clipboard.txt](dist/mintcraft-quad-autopilot.clipboard.txt) | 4 sustentations | 10 / 29 |
-| Ballon | [mintcraft-balloon-autopilot.clipboard.txt](dist/mintcraft-balloon-autopilot.clipboard.txt) | 1 sustentation, 1 propulsion, 2 gouvernes | 10 / 29 |
-| Venator | [mintcraft-venator-autopilot.clipboard.txt](dist/mintcraft-venator-autopilot.clipboard.txt) | 4 sustentations, 2 banques de propulsion | 12 / 35 |
-| Hélicoptère | [mintcraft-helicopter-autopilot.clipboard.txt](dist/mintcraft-helicopter-autopilot.clipboard.txt) | 1 sustentation, 1 propulsion, 2 commandes de lacet | 10 / 29 |
+Choisir **un seul** graphe. Les groupes restent désactivés et leurs fréquences vierges à l’import. Le formulaire conserve jusqu’à 32 groupes, y compris leurs brouillons inactifs. Les bibliothèques de montage et de routes utilisent les champs sérialisés du graphe, sans CC.
 
-L’architecture et les modèles de groupe sont préchargés. Les groupes restent désactivés et les fréquences vierges : configurer le montage réel avant activation. Chaque variante conserve exactement le contrôleur de vol de la 0.2.0. Les nouveaux formulaires simples gardent la puissance, le type, les voiles et les positions ; la direction verticale est automatique sur les sustentations. Les autres propriétés restent accessibles dans le champ Expert ou par import complet MCV1. Les limites de calibration et de vol restent celles documentées dans [AUTOPILOT.md](AUTOPILOT.md).
+Le [guide 0.4.0](OPERATIONS.md) décrit la migration, le journal paginé, le rejeu, les cartes déclarées et la protection contre les oscillations. Celle-ci réduit progressivement la demande d’inclinaison et peut demander une pause horizontale ; elle ne garantit pas la stabilité et ne coupe pas mécaniquement les moteurs. Les 32 traces physiques à facteur 1 restent identiques à la 0.3.5 dans le banc de comparaison. Voir [les 96 essais et leurs échecs](reports/operations-physics-0.4.0/README.md) et [l’état du plan](IMPLEMENTATION-STATUS.md).
 
-La carte et le second afficheur ne sont plus inclus. L’agrégateur n’affiche que les entrées des quatre ou six groupes, au lieu de 32. Cela réduit les formulaires, les connexions et le rendu de l’éditeur ; ce n’est pas une mesure de FPS ni une réduction annoncée du coût du calcul physique. Le graphe [universel avancé](dist/mintcraft-autopilot.clipboard.txt) reste disponible pour les montages personnalisés, avec huit formulaires et sa carte.
+Le rendu utilise moins de formulaires ; aucun gain de FPS chiffré n’est revendiqué. La carte du nœud opérations affiche route, trace et coque déclarée, sans scan du terrain.
 
 ## Installation du nouveau graphe
 
@@ -22,7 +24,7 @@ La carte et le second afficheur ne sont plus inclus. L’agrégateur n’affiche
 3. Dans le fond vide de l’éditeur Sputnik, coller avec **Ctrl+V**, puis sauvegarder. Le collage ajoute tout le graphe ; ne pas coller le TXT dans l’éditeur Lua d’un nœud.
 4. Ne pas conserver l’ancien graphe en parallèle. Suivre [Montage → essais → pilotage](AUTOPILOT.md). Renseigner les fréquences et les caractéristiques propres à chaque hélice. Le nouveau pilote exige un passage physique Enable OFF avant activation.
 
-Le [ZIP courant](dist/mintcraft-sputnik-0.2.2.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
+Le [ZIP courant](dist/mintcraft-sputnik-0.4.0.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
 
 Le contrôleur continue côté serveur après fermeture de l’éditeur. Une mise à jour ne doit pas s’effectuer en vol : l’expiration Link peut ramener un signal à zéro, qui signifie plein régime pour certaines transmissions.
 
@@ -99,7 +101,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.2.2.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.4.0.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

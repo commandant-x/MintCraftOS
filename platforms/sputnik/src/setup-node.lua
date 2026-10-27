@@ -9,14 +9,28 @@ if not s then
  s.help=ui.label('Le pilote continue serveur apres fermeture. Configuration en vol: en attente OFF. Aucun ACK Link suppose.');_G.MintCraftSetup=s
 end
 addElement(s.title);addElement(s.profile);addElement(s.confirmed);addElement(s.zone);addElement(s.released);addElement(s.steering)
+local imported=input('Imported settings','string')
+if s.importSeen==nil then s.importSeen=imported end
+if type(imported)=='string' and imported~=s.importSeen then
+ s.importSeen=imported;local rev,text=imported:match('^MCSET1|(%d+)|(.+)$');rev=tonumber(rev)
+ if rev and rev>(s.importRevision or 0) then
+  local parts={};for value in ((text or '')..';'):gmatch('(.-);') do parts[#parts+1]=value end
+  local good=(#parts==10 or #parts==11) and parts[1]=='MCU1' and tonumber(parts[2])==math.floor(s.profile.getValue()+.5)
+  for i=3,7 do local v=tonumber(parts[i]);good=good and v~=nil and v==v and math.abs(v)<math.huge end
+  if good then
+   for i,key in ipairs({'gravity','climb','tilt','margin','braking'}) do s.fields[key].value.setValue(parts[i+2]) end
+   s.confirmed.setChecked(false);s.zone.setChecked(false);s.released.setChecked(false);s.steering.setChecked(parts[11]~='0');s.importRevision=rev;s.importNote='Montage importe: reconfirmer zone, sens et reprise.'
+  else s.importNote='Import refuse: architecture/reglages incompatibles.' end
+ end
+end
 local values={'MCU1',tostring(math.floor(s.profile.getValue()+.5))}
-for _,key in ipairs({'gravity','climb','tilt','margin','braking'}) do local f=s.fields[key];addElement(f.label);addElement(f.value);values[#values+1]=f.value.getValue() end
+for _,key in ipairs({'gravity','climb','tilt','margin','braking'}) do local f=s.fields[key];addElement(f.label);addElement(f.value);local value=tonumber(f.value.getValue());values[#values+1]=value and tostring(value) or f.value.getValue() end
 local why
 for _,rule in ipairs({{'gravity',0,100,'Gravite: 0 < valeur <= 100'},{'climb',0,5,'Montee: 0 < valeur <= 5 m/s'},{'tilt',0,20,'Inclinaison: 0 < valeur <= 20 deg'},{'margin',0,math.huge,'Rayon coque + pales: nombre positif requis'},{'braking',0,math.huge,'Freinage: deceleration positive requise'}}) do
  local v=tonumber(s.fields[rule[1]].value.getValue())
  if not v or v~=v or (rule[1]=='margin' and v<0 or rule[1]~='margin' and v<=rule[2]) or v>rule[3] or v==math.huge then why=rule[4];break end
 end
-s.help.setText(why or 'Reglages locaux valides. Confirmer le montage, sauvegarder puis OFF/ON. Le pilote continue serveur apres fermeture.')
+s.help.setText((s.importNote or '')..' '..(why or 'Reglages locaux valides. Confirmer le montage, sauvegarder puis OFF/ON. Le pilote continue serveur apres fermeture.'))
 addElement(s.help)
 values[#values+1]=s.confirmed.isChecked() and '1' or '0';values[#values+1]=s.zone.isChecked() and '1' or '0';values[#values+1]=s.released.isChecked() and '1' or '0';values[#values+1]=s.steering.isChecked() and '1' or '0'
 local emit=output

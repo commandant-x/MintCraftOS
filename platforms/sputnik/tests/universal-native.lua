@@ -44,7 +44,7 @@ e.values.Enable=1;state.bus['minecraft:stone,minecraft:lever']=15;tick();assert(
 assert(e.outputs['Flight qualified']==0)
 print('Universal native: single writer, boot gate, initial bounded trim, hot target keeps estimator, stale command refusal, frozen actuator/Enable bindings, mapping handoff, no restored mission and mechanical cut passed')
 -- Configuration request buttons commit a saved record, not an ephemeral click.
-local f=setmetatable({},{__index=_G});f._G=f;f.outputs={};f.ui={label=field,textfield=function() return field('') end,slider=function(_,minimum) return field(minimum) end,button=function() local b={clicked=false};b.wasClicked=function() local v=b.clicked;b.clicked=false;return v end;return b end};f.addElement=function() end;f.input=function() return 0 end;f.output=function(k,v) f.outputs[k]=v end
+local f=setmetatable({},{__index=_G});f._G=f;f.outputs={};f.ui={checkbox=function() local s=field(false);s.isChecked=s.getValue;s.setChecked=s.setValue;return s end,label=field,textfield=function() return field('') end,slider=function(_,minimum) return field(minimum) end,button=function() local b={clicked=false};b.wasClicked=function() local v=b.clicked;b.clicked=false;return v end;return b end};f.addElement=function() end;f.input=function() return 0 end;f.output=function(k,v) f.outputs[k]=v end
 local commands=assert(load(read('platforms/sputnik/dist/mintcraft-flight-commands.lua'),'commands','t',f));commands()
 local panel=f.MintCraftCommands;panel.mode.setValue(2);panel.fields.altitude.value.setValue('84');panel.apply.clicked=true;commands()
 assert(f.outputs.Request=='MCC1|1|ALTITUDE|84|0|0||')
@@ -54,7 +54,7 @@ print('Native command panel: committed request is persistent, versioned and idem
 local function uiEnv()
  local f=setmetatable({},{__index=_G});f._G=f;f.values={};f.outputs={}
  local function bool() local s=field(false);s.isChecked=s.getValue;s.setChecked=s.setValue;return s end
- f.ui={label=field,textfield=function() return field('') end,checkbox=bool,slider=function(_,minimum) return field(minimum) end,
+ f.ui={checkbox=function() local s=field(false);s.isChecked=s.getValue;s.setChecked=s.setValue;return s end,label=field,textfield=function() return field('') end,checkbox=bool,slider=function(_,minimum) return field(minimum) end,
   itempicker=function() local s=field(nil);s.getItem=s.getValue;s.setItem=s.setValue;return s end,
   button=function() local b={clicked=false};b.wasClicked=function() local v=b.clicked;b.clicked=false;return v end;return b end,
   viewport=function() local v={models={}};v.clear=function() v.models={} end;v.setZoom=function() end;v.setRotation=function() end;v.addItem=function(...) v.models[#v.models+1]={...} end;return v end}
@@ -94,6 +94,13 @@ e.MintCraftPilot.archive.setValue('CLIENT_CACHE');tick();assert(e.MintCraftPilot
 e.values.Request='MCC1|2|CALIBRATE|80|0|0||';tick()
 assert(calCore.calibration.priors[1] and not calCore.calibration.complete and not calCore.archived,'new calibration reused an old completion flag instead of candidate data')
 print('Calibration persistence: partial results, client-cache reassertion and fresh rerun from candidates passed')
+-- Supervisor envelopes are fresh bounded data, not an alternate actuator writer.
+e.values['Stability request']='MCSUP1,'..(state.tick+1)..',0.7';tick();assert(e.MintCraftPilot.core.scale==.7)
+e.values['Stability request']='MCSUP1,'..(state.tick-100)..',0.5';tick();assert(e.MintCraftPilot.core.scale==.7,'Expired supervisor packet changed accepted envelope')
+e.values['Stability request']='MCSUP1,'..(state.tick+1)..',1.1';tick();assert(e.MintCraftPilot.core.scale==.7,'Supervisor exceeded declared operator envelope')
+e.values['Stability request']='MCSUP1,'..(state.tick+1)..',1';tick();assert(e.MintCraftPilot.core.scale==1)
+print('Supervisor request: 0.5..1 bounds, timestamp checks, stale retention and explicit nominal restoration passed')
+
 -- Fallback keeps being emitted after a server-side flight fault, beyond Link expiry.
 local before=#state.writes;state.mass=0
 for _=1,25 do tick() end

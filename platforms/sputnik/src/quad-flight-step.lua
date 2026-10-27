@@ -41,7 +41,7 @@
   if cal and not cal.paused and not cal.complete and not manual then desired,probe=cal:step(p,v,self.omega,true);self.phase='CALIBRATING'
   elseif mission and not manual then desired=mission:step(p,v);self.phase=mission.phase
   else self.phase='HOLDING' end
-  local tilt=cfg.tilt or 25;local acceleration=p.gravity*math.tan(math.rad(tilt))
+  local tilt=(cfg.tilt or 25)*(self.scale or 1);local acceleration=p.gravity*math.tan(math.rad(tilt))
   local speed=math.sqrt(v.x^2+v.z^2);local ax,az=0,0
   if desired then
    self.target=vec(desired.x,desired.y,desired.z)

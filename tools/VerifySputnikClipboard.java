@@ -98,6 +98,30 @@ public final class VerifySputnikClipboard {
    for(int j=0;j<expected.length;j++) if(!fields.get(j).getClass().getMethod("getValue").invoke(fields.get(j)).equals(expected[j])) throw new AssertionError("Compact reload lost field "+j);
    System.out.println("Native compact form: source RPM, sails, shared members, XYZ, expert parameters and copy field retained across fresh evaluator reload");
   }
+  if(Boolean.getBoolean("mintcraft.sputnik.payload")) {
+   Class<?> nt=Class.forName("dev.devce.websnodelib.api.WNode"),gt=Class.forName("dev.devce.websnodelib.api.WGraph"),factory=Class.forName("dev.devce.rocketnautics.registry.RocketNodes");
+   Object graph=gt.getConstructor().newInstance();
+   Object node=nt.getConstructor(net.minecraft.resources.ResourceLocation.class,String.class,int.class,int.class).newInstance(net.minecraft.resources.ResourceLocation.parse("rocketnautics:lua_script"),"Workbench persistence",0,0);
+   gt.getMethod("addNode",nt).invoke(graph,node);factory.getMethod("setupLuaEvaluatorPublic",nt).invoke(null,node);
+   String code="ui.itempicker=function() return {getItem=function() return nil end,setItem=function() end} end\n"+Files.readString(Path.of("platforms/sputnik/dist/mintcraft-mount-workbench.lua"));
+   ((CompoundTag)nt.getMethod("getCustomData").invoke(node)).putString("code",code);nt.getMethod("evaluate").invoke(node);
+   var fields=new java.util.ArrayList<Object>();
+   for(Object element:(java.util.List<?>)nt.getMethod("getElements").invoke(node)) if(element.getClass().getSimpleName().equals("WTextField")) fields.add(element);
+   if(fields.size()!=15) throw new AssertionError("Unexpected workbench field order: "+fields.size());
+   // Save immediately after a final keystroke, before the editor's next evaluation.
+   fields.get(0).getClass().getMethod("setValue",String.class).invoke(fields.get(0),"224");
+   fields.get(1).getClass().getMethod("setValue",String.class).invoke(fields.get(1),"24");
+   CompoundTag saved=(CompoundTag)nt.getMethod("save").invoke(node);
+   Object freshGraph=gt.getConstructor().newInstance(),fresh=nt.getConstructor(net.minecraft.resources.ResourceLocation.class,String.class,int.class,int.class).newInstance(net.minecraft.resources.ResourceLocation.parse("rocketnautics:lua_script"),"Workbench reload",0,0);
+   gt.getMethod("addNode",nt).invoke(freshGraph,fresh);factory.getMethod("setupLuaEvaluatorPublic",nt).invoke(null,fresh);
+   ((CompoundTag)nt.getMethod("getCustomData").invoke(fresh)).putString("code",code);nt.getMethod("evaluate").invoke(fresh);
+   nt.getMethod("load",CompoundTag.class).invoke(fresh,saved);nt.getMethod("evaluate").invoke(fresh);
+   CompoundTag data=(CompoundTag)nt.getMethod("getCustomData").invoke(fresh);
+   if(data.getBoolean("err")) throw new AssertionError("Workbench reload: "+data.getString("errMsg"));
+   fields.clear();for(Object element:(java.util.List<?>)nt.getMethod("getElements").invoke(fresh)) if(element.getClass().getSimpleName().equals("WTextField")) fields.add(element);
+   if(!fields.get(0).getClass().getMethod("getValue").invoke(fields.get(0)).equals("224") || !fields.get(1).getClass().getMethod("getValue").invoke(fields.get(1)).equals("24")) throw new AssertionError("Workbench lost pending last keystroke on fresh NBT reload");
+   System.out.println("Native workbench: pending last keystroke survives actual NBT save/fresh evaluator reload");
+  }
   // Reproduce the user's 108508-byte failure in the real NBT binary writer.
   var oversized=new CompoundTag(); oversized.putString("code","x".repeat(108508));
   try {

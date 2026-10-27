@@ -1,9 +1,10 @@
 """Conservative Lua token whitespace compaction; keep source lines for host pin scan."""
 import re
+from collections import Counter
 _WORD=re.compile(r'[A-Za-z_][A-Za-z_0-9]*')
 _NUMBER=re.compile(r'(?:0[xX][0-9a-fA-F]+(?:\.(?!\.)[0-9a-fA-F]*)?(?:[pP][+-]?\d+)?|(?:\d+\.(?!\.)\d*|\d+|\.\d+)(?:[eE][+-]?\d+)?)')
 _MULTI={'...','..','==','~=','<=','>=','::','//','<<','>>'}
-def compact(text, identifiers=None, keep_lines=True, private_identifiers=False, explicit_methods=False):
+def compact(text, identifiers=None, keep_lines=True, private_identifiers=False, explicit_methods=False, intern_literals=False):
     pin_lines={i for i,value in enumerate(text.splitlines(),1) if re.search(r'\b(?:input|output)\s*\(',value)}
     tokens=[];i=0;line=False;row=1
     while i<len(text):
@@ -82,6 +83,22 @@ def compact(text, identifiers=None, keep_lines=True, private_identifiers=False, 
                 if value<0: break
             alias='_'+alias
             if alias not in words and len(alias)<len(word): identifiers[word]=alias
+    prefix=''
+    if intern_literals:
+        # Opt-in source-size optimization. Exact literal tokens keep their Lua
+        # semantics; host pin literals stay inline for native pin discovery.
+        blocked={v for v,_,r in tokens if r in pin_lines}
+        counts=Counter(v for v,_,_ in tokens if len(v)>2 and v[0] in "'\"" and v[-1]==v[0] and v not in blocked and '--' not in v)
+        words={v for v,_,_ in tokens if _WORD.fullmatch(v)}|set(identifiers.values())
+        candidates=sorted(counts,key=lambda v:(counts[v]*(len(v)-2)-(len(v)+11),v),reverse=True)
+        replacements={}
+        for value in candidates:
+            if len(replacements)>=24:break
+            if counts[value]*(len(value)-2)-(len(value)+11)<8:continue
+            alias=next(('Z'+c for c in '0123456789abcdefghijklmnopqrstuvwxyz' if 'Z'+c not in words),None)
+            if not alias:break
+            words.add(alias);replacements[value]=alias;prefix+='local '+alias+'='+value+';'
+        tokens=[(replacements.get(v,v),newline,row) for v,newline,row in tokens]
     out=[];previous='';previous_row=0
     for index,(token,newline,token_row) in enumerate(tokens):
         if (index not in field_positions or token in explicit) and _WORD.fullmatch(token): token=identifiers.get(token,token)
@@ -91,4 +108,4 @@ def compact(text, identifiers=None, keep_lines=True, private_identifiers=False, 
             if newline and (keep_lines or token_row in pin_lines or previous_row in pin_lines): out.append('\n')
             elif word or ambiguity: out.append(' ')
         out.append(token);previous=token;previous_row=token_row
-    return ''.join(out)+'\n'
+    return prefix+'\n'+''.join(out)+'\n' if prefix else ''.join(out)+'\n'

@@ -5,7 +5,8 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.3.5'
+VERSION='0.4.0'
+FLIGHT_EXCLUDED=('sdk/mintcraft-library.lua','mintcraft-autopilot.clipboard.txt','mintcraft-quad-flight.clipboard.txt','mintcraft-autopilot-control.clipboard.txt','mintcraft-autopilot-quad-fpv.clipboard.txt')
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
  'output_characterization','tilt_response','known_flight','motion_progress',
@@ -86,7 +87,7 @@ def native_universal():
  mount=mount_prefix+source(BASE/'src/mount-node.lua')
  simple=mount_prefix+'local PROFILE_DEFAULT=1\n'+source(BASE/'src/mount-simple.lua')
  slim_bus=source(BASE/'src/groups-simple.lua').replace('GROUP_COUNT','4').replace('GROUP_INPUTS',','.join("input('Group "+str(i)+"','string')" for i in range(1,5))).replace('OBSERVATION_INPUTS',','.join("input('Observation "+str(i)+"','string')" for i in range(1,5)))
- return {'autopilot-control':prefix+source(BASE/'src/autopilot-node.lua'),'mount-group':mount,'mount-simple':simple,'groups-simple':slim_bus,'mount-bus':source(BASE/'src/mount-bus.lua'),'mount-setup':source(BASE/'src/setup-node.lua'),'flight-commands':source(BASE/'src/command-node.lua'),'local-map':source(BASE/'src/map-node.lua')}
+ return {'autopilot-control':prefix+source(BASE/'src/autopilot-node.lua'),'mount-group':mount,'mount-simple':simple,'groups-simple':slim_bus,'mount-bus':source(BASE/'src/mount-bus.lua'),'mount-setup':source(BASE/'src/setup-node.lua'),'flight-commands':source(BASE/'src/command-node.lua'),'local-map':source(BASE/'src/map-node.lua'),'mount-workbench':mount_prefix+'local PROFILE_DEFAULT=1\n'+source(BASE/'src/mount-workbench.lua').replace('ARCHITECTURE_LABEL','Personnalise'),'flight-operations':wrapped('Journal',source(BASE/'src/flight_journal.lua'))+'local JournalFinite=Journal.finite\n'+source(BASE/'src/operations-node.lua')}
 def native_quad_fpv():
  # Dedicated writer: never inject experimental attitude control into other profiles.
  text=native_universal()['autopilot-control']
@@ -120,22 +121,17 @@ def fpv_graph(scripts,consent):
  return architecture_graph(scripts,consent,1,4,'quad-fpv','Quad: 4 helices verticales')
 
 def architecture_graph(scripts,consent,profile,count,slug,label):
- # Keep the exact flight writer; reduce only editor forms, pins and rendering.
  setup=scripts['mount-setup'].replace("profile=ui.slider('Architecture',1,5,300)","profile=ui.label('Architecture fixe: "+label+"')")
  setup=setup.replace('s.profile.setValue(1);','').replace('math.floor(s.profile.getValue()+.5)',str(profile))
  setup=setup.replace('Montage commun: 1 Quad / 2 Ballon / 3 Venator / 4 Helicoptere / 5 Hybride','Montage '+label)
- bus=source(BASE/'src/groups-simple.lua').replace('GROUP_COUNT',str(count)).replace('GROUP_INPUTS',','.join("input('Group "+str(i)+"','string')" for i in range(1,count+1))).replace('OBSERVATION_INPUTS',','.join("input('Observation "+str(i)+"','string')" for i in range(1,count+1)))
- nodes=[('enable',consent,20,40),('keyboard',scripts['typewriter'],20,400),('montage',setup,350,40),('commands',scripts['flight-commands'],750,40),('autopilot',scripts['autopilot-control'],1300,40),('groups',bus,1300,700)]
+ mount=scripts['mount-workbench'].replace('local PROFILE_DEFAULT=1\n','local PROFILE_DEFAULT='+str(profile)+'\n').replace('Personnalise',label).replace('--FPV_DEFAULTS',"g.kind='bearing';g.thrust=.2;g.airflow=.05;" if slug=='quad-fpv' else '')
+ nodes=[('enable',consent,20,40),('keyboard',scripts['typewriter'],20,450),('montage',setup,350,40),('mount',mount,750,40),('commands',scripts['flight-commands'],1250,40),('autopilot',scripts['autopilot-control'],1850,40),('operations',scripts['flight-operations'],2250,40)]
  edges=[('enable','Enable','autopilot','Enable'),('enable','Binding','autopilot','Enable binding'),('enable','Enable','keyboard','Enable'),('keyboard','Bindings','autopilot','Keyboard bindings'),('montage','Settings','autopilot','Settings'),('commands','Request','autopilot','Request'),('autopilot','Acknowledged revision','commands','Acknowledged revision'),('autopilot','Status','commands','Status'),('autopilot','Position','commands','Position')]
- for pin in ('Groups A','Groups B','Observations A','Observations B'): edges.append(('groups',pin,'autopilot',pin))
- for pin in ('Commands valid','Forward demand','Left demand','Vertical demand'): edges.append(('keyboard',pin,'autopilot',pin))
- for i in range(1,count+1):
-  name='group-'+str(i)
-  code=scripts['mount-simple'].replace('local GROUP_DEFAULT=1\n','local GROUP_DEFAULT='+str(i)+'\n',1)
-  code=code.replace('local PROFILE_DEFAULT=1\n','local PROFILE_DEFAULT='+str(profile)+'\n')
-  nodes.append((name,code,20+(i-1)*450,1250))
-  edges.extend([('montage','Architecture',name,'Architecture'),(name,'Group','groups','Group '+str(i)),(name,'Shaft observation','groups','Observation '+str(i))])
- # Different variants must not reuse node UUIDs when pasted into another graph.
+ for pin in ('Groups A','Groups B'):edges.extend([('mount',pin,'autopilot',pin),('mount',pin,'operations',pin)])
+ for pin in ('Observations A','Observations B'):edges.append(('mount',pin,'autopilot',pin))
+ for pin in ('Commands valid','Forward demand','Left demand','Vertical demand'):edges.append(('keyboard',pin,'autopilot',pin))
+ for pin in ('Geometry','Route','Position','Trace'):edges.append(('autopilot',pin,'operations',pin))
+ edges.extend([('autopilot','Report','operations','Flight report'),('montage','Settings','operations','Settings'),('commands','Stop requested','operations','Stop requested'),('commands','Cut requested','operations','Cut requested'),('operations','Stop horizontal','autopilot','Stop horizontal'),('operations','Mechanical cut','autopilot','Mechanical cut'),('operations','Diagnosis','commands','Diagnosis'),('operations','Stability request','autopilot','Stability request'),('mount','Geometry','operations','Draft geometry'),('montage','Settings','mount','Settings'),('mount','Settings draft','montage','Imported settings')])
  rename=lambda name:slug+'-'+name
  return [(rename(n),c,x,y) for n,c,x,y in nodes],[(rename(a),b,rename(c),d) for a,b,c,d in edges]
 
@@ -156,8 +152,8 @@ def main():
  # Readable module sources remain the source of truth.
  aliases={name:'_'+str(i) for i,name in enumerate(['Portable','Geometry','Physics','Response','Progress','Filter','Vehicle','Mission','Calibration','Flight'])}
  aliases.update({name:'_'+chr(65+i) for i,name in enumerate(['worldAx','worldAz','desiredYaw','worldRate','requestedSpeed','provisional'])})
- scripts['autopilot-control']=compact(scripts['autopilot-control'],aliases,keep_lines=False,private_identifiers=True,explicit_methods=True)
- scripts['autopilot-quad-fpv']=compact(scripts['autopilot-quad-fpv'],aliases,keep_lines=False,private_identifiers=True,explicit_methods=True)
+ scripts['autopilot-control']=compact(scripts['autopilot-control'],aliases,keep_lines=False,private_identifiers=True,explicit_methods=True,intern_literals=True)
+ scripts['autopilot-quad-fpv']=compact(scripts['autopilot-quad-fpv'],aliases,keep_lines=False,private_identifiers=True,explicit_methods=True,intern_literals=True)
  artifacts={}
  (out/'sdk').mkdir(exist_ok=True)
  (out/'profiles').mkdir(exist_ok=True)
@@ -201,44 +197,36 @@ def main():
  path=out/'mintcraft-quad-flight.clipboard.txt'
  path.write_text(graph_clipboard(quad_nodes,quad_edges,{'quad-status':'websnodelib:string_display','flight-screen':'websnodelib:string_display'}),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
- # Universal graph: exactly one physical writer, independent montage/consignes/map.
- universal_nodes=[('mount-bus',scripts['mount-bus'],1100,700),('pilot-enable',consent,20,40),('montage',scripts['mount-setup'],350,40),('pilot-keyboard',scripts['typewriter'],20,500),('pilot-commands',scripts['flight-commands'],700,40),('autopilot',scripts['autopilot-control'],1600,40),('pilot-status',"input('Text','string')",2250,40),('local-map',scripts['local-map'],2250,300)]
- universal_edges=[('mount-bus','Groups A','autopilot','Groups A'),('mount-bus','Groups B','autopilot','Groups B'),('mount-bus','Observations A','autopilot','Observations A'),('mount-bus','Observations B','autopilot','Observations B'),('pilot-enable','Enable','autopilot','Enable'),('pilot-enable','Binding','autopilot','Enable binding'),('pilot-enable','Enable','pilot-keyboard','Enable'),('montage','Settings','autopilot','Settings'),('pilot-commands','Request','autopilot','Request'),('autopilot','Acknowledged revision','pilot-commands','Acknowledged revision'),('autopilot','Status','pilot-commands','Status'),('autopilot','Position','pilot-commands','Position'),('autopilot','Status','pilot-status','Text'),('pilot-keyboard','Bindings','autopilot','Keyboard bindings')]
- for pin in ('Commands valid','Forward demand','Left demand','Vertical demand'): universal_edges.append(('pilot-keyboard',pin,'autopilot',pin))
- for pin in ('Geometry','Route','Position','Trace'): universal_edges.append(('autopilot',pin,'local-map',pin))
- for i in range(1,9):
-  name='groupe-'+str(i);code=scripts['mount-group'].replace('local GROUP_DEFAULT=1\n','local GROUP_DEFAULT='+str(i)+'\n',1)
-  universal_nodes.append((name,code,350+(i-1)%4*500,1100+(i-1)//4*1600))
-  universal_edges.extend([('montage','Architecture',name,'Architecture'),(name,'Group','mount-bus','Group '+str(i)),(name,'Shaft observation','mount-bus','Observation '+str(i))])
- path=out/'mintcraft-autopilot.clipboard.txt'
- path.write_text(graph_clipboard(universal_nodes,universal_edges,{'pilot-status':'websnodelib:string_display'}),encoding='utf-8')
+ # Compatibility name now points to the compact hybrid workbench, not 8 forms.
+ nodes,edges=architecture_graph(scripts,consent,5,8,'hybrid','Hybride')
+ path=out/'mintcraft-autopilot.clipboard.txt';path.write_text(graph_clipboard(nodes,edges),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
  architecture_graphs={}
- for profile,count,slug,label in ((1,4,'quad','Quad'),(2,4,'balloon','Ballon'),(3,6,'venator','Venator'),(4,4,'helicopter','Helicoptere')):
+ for profile,count,slug,label in ((1,4,'quad','Quad'),(2,4,'balloon','Ballon'),(3,6,'venator','Venator'),(4,4,'helicopter','Helicoptere'),(5,8,'hybrid','Hybride')):
   nodes,edges=architecture_graph(scripts,consent,profile,count,slug,label)
   path=out/('mintcraft-'+slug+'-autopilot.clipboard.txt')
   path.write_text(graph_clipboard(nodes,edges),encoding='utf-8')
   artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
-  architecture_graphs[slug]={'file':path.name,'profile':profile,'groups':count,'nodes':len(nodes),'connections':len(edges),'mapIncluded':False,'flightControllerSha256':hashlib.sha256(scripts['autopilot-control'].encode()).hexdigest()}
+  architecture_graphs[slug]={'file':path.name,'profile':profile,'groups':count,'nodes':len(nodes),'connections':len(edges),'mapIncluded':True,'flightControllerSha256':hashlib.sha256(scripts['autopilot-control'].encode()).hexdigest()}
  nodes,edges=fpv_graph(scripts,consent)
  path=out/'mintcraft-quad-fpv.clipboard.txt';path.write_text(graph_clipboard(nodes,edges),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
  manifest={'schema':1,'edition':'MintCraft Sputnik','version':VERSION,'target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
   'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
-  'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
-  'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
+  'flightArchiveExcludes':list(FLIGHT_EXCLUDED),'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
+  'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','flightSample':'MCF1','flightLog':'MCLOG1','mountLibrary':'MCFLEET1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
   'nativeSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((BASE/'src').glob('*.lua'))},
-  'experimentalQuadFpv':{'file':'mintcraft-quad-fpv.clipboard.txt','nodes':10,'connections':29,'scope':'four declared vertical rotors, per-rotor model and collective priority; synthetic validation only','controllerSha256':hashlib.sha256(scripts['autopilot-quad-fpv'].encode()).hexdigest()},
+  'experimentalQuadFpv':{'file':'mintcraft-quad-fpv.clipboard.txt','nodes':len(nodes),'connections':len(edges),'scope':'four declared vertical rotors, per-rotor model and collective priority; synthetic validation only','controllerSha256':hashlib.sha256(scripts['autopilot-quad-fpv'].encode()).hexdigest()},
   'architectureGraphs':architecture_graphs,'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
- files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS')
+ files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS' and p.relative_to(out).as_posix() not in FLIGHT_EXCLUDED)
  archive=out/('mintcraft-sputnik-'+VERSION+'.zip')
  with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for path in files:
    entry=zipfile.ZipInfo(path.relative_to(out).as_posix(),(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
    z.writestr(entry,path.read_bytes())
-  for name in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
+  for name in ('README.md','OPERATIONS.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
    path=ROOT/name if name=='LICENSE' else BASE/name
    if path.exists():
     entry=zipfile.ZipInfo(name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
@@ -247,12 +235,12 @@ def main():
   source_paths.update(BASE.glob('*.md'));source_paths.add(ROOT/'LICENSE')
   source_paths.update(ROOT/(name.replace('.','/')+'.lua') for name in MODULES)
   source_paths.update(ROOT/'tests'/(name+'.lua') for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight'))
-  source_paths.update(ROOT/'tools'/name for name in ('build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-quad-load-contract.py','test-sputnik-quad-load.py','report-sputnik-quad-load.py','verify-sputnik-quad-load.py','quad_load_contract.py','sputnik-load-twin.lua','test-sputnik-quad-com.py','report-sputnik-quad-com.py','verify-sputnik-quad-com.py','quad_com_contract.py','test-quad-com-contract.py','sputnik-com-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
+  source_paths.update(ROOT/'tools'/name for name in ('report-sputnik-operations.py','replay-sputnik-flight.py','sputnik-observation-replay.lua','test-sputnik-flight-pages.py','test-sputnik-operations-physics.py','build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-quad-load-contract.py','test-sputnik-quad-load.py','report-sputnik-quad-load.py','verify-sputnik-quad-load.py','quad_load_contract.py','sputnik-load-twin.lua','test-sputnik-quad-com.py','report-sputnik-quad-com.py','verify-sputnik-quad-com.py','quad_com_contract.py','test-quad-com-contract.py','sputnik-com-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
   for path in sorted(source_paths):
-   if path.is_file() and path.name not in ('README.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
+   if path.is_file() and path.name not in ('README.md','OPERATIONS.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','quad-fpv-0.3.5'):
-   if report_name!='quad-fpv-0.3.5':
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','operations-0.4.0'):
+   if report_name!='operations-0.4.0':
     entry=zipfile.ZipInfo('reports/'+report_name+'/README.md',(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
     link='https://github.com/commandant-x/MintCraftOS/tree/80fe2f7c3150dab1c108a4e5c303be458dc91568/platforms/sputnik/reports/'+report_name
     z.writestr(entry,'# Historical evidence\n\nThe immutable sources, measurements and prior reports are available at '+link+' .\n');continue

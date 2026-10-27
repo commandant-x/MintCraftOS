@@ -1,4 +1,6 @@
-# Sputnik 0.2.2 — autopilote commun
+> Livraison 0.4.0 : [montage unifié, journal, protection et migration](OPERATIONS.md). Les limites physiques et les échecs des campagnes restent applicables.
+
+# Sputnik 0.4.0 — autopilote commun
 
 Choisir le **[TXT de votre architecture](README.md)**. Les graphes quad, ballon, Venator et hélicoptère préchargent leur montage, proposent des formulaires simples et omettent la carte. Les paramètres moins courants restent accessibles dans Expert et par import/export MCV1. Le graphe universel avancé reste **`dist/mintcraft-autopilot.clipboard.txt`**. Copier son contenu intégral, puis le coller dans le fond du graphe Sputnik. Le `.lua` seul ne contient pas les panneaux et raccordements. Faire la mise à jour au sol, avec une coupure mécanique indépendante engagée : supprimer l’ancien contrôleur avant d’utiliser les mêmes fréquences. Une suppression ou un redémarrage du calcul peut laisser expirer les sorties Link vers zéro, donc plein régime sur ces transmissions. La bibliothèque SDK n'est pas un nœud à importer.
 

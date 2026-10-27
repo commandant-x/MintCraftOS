@@ -46,7 +46,7 @@ function M.defaults(profile,index)
 end
 function M.validate(groups,protected)
  if type(groups)~='table' or #groups<1 or #groups>32 then return nil,'1..32 groupes requis' end
- local seen,ids={},{};for _,key in ipairs(protected or {}) do if seen[key] then return nil,'Frequence commande physique/clavier dupliquee' end;seen[key]='commande physique' end
+ local seen,ids={},{};for _,key in ipairs(protected or {}) do if seen[key] then return nil,'Clavier/Enable duplique' end;seen[key]='commande physique' end
  local lift=false
  for _,g in ipairs(groups) do
   if type(g)~='table' or not finite(g.id) or g.id%1~=0 or g.id<1 or g.id>32 or ids[g.id] then return nil,'Identifiant groupe unique 1..32 requis' end;ids[g.id]=true
@@ -56,7 +56,7 @@ function M.validate(groups,protected)
   if math.abs(g.x)>128 or math.abs(g.y)>128 or math.abs(g.z)>128 then return nil,'Position locale hors domaine' end
   local n=math.sqrt(g.dx^2+g.dy^2+g.dz^2)
   if math.abs(n-1)>.001 then return nil,'Direction de poussee normalisee requise' end
-  if g.source<=0 or g.source>256 or g.sails%1~=0 or g.sails<1 or g.sails>4096 or g.thrust<=0 or g.airflow<=0 or g.gain<=0 or g.members%1~=0 or g.members<1 or g.members>32 then return nil,'Parametres moteur invalides' end
+  if g.source<=0 or g.source>256 or g.sails%1~=0 or g.sails<1 or g.sails>4096 or g.thrust<=0 or g.airflow<=0 or g.gain<=0 or g.members%1~=0 or g.members<1 or g.members>32 then return nil,'Moteur invalide' end
   if g.neutral<0 or g.neutral>15 or g.fallback%1~=0 or g.fallback< -1 or g.fallback>15 or g.run~=0 and g.run~=15 or g.alpha<=0 or g.alpha>1 or g.support<0 then return nil,'Neutre/repli/rampe invalide' end
   for _,role in ipairs({'power','reverse','clutch'}) do
    local a,b=g[role..'A'],g[role..'B'];local optional=role~='power' and a=='' and b==''
@@ -67,7 +67,7 @@ function M.validate(groups,protected)
   end
   if g.role=='lift' then lift=true end
  end
- if not lift then return nil,'Au moins une sustentation requise' end
+ if not lift then return nil,'Sustentation requise' end
  return true
 end
 function M.quaternion(p,y,r)

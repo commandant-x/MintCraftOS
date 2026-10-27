@@ -49,18 +49,18 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
   while ']'+eq+']' in value: eq+='='
   return '['+eq+'['+value+']'+eq+']'
  lexical=folder/'lexical.lua'
- lexical.write_text('\n'.join('do local a={assert(load('+lua_literal(program)+'))()} local b={assert(load('+lua_literal(builder.compact(program))+'))()} assert(#a==#b) for i=1,#a do assert(a[i]==b[i],"Lua compaction changed semantics") end end' for program in programs))
+ lexical.write_text('\n'.join('do local a={assert(load('+lua_literal(program)+'))()} local b={assert(load('+lua_literal(builder.compact(program,intern_literals=True))+'))()} assert(#a==#b) for i=1,#a do assert(a[i]==b[i],"Lua compaction changed semantics") end end' for program in programs))
  execute([java,'-cp',cp,'VerifySputnikLua',lexical])
  architecture_bootstrap=folder/'architecture-bootstrap.lua'
  architecture_graphs=[]
  scripts=builder.native_universal();scripts['typewriter']=(dist/'mintcraft-typewriter.lua').read_text();scripts['autopilot-control']=(dist/'mintcraft-autopilot-control.lua').read_text()
  for slug,record in manifest['architectureGraphs'].items():
-  nodes,edges=builder.architecture_graph(scripts,builder.source(builder.BASE/'src/test-enable.lua'),record['profile'],record['groups'],slug,{'quad':'Quad','balloon':'Ballon','venator':'Venator','helicopter':'Helicoptere'}[slug])
+  nodes,edges=builder.architecture_graph(scripts,builder.source(builder.BASE/'src/test-enable.lua'),record['profile'],record['groups'],slug,{'quad':'Quad','balloon':'Ballon','venator':'Venator','helicopter':'Helicoptere','hybrid':'Hybride'}[slug])
   assert builder.graph_clipboard(nodes,edges)==(dist/record['file']).read_text(),'Graph fixture differs from imported clipboard'
-  assert len(nodes)==6+record['groups'] and len(edges)==17+3*record['groups']
+  assert len(nodes)==7 and len(edges)==34
   assert sum('transmitWirelessRedstone' in code for _,code,_,_ in nodes)==1,'More than one physical writer'
-  bus=next(code for name,code,_,_ in nodes if name==slug+'-groups')
-  assert len(builder.pins(bus)['input'])==2*record['groups'],'Unused group pins returned'
+  workbench=next(code for name,code,_,_ in nodes if name==slug+'-mount')
+  assert len(builder.pins(workbench)['input'])==3,'Workbench feedback transport changed'
   graph='{slug='+json.dumps(slug)+',profile='+str(record['profile'])+',groups='+str(record['groups'])+',nodes={'+','.join('{name='+json.dumps(n)+',code='+lua_literal(c)+'}' for n,c,x,y in nodes)+'},edges={'+','.join('{'+','.join(json.dumps(v) for v in edge)+'}' for edge in edges)+'}}'
   architecture_graphs.append(graph)
  scripts['autopilot-quad-fpv']=(dist/'mintcraft-autopilot-quad-fpv.lua').read_text()
@@ -72,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
  execute([java,'-cp',cp,'VerifySputnikLua',architecture_bootstrap,'platforms/sputnik/tests/architecture-graphs.lua'])
  readable=folder/'native-readable.lua';readable.write_text(builder.native_universal()['autopilot-control'])
  equivalence=folder/'equivalence-bootstrap.lua';equivalence.write_text('MINTCRAFT_UNCOMPACTED='+json.dumps(str(readable))+'\n')
- execute([java,'-cp',cp,'VerifySputnikLua',equivalence,'platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua','platforms/sputnik/tests/link-test.lua','platforms/sputnik/tests/quad-graph.lua','platforms/sputnik/tests/architecture-selector.lua','platforms/sputnik/tests/universal-flight.lua','platforms/sputnik/tests/universal-native.lua'])
+ execute([java,'-cp',cp,'VerifySputnikLua',equivalence,'platforms/sputnik/tests/runtime.lua','platforms/sputnik/tests/drive-mixer.lua','platforms/sputnik/tests/bank-probe.lua','platforms/sputnik/tests/bank-runtime.lua','platforms/sputnik/tests/typewriter.lua','platforms/sputnik/tests/quad-control.lua','platforms/sputnik/tests/aero-physics.lua','platforms/sputnik/tests/link-test.lua','platforms/sputnik/tests/quad-graph.lua','platforms/sputnik/tests/architecture-selector.lua','platforms/sputnik/tests/universal-flight.lua','platforms/sputnik/tests/universal-native.lua','platforms/sputnik/tests/flight-journal.lua','platforms/sputnik/tests/operations-runtime.lua','platforms/sputnik/tests/workbench-persistence.lua'])
  fpv_readable=folder/'fpv-readable.lua';fpv_readable.write_text(builder.native_quad_fpv())
  fpv_boot=folder/'fpv-bootstrap.lua';fpv_boot.write_text('MINTCRAFT_FPV_READABLE='+json.dumps(str(fpv_readable))+'\n')
  execute([java,'-cp',cp,'VerifySputnikLua',fpv_boot,'platforms/sputnik/tests/quad-fpv.lua'])
@@ -107,13 +107,13 @@ with tempfile.TemporaryDirectory(prefix='mintcraft-sputnik-') as tmp:
    assert actual==(ROOT/'platforms/sputnik/tests/fixtures/sable-pressure.csv').read_bytes(),'Actual Sable pressure oracle changed'
   execute([javac,'-proc:none','-cp',args.minecraft_classpath,'-d',folder,ROOT/'tools/VerifySputnikClipboard.java'])
   pairs=[]
-  for name in ('autopilot-quad-fpv','mount-simple','groups-simple','autopilot-control','mount-group','mount-bus','mount-setup','flight-commands','local-map','architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio'):
+  for name in ('autopilot-quad-fpv','mount-simple','groups-simple','autopilot-control','mount-group','mount-bus','mount-setup','flight-commands','local-map','architecture-selector','flight-telemetry','link-test','quad-control','typewriter','import-test','dashboard','vehicle-mixer','drive-mixer','bank-test','test-sequencer','test-enable','link-gateway','numeric-radio','mount-workbench','flight-operations'):
    base='platforms/sputnik/dist/mintcraft-'+name;pairs.extend([base+'.clipboard.txt',base+'.lua'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-two-bank-tests.clipboard.txt','@graph'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-flight-audit.clipboard.txt','@graph:2:1'])
   pairs.extend(['platforms/sputnik/dist/mintcraft-quad-flight.clipboard.txt','@graph:7:17'])
-  pairs.extend(['platforms/sputnik/dist/mintcraft-autopilot.clipboard.txt','@graph:16:46'])
-  pairs.extend(['platforms/sputnik/dist/mintcraft-quad-fpv.clipboard.txt','@graph:10:29'])
+  pairs.extend(['platforms/sputnik/dist/mintcraft-autopilot.clipboard.txt','@graph:7:34'])
+  pairs.extend(['platforms/sputnik/dist/mintcraft-quad-fpv.clipboard.txt','@graph:7:34'])
   for record in manifest['architectureGraphs'].values():
    pairs.extend(['platforms/sputnik/dist/'+record['file'],'@graph:'+str(record['nodes'])+':'+str(record['connections'])])
   execute([java,'-Dmintcraft.sputnik.payload=true','-cp',str(folder)+os.pathsep+args.minecraft_classpath+os.pathsep+str(args.cosmonautics_jar),'VerifySputnikClipboard',*pairs])

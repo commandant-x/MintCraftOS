@@ -6,7 +6,7 @@ local function wrap(x) return (x+180)%360-180 end
 local function vec(x,y,z) return {x=x,y=y,z=z} end
 function M.pose(p)
  for _,key in ipairs({'tick','x','y','z','pitch','yaw','roll','mass','ix','iy','iz'}) do if not finite(p[key]) then return nil,'Télémétrie '..key..' absente' end end
- if p.tick<=0 or p.mass<=0 or p.ix<=0 or p.iy<=0 or p.iz<=0 or p.dimension~='minecraft:overworld' then return nil,'Contexte physique Overworld requis' end
+ if p.tick<=0 or p.mass<=0 or p.ix<=0 or p.iy<=0 or p.iz<=0 or p.dimension~='minecraft:overworld' then return nil,'Physique Overworld requise' end
  p.q=V.quaternion(p.pitch,p.yaw,p.roll);p.gravity=p.gravity or 11
  return p
 end
@@ -40,7 +40,7 @@ function M.new(groups,p,config)
   if c.speed<0 then return false,'Vitesse positive ou 0 libre requise' end
   local route,zones,why
   if c.mode=='ROUTE' or c.mode=='RETURN' then
-   if not self.capabilities.travel then return false,'Guidage horizontal indisponible sur ce montage' end
+   if not self.capabilities.travel then return false,'Guidage horizontal indisponible' end
    if not self.calibration or not self.calibration.complete or not self.calibration.horizontalVerified then return false,'Essais aller-retour requis' end
    route,why=Mission.parse(c.route or '');if not route then return false,why end
    zones,why=Mission.parse(c.zones or '',true);if not zones then return false,why end
@@ -125,7 +125,7 @@ function M.new(groups,p,config)
   elseif mission and not manual then desired=mission:step(p,v);self.phase=mission.phase
   else self.phase='HOLDING' end
   local worldAx,worldAz=0,0;local desiredYaw=p.yaw;local aligning=false
-  local tilt=cfg.tilt or 8;local acceleration=p.gravity*math.tan(math.rad(tilt))
+  local tilt=(cfg.tilt or 8)*(self.scale or 1);local acceleration=p.gravity*math.tan(math.rad(tilt))
   if desired then
    if Mission.distance(desired,self.target)>0 then self.progressKey=nil end
    self.target=vec(desired.x,desired.y,desired.z)

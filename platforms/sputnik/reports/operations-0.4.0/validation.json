@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "version": "0.4.0",
+  "runtime": "Cosmonautics 26.08.307 shaded LuaJ",
+  "minecraft_world_test": false,
+  "native_architecture_graphs": 6,
+  "clipboard_snbt_binary_roundtrips": 35,
+  "native_pending_keystroke_nbt_reload": true,
+  "journal_cross_runtime_integrity_tests": true,
+  "journal_native_observation_replay_samples": 160,
+  "physical_cases": 96,
+  "baseline_equivalent_complete_traces": 32,
+  "fixed_envelope_outcomes": {
+    "PASS": 23,
+    "FAIL": 9
+  },
+  "half_envelope_outcomes": {
+    "PASS": 24,
+    "FAIL": 8
+  },
+  "adaptive_policy_physical_closed_loop_campaign": false,
+  "commands": [
+    "python3 tools/test-sputnik.py --interface-only --cosmonautics-jar <26.08.307.jar> --sable-jar <2.0.6.jar> --java-home <jdk21> --minecraft-classpath <mapped-1.21.1-classpath>",
+    "python3 tools/test-sputnik-flight-pages.py <server-export-page-1.txt>",
+    "python3 tools/test-sputnik-operations-physics.py --cosmonautics-jar <26.08.307.jar> --java-home <jdk21> --baseline <0.3.5-quad-controller.lua> --work <fresh-folder> --output <report-folder>",
+    "python3 tools/report-sputnik-operations.py --work <simulation-folder> --output <report-folder>"
+  ]
+}

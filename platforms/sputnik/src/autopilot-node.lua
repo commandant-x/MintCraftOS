@@ -111,7 +111,7 @@ if server then
    c.candidate=s.archive.getValue();pose.gravity=c.gravity
    local core,why=Flight.new(groups,pose,c)
    if not core then s.reason=why
-   else if sameMappings(groups) and s.owner and s.directions then for i,g in ipairs(groups) do core.directions[g.id]=s.directions[s.owner[i].id] or 1 end end;s.cutLatched=false;s.releaseConsumed=c.released;s.core=core;s.activeKeyboard=keyboard;s.activeEnableBinding=enableBinding;s.owner=copy(groups);for _,g in ipairs(s.owner) do if g.fallback==-1 then g.fallback=core.initialSignals[tostring(g.id)] end end;s.signature=signature;s.phase='HOLDING';s.low=0;s.lastSignals=copy(core.initialSignals);s.requestSeen=request;s.reason='Maintien initialise; montage non certifie' end
+   else if sameMappings(groups) and s.owner and s.directions then for i,g in ipairs(groups) do core.directions[g.id]=s.directions[s.owner[i].id] or 1 end end;s.cutLatched=false;s.releaseConsumed=c.released;s.core=core;s.activeKeyboard=keyboard;s.activeEnableBinding=enableBinding;s.owner=copy(groups);for _,g in ipairs(s.owner) do if g.fallback==-1 then g.fallback=core.initialSignals[tostring(g.id)] end end;s.signature=signature;s.settings=settings;s.phase='HOLDING';s.low=0;s.lastSignals=copy(core.initialSignals);s.requestSeen=request;s.reason='Maintien initialise; montage non certifie' end
   end
  end
  if s.core and advancing then
@@ -123,6 +123,10 @@ if server then
     s.commandError=not accepted and why or nil
    else s.commandError='Format de consigne invalide' end
   end
+  local tune=input('Stability request','string');local at,factor
+  if type(tune)=='string' then at,factor=tune:match('^MCSUP1,(%d+),([^,]+)$') end
+  at,factor=tonumber(at),tonumber(factor)
+  s.core.scale=finite(at) and at<=tick and tick-at<=2 and finite(factor) and factor>=.5 and factor<=1 and factor or s.core.scale or 1
   if stop~=0 then if s.core.calibration and not s.core.calibration.complete then s.core.calibration:pause('STOP horizontal') end;if s.core.mission then s.core.mission:pause('STOP horizontal') end;s.core.mode='HOLD';command={forward=0,left=0,vertical=0} end
   if keys~=1 then command={forward=0,left=0,vertical=0} end
   -- Sample validated keyboard channels directly: avoid an extra graph stage.
@@ -138,7 +142,7 @@ if server then
    elseif not signals then fail(info)
    elseif not send(signals) then fail('Emission Link en echec')
    else
-    s.info=info;s.phase=info.phase;s.reason=info.phase..' m='..string.format('%.1f',mass)..' h='..string.format('%.2f',y)..'>'..string.format('%.2f',info.targetY)..' V='..string.format('%.2f',info.speed)..' | '..info.reason
+    s.info=info;s.phase=info.phase;s.reason=info.phase..' h='..y..'>'..info.targetY..' | '..info.reason
    end
   else send(s.lastSignals) end
  end
@@ -151,11 +155,9 @@ if s.commandError then reason=reason..' | '..s.commandError end
 if s.firstFault then reason=reason..' | FIRST='..s.firstFault end
 s.label.setText(reason)
 local core=s.core;local cal=core and core.calibration;local caps={};if core and core.capabilities then for _,name in ipairs(Response.axes) do caps[#caps+1]=name..'='..tostring(core.capabilities[name].available) end end
-local report='MCREPORT1 | '..reason..' | ACK='..tostring(core and core.revision or 0)..' | RX_ACK=false | Gearshift_ACK=false | Terrain=inconnu'
-if core and core.massAdapted then report=report..' | Trim masse actif' end
-if s.info then report=report..' | Residual='..tostring(s.info.residual)..' Sat='..tostring(s.info.saturated) end
-for _,event in ipairs(core and core.events or s.savedEvents or {}) do report=report..'\n'..event.tick..':'..event.reason end
-for _,g in ipairs(s.owner or {}) do report=report..'\nG'..g.id..' TX='..tostring(s.lastSignals and s.lastSignals[tostring(g.id)])..' Etat_est='..tostring(core and core.spool[g.id] or '?') end
+-- MCF1 is a single writer observation; '?' means unavailable, not zero.
+local report='MCREPORT1 | '..reason..'\n'..table.concat({'MCF1',tick or '?',mass or '?',ix or '?',iy or '?',iz or '?',x or '?',y or '?',z or '?',pitch or '?',yaw or '?',roll or '?',vx or '?',vy or '?',vz or '?',core and core.target.y or '?',core and 1 or 0,command.forward or '?',command.left or '?',command.vertical or '?',s.info and s.info.residual or '?',s.info and s.info.saturated and 1 or 0,s.info and s.info.loadBias or '?',read('getDimension') or '?',core and core.mode or '-',core and core.revision or 0,core and s.settings or '?',core and core.scale or 1},',')
+for _,g in ipairs(s.owner or {}) do report=report..'\nG,'..g.id..','..tostring(s.lastSignals and s.lastSignals[tostring(g.id)] or '?')..','..tostring(core and core.spool[g.id] or '?')..','..Calibration.hash(g) end
 if server and cal and (cal.complete or cal.paused) and not core.archived then core.snapshot=Calibration.archive(cal,cal.mass);core.archived=true end
 if server and core and core.snapshot then s.archive.setValue(core.snapshot) end
 local geometry={};for _,g in ipairs(s.owner or {}) do geometry[#geometry+1]=table.concat({g.x,g.y,g.z},',') end
