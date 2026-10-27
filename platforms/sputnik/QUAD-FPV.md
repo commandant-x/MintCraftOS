@@ -1,12 +1,20 @@
-# Quad FPV expérimental — 0.3.4
+# Quad FPV expérimental — 0.3.5
 
 Importer uniquement `dist/mintcraft-quad-fpv.clipboard.txt`. Ce graphe autonome remplace l'ancien graphe quad : exporter les groupes MCV1, puis retirer les anciens contrôleurs avant de réutiliser leurs fréquences. Réimporter les groupes dans les quatre formulaires. Configurer les six touches, le levier physique, chaque paire puissance et le rayon englobant réel. Au sol, passer le levier OFF avant le nouveau prévol. La fermeture de l'éditeur ne coupe pas le calcul serveur.
 
-Le profil accepte quatre hélices verticales, petites ou modulaires, avec quatre commandes indépendantes. Chaque rotor garde son propre type, nombre de voiles, régime source, position et modèle de réponse. Une acceptation de configuration ne certifie pas sa stabilité : les domaines réussis et échoués sont publiés dans [la campagne complète](reports/quad-campaign-0.3.4/README.md). Aucun essai Minecraft n'est revendiqué.
+Le profil accepte quatre hélices verticales, petites ou modulaires, avec quatre commandes indépendantes. Chaque rotor garde son propre type, nombre de voiles, régime source, position et modèle de réponse. Une acceptation de configuration ne certifie pas sa stabilité : les domaines réussis et échoués sont publiés dans [la campagne complète](reports/quad-campaign-0.3.5/README.md). Aucun essai Minecraft n'est revendiqué.
 
 La référence synthétique utilise 12 voiles par hélice, 256 RPM, masse exposée 32 kg, bras X=±3/Z=±5, inerties diagonales 250/400/230 et gravité 11. Les positions sont relatives au centre de masse déclaré ; la direction de force de chaque rotor vertical vaut **X=0, Y=1, Z=0**, indépendamment de sa position. Le Lua ne scanne ni les voiles ni le centre de masse.
 
 Les valeurs initiales sont montée 4 m/s, inclinaison 20° et freinage de planification 4 m/s². Elles restent modifiables. Le levier autorise le contrôleur ; sa puissance redstone ne fixe jamais le niveau des transmissions. Le contrôleur choisit chaque niveau 0–15 (0 plein régime, 15 arrêt) suivant la poussée demandée. Il estime la montée en régime à partir des commandes émises, sans prétendre lire le régime mécanique réel.
+
+## Correction 0.3.5 : maintien avec charge suspendue
+
+Le retour horizontal au maintien tient compte de l’effort vertical extérieur estimé. Cela évite de contre-braquer aussi fortement à chaque passage d’une charge qui balance. Le contrôleur peut apprendre cet effort pendant les mouvements angulaires modérés : l’ancien contrôle de calme gelait l’apprentissage précisément durant certaines oscillations. Les filtres et bornes d’effort restent actifs, et l’apprentissage est suspendu pendant le redressement ou une forte inclinaison.
+
+Le freinage vertical renforcé est utilisé pour une commande verticale ou quand l’effort extérieur estimé dépasse 10 % de la gravité. Le gain précédent est conservé au maintien sans cet effort, après qu’un prototype toujours renforcé a montré une régression en translation latérale. La consigne de vitesse n’augmente pas et les demandes manuelles restent les mêmes. Aucun plafond de vitesse horizontal ni entrée de longueur de corde/poids suspendu n’est ajouté. L’effort estimé n’identifie pas la masse ou la cause physique.
+
+Le [banc avec câble](reports/quad-load-0.3.5/README.md) vérifie aussi que la charge se calme, et pas seulement le châssis. Il couvre maintien, freinage, diagonale, montée, descente et cycle vertical. Les échecs restent publiés. Le modèle de câble n’est pas le solveur de joints Minecraft et ne qualifie pas un assemblage à plusieurs cordes ou une charge étendue.
 
 ## Correction 0.3.4 : déplacement du centre de masse
 
@@ -22,7 +30,7 @@ Le régime mécanique reste **256 RPM** et les transmissions restent sur leurs n
 
 L'ancien raccourci de maintien regroupait les demandes presque égales (`écart < 0,08 niveau`), imposait une sortie commune et effaçait le résidu de couple. Une petite correction nécessaire pouvait donc disparaître, puis revenir brutalement après accumulation d'erreur d'assiette. Ce raccourci est supprimé : un même quantificateur couplé traite les grandes et petites demandes et conserve leur résidu. Les moteurs peuvent recevoir des niveaux différents à un instant donné pour représenter un faible couple moyen ; cela ne signifie pas une augmentation du régime source ni une commande analogique supplémentaire.
 
-Le test de régression mesure la poussée et le couple moyens issus des RPM réellement demandés par les sorties entières, avec un très faible couple demandé dans les deux sens. Il échoue sur le contrôleur 0.3.2 et réussit sur le correctif. Le banc natif vérifie également le départ incliné, le maintien et les transitions, en plus des anciens critères finaux. Les sources et traces sont conservées dans [la régression à régime fixe](reports/quad-pwm-0.3.3/README.md) et [la campagne complète](reports/quad-campaign-0.3.4/README.md).
+Le test de régression mesure la poussée et le couple moyens issus des RPM réellement demandés par les sorties entières, avec un très faible couple demandé dans les deux sens. Il échoue sur le contrôleur 0.3.2 et réussit sur le correctif. Le banc natif vérifie également le départ incliné, le maintien et les transitions, en plus des anciens critères finaux. Les sources et traces sont conservées dans [la régression à régime fixe](reports/quad-pwm-0.3.3/README.md) et [la campagne complète](reports/quad-campaign-0.3.5/README.md).
 
 Les gains, modèles de poussée, filtres, capteurs, seuils de récupération et contrôleurs des autres architectures ne changent pas. Aucun essai Minecraft n'est revendiqué.
 
@@ -44,8 +52,10 @@ Les erreurs de descripteur indiquent désormais le numéro du moteur et renvoien
 
 Les contrats lisible/compact, les modèles par rotor, la conservation du collectif sous demande de couple impossible, les consignes sans réinitialisation et le rejet des observations périmées sont vérifiés dans le LuaJ du JAR Cosmonautics audité. Les imports passent par SNBT, sérialisation NBT binaire et CODEC natif ; chaque nœud reste sous 60 000 octets UTF modifié.
 
-Le banc indépendant exécute 24 mouvements sur 24 géométries et motorisations. Il conserve chaque trace et les critères d'échec, notamment sous faibles inerties, retard radio, hélices hétérogènes et charge pendulaire. Voir [les résultats et sources gelées](reports/quad-campaign-0.3.4/README.md) et [le résumé de livraison](reports/quad-fpv-0.3.4/README.md). Les critères ne sont pas relâchés pour le correctif.
+Le banc indépendant exécute 24 mouvements sur 24 géométries et motorisations. Il conserve chaque trace et les critères d'échec, notamment sous faibles inerties, retard radio, hélices hétérogènes et charge pendulaire. Voir [les résultats et sources gelées](reports/quad-campaign-0.3.5/README.md) et [le résumé de livraison](reports/quad-fpv-0.3.5/README.md). Les critères ne sont pas relâchés pour le correctif.
 
 Ce modèle ne reproduit pas le solveur de joints Minecraft, les collisions, les réseaux de stress, l'effet de sol ou les couples gyroscopiques des hélices. Les 20 Hz de calcul simulé ne garantissent pas la latence du serveur. La navigation et la calibration ne sont pas qualifiées par les seuls essais de stabilisation. Les profils en échec restent expérimentaux ; conserver une altitude suffisante pour les essais progressifs dans Minecraft.
 
-La campagne générale donne **386 PASS / 166 FAIL / 24 REFUSED**, contre 394/158/24 auparavant. Les [régressions détaillées](reports/quad-campaign-0.3.4/FINDINGS.md) sont conservées : le gain ciblé sur les charges ne qualifie pas tous les montages.
+La campagne 0.3.4 donnait **386 PASS / 166 FAIL / 24 REFUSED**. La [campagne actuelle et ses régressions](reports/quad-campaign-0.3.5/FINDINGS.md) sont publiées séparément : le gain ciblé sur les charges ne qualifie pas tous les montages.
+
+Résultats 0.3.5 : 406/576 réussites générales, 146 échecs et 24 refus prévol ; 29/48 réussites avec câble, dont les huit maintiens. Quatre anciennes réussites générales régressent. Les données et limites sont publiées dans le [résumé de livraison](reports/quad-fpv-0.3.5/README.md).

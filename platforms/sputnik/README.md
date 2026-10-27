@@ -1,4 +1,4 @@
-> 0.3.4 : rééquilibrage passif du quad après déplacement de charge, sans modifier la consigne verticale ; voir [QUAD-FPV.md](QUAD-FPV.md). Contrôleurs standard inchangés. Domaine synthétique et échecs publiés, distincts du vol Minecraft.
+> 0.3.5 : amortissement du maintien avec charge suspendue, effort estimé sans nouvelle saisie ; voir [QUAD-FPV.md](QUAD-FPV.md). Profil expérimental, contrôleur standard inchangé.
 
 # Autopilote Sputnik 0.2.2 — un TXT par architecture
 

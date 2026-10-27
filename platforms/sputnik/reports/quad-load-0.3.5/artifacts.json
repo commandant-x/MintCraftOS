@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "archives": {
+    "native-load-traces.zip": {
+      "bytes": 18555097,
+      "sha256": "d4c5a12c8d5fd7dbd34dffc507bd44aa6da2dc2f82819c4214514c8a4525ee6d"
+    },
+    "native-load-plots.zip": {
+      "bytes": 3219191,
+      "sha256": "375785c1cf4469deae5c4e3f43f4e186f409916963bdc0d2135371da57ffba28"
+    },
+    "rejected-prototype.zip": {
+      "bytes": 3217450,
+      "sha256": "f99dfb9327da6bfacb2ebae365381669f26d4869c188a817f8685aae1c493a74"
+    }
+  },
+  "trace_count": 96,
+  "classified_cases": 96
+}

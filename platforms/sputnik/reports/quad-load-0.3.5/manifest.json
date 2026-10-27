@@ -1,0 +1,710 @@
+{
+  "schema": 1,
+  "version": "0.3.5",
+  "host_sha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
+  "sources": {
+    "fixed": "19c8495f9e1e673124472104a63704936f4707793f83c70dd9bf9424e6d5817a",
+    "baseline": "bf7b3e3316158a2a5c35c9c32bfee443101b3bb81d6f2d3c99e31a141044c150",
+    "defaults": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877",
+    "pressure": "5f5b0496628baf3e94289ec480532ef87a799b3d30420d2d37e455f2d1c6993c",
+    "java_runner": "7d897d1f20d73e096acd3587eab7f1cfcc8401af7cc1c0decf1df48b976d733c",
+    "criteria": "23ae43b19fb80b6f0f13b13c2bc0b53e5e0b106804ba825e65d8b9cf8c2639f5",
+    "load_criteria": "5cf3e381abeb1f014d11053abeadd345b9c7ae5a45c461671def0fcd5f274092",
+    "diagnostics": "f9676b0d6578cf79a334f67c497bf944a6c0663550ccdc391f496d88126cc8c2",
+    "runner": "0a29dac501d7a1c12aec09a13b559320a46dd91008dcd7e9d7c18aadd2277fc3"
+  },
+  "plant_sha256": "68c814c99de464e892838727b7e61519405fc5323e18f1c092922c20224dd14a",
+  "original_plant_sha256": "68c814c99de464e892838727b7e61519405fc5323e18f1c092922c20224dd14a",
+  "states": [
+    {
+      "fixture": {
+        "id": "reference",
+        "mass": 32,
+        "inertia": [
+          250.0,
+          400.0,
+          230.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 5,
+        "ropeMass": 12,
+        "anchorX": 0,
+        "ropeAngle": 20,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "offset",
+        "mass": 32,
+        "inertia": [
+          250.0,
+          400.0,
+          230.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 5,
+        "ropeMass": 12,
+        "anchorX": 2,
+        "ropeAngle": 20,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "heavy-load",
+        "mass": 32,
+        "inertia": [
+          250.0,
+          400.0,
+          230.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 5,
+        "ropeMass": 32,
+        "anchorX": 0,
+        "ropeAngle": 20,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "long-rope",
+        "mass": 32,
+        "inertia": [
+          250.0,
+          400.0,
+          230.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 10,
+        "ropeMass": 12,
+        "anchorX": 0,
+        "ropeAngle": 20,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "large-board",
+        "mass": 96,
+        "inertia": [
+          750.0,
+          1200.0,
+          690.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 5,
+        "ropeMass": 32,
+        "anchorX": 2,
+        "ropeAngle": 20,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "short-rope",
+        "mass": 32,
+        "inertia": [
+          250.0,
+          400.0,
+          230.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 2,
+        "ropeMass": 12,
+        "anchorX": 0,
+        "ropeAngle": 20,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "large-swing",
+        "mass": 32,
+        "inertia": [
+          250.0,
+          400.0,
+          230.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 5,
+        "ropeMass": 12,
+        "anchorX": 0,
+        "ropeAngle": 40,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "light-load",
+        "mass": 32,
+        "inertia": [
+          250.0,
+          400.0,
+          230.0
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "ropeLength": 5,
+        "ropeMass": 4,
+        "anchorX": 0,
+        "ropeAngle": 20,
+        "ropeLoad": true,
+        "sampledVelocity": true,
+        "sensorFrame": "body"
+      },
+      "cases": [
+        "load-swing",
+        "brake",
+        "forward-left",
+        "climb",
+        "descend",
+        "vertical-cycle"
+      ]
+    }
+  ],
+  "scope": "Fixed 256 RPM, native LuaJ, independent 6DOF plant. No Minecraft world qualification.",
+  "bands": {
+    "height_m": 0.3,
+    "attitude_deg": 2,
+    "vertical_mps": 0.2,
+    "horizontal_mps": 0.3
+  },
+  "seconds": 60,
+  "control_hz": 20,
+  "physics_hz": 200
+}

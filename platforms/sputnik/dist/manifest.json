@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
@@ -46,7 +46,7 @@
     "portable.lua": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
     "quad-allocator.lua": "5cb8b0aa87d8001aea1551663c948791553b157b367cefba2115a143da0e746c",
     "quad-capabilities.lua": "85108daf771443a5625ddf01ddca2cdff58e9ce40a83608ca966bc9e1b1d3f77",
-    "quad-flight-step.lua": "80f5764dd513fa3105b8c05a5a927656647f242d21d568518335bb210312adde",
+    "quad-flight-step.lua": "784f525294d4840591629c914de5b381725c6e14a47d1e3d3f085ab0d324a8a3",
     "quad-matrix.lua": "d246e7c64ade7eef32031dd9008cf76ebfd286fcf3377bb2ef83fb6904b804fd",
     "quad-node.lua": "eb1be52450ab7a3634134539260a1d4886cfce5b210cae02fa3a2c9117d60724",
     "quad-pwm.lua": "646cd31de3b3f95d973f0db1ab347d7ea6f8987bf6e5fc014b7bac3c49db1032",
@@ -64,7 +64,7 @@
     "nodes": 10,
     "connections": 29,
     "scope": "four declared vertical rotors, per-rotor model and collective priority; synthetic validation only",
-    "controllerSha256": "bf7b3e3316158a2a5c35c9c32bfee443101b3bb81d6f2d3c99e31a141044c150"
+    "controllerSha256": "19c8495f9e1e673124472104a63704936f4707793f83c70dd9bf9424e6d5817a"
   },
   "architectureGraphs": {
     "quad": {
@@ -128,7 +128,7 @@
     "mount-setup": 2620,
     "flight-commands": 5924,
     "local-map": 2279,
-    "autopilot-quad-fpv": 59739
+    "autopilot-quad-fpv": 59736
   },
   "modules": {
     "system.libraries.addon": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
@@ -343,12 +343,12 @@
       "sha256": "705dc8e12fc8e4c6052bc542f70b8207b2981405ed1d7fe02630b2d56e953a9f"
     },
     "mintcraft-autopilot-quad-fpv.lua": {
-      "bytes": 59739,
-      "sha256": "bf7b3e3316158a2a5c35c9c32bfee443101b3bb81d6f2d3c99e31a141044c150"
+      "bytes": 59736,
+      "sha256": "19c8495f9e1e673124472104a63704936f4707793f83c70dd9bf9424e6d5817a"
     },
     "mintcraft-autopilot-quad-fpv.clipboard.txt": {
-      "bytes": 83484,
-      "sha256": "65521fb0bc0bcd2dc210db01e1d1b7e7bf610865fa6cb4a420253220fc73c5e9"
+      "bytes": 83480,
+      "sha256": "7c6ad895bae344a2bb4f067adb2c7938f2efc926e7a13e9a47f4520b455d0bae"
     },
     "mintcraft-flight-audit.clipboard.txt": {
       "bytes": 5196,
@@ -383,8 +383,8 @@
       "sha256": "7937ae2c93a93601d3883ef3352a5d3578b07dfca37610faac96e73a28a20b2c"
     },
     "mintcraft-quad-fpv.clipboard.txt": {
-      "bytes": 163512,
-      "sha256": "180e57cd3d53d7cdc19ab179a5444e6b6fbbfba2dd0076fb7284b6060236e453"
+      "bytes": 163508,
+      "sha256": "ad2e6d369f3bc14564b4a9b7612e4176e486cefd7c99c4df57e61990564d57cf"
     }
   }
 }

@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "archives": {
+    "campaign-traces-fpv.zip": {
+      "sha256": "fb915f4534299e25aea93790e3e1b0235fb33c428e9991443332fea2bb54cb85",
+      "bytes": 72152691
+    },
+    "campaign-plots-fpv.zip": {
+      "sha256": "820d9867bad75edf834ffc7f2214ab8d7861aeb50785ace5114ed598fd538ca3",
+      "bytes": 23909070
+    }
+  },
+  "renderer_sha256": "2544c690cd8d45121dc92dc7a71e08cc8c081083d00b569c8e3cfce9cd82d49c",
+  "campaign_sha256": "df8805caa81b74c1e3a3d986cee6095a55bee07edd36aa8e1bea0cc37b9b77d1",
+  "results_sha256": "8d518fc36432391e59066102da017bc52a7ffb52167f69e7c3084a0c13d247e9",
+  "trace_count": 552,
+  "executed_simulated_seconds": 32877.45
+}

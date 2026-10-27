@@ -1,6 +1,6 @@
-> 0.3.4 : rééquilibrage passif du quad après déplacement de charge, sans modifier la consigne verticale ; voir [QUAD-FPV.md](QUAD-FPV.md). Contrôleurs standard inchangés. Domaine synthétique et échecs publiés, distincts du vol Minecraft.
+> 0.3.5 : amortissement du maintien avec charge suspendue, effort estimé sans nouvelle saisie ; voir [QUAD-FPV.md](QUAD-FPV.md). Profil expérimental, contrôleur standard inchangé.
 
-# État d'implémentation — Autopilote Sputnik 0.3.4
+# État d'implémentation — Autopilote Sputnik 0.3.5
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 
@@ -36,3 +36,7 @@ Suppression du raccourci qui remplaçait les demandes presque égales par une so
 ## Correction 0.3.4 : charge décentrée
 
 Le quad adapte les bras de levier effectifs à partir des commandes émises et des accélérations angulaires, conserve la cible verticale et utilise la famille complète des allocations bornées. Aucun nouveau champ de centre de masse ni impulsion de calibration. Le contrôleur standard reste identique. Les [72 scénarios de charge](reports/quad-com-0.3.4/README.md) publient 15/36 succès COM contre 6/36 auparavant et tous les échecs : cette adaptation ne qualifie pas tous les centres de masse, retards ou manœuvres. Les critères COM et les anciens critères de campagne sont séparés. Le plan A–F reste incomplet.
+
+## Correction 0.3.5 : amortissement sous charge suspendue
+
+L’effort vertical reste estimé pendant les oscillations modérées. Le retour horizontal au maintien tient compte de cet effort et le freinage vertical renforcé est réservé aux commandes verticales ou à un effort extérieur significatif. Aucun paramètre de corde, de masse suspendue ou de fréquence supplémentaire. Les [96 essais avec câble](reports/quad-load-0.3.5/README.md) passent de 9/48 à 29/48 succès, avec huit maintiens réussis sur huit, mais des mouvements encore en échec. Le [résumé et les limites](reports/quad-fpv-0.3.5/README.md) conservent le prototype rejeté et les régressions. Le plan A–F reste incomplet ; ces preuves synthétiques ne constituent pas une validation Minecraft.

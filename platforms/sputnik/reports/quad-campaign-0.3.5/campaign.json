@@ -1,0 +1,1762 @@
+{
+  "schema": 1,
+  "distribution_version": "0.3.5",
+  "base_commit": "8357aa3eaceb9927813befa72e0819b09481946b",
+  "host_sha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
+  "sources": {
+    "plant": "2cb272b9fc1a203f26508575d1a642dbfd40923ac9b521afb55e2966d025fd1f",
+    "criteria": "23ae43b19fb80b6f0f13b13c2bc0b53e5e0b106804ba825e65d8b9cf8c2639f5",
+    "runner": "d3ec61acba3e38945b4f83fd25a541cea69fec1b528a41ebdcca077c7c551c81",
+    "java_runner": "7d897d1f20d73e096acd3587eab7f1cfcc8401af7cc1c0decf1df48b976d733c",
+    "defaults": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877",
+    "pressure": "5f5b0496628baf3e94289ec480532ef87a799b3d30420d2d37e455f2d1c6993c",
+    "controller_fpv": "19c8495f9e1e673124472104a63704936f4707793f83c70dd9bf9424e6d5817a"
+  },
+  "seconds": 60,
+  "control_hz": 20,
+  "physics_hz": 200,
+  "tilt_degrees": 20,
+  "climb_mps": 4,
+  "cases": [
+    "hover",
+    "cold-hover",
+    "climb",
+    "descend",
+    "forward",
+    "reverse",
+    "left",
+    "right",
+    "forward-left",
+    "forward-right",
+    "reverse-left",
+    "reverse-right",
+    "turn-left",
+    "turn-right",
+    "climb-forward",
+    "descend-left",
+    "vertical-cycle",
+    "reverse-command",
+    "brake",
+    "slalom",
+    "gust",
+    "load-swing",
+    "recovery-diagonal",
+    "recovery-inverted"
+  ],
+  "controllers": [
+    "fpv"
+  ],
+  "fixtures": [
+    {
+      "id": "reference",
+      "mass": 32,
+      "inertia": [
+        250,
+        400,
+        230
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "square-x",
+      "mass": 32,
+      "inertia": [
+        160.0,
+        304.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 3,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 3,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -3,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -3,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 8.242640687119284
+    },
+    {
+      "id": "cross-plus",
+      "mass": 32,
+      "inertia": [
+        144.0,
+        272.0,
+        144.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": 0,
+          "y": 0,
+          "z": 4,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 4,
+          "y": 0,
+          "z": 0,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 0,
+          "y": 0,
+          "z": -4,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -4,
+          "y": 0,
+          "z": 0,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 8.0
+    },
+    {
+      "id": "narrow",
+      "mass": 32,
+      "inertia": [
+        800.0,
+        836.0,
+        52.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -1.5,
+          "y": 0,
+          "z": 7,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 1.5,
+          "y": 0,
+          "z": 7,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -1.5,
+          "y": 0,
+          "z": -7,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 1.5,
+          "y": 0,
+          "z": -7,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 11.158910531638178
+    },
+    {
+      "id": "wide",
+      "mass": 32,
+      "inertia": [
+        52.0,
+        836.0,
+        800.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -7,
+          "y": 0,
+          "z": 1.5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 7,
+          "y": 0,
+          "z": 1.5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -7,
+          "y": 0,
+          "z": -1.5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 7,
+          "y": 0,
+          "z": -1.5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 11.158910531638178
+    },
+    {
+      "id": "skew",
+      "mass": 32,
+      "inertia": [
+        316.0,
+        496.0,
+        196.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -4,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 2,
+          "y": 0,
+          "z": 4,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 4,
+          "y": 0,
+          "z": -3,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 10.403124237432849
+    },
+    {
+      "id": "small-propellers",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "small",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        },
+        {
+          "kind": "small",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        },
+        {
+          "kind": "small",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        },
+        {
+          "kind": "small",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "modular-6",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 6,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 6,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 6,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 6,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "modular-24",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 24,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 24,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 24,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 24,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "mixed-propellers",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 8,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 16,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 20,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "light-16kg",
+      "mass": 16,
+      "inertia": [
+        208.0,
+        280.0,
+        80.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "heavy-96kg",
+      "mass": 96,
+      "inertia": [
+        1248.0,
+        1680.0,
+        480.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "low-inertia",
+      "mass": 32,
+      "inertia": [
+        62.5,
+        100,
+        57.5
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "very-low-inertia",
+      "mass": 32,
+      "inertia": [
+        20,
+        32,
+        18.4
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "slow-radio",
+      "mass": 32,
+      "inertia": [
+        62.5,
+        100,
+        57.5
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453,
+      "delay": 3,
+      "spoolFactor": 0.5,
+      "noise": 0.01,
+      "attitudeNoise": 0.1
+    },
+    {
+      "id": "radio-5ticks",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453,
+      "delay": 5,
+      "noise": 0.01
+    },
+    {
+      "id": "shifted-com",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453,
+      "comX": 0.6,
+      "comZ": -0.5
+    },
+    {
+      "id": "coupled-inertia",
+      "mass": 32,
+      "inertia": [
+        250,
+        400,
+        230,
+        45,
+        -30,
+        40
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "high-altitude",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453,
+      "altitude": 220,
+      "wind": [
+        2,
+        0,
+        -1
+      ]
+    },
+    {
+      "id": "weak-one-rotor",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453,
+      "rotorFactors": [
+        0.7,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "pressure-mismatch",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453,
+      "pressureFactor": 0.8
+    },
+    {
+      "id": "telemetry-delay",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453,
+      "poseDelay": 2,
+      "noise": 0.01
+    },
+    {
+      "id": "paired-rotors",
+      "mass": 32,
+      "inertia": [
+        416.0,
+        560.0,
+        160.0
+      ],
+      "rotors": [
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 2,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 2,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 2,
+          "thrust": 0.2,
+          "airflow": 0.05
+        },
+        {
+          "kind": "bearing",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 2,
+          "thrust": 0.2,
+          "airflow": 0.05
+        }
+      ],
+      "radius": 9.8309518948453
+    },
+    {
+      "id": "insufficient-lift",
+      "mass": 2000,
+      "inertia": [
+        26000.0,
+        35000.0,
+        10000.0
+      ],
+      "rotors": [
+        {
+          "kind": "small",
+          "x": -3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        },
+        {
+          "kind": "small",
+          "x": 3,
+          "y": 0,
+          "z": 5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        },
+        {
+          "kind": "small",
+          "x": -3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        },
+        {
+          "kind": "small",
+          "x": 3,
+          "y": 0,
+          "z": -5,
+          "dx": 0,
+          "dy": 1,
+          "dz": 0,
+          "source": 256,
+          "sails": 12,
+          "members": 1,
+          "thrust": 1,
+          "airflow": 0.1
+        }
+      ],
+      "radius": 9.8309518948453
+    }
+  ],
+  "criteria": {
+    "complete": "60 s de simulation terminées, aucune faute du contrôleur ni sortie de l’enveloppe déclarée.",
+    "tail_height_peak": "Erreur de hauteur maximale sur les 10 dernières secondes < 1 m.",
+    "tail_height_rms": "Erreur de hauteur RMS sur les 10 dernières secondes < 0,5 m.",
+    "tail_height_span": "Excursion de hauteur crête-à-crête sur les 10 dernières secondes < 1 m.",
+    "tail_tilt": "Inclinaison maximale sur les 10 dernières secondes < 5°.",
+    "tail_speed_rms": "Vitesse totale RMS sur les 10 dernières secondes < 0,35 m/s.",
+    "final_speed": "Vitesse totale finale < 0,3 m/s.",
+    "active_attitude": "Erreur de suivi d’assiette RMS < 5° et maximale < 10° pendant les phases actives, après 2 s de transition.",
+    "active_height": "Pour une translation horizontale : erreur de hauteur maximale < 1 m sur la même fenêtre active.",
+    "active_vertical_rate": "Quand Espace/Shift est maintenu : erreur RMS de vitesse verticale < 1 m/s après 2 s de transition.",
+    "motion": "Preuve physique du mouvement demandé (déplacement signé, vitesse ou courbure), indépendante du drapeau de commande.",
+    "braking": "Pour une commande horizontale : vitesse horizontale < 0,3 m/s pendant 15 observations fraîches consécutives au plus 6 s après relâchement.",
+    "transient_height": "Erreur de hauteur transitoire maximale < 2 m ; bornes distinctes 5 m au démarrage à froid/charge/perturbation diagonale, 15 m en inversion.",
+    "transient_tilt": "Inclinaison maximale < 35° hors essais explicites de récupération.",
+    "recovery": "Après perturbation : 20 observations consécutives à inclinaison < 5°, vitesse horizontale < 0,3 m/s et vitesse verticale absolue < 0,3 m/s en moins de 15 s.",
+    "rope": "Extension numérique maximale du câble < 0,03 m pour la charge pendulaire."
+  },
+  "protocols": {
+    "hover": "Maintien sans touche pendant toute la simulation.",
+    "cold-hover": "Même maintien, quatre rotors initialement immobiles, sans contact au sol modélisé.",
+    "climb": "Espace entre 5 et 10 s, puis relâchement et maintien de la hauteur atteinte.",
+    "descend": "Shift entre 5 et 10 s, puis relâchement et maintien.",
+    "forward": "W entre 5 et 10 s, freinage au relâchement.",
+    "reverse": "S entre 5 et 10 s, freinage au relâchement.",
+    "left": "Q entre 5 et 10 s, mode déplacement latéral.",
+    "right": "D entre 5 et 10 s, mode déplacement latéral.",
+    "forward-left": "W+Q entre 5 et 10 s, mode déplacement latéral.",
+    "forward-right": "W+D entre 5 et 10 s, mode déplacement latéral.",
+    "reverse-left": "S+Q entre 5 et 10 s, mode déplacement latéral.",
+    "reverse-right": "S+D entre 5 et 10 s, mode déplacement latéral.",
+    "turn-left": "W+Q entre 5 et 10 s, mode virage de trajectoire. Aucune rotation du nez exigée.",
+    "turn-right": "W+D entre 5 et 10 s, mode virage de trajectoire. Aucune rotation du nez exigée.",
+    "climb-forward": "W+Espace entre 5 et 10 s : translation et montée simultanées.",
+    "descend-left": "W+Q+Shift entre 5 et 10 s, mode latéral : diagonale et descente.",
+    "vertical-cycle": "Espace de 5 à 10 s, maintien 10–15 s, Shift 15–20 s, puis maintien.",
+    "reverse-command": "W de 5 à 10 s, S de 10 à 15 s, puis freinage.",
+    "brake": "W de 5 à 10 s, relâchement, délai de freinage mesuré sur 15 observations consécutives.",
+    "slalom": "W continu de 5 à 10 s, Q/D alternées toutes les 1,25 s, mode virage de trajectoire.",
+    "gust": "Aucune touche ; vent monde (5,0,-3) m/s de 5 à 10 s, puis maintien.",
+    "load-swing": "Aucune touche ; charge ponctuelle de 12 kg sur corde 5 m, inclinée initialement de 20°, ajoutée à 5 s.",
+    "recovery-diagonal": "Aucune touche ; perturbation de 15° autour de l’axe diagonal X/Z à 5 s.",
+    "recovery-inverted": "Aucune touche ; inversion instantanée de 180° à 5 s. Perte d’altitude publiée."
+  },
+  "scope": "Synthetic rigid body and unilateral cable; native LuaJ. No Minecraft world qualification.",
+  "assumptions": [
+    "No ground/contacts, collision mesh, stress network, propeller gyroscopic torque or faithful Minecraft joint solver",
+    "Actual full inertia and physical disturbance parameters are independent of controller estimator; API exposes only inertia diagonal",
+    "Pressure oracle from audited Sable; actual pressure factors/wind/spool/delays are declared fixture disturbances",
+    "Tilt is recorded explicitly; generic graph is limited to 20deg, specialised quad accepts up to 45deg; climb demand 4m/s",
+    "Four fixed upward propellers: trajectory turns are measured, nose yaw is not a controlled criterion",
+    "Refusal remains REFUSED and never becomes a successful movement; all missing/incomplete traces fail"
+  ]
+}

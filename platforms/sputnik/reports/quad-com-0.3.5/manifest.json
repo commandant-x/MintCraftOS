@@ -1,0 +1,1822 @@
+{
+  "schema": 1,
+  "version": "0.3.5",
+  "host_sha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
+  "sources": {
+    "fixed": "19c8495f9e1e673124472104a63704936f4707793f83c70dd9bf9424e6d5817a",
+    "baseline": "bf7b3e3316158a2a5c35c9c32bfee443101b3bb81d6f2d3c99e31a141044c150",
+    "defaults": "e8bd6b45c7701e1a31bcf9e8d9ea05f0d8c2d1067f27b0b4f2db66da32f87877",
+    "pressure": "5f5b0496628baf3e94289ec480532ef87a799b3d30420d2d37e455f2d1c6993c",
+    "java_runner": "7d897d1f20d73e096acd3587eab7f1cfcc8401af7cc1c0decf1df48b976d733c",
+    "criteria": "23ae43b19fb80b6f0f13b13c2bc0b53e5e0b106804ba825e65d8b9cf8c2639f5",
+    "com_criteria": "6a9f29996da5faa856edc0737e3d1f38f630d1b6e7d03aaaacba682325639ee0",
+    "diagnostics": "f9676b0d6578cf79a334f67c497bf944a6c0663550ccdc391f496d88126cc8c2",
+    "runner": "c8dafa145c96a25d0c2ef4dfb9015a0be85cdfcfc15c3f44012f1e31bc304ee8"
+  },
+  "plant_sha256": "deb5c8521fb21db421d180b5ff975c37de2a829cbcc8fc9e8c3eb5a0c1a92e65",
+  "original_plant_sha256": "deb5c8521fb21db421d180b5ff975c37de2a829cbcc8fc9e8c3eb5a0c1a92e65",
+  "states": [
+    {
+      "fixture": {
+        "id": "same-mass-right",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                4,
+                -1,
+                0
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "same-mass-corner",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                4,
+                -1,
+                6
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "same-mass-reverse",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                4,
+                -1,
+                6
+              ]
+            }
+          },
+          {
+            "at": 20,
+            "payload": {
+              "mass": 16,
+              "position": [
+                -4,
+                -1,
+                -6
+              ]
+            }
+          },
+          {
+            "at": 35,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0,
+                -1,
+                0
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          },
+          {
+            "start": 20,
+            "end": 20
+          },
+          {
+            "start": 35,
+            "end": 35
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "added-load",
+        "mass": 32,
+        "inertia": [
+          250,
+          400,
+          230
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 32,
+        "chassisInertia": [
+          250,
+          400,
+          230
+        ],
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 12,
+              "position": [
+                3,
+                -2,
+                4
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "added-far-and-dropped",
+        "mass": 32,
+        "inertia": [
+          250,
+          400,
+          230
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 32,
+        "chassisInertia": [
+          250,
+          400,
+          230
+        ],
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 12,
+              "position": [
+                8,
+                -2,
+                6
+              ]
+            }
+          },
+          {
+            "at": 20,
+            "payload": {
+              "mass": 0,
+              "position": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          },
+          {
+            "start": 20,
+            "end": 20
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "initial-unknown-corner",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              4,
+              -1,
+              6
+            ]
+          }
+        },
+        "changes": [],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 0,
+            "end": 0
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "moving-load-ramp",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5.0,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.0,
+                -1,
+                0.0
+              ]
+            }
+          },
+          {
+            "at": 5.05,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.1,
+                -1,
+                0.15
+              ]
+            }
+          },
+          {
+            "at": 5.1,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.2,
+                -1,
+                0.3
+              ]
+            }
+          },
+          {
+            "at": 5.15,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.3,
+                -1,
+                0.45
+              ]
+            }
+          },
+          {
+            "at": 5.2,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.4,
+                -1,
+                0.6
+              ]
+            }
+          },
+          {
+            "at": 5.25,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.5,
+                -1,
+                0.75
+              ]
+            }
+          },
+          {
+            "at": 5.3,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.6,
+                -1,
+                0.9
+              ]
+            }
+          },
+          {
+            "at": 5.35,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.7,
+                -1,
+                1.05
+              ]
+            }
+          },
+          {
+            "at": 5.4,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.8,
+                -1,
+                1.2
+              ]
+            }
+          },
+          {
+            "at": 5.45,
+            "payload": {
+              "mass": 16,
+              "position": [
+                0.9,
+                -1,
+                1.35
+              ]
+            }
+          },
+          {
+            "at": 5.5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.0,
+                -1,
+                1.5
+              ]
+            }
+          },
+          {
+            "at": 5.55,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.1,
+                -1,
+                1.65
+              ]
+            }
+          },
+          {
+            "at": 5.6,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.2,
+                -1,
+                1.8
+              ]
+            }
+          },
+          {
+            "at": 5.65,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.3,
+                -1,
+                1.95
+              ]
+            }
+          },
+          {
+            "at": 5.7,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.4,
+                -1,
+                2.1
+              ]
+            }
+          },
+          {
+            "at": 5.75,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.5,
+                -1,
+                2.25
+              ]
+            }
+          },
+          {
+            "at": 5.8,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.6,
+                -1,
+                2.4
+              ]
+            }
+          },
+          {
+            "at": 5.85,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.7,
+                -1,
+                2.55
+              ]
+            }
+          },
+          {
+            "at": 5.9,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.8,
+                -1,
+                2.7
+              ]
+            }
+          },
+          {
+            "at": 5.95,
+            "payload": {
+              "mass": 16,
+              "position": [
+                1.9,
+                -1,
+                2.85
+              ]
+            }
+          },
+          {
+            "at": 6.0,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.0,
+                -1,
+                3.0
+              ]
+            }
+          },
+          {
+            "at": 6.05,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.1,
+                -1,
+                3.15
+              ]
+            }
+          },
+          {
+            "at": 6.1,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.2,
+                -1,
+                3.3
+              ]
+            }
+          },
+          {
+            "at": 6.15,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.3,
+                -1,
+                3.45
+              ]
+            }
+          },
+          {
+            "at": 6.2,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.4,
+                -1,
+                3.6
+              ]
+            }
+          },
+          {
+            "at": 6.25,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.5,
+                -1,
+                3.75
+              ]
+            }
+          },
+          {
+            "at": 6.3,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.6,
+                -1,
+                3.9
+              ]
+            }
+          },
+          {
+            "at": 6.35,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.7,
+                -1,
+                4.05
+              ]
+            }
+          },
+          {
+            "at": 6.4,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.8,
+                -1,
+                4.2
+              ]
+            }
+          },
+          {
+            "at": 6.45,
+            "payload": {
+              "mass": 16,
+              "position": [
+                2.9,
+                -1,
+                4.35
+              ]
+            }
+          },
+          {
+            "at": 6.5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.0,
+                -1,
+                4.5
+              ]
+            }
+          },
+          {
+            "at": 6.55,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.1,
+                -1,
+                4.65
+              ]
+            }
+          },
+          {
+            "at": 6.6,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.2,
+                -1,
+                4.8
+              ]
+            }
+          },
+          {
+            "at": 6.65,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.3,
+                -1,
+                4.95
+              ]
+            }
+          },
+          {
+            "at": 6.7,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.4,
+                -1,
+                5.1
+              ]
+            }
+          },
+          {
+            "at": 6.75,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.5,
+                -1,
+                5.25
+              ]
+            }
+          },
+          {
+            "at": 6.8,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.6,
+                -1,
+                5.4
+              ]
+            }
+          },
+          {
+            "at": 6.85,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.7,
+                -1,
+                5.55
+              ]
+            }
+          },
+          {
+            "at": 6.9,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.8,
+                -1,
+                5.7
+              ]
+            }
+          },
+          {
+            "at": 6.95,
+            "payload": {
+              "mass": 16,
+              "position": [
+                3.9,
+                -1,
+                5.85
+              ]
+            }
+          },
+          {
+            "at": 7.0,
+            "payload": {
+              "mass": 16,
+              "position": [
+                4.0,
+                -1,
+                6.0
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 7
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "six-sails-corner",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 6,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 6,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 6,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 6,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                4,
+                -1,
+                6
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "heavy-with-added-load",
+        "mass": 96,
+        "inertia": [
+          750,
+          1200,
+          690
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 96,
+        "chassisInertia": [
+          750,
+          1200,
+          690
+        ],
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 24,
+              "position": [
+                4,
+                -2,
+                5
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "mixed-sails-corner",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 8,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 16,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 20,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                4,
+                -1,
+                6
+              ]
+            }
+          }
+        ],
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "delayed-noisy-right",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                4,
+                -1,
+                0
+              ]
+            }
+          }
+        ],
+        "delay": 3,
+        "spoolFactor": 0.5,
+        "noise": 0.01,
+        "attitudeNoise": 0.1,
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    },
+    {
+      "fixture": {
+        "id": "outside-physical-support",
+        "mass": 32,
+        "inertia": [
+          133,
+          200,
+          123
+        ],
+        "rotors": [
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": 5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": -3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          },
+          {
+            "kind": "bearing",
+            "x": 3,
+            "y": 0,
+            "z": -5,
+            "dx": 0,
+            "dy": 1,
+            "dz": 0,
+            "source": 256,
+            "sails": 12,
+            "members": 1,
+            "thrust": 0.2,
+            "airflow": 0.05
+          }
+        ],
+        "radius": 9.8309518948453,
+        "chassisMass": 16,
+        "chassisInertia": [
+          125,
+          200,
+          115
+        ],
+        "initialLoad": {
+          "payload": {
+            "mass": 16,
+            "position": [
+              0,
+              -1,
+              0
+            ]
+          }
+        },
+        "changes": [
+          {
+            "at": 5,
+            "payload": {
+              "mass": 16,
+              "position": [
+                8,
+                -1,
+                12
+              ]
+            }
+          }
+        ],
+        "expected_unachievable": true,
+        "sensorFrame": "body",
+        "sampledVelocity": true,
+        "episodes": [
+          {
+            "start": 5,
+            "end": 5
+          }
+        ]
+      },
+      "cases": [
+        "hover",
+        "brake",
+        "forward-left"
+      ]
+    }
+  ],
+  "scope": "Fixed 256 RPM, native LuaJ, independent 6DOF plant. No Minecraft world qualification.",
+  "bands": {
+    "height_m": 0.3,
+    "attitude_deg": 2,
+    "vertical_mps": 0.2,
+    "horizontal_mps": 0.3
+  },
+  "seconds": 60,
+  "control_hz": 20,
+  "physics_hz": 200
+}

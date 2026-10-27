@@ -10,7 +10,7 @@ spec=importlib.util.spec_from_file_location('plots',Path(__file__).with_name('re
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);a=p.parse_args();out=a.output;work=a.work
- m=json.loads((out/'manifest.json').read_text());results=json.loads((out/'results.json').read_text())['results'];assert len(results)==72
+ m=json.loads((out/'manifest.json').read_text());current=m['version'];previous,baseline={'0.3.4':('0.3.3','01af264048eb62bea330778bfc574b7a283adf44b432dc89897e61594940f1d9'),'0.3.5':('0.3.4','bf7b3e3316158a2a5c35c9c32bfee443101b3bb81d6f2d3c99e31a141044c150')}[current];assert m['sources']['baseline']==baseline;results=json.loads((out/'results.json').read_text())['results'];assert len(results)==72
  folder=work/'plots';folder.mkdir(exist_ok=True)
  for state in m['states']:
   f=state['fixture'];path=folder/(f['id']+'.pdf')
@@ -20,7 +20,7 @@ def main():
     labels=[]
     for controller,color in [('baseline','#b33b32'),('fixed','#1676b3')]:
      r=next(r for r in results if (r['fixture'],r['controller'],r['movement'])==(f['id'],controller,case));assert r['trace'];trace=work/'results'/r['trace'];assert digest(trace)==r['trace_sha256'];d=plots.traces(trace);t=d['t'];labels.append(controller+': '+r['status'])
-     axes[0].plot(t,d['y']-d['target_y'],lw=.7,color=color,label=('0.3.3' if controller=='baseline' else '0.3.4')+' '+r['status'])
+     axes[0].plot(t,d['y']-d['target_y'],lw=.7,color=color,label=(previous if controller=='baseline' else current)+' '+r['status'])
      axes[1].plot(t,d['tilt'],lw=.7,color=color)
      axes[2].plot(t,(d['vx']**2+d['vz']**2)**.5,lw=.7,color=color)
      for i in range(1,5):axes[3].plot(t,d['u'+str(i)],lw=.3,color=color,alpha=.5)
@@ -45,6 +45,8 @@ def main():
  for r in results:
   metrics=r['historical']['metrics'];lines.append('| '+' | '.join([r['fixture'],r['controller'],r['movement'],r['status'],n(metrics.get('transient_height_peak')),n(metrics.get('max_tilt')),', '.join(n(e['stationary20_seconds']) for e in r['episodes']),', '.join(k for k,v in r['checks'].items() if not v) or '—'])+' |')
  lines+=['', '## Limites','', 'Le centre hors du polygone des hélices est volontairement irréalisable et reste un échec. Les montages avec forte hétérogénéité, délais, faibles marges de poussée ou changement pendant une manœuvre peuvent conserver des excursions et des échecs. L’estimation est un biais effectif : elle ne prouve pas un centre de masse mesuré ou une pale disparue. La position fournie par Sputnik n’est pas garantie au centre de masse ; sa rotation peut affecter l’altitude affichée. L’estimation évite d’apprendre un surpoids durant les accélérations angulaires importantes.','', 'Le maintien ne peut être garanti pendant un retournement ou si la charge dépasse l’autorité disponible. Les autres architectures et le contrôleur standard ne sont pas modifiés. Voir aussi la [campagne de non-régression](../quad-campaign-0.3.4/README.md).','', '## Reproduction','', '`tools/test-sputnik-quad-com.py --help`, puis `tools/report-sputnik-quad-com.py` et `tools/verify-sputnik-quad-com.py`. Le fichier Lua 0.3.3 de référence doit être fourni explicitement. Les deux sources réellement exécutées, les critères et la mécanique sont gelés dans l’archive. La validation distincte de l’import SNBT/LuaJ est consignée dans le résumé de livraison.','']
- (out/'README.md').write_text('\n'.join(lines).rstrip()+'\n');(out/'artifacts.json').write_text(json.dumps(dict(schema=1,archives={p.name:dict(bytes=p.stat().st_size,sha256=digest(p)) for p in archives},trace_count=sum(r['trace'] is not None for r in results),classified_cases=len(results)),indent=2)+'\n')
+ content='\n'.join(lines).replace('0.3.4','__CURRENT__').replace('0.3.3',previous).replace('__CURRENT__',current)
+ if current=='0.3.5':content=content.replace('L’estimation évite d’apprendre un surpoids durant les accélérations angulaires importantes.','L’effort vertical est désormais appris pendant les oscillations modérées avec son filtrage conservé, afin de ne pas bloquer l’adaptation à une charge suspendue. Une erreur de modèle peut encore contaminer cette estimation.').replace('Le correctif estime un déséquilibre','Cette régression vérifie que le contrôleur conserve son estimation de déséquilibre').replace('Le solveur utilise désormais','Le solveur continue d’utiliser')
+ (out/'README.md').write_text(content.rstrip()+'\n');(out/'artifacts.json').write_text(json.dumps(dict(schema=1,archives={p.name:dict(bytes=p.stat().st_size,sha256=digest(p)) for p in archives},trace_count=sum(r['trace'] is not None for r in results),classified_cases=len(results)),indent=2)+'\n')
  print('Published',len(results),'load-change classifications and 36 comparison plot pages')
 if __name__=='__main__':main()

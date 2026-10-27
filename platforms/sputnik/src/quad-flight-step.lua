@@ -66,7 +66,7 @@
   elseif self.mode=='HEADING' then
    local heading=math.rad(self.heading);ax=1.2*((self.speed or 0)*math.sin(heading)-v.x);az=1.2*((self.speed or 0)*math.cos(heading)-v.z)
   else
-   if speed>.12 then ax,az=-2.3*(v.x+.4*self.acceleration.x),-2.3*(v.z+.4*self.acceleration.z);self.target.x,self.target.z=p.x,p.z
+   if speed>.12 then ax,az=-2.3/(1+math.max(0,self.loadBias)/p.gravity*2)*(v.x+.4*self.acceleration.x),-2.3/(1+math.max(0,self.loadBias)/p.gravity*2)*(v.z+.4*self.acceleration.z);self.target.x,self.target.z=p.x,p.z
    else ax=.3*(self.target.x-p.x)-.9*v.x;az=.3*(self.target.z-p.z)-.9*v.z end
   end
   local recovering=up.y<math.cos(math.rad(math.max(45,tilt+15))) or self.recovering and (up.y<.985 or math.abs(self.omega.x)+math.abs(self.omega.z)>.3 or math.abs(v.y)>6)
@@ -127,7 +127,7 @@
   end
   self.pendingCommand=V.copy(lastSignals or self.initialSignals)
   self.forceFilter=self.forceFilter+dt/(.12+dt)*(force/p.mass*up.y-p.gravity-self.forceFilter)
-  if not recovering and up.y>.85 and math.abs(self.omega.x)+math.abs(self.omega.z)<.6 and math.abs(self.angularAcceleration.x)+math.abs(self.angularAcceleration.z)<.5 then
+  if not recovering and up.y>.85 then
    local bias=clip(self.forceFilter-self.acceleration.y,-p.gravity*.4,p.gravity*3)
    self.loadBias=self.loadBias+dt/(1+dt)*clip(bias-self.loadBias,-p.gravity*.5,p.gravity*.5)
   end
@@ -187,7 +187,8 @@
   end
   local yError=self.target.y-self.filters.y.x
   local desiredVy=command.vertical~=0 and command.vertical*(cfg.climb or 4) or clip(yError,-(cfg.climb or 4),cfg.climb or 4)
-  local ay=(command.vertical~=0 and 4 or 2)*(desiredVy-v.y)+self.integral+self.loadBias-.15*self.acceleration.y
+  local gain=(command.vertical~=0 or self.loadBias>p.gravity*.1) and 4 or 2
+  local ay=gain*(desiredVy-v.y)+self.integral+self.loadBias-.15*self.acceleration.y
   if math.abs(v.y)>8 then ay=clip(ay,-p.gravity*.8,p.gravity*2) end
   local collective=math.max(0,(ay+p.gravity)/math.max(.2,up.y))
   if recovering then
