@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "source": "recorded-writer-observations",
+  "hardware_ack": false,
+  "qualified": false,
+  "frames": 289,
+  "active_frames": 289,
+  "gaps": 0,
+  "missing_ticks": 0,
+  "dropped_before_snapshot": 0,
+  "mount_verified": true,
+  "max_height_error": 0.33086499999998864,
+  "first_fault": null,
+  "limits": [
+    "No direct shaft RPM or radio ACK inferred",
+    "Clock gaps do not grant stability",
+    "No obstacle/COM scan",
+    "Re-evaluation is not a counterfactual physical trajectory"
+  ],
+  "max_abs_pitch": 0.06883338,
+  "max_abs_roll": 1.2261344,
+  "saturated_fraction": 0.0,
+  "stationary_intervals": [
+    {
+      "start_tick": 838107.0,
+      "end_tick": 838317.0,
+      "fresh_observations": 211
+    }
+  ]
+}

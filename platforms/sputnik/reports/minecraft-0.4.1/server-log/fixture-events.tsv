@@ -1,0 +1,34 @@
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+180	STATUS Pret: activer sans touche
+200	STATUS Pret: activer sans touche
+220	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+240	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+260	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+280	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+300	WARMUP HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+300	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+310	DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch=838229
+320	RELEASE: fixture lock removed, physical flight begins
+320	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+340	STATUS HOLDING h=106.430244>106.13182 | Equilibrage dynamique estime
+360	STATUS HOLDING h=106.3938>106.13182 | Equilibrage dynamique estime
+380	STATUS HOLDING h=106.20544>106.13182 | Equilibrage dynamique estime
+400	STATUS HOLDING h=106.111664>106.13182 | Equilibrage dynamique estime
+420	STATUS HOLDING h=106.08405>106.13182 | Equilibrage dynamique estime
+440	STATUS HOLDING h=106.08026>106.13182 | Equilibrage dynamique estime
+460	STATUS HOLDING h=106.08825>106.13182 | Equilibrage dynamique estime
+480	STATUS HOLDING h=106.09286>106.13182 | Equilibrage dynamique estime
+500	STATUS HOLDING h=106.09423>106.13182 | Equilibrage dynamique estime
+520	STATUS HOLDING h=106.09756>106.13182 | Equilibrage dynamique estime
+540	STATUS HOLDING h=106.102425>106.13182 | Equilibrage dynamique estime
+560	STATUS HOLDING h=106.10579>106.13182 | Equilibrage dynamique estime
+580	STATUS HOLDING h=106.10474>106.13182 | Equilibrage dynamique estime
+600	STATUS HOLDING h=106.10716>106.13182 | Equilibrage dynamique estime
+600	COMPLETE: scenario ended, criteria scored separately
+620	STATUS Pret: activer sans touche
+640	STATUS Pret: activer sans touche
+645	EXPORT: 3 pages complete

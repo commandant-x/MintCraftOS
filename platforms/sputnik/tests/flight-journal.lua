@@ -31,6 +31,26 @@ assert(s.snapshot.rows[1]==before,'Frozen evidence mutated with live ring');asse
 local noisy=J.new()
 for t=100,219 do assert(noisy:accept(assert(J.decode(frame(t,{pitch=8*math.sin(t*math.pi/8)}))),t,context)) end
 assert(noisy:diagnose(219).oscillating and noisy:diagnose(219).protect,'Severe quiet oscillation hidden')
+local verticalOscillation=J.new()
+for t=100,219 do local y=80+20*math.sin(t*math.pi/20);local vy=(y-80-20*math.sin((t-1)*math.pi/20))*20
+ assert(verticalOscillation:accept(assert(J.decode(frame(t,{y=y,vy=vy}))),t,context))
+end
+assert(verticalOscillation:diagnose(219).protect,'Persistent +/-20 m altitude oscillation was hidden by recent-window check')
+
+-- Real Minecraft return after W: the old six-second span is 30.89 degrees,
+-- but its last three seconds are already damped below the severe threshold.
+local returning=J.new();local observed=read('platforms/sputnik/tests/fixtures/minecraft-damped-return.csv')
+local last
+for line in observed:gmatch('[^\r\n]+') do
+ local row={};for value in line:gmatch('[^,]+') do row[#row+1]=tonumber(value) end
+ if row[1] then
+  last=row[1];local measured=assert(J.decode(frame(last,{mass=193.5,y=row[2],pitch=row[3],roll=row[4],vx=row[5],vy=row[6],vz=row[7],target=row[8]})))
+  assert(returning:accept(measured,last,context))
+ end
+end
+local settled=returning:diagnose(last)
+assert(settled.pitchSpan>30 and not settled.protect,'Damped real braking transient falsely latched horizontal protection')
+
 for _,mode in ipairs({'ROUTE','CALIBRATE'}) do
  local moving=J.new();for t=100,219 do assert(moving:accept(assert(J.decode(frame(t,{pitch=8*math.sin(t*math.pi/8),mode=mode}))),t,context)) end
  assert(not moving:diagnose(219).protect,'Intentional mission/calibration mistaken for quiet oscillation')

@@ -48,7 +48,7 @@ local function config()
  if not Vehicle.pair(a,b) then return nil,'Frequence Enable absente' end;c.protected[1]=enableBinding
  if type(keyboard)=='string' and keyboard~='' then
   local count=0;for pair in keyboard:gmatch('[^|]+') do local ka,kb=pair:match('^([^,]+),([^,]+)$');if not Vehicle.pair(ka,kb) then return nil,'Frequence clavier invalide' end;count=count+1;c.protected[#c.protected+1]=pair end
-  if count~=6 then return nil,'Clavier: 6 paires requises ou aucune' end
+  if count~=6 then return nil,'Clavier: 6 paires ou vide' end
  end
  local groups={};local signature={settings,enableBinding,tostring(keyboard)}
  for _,text in ipairs(descriptors) do
@@ -157,7 +157,7 @@ s.label.setText(reason)
 local core=s.core;local cal=core and core.calibration;local caps={};if core and core.capabilities then for _,name in ipairs(Response.axes) do caps[#caps+1]=name..'='..tostring(core.capabilities[name].available) end end
 -- MCF1 is a single writer observation; '?' means unavailable, not zero.
 local report='MCREPORT1 | '..reason..'\n'..table.concat({'MCF1',tick or '?',mass or '?',ix or '?',iy or '?',iz or '?',x or '?',y or '?',z or '?',pitch or '?',yaw or '?',roll or '?',vx or '?',vy or '?',vz or '?',core and core.target.y or '?',core and 1 or 0,command.forward or '?',command.left or '?',command.vertical or '?',s.info and s.info.residual or '?',s.info and s.info.saturated and 1 or 0,s.info and s.info.loadBias or '?',read('getDimension') or '?',core and core.mode or '-',core and core.revision or 0,core and s.settings or '?',core and core.scale or 1},',')
-for _,g in ipairs(s.owner or {}) do report=report..'\nG,'..g.id..','..tostring(s.lastSignals and s.lastSignals[tostring(g.id)] or '?')..','..tostring(core and core.spool[g.id] or '?')..','..Calibration.hash(g) end
+for _,g in ipairs(core and core.groups or s.owner or {}) do report=report..'\nG,'..g.id..','..tostring(s.lastSignals and s.lastSignals[tostring(g.id)] or '?')..','..tostring(core and core.spool[g.id] or '?')..','..Calibration.hash(g) end
 if server and cal and (cal.complete or cal.paused) and not core.archived then core.snapshot=Calibration.archive(cal,cal.mass);core.archived=true end
 if server and core and core.snapshot then s.archive.setValue(core.snapshot) end
 local geometry={};for _,g in ipairs(s.owner or {}) do geometry[#geometry+1]=table.concat({g.x,g.y,g.z},',') end

@@ -5,7 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.4.0'
+VERSION='0.4.1'
 FLIGHT_EXCLUDED=('sdk/mintcraft-library.lua','mintcraft-autopilot.clipboard.txt','mintcraft-quad-flight.clipboard.txt','mintcraft-autopilot-control.clipboard.txt','mintcraft-autopilot-quad-fpv.clipboard.txt')
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
@@ -211,9 +211,12 @@ def main():
  nodes,edges=fpv_graph(scripts,consent)
  path=out/'mintcraft-quad-fpv.clipboard.txt';path.write_text(graph_clipboard(nodes,edges),encoding='utf-8')
  artifacts[path.name]={'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+ evidence_path=BASE/'reports/minecraft-0.4.1/validation.json'
+ evidence=json.loads(evidence_path.read_text()) if evidence_path.exists() else {}
+ world_tested=bool(evidence.get('flightScenarioCompleted') and evidence.get('controllerSha256')==artifacts['mintcraft-autopilot-quad-fpv.lua']['sha256'] and evidence.get('supervisorSha256')==artifacts['mintcraft-flight-operations.lua']['sha256'])
  manifest={'schema':1,'edition':'MintCraft Sputnik','version':VERSION,'target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
-  'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':False,
+  'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':world_tested,'minecraftWorldValidation':evidence if world_tested else {'testedCurrentSources':False},
   'flightArchiveExcludes':list(FLIGHT_EXCLUDED),'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','flightSample':'MCF1','flightLog':'MCLOG1','mountLibrary':'MCFLEET1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
   'nativeSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((BASE/'src').glob('*.lua'))},
@@ -235,11 +238,16 @@ def main():
   source_paths.update(BASE.glob('*.md'));source_paths.add(ROOT/'LICENSE')
   source_paths.update(ROOT/(name.replace('.','/')+'.lua') for name in MODULES)
   source_paths.update(ROOT/'tests'/(name+'.lua') for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight'))
-  source_paths.update(ROOT/'tools'/name for name in ('report-sputnik-operations.py','replay-sputnik-flight.py','sputnik-observation-replay.lua','test-sputnik-flight-pages.py','test-sputnik-operations-physics.py','build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-quad-load-contract.py','test-sputnik-quad-load.py','report-sputnik-quad-load.py','verify-sputnik-quad-load.py','quad_load_contract.py','sputnik-load-twin.lua','test-sputnik-quad-com.py','report-sputnik-quad-com.py','verify-sputnik-quad-com.py','quad_com_contract.py','test-quad-com-contract.py','sputnik-com-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
+  source_paths.update(ROOT/'tools'/name for name in ('report-sputnik-minecraft.py','report-sputnik-operations.py','replay-sputnik-flight.py','sputnik-observation-replay.lua','test-sputnik-flight-pages.py','test-sputnik-operations-physics.py','build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-quad-load-contract.py','test-sputnik-quad-load.py','report-sputnik-quad-load.py','verify-sputnik-quad-load.py','quad_load_contract.py','sputnik-load-twin.lua','test-sputnik-quad-com.py','report-sputnik-quad-com.py','verify-sputnik-quad-com.py','quad_com_contract.py','test-quad-com-contract.py','sputnik-com-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
   for path in sorted(source_paths):
    if path.is_file() and path.name not in ('README.md','OPERATIONS.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','operations-0.4.0'):
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','operations-0.4.0','minecraft-0.4.1'):
+   if report_name=='minecraft-0.4.1':
+    report=BASE/'reports'/report_name/'README.md'
+    if report.exists():
+     entry=zipfile.ZipInfo('reports/'+report_name+'/README.md',(2026,10,31,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,report.read_bytes())
+    continue
    if report_name!='operations-0.4.0':
     entry=zipfile.ZipInfo('reports/'+report_name+'/README.md',(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16
     link='https://github.com/commandant-x/MintCraftOS/tree/80fe2f7c3150dab1c108a4e5c303be458dc91568/platforms/sputnik/reports/'+report_name

@@ -1,10 +1,12 @@
+> 0.4.1 : le grand quad modulaire de la sauvegarde VENATOR a été essayé sur un vrai serveur Minecraft/Sable. Les huit phases atteignent les critères de maintien final ; les pointes verticales dépassent un mètre en montée/descente et le cap du nez n’est pas maintenu. Cela ne qualifie pas les autres montages, le départ à froid ou la charge suspendue. [Rapport et TXT configuré pour ce véhicule](reports/minecraft-0.4.1/README.md).
+
 > Livraison 0.4.0 : [montage unifié, journal, protection et migration](OPERATIONS.md). Les limites physiques et les échecs des campagnes restent applicables.
 
-# Quad FPV expérimental — 0.4.0
+# Quad FPV expérimental — 0.4.1
 
 Importer uniquement `dist/mintcraft-quad-fpv.clipboard.txt`. Ce graphe autonome remplace l'ancien graphe quad : exporter les groupes MCV1, puis retirer les anciens contrôleurs avant de réutiliser leurs fréquences. Réimporter les groupes dans le formulaire de montage unique, en choisissant leur numéro. Configurer les six touches, le levier physique, chaque paire puissance et le rayon englobant réel. Au sol, passer le levier OFF avant le nouveau prévol. La fermeture de l'éditeur ne coupe pas le calcul serveur.
 
-Le profil accepte quatre hélices verticales, petites ou modulaires, avec quatre commandes indépendantes. Chaque rotor garde son propre type, nombre de voiles, régime source, position et modèle de réponse. Une acceptation de configuration ne certifie pas sa stabilité : les domaines réussis et échoués sont publiés dans [la campagne complète](reports/quad-campaign-0.3.5/README.md). Aucun essai Minecraft n'est revendiqué.
+Le profil accepte quatre hélices verticales, petites ou modulaires, avec quatre commandes indépendantes. Chaque rotor garde son propre type, nombre de voiles, régime source, position et modèle de réponse. Une acceptation de configuration ne certifie pas sa stabilité : les domaines réussis et échoués sont publiés dans [la campagne complète](reports/quad-campaign-0.3.5/README.md). Les essais Minecraft 0.4.1 sont limités au montage décrit dans leur rapport.
 
 La référence synthétique utilise 12 voiles par hélice, 256 RPM, masse exposée 32 kg, bras X=±3/Z=±5, inerties diagonales 250/400/230 et gravité 11. Les positions sont relatives au centre de masse déclaré ; la direction de force de chaque rotor vertical vaut **X=0, Y=1, Z=0**, indépendamment de sa position. Le Lua ne scanne ni les voiles ni le centre de masse.
 

@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "version": "0.4.1",
+  "date": "2026-10-31",
+  "flightScenarioCompleted": true,
+  "profiles": [
+    "quad-fpv"
+  ],
+  "runtime": "Minecraft 1.21.1 / NeoForge 21.1.264 / Cosmonautics 26.08.307 / Aeronautics 1.3.2 / Sable 2.0.6, real Rapier physics",
+  "controllerSha256": "c197b53608077a95b27fef549efa7c013a5e4221bd07b5b52710c952c4f011de",
+  "supervisorSha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+  "source": "isolated copy of supplied VENATOR world",
+  "vehicle": {
+    "massKg": 193.5,
+    "rotors": 4,
+    "sails": [
+      12,
+      12,
+      12,
+      12
+    ],
+    "sourceRpm": 256
+  },
+  "phasePasses": 8,
+  "phaseCount": 8,
+  "freeFrames": 3679,
+  "freshTickGaps": 0,
+  "bodyYawControlled": false,
+  "bodyYawDriftDegrees": 132.05711833598698,
+  "globalQualification": false,
+  "clientGuiTested": false,
+  "physicalTypewriterKeysTested": false,
+  "coldStartTested": false,
+  "suspendedLoadTested": false,
+  "invertedRecoveryTested": false,
+  "preparedGeometryMeasuredByTestMod": true,
+  "originalWorldNotModified": true,
+  "originalGraphConnections": 33,
+  "preparedGraphConnections": 34,
+  "draftGeometryDisplayConnectionRestored": true,
+  "serverLogExport": {
+    "pages": 3,
+    "frames": 289,
+    "mountVerified": true,
+    "validatedByIndependentPythonParser": true
+  },
+  "fixtureCleanupValidatedSeparately": true,
+  "priorPostCompletionFixtureFault": [
+    {
+      "tick": 4001,
+      "reason": "ABORT: test envelope exceeded; fixture locked; not a flight pass"
+    }
+  ],
+  "report": "platforms/sputnik/reports/minecraft-0.4.1/README.md",
+  "inputVolumes": [
+    {
+      "file": "venator.part01.rar",
+      "bytes": 26214400,
+      "sha256": "871c6cae52199b37e09072d721ee8d13c1646db62627bafe0c59fd1cc9f2242b"
+    },
+    {
+      "file": "venator.part02.rar",
+      "bytes": 26214400,
+      "sha256": "cf2235fc84af5fb90b285289067335e46d8bae78ffc650885909d36b67187951"
+    },
+    {
+      "file": "venator.part03.rar",
+      "bytes": 26214400,
+      "sha256": "ea87e9240253f6a184ed95545fdf73507304eeebb4556a6cb0ef3b857987ee17"
+    },
+    {
+      "file": "venator.part04.rar",
+      "bytes": 26214400,
+      "sha256": "1a4acf4887baa7c73e1817919754e1c7f0eb2f6df918a8283287ce487446d57b"
+    },
+    {
+      "file": "venator.part05.rar",
+      "bytes": 26214400,
+      "sha256": "b6ae76cb83cc4cbe4dd3f0994b5287b9d7afbbb4c8fad05a3bb0461be51b4004"
+    },
+    {
+      "file": "venator.part06.rar",
+      "bytes": 2015348,
+      "sha256": "120693e338516109ad9a7489ecfc0e09265249456a6c048abddc3aef7627bc0e"
+    }
+  ],
+  "playerOnboardTested": false
+}

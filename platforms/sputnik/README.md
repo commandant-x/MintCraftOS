@@ -1,4 +1,6 @@
-# Autopilote Sputnik 0.4.0 — un TXT par architecture
+# Autopilote Sputnik 0.4.1 — un TXT par architecture
+
+**0.4.1 : essais sur copie du monde VENATOR et correction de deux défauts du diagnostic/journal.** Voir [les mesures Minecraft réelles](reports/minecraft-0.4.1/README.md). Les pointes transitoires et le lacet non contrôlé restent documentés ; les autres architectures ne sont pas qualifiées par cet essai.
 
 Le montage utilise maintenant un seul formulaire de groupe sélectionné, avec ses voiles, sa position et ses fréquences. Les sept nœuds du graphe comprennent pilotage, montage, clavier et diagnostic/journal ; un seul contrôleur émet les commandes physiques.
 
@@ -24,7 +26,7 @@ Le rendu utilise moins de formulaires ; aucun gain de FPS chiffré n’est reven
 3. Dans le fond vide de l’éditeur Sputnik, coller avec **Ctrl+V**, puis sauvegarder. Le collage ajoute tout le graphe ; ne pas coller le TXT dans l’éditeur Lua d’un nœud.
 4. Ne pas conserver l’ancien graphe en parallèle. Suivre [Montage → essais → pilotage](AUTOPILOT.md). Renseigner les fréquences et les caractéristiques propres à chaque hélice. Le nouveau pilote exige un passage physique Enable OFF avant activation.
 
-Le [ZIP courant](dist/mintcraft-sputnik-0.4.0.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
+Le [ZIP courant](dist/mintcraft-sputnik-0.4.1.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
 
 Le contrôleur continue côté serveur après fermeture de l’éditeur. Une mise à jour ne doit pas s’effectuer en vol : l’expiration Link peut ramener un signal à zéro, qui signifie plein régime pour certaines transmissions.
 
@@ -101,7 +103,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.4.0.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.4.1.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

@@ -152,11 +152,13 @@ function M.new()
   if f.active==0 then result.summary='Desarme; aucun vol qualifie';return result end
   local h=self.history;if #h<120 or h[#h].tick~=f.tick or h[#h].tick-h[1].tick>121 then return result end
   local heightMin,heightMax=math.huge,-math.huge;local pitchMin,pitchMax=math.huge,-math.huge;local rollMin,rollMax=math.huge,-math.huge
+  local recentMin={math.huge,math.huge,math.huge};local recentMax={-math.huge,-math.huge,-math.huge}
   local turnsY,turnsP,turnsR=0,0,0;local signY,signP,signR=0,0,0;local quiet=true;local saturated=0;local vertical2,horizontal2=0,0;local velocities=true
   local function changed(delta,old,threshold) local sign=delta>threshold and 1 or delta< -threshold and -1 or old;return sign,old~=0 and sign~=old and 1 or 0 end
   for i,p in ipairs(h) do
    if not p.target then return result end
    local error=p.y-p.target;heightMin=math.min(heightMin,error);heightMax=math.max(heightMax,error);pitchMin=math.min(pitchMin,p.pitch);pitchMax=math.max(pitchMax,p.pitch);rollMin=math.min(rollMin,p.roll);rollMax=math.max(rollMax,p.roll)
+   if i>#h-60 then for axis,value in ipairs({error,p.pitch,p.roll}) do recentMin[axis]=math.min(recentMin[axis],value);recentMax[axis]=math.max(recentMax[axis],value) end end
    quiet=quiet and (p.reason:match('^HOLDING') or p.reason:match('^DEGRADED')) and p.revision==h[1].revision and p.forward==0 and p.left==0 and p.vertical==0 and p.active==1 and math.abs(p.target-h[1].target)<.05
    saturated=saturated+p.saturated
    if p.vx and p.vy and p.vz then vertical2=vertical2+p.vy^2;horizontal2=horizontal2+p.vx^2+p.vz^2 else velocities=false end
@@ -165,8 +167,10 @@ function M.new()
   local a,b=h[#h-19],h[#h];local fresh=true;local stable=true
   for i=#h-19,#h do local p=h[i];fresh=fresh and (i==#h-19 or p.tick==h[i-1].tick+1);stable=stable and math.abs(p.target-h[#h-19].target)<=.05 and p.vx~=nil and p.vy~=nil and p.vz~=nil and p.vx^2+p.vz^2<=.04 and p.forward==0 and p.left==0 and p.vertical==0 and math.abs(p.vy)<=.1 and math.abs(p.y-p.target)<=1 and math.abs(p.pitch)<=5 and math.abs(p.roll)<=5 end
   result.ready=fresh and stable;result.confidence=velocities and 'observations fraiches' or 'vitesses manquantes';result.heightSpan=heightMax-heightMin;result.pitchSpan=pitchMax-pitchMin;result.rollSpan=rollMax-rollMin;result.verticalRms=velocities and math.sqrt(vertical2/#h) or nil;result.horizontalRms=velocities and math.sqrt(horizontal2/#h) or nil;result.saturation=saturated/#h
-  result.oscillating=quiet and not f.reason:find('CALIBRATING',1,true) and not f.reason:find('RECOVERING',1,true) and ((turnsY>=4 and result.heightSpan>.6) or (turnsP>=4 and result.pitchSpan>4) or (turnsR>=4 and result.rollSpan>4))
-  result.protect=result.oscillating and (result.heightSpan>2 or result.pitchSpan>12 or result.rollSpan>12)
+  result.recentHeightSpan=recentMax[1]-recentMin[1];result.recentPitchSpan=recentMax[2]-recentMin[2];result.recentRollSpan=recentMax[3]-recentMin[3]
+  result.oscillating=quiet and not f.reason:find('CALIBRATING',1,true) and not f.reason:find('RECOVERING',1,true) and ((turnsY>=4 and result.recentHeightSpan>.6) or (turnsP>=4 and result.recentPitchSpan>4) or (turnsR>=4 and result.recentRollSpan>4))
+  -- A historical braking peak must not latch after its recent motion has damped.
+  result.protect=result.oscillating and (turnsY>=4 and result.recentHeightSpan>2 or turnsP>=4 and result.recentPitchSpan>12 or turnsR>=4 and result.recentRollSpan>12)
   result.summary=result.oscillating and 'Oscillation persistante observee' or result.saturation>.5 and 'Allocation frequemment saturee' or result.ready and 'Maintien observe: 20 mesures fraiches; non certifie' or 'Mouvement/transitoire observe'
   -- Passive correlation is a candidate, never observed shaft response or a cause proof.
   local braking={};for i=2,#h do local p,old=h[i],h[i-1];if p.vx and p.vz and old.vx and old.vz and p.forward==0 and p.left==0 then local before=math.sqrt(old.vx^2+old.vz^2);local after=math.sqrt(p.vx^2+p.vz^2);if before>.5 and after<before then braking[#braking+1]=(before-after)*20/(p.tick-old.tick) end end end

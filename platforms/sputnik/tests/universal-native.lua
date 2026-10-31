@@ -19,6 +19,13 @@ e.values.Enable=0;tick();tick();assert(#state.writes==0,'cached OFF authorized b
 e.values.Enable=1;tick();assert(#state.writes==0,'boot-high armed native writer')
 e.values.Enable=0;state.bus['minecraft:stone,minecraft:lever']=0;tick();tick();e.values.Enable=1;state.bus['minecraft:stone,minecraft:lever']=15;tick();assert(e.outputs.Active==1)
 local owner=e.MintCraftPilot.owner;local core=e.MintCraftPilot.core;local filter=core.filters.y
+-- Resolving fallback=-1 into a physical trim must not change the declared
+-- mount fingerprint exported to the recorder.
+local Journal=assert(load(read('platforms/sputnik/src/flight_journal.lua'),'journal','t',_G))()
+local sample=assert(Journal.decode(e.outputs.Report))
+local context,contextWhy=Journal.context(sample,e.values.Settings,e.values['Groups A'],'')
+assert(context,'Active mount log lost provenance after fallback trim: '..tostring(contextWhy))
+
 e.values.Request='MCC1|1|ALTITUDE|81|0|0||';tick()
 assert(core.target.y==81 and e.outputs['Acknowledged revision']==1 and core.filters.y==filter,'hot target reset live controller')
 e.values.Request='MCC1|0|ALTITUDE|99|0|0||';tick();assert(core.target.y==81,'replayed request changed target')

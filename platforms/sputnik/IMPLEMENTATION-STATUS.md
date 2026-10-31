@@ -1,4 +1,6 @@
-# État d'implémentation — Autopilote Sputnik 0.4.0
+> Validation 0.4.1 : essai réel sur copie du monde VENATOR, huit phases et mesures d’arbres/récepteurs. Correction du journal et de la protection après freinage. Les critères de maintien final sont réussis sur ce montage préchauffé ; les transitoires verticaux, le lacet libre et les cas non essayés restent des limites. [Résultats](reports/minecraft-0.4.1/README.md).
+
+# État d'implémentation — Autopilote Sputnik 0.4.1
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 
@@ -11,7 +13,7 @@ Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les con
 | E Adaptation | Quaternions, allocation/quantification couplées, correction de masse et trim d’assiette en maintien sans changer la cible, récupération d'assiette, suspension horizontale si réserve verticale insuffisante | Validation systématique très faibles inerties et délais élevés ; adaptation de réponse/panne sans modèle renseigné |
 | F Missions | Planificateur 3D local borné, zones/marges déclarées, routes XYZ, pause/reprise/retour, freinage passif, trace, points de coque déclarée, vues natives 2D/3D, maintien final | Contraintes de virage et de freinage garanties sur toute la trajectoire ; cartes terrain impossibles sans source réelle |
 
-Le banc indépendant distingue les succès, les échecs et les hypothèses. Les mesures de déplacement ne deviennent pas des ACK matériels. Le drapeau global de qualification reste faux. La livraison n'a pas été essayée dans le monde Minecraft du joueur.
+Le banc indépendant distingue les succès, les échecs et les hypothèses. Les mesures de déplacement ne deviennent pas des ACK matériels. Le drapeau global de qualification reste faux. Les essais réels 0.4.1 concernent le grand quad d’une copie du monde VENATOR ; ils ne qualifient pas tous les profils.
 
 ## Livraison 0.4.0 : exploitation et preuves
 

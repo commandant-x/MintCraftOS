@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "source": "real Minecraft dedicated server, Sable/Rapier physics",
+  "hardware_observation": "actual shaft RPM and Redstone Link receiver levels",
+  "typewriter_physical_keys_tested": false,
+  "client_gui_tested": false,
+  "cold_start_tested": false,
+  "body_yaw_controlled": false,
+  "body_yaw_drift_degrees": 132.05711833598698,
+  "controller_globally_qualified": false,
+  "completed": true,
+  "aborted": false,
+  "cleanup_faults": [
+    {
+      "tick": 4001,
+      "reason": "ABORT: test envelope exceeded; fixture locked; not a flight pass"
+    }
+  ],
+  "release_tick": 320,
+  "scenario_epoch": 838229,
+  "frames": 3882,
+  "free_frames": 3679,
+  "fresh_tick_gaps": 0,
+  "cases": [
+    {
+      "movement": "hover",
+      "status": "PASS",
+      "metrics": {
+        "samples": 589,
+        "position_delta": [
+          0.00020599365234375,
+          -0.0148468017578125,
+          -0.002471923828125
+        ],
+        "projected_horizontal_displacement": null,
+        "max_height_error": 0.33086395263671875,
+        "tail_height_error": 0.00928497314453125,
+        "tail_height_span": 0.00453948974609375,
+        "peak_abs_pitch": 0.06883338121397331,
+        "peak_abs_roll": 1.199016986908109,
+        "peak_vertical_speed": 0.378265380859375,
+        "peak_horizontal_speed": 0.064295836911912,
+        "first_20_fresh_settling_seconds": 4.35,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 321,
+      "last_tick": 909
+    },
+    {
+      "movement": "climb",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          -0.04181671142578125,
+          2.7454986572265625,
+          0.0223846435546875
+        ],
+        "projected_horizontal_displacement": null,
+        "max_height_error": 1.6676910400390597,
+        "tail_height_error": 0.06109924316406534,
+        "tail_height_span": 0.014801025390625,
+        "peak_abs_pitch": 0.5744234903110333,
+        "peak_abs_roll": 0.5317513575754313,
+        "peak_vertical_speed": 4.00238037109375,
+        "peak_horizontal_speed": 0.08115208760024867,
+        "first_20_fresh_settling_seconds": 4.75,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 910,
+      "last_tick": 1329
+    },
+    {
+      "movement": "descend",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          0.006866455078125,
+          -2.038818359375,
+          -0.0083770751953125
+        ],
+        "projected_horizontal_displacement": null,
+        "max_height_error": 1.3337524414062472,
+        "tail_height_error": 0.028224182128909092,
+        "tail_height_span": 0.007232666015625,
+        "peak_abs_pitch": 0.4461890897494758,
+        "peak_abs_roll": 0.8681151874696676,
+        "peak_vertical_speed": 4.0740966796875,
+        "peak_horizontal_speed": 0.050644470285422356,
+        "first_20_fresh_settling_seconds": 4.6,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 1330,
+      "last_tick": 1749
+    },
+    {
+      "movement": "forward",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          -2.6304702758789062,
+          -0.02152252197265625,
+          -0.828643798828125
+        ],
+        "projected_horizontal_displacement": 2.756883530585367,
+        "max_height_error": 0.16516418457031534,
+        "tail_height_error": 0.0017578125000028422,
+        "tail_height_span": 0.00318145751953125,
+        "peak_abs_pitch": 16.855447123810624,
+        "peak_abs_roll": 0.8251946747294528,
+        "peak_vertical_speed": 0.345916748046875,
+        "peak_horizontal_speed": 2.1539928398119574,
+        "first_20_fresh_settling_seconds": 6.55,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 1750,
+      "last_tick": 2169
+    },
+    {
+      "movement": "reverse",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          2.7247467041015625,
+          -0.00518035888671875,
+          0.8205413818359375
+        ],
+        "projected_horizontal_displacement": 2.845612096320571,
+        "max_height_error": 0.13191528320312784,
+        "tail_height_error": 0.005299377441403408,
+        "tail_height_span": 0.007080078125,
+        "peak_abs_pitch": 16.95719655098184,
+        "peak_abs_roll": 0.9506210855050898,
+        "peak_vertical_speed": 0.345458984375,
+        "peak_horizontal_speed": 2.0746586947288,
+        "first_20_fresh_settling_seconds": 6.5,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 2170,
+      "last_tick": 2589
+    },
+    {
+      "movement": "left",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          0.6059646606445312,
+          -0.00612640380859375,
+          -2.3355560302734375
+        ],
+        "projected_horizontal_displacement": 2.41286979479773,
+        "max_height_error": 0.15686340332031534,
+        "tail_height_error": 0.010182189941403408,
+        "tail_height_span": 0.00734710693359375,
+        "peak_abs_pitch": 0.7580226794811287,
+        "peak_abs_roll": 14.20333002135561,
+        "peak_vertical_speed": 0.283660888671875,
+        "peak_horizontal_speed": 1.840599360473628,
+        "first_20_fresh_settling_seconds": 6.35,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 2590,
+      "last_tick": 3009
+    },
+    {
+      "movement": "right",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          -0.465545654296875,
+          0.00452423095703125,
+          2.049224853515625
+        ],
+        "projected_horizontal_displacement": 2.1013871163132194,
+        "max_height_error": 0.12427825927734659,
+        "tail_height_error": 0.010563659667965908,
+        "tail_height_span": 0.00484466552734375,
+        "peak_abs_pitch": 0.644428183466775,
+        "peak_abs_roll": 14.885805124905781,
+        "peak_vertical_speed": 0.239105224609375,
+        "peak_horizontal_speed": 1.8151582768437058,
+        "first_20_fresh_settling_seconds": 6.1,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 3010,
+      "last_tick": 3429
+    },
+    {
+      "movement": "diagonal",
+      "status": "PASS",
+      "metrics": {
+        "samples": 570,
+        "position_delta": [
+          -2.307952880859375,
+          0.02030181884765625,
+          -2.376068115234375
+        ],
+        "projected_horizontal_displacement": 3.2823677893221044,
+        "max_height_error": 0.2351272583007784,
+        "tail_height_error": 0.016841125488284092,
+        "tail_height_span": 0.00565338134765625,
+        "peak_abs_pitch": 10.09365674211211,
+        "peak_abs_roll": 10.086742527472026,
+        "peak_vertical_speed": 0.238189697265625,
+        "peak_horizontal_speed": 1.9718737513814804,
+        "first_20_fresh_settling_seconds": 6.6,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false,
+        "phase_complete": true
+      },
+      "first_tick": 3430,
+      "last_tick": 3999
+    }
+  ]
+}

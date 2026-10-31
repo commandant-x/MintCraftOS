@@ -1,3 +1,5 @@
+> Mise à jour 0.4.1 : l’empreinte du montage actif reste celle du descripteur déclaré lorsque le repli est calculé automatiquement. La détection de protection conserve sa fenêtre de 120 observations fraîches et exige une amplitude encore présente dans les 60 dernières ; un grand pic ancien de freinage ne suffit plus à verrouiller le déplacement. Les oscillations persistantes restent contrôlées par les mêmes seuils. [Essais réels et limites](reports/minecraft-0.4.1/README.md).
+
 # Sputnik 0.4.0 — poste de vol et journal
 
 Le parcours est : choisir le TXT de l’architecture, configurer les commandes dans l’atelier unique, vérifier le montage, effectuer le passage physique OFF requis, activer le maintien, puis lancer les essais mesurés. Les routes restent conditionnées aux essais aller-retour du contrôleur. Une arrivée conserve un maintien ; l’atterrissage automatique n’est pas qualifié.
@@ -60,4 +62,4 @@ L’identification passive affiche un **candidat collectif en boucle fermée** l
 
 Le ZIP courant contient les graphes dédiés et les sources/tests. Le gros SDK agrégé de développement, le doublon de compatibilité hybride et quelques raccourcis complets anciens restent disponibles dans le dépôt et sont exclus de l’archive de vol ; les exclusions sont listées dans le manifeste. Chaque nœud respecte la limite de 60 000 octets UTF modifié.
 
-Les sources Lua disponibles n’exposent pas de scan fiable de coque/voiles, de centre de masse réel, d’identité Sable garantie des périphériques, de terrain complet ou de contact d’atterrissage. Une reprise physique après arrêt du Lua exige un dispositif matériel approprié : l’expiration d’un Link peut produire zéro, donc le plein régime sur certaines transmissions. Les preuves publiées restent synthétiques et les essais Minecraft constituent une validation distincte.
+Les sources Lua disponibles n’exposent pas de scan fiable de coque/voiles, de centre de masse réel, d’identité Sable garantie des périphériques, de terrain complet ou de contact d’atterrissage. Une reprise physique après arrêt du Lua exige un dispositif matériel approprié : l’expiration d’un Link peut produire zéro, donc le plein régime sur certaines transmissions. Les campagnes synthétiques et les essais réels Minecraft 0.4.1 restent deux ensembles de preuves distincts, avec leurs domaines et limites documentés.

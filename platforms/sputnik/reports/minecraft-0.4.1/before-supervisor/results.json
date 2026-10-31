@@ -1,0 +1,236 @@
+{
+  "schema": 1,
+  "source": "real Minecraft dedicated server, Sable/Rapier physics",
+  "hardware_observation": "actual shaft RPM and Redstone Link receiver levels",
+  "typewriter_physical_keys_tested": false,
+  "client_gui_tested": false,
+  "cold_start_tested": false,
+  "body_yaw_controlled": false,
+  "body_yaw_drift_degrees": 130.974966289529,
+  "controller_globally_qualified": false,
+  "completed": true,
+  "aborted": false,
+  "release_tick": 320,
+  "scenario_epoch": 838229,
+  "frames": 3881,
+  "free_frames": 3679,
+  "fresh_tick_gaps": 0,
+  "cases": [
+    {
+      "movement": "hover",
+      "status": "PASS",
+      "metrics": {
+        "samples": 589,
+        "position_delta": [
+          0.00020599365234375,
+          -0.0148468017578125,
+          -0.002471923828125
+        ],
+        "projected_horizontal_displacement": null,
+        "max_height_error": 0.33086395263671875,
+        "tail_height_error": 0.00928497314453125,
+        "tail_height_span": 0.00453948974609375,
+        "peak_abs_pitch": 0.06883339460147375,
+        "peak_abs_roll": 1.199016986908109,
+        "peak_vertical_speed": 0.378265380859375,
+        "peak_horizontal_speed": 0.064295836911912,
+        "first_20_fresh_settling_seconds": 4.35,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false
+      },
+      "first_tick": 321,
+      "last_tick": 909
+    },
+    {
+      "movement": "climb",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          -0.04181671142578125,
+          2.7454986572265625,
+          0.0223846435546875
+        ],
+        "projected_horizontal_displacement": null,
+        "max_height_error": 1.6676910400390597,
+        "tail_height_error": 0.06109924316406534,
+        "tail_height_span": 0.014801025390625,
+        "peak_abs_pitch": 0.5744231342672584,
+        "peak_abs_roll": 0.531751021963132,
+        "peak_vertical_speed": 4.00238037109375,
+        "peak_horizontal_speed": 0.08115208760024867,
+        "first_20_fresh_settling_seconds": 4.75,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false
+      },
+      "first_tick": 910,
+      "last_tick": 1329
+    },
+    {
+      "movement": "descend",
+      "status": "PASS",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          0.006866455078125,
+          -2.038818359375,
+          -0.0083770751953125
+        ],
+        "projected_horizontal_displacement": null,
+        "max_height_error": 1.3337524414062472,
+        "tail_height_error": 0.028224182128909092,
+        "tail_height_span": 0.007232666015625,
+        "peak_abs_pitch": 0.44618846554257185,
+        "peak_abs_roll": 0.8681151887644633,
+        "peak_vertical_speed": 4.0740966796875,
+        "peak_horizontal_speed": 0.050644470285422356,
+        "first_20_fresh_settling_seconds": 4.6,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": false
+      },
+      "first_tick": 1330,
+      "last_tick": 1749
+    },
+    {
+      "movement": "forward",
+      "status": "PROTECTED",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          -2.630950927734375,
+          -0.0233917236328125,
+          -0.8282318115234375
+        ],
+        "projected_horizontal_displacement": 2.7572034594911283,
+        "max_height_error": 0.16516418457031534,
+        "tail_height_error": 0.002452087402346592,
+        "tail_height_span": 0.00460052490234375,
+        "peak_abs_pitch": 16.85543773295295,
+        "peak_abs_roll": 0.8252020486525476,
+        "peak_vertical_speed": 0.345916748046875,
+        "peak_horizontal_speed": 2.1539928398119574,
+        "first_20_fresh_settling_seconds": 6.55,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": true
+      },
+      "first_tick": 1750,
+      "last_tick": 2169
+    },
+    {
+      "movement": "reverse",
+      "status": "PROTECTED",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          2.6950836181640625,
+          -0.000762939453125,
+          0.73992919921875
+        ],
+        "projected_horizontal_displacement": 2.7940830415222795,
+        "max_height_error": 0.10575408935547159,
+        "tail_height_error": 0.003140258789059658,
+        "tail_height_span": 0.004364013671875,
+        "peak_abs_pitch": 17.117896740197583,
+        "peak_abs_roll": 1.1560516276149924,
+        "peak_vertical_speed": 0.35125732421875,
+        "peak_horizontal_speed": 2.0504904268321402,
+        "first_20_fresh_settling_seconds": 6.0,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": true
+      },
+      "first_tick": 2170,
+      "last_tick": 2589
+    },
+    {
+      "movement": "left",
+      "status": "PROTECTED",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          0.625946044921875,
+          -0.00765228271484375,
+          -2.2627716064453125
+        ],
+        "projected_horizontal_displacement": 2.3476586024665345,
+        "max_height_error": 0.17514343261719034,
+        "tail_height_error": 0.009548950195309658,
+        "tail_height_span": 0.00234222412109375,
+        "peak_abs_pitch": 0.7452298941884794,
+        "peak_abs_roll": 14.247452134888904,
+        "peak_vertical_speed": 0.2923583984375,
+        "peak_horizontal_speed": 1.8288565602451383,
+        "first_20_fresh_settling_seconds": 6.4,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": true
+      },
+      "first_tick": 2590,
+      "last_tick": 3009
+    },
+    {
+      "movement": "right",
+      "status": "PROTECTED",
+      "metrics": {
+        "samples": 420,
+        "position_delta": [
+          -0.46575164794921875,
+          -8.392333984375e-05,
+          2.0342559814453125
+        ],
+        "projected_horizontal_displacement": 2.08686729174644,
+        "max_height_error": 0.11606140136719034,
+        "tail_height_error": 0.010128784179684658,
+        "tail_height_span": 0.0037994384765625,
+        "peak_abs_pitch": 0.6209929707945072,
+        "peak_abs_roll": 14.935881921549228,
+        "peak_vertical_speed": 0.232696533203125,
+        "peak_horizontal_speed": 1.8211185181159573,
+        "first_20_fresh_settling_seconds": 6.1,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": true
+      },
+      "first_tick": 3010,
+      "last_tick": 3429
+    },
+    {
+      "movement": "diagonal",
+      "status": "PROTECTED",
+      "metrics": {
+        "samples": 570,
+        "position_delta": [
+          -2.3264923095703125,
+          0.0202789306640625,
+          -2.3987274169921875
+        ],
+        "projected_horizontal_displacement": 3.3103497177998427,
+        "max_height_error": 0.2310989379882784,
+        "tail_height_error": 0.017535400390627842,
+        "tail_height_span": 0.00704193115234375,
+        "peak_abs_pitch": 10.061496645888663,
+        "peak_abs_roll": 10.072436748435575,
+        "peak_vertical_speed": 0.224609375,
+        "peak_horizontal_speed": 1.97067978488798,
+        "first_20_fresh_settling_seconds": 6.6,
+        "tail_60_fresh": true,
+        "tail_60_stable": true,
+        "direction_observed": true,
+        "horizontal_protection": true
+      },
+      "first_tick": 3430,
+      "last_tick": 3999
+    }
+  ]
+}
