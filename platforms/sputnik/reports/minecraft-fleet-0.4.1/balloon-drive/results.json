@@ -1,0 +1,65 @@
+{
+  "architecture": "balloon",
+  "contract": {
+    "steering": "lateral",
+    "provenance": "executed fixture v1/v2 sets steering checkbox false"
+  },
+  "constructed": true,
+  "commissioned": true,
+  "released": false,
+  "completed": false,
+  "faults": [
+    "300\tERROR java.lang.IllegalStateException: Controller not armed: Equilibre sustentation invalide"
+  ],
+  "controller_globally_qualified": false,
+  "phases": [
+    {
+      "name": "hover",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "climb",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "descend",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "forward",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "reverse",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "left",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "right",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "diagonal",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "shock",
+      "status": "NOT_EXECUTED"
+    }
+  ],
+  "status": "PREFLIGHT_REFUSED",
+  "run": {
+    "architecture": "balloon",
+    "fixture_jar_sha256": "52b9a2bd530f730d0edd823df5878b47c2cbf2ec84e571c9eba75d2c672a88d9",
+    "source_sha256": "c86c5a969b7850692a0a9b1b20ee3c29dde2a6d067446767ba86b27c5ba7d984",
+    "controller_sha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622"
+  },
+  "exit": {
+    "code": 0,
+    "wall_seconds": 118.94887566566467
+  },
+  "trace_sha256": "e685ff8616172db80962b6be9a19ac2dfb5563844d579f06b2337b3863ab6983"
+}

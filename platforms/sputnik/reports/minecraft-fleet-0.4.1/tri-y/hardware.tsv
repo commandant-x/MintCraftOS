@@ -1,0 +1,4 @@
+id	x	y	z	sails	shaft_rpm	thrust	airflow	frequency
+1	20481032	131	20493328	8.0	-255.99794	-1158.5144453507087	-36.203576417209646	minecraft:light_blue_wool,minecraft:netherite_block
+2	20481026	131	20493316	8.0	-255.99794	-1158.5144453507087	-36.203576417209646	minecraft:orange_wool,minecraft:netherite_block
+3	20481038	131	20493316	8.0	-255.99794	-1158.5144453507087	-36.203576417209646	minecraft:white_wool,minecraft:netherite_block

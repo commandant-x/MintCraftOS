@@ -1,0 +1,284 @@
+40	BUILT quad-turns blocks=294 native sublevel=d72377cd-0e36-4772-a64d-f3558207b842
+80	ASSEMBLED native bearings=6
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	SHAFT 1 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 2 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 3 input=-256.0 actual=-255.9916 rx=0 electrical=0
+140	SHAFT 4 input=-256.0 actual=-255.9916 rx=0 electrical=0
+140	SHAFT 5 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 6 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	ENABLE_AUDIT physical=Block{minecraft:lever}[face=floor,facing=north,powered=false] graph=0.0
+140	COMMISSION signal=10 expected=80RPM, pilot OFF
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	SHAFT 1 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 2 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 3 input=-80.0 actual=-103.773964 rx=10 electrical=10
+160	SHAFT 4 input=-80.0 actual=-103.773964 rx=10 electrical=10
+160	SHAFT 5 input=-80.0 actual=-91.31237 rx=10 electrical=10
+160	SHAFT 6 input=-80.0 actual=-91.31237 rx=10 electrical=10
+160	STATUS Pret: activer sans touche
+180	SHAFT 1 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 2 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 3 input=-80.0 actual=-82.89036 rx=10 electrical=10
+180	SHAFT 4 input=-80.0 actual=-82.89036 rx=10 electrical=10
+180	SHAFT 5 input=-80.0 actual=-80.53599 rx=10 electrical=10
+180	SHAFT 6 input=-80.0 actual=-80.53599 rx=10 electrical=10
+180	STATUS Pret: activer sans touche
+200	SHAFT 1 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 2 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 3 input=-80.0 actual=-80.3514 rx=10 electrical=10
+200	SHAFT 4 input=-80.0 actual=-80.3514 rx=10 electrical=10
+200	SHAFT 5 input=-80.0 actual=-80.02539 rx=10 electrical=10
+200	SHAFT 6 input=-80.0 actual=-80.02539 rx=10 electrical=10
+200	COMMISSION_PASS: each shaft observed at 80RPM, temporary writer removed before arming
+200	STATUS Pret: activer sans touche
+220	SHAFT 1 input=-128.0 actual=-125.35216 rx=7 electrical=7
+220	SHAFT 2 input=-96.0 actual=-98.25282 rx=9 electrical=9
+220	SHAFT 3 input=0.0 actual=-10.849534 rx=15 electrical=15
+220	SHAFT 4 input=0.0 actual=-10.849534 rx=15 electrical=15
+220	SHAFT 5 input=-128.0 actual=-131.8757 rx=7 electrical=7
+220	SHAFT 6 input=-144.0 actual=-145.44334 rx=6 electrical=6
+220	STATUS HOLDING h=170.57753>170.57753 | Modele declare; validation distincte
+240	SHAFT 1 input=-128.0 actual=-127.87455 rx=7 electrical=7
+240	SHAFT 2 input=-96.0 actual=-98.90932 rx=9 electrical=9
+240	SHAFT 3 input=0.0 actual=-1.3190497 rx=15 electrical=15
+240	SHAFT 4 input=0.0 actual=-1.3190497 rx=15 electrical=15
+240	SHAFT 5 input=-128.0 actual=-134.75644 rx=7 electrical=7
+240	SHAFT 6 input=-144.0 actual=-148.59488 rx=5 electrical=5
+240	STATUS HOLDING h=170.57753>170.57753 | Modele declare; validation distincte
+260	SHAFT 1 input=-128.0 actual=-127.994064 rx=7 electrical=7
+260	SHAFT 2 input=-112.0 actual=-98.65212 rx=8 electrical=8
+260	SHAFT 3 input=0.0 actual=-0.1603657 rx=15 electrical=15
+260	SHAFT 4 input=0.0 actual=-0.1603657 rx=15 electrical=15
+260	SHAFT 5 input=-128.0 actual=-134.68532 rx=6 electrical=6
+260	SHAFT 6 input=-144.0 actual=-150.13089 rx=6 electrical=6
+260	STATUS HOLDING h=170.57753>170.57753 | Modele declare; validation distincte
+280	SHAFT 1 input=-128.0 actual=-127.732086 rx=7 electrical=7
+280	SHAFT 2 input=-112.0 actual=-98.59528 rx=8 electrical=8
+280	SHAFT 3 input=0.0 actual=-0.019496726 rx=15 electrical=15
+280	SHAFT 4 input=0.0 actual=-0.019496726 rx=15 electrical=15
+280	SHAFT 5 input=-128.0 actual=-134.67403 rx=6 electrical=6
+280	SHAFT 6 input=-144.0 actual=-148.93083 rx=6 electrical=6
+280	STATUS HOLDING h=170.57753>170.57753 | Modele declare; validation distincte
+300	SHAFT 1 input=-128.0 actual=-127.8922 rx=7 electrical=7
+300	SHAFT 2 input=-96.0 actual=-99.687775 rx=9 electrical=9
+300	SHAFT 3 input=0.0 actual=-4.7133333E-20 rx=15 electrical=15
+300	SHAFT 4 input=0.0 actual=-4.7133333E-20 rx=15 electrical=15
+300	SHAFT 5 input=-128.0 actual=-133.75877 rx=6 electrical=6
+300	SHAFT 6 input=-144.0 actual=-149.94783 rx=6 electrical=6
+300	WARMUP HOLDING h=170.57753>170.57753 | Modele declare; validation distincte
+300	STATUS HOLDING h=170.57753>170.57753 | Modele declare; validation distincte
+310	DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch=838084
+320	RELEASE: fixture lock removed, physical flight begins
+320	STATUS HOLDING h=170.57753>170.57753 | Modele declare; validation distincte
+340	STATUS HOLDING h=170.64163>170.57753 | Modele declare; validation distincte
+360	STATUS HOLDING h=170.57333>170.57753 | Modele declare; validation distincte
+380	STATUS HOLDING h=170.56482>170.57753 | Modele declare; validation distincte
+400	STATUS HOLDING h=170.58371>170.57753 | Modele declare; validation distincte
+420	STATUS HOLDING h=170.57512>170.57753 | Modele declare; validation distincte
+440	STATUS HOLDING h=170.57135>170.57753 | Modele declare; validation distincte
+460	STATUS HOLDING h=170.57571>170.57753 | Modele declare; validation distincte
+480	STATUS HOLDING h=170.57555>170.57753 | Modele declare; validation distincte
+500	STATUS HOLDING h=170.57187>170.57753 | Modele declare; validation distincte
+520	STATUS HOLDING h=170.57294>170.57753 | Modele declare; validation distincte
+540	STATUS HOLDING h=170.57411>170.57753 | Modele declare; validation distincte
+560	STATUS HOLDING h=170.578>170.57753 | Modele declare; validation distincte
+580	STATUS HOLDING h=170.57318>170.57753 | Modele declare; validation distincte
+600	STATUS HOLDING h=170.57593>170.57753 | Modele declare; validation distincte
+620	STATUS HOLDING h=170.57784>170.57753 | Modele declare; validation distincte
+640	STATUS HOLDING h=170.57637>170.57753 | Modele declare; validation distincte
+660	STATUS HOLDING h=170.57402>170.57753 | Modele declare; validation distincte
+680	STATUS HOLDING h=170.57512>170.57753 | Modele declare; validation distincte
+700	STATUS HOLDING h=170.58044>170.57753 | Modele declare; validation distincte
+720	STATUS HOLDING h=170.57445>170.57753 | Modele declare; validation distincte
+740	STATUS HOLDING h=170.57538>170.57753 | Modele declare; validation distincte
+760	STATUS HOLDING h=170.58191>170.57753 | Modele declare; validation distincte
+780	STATUS HOLDING h=170.57622>170.57753 | Modele declare; validation distincte
+800	STATUS HOLDING h=170.57597>170.57753 | Modele declare; validation distincte
+820	STATUS HOLDING h=170.75769>172.47752 | Modele declare; validation distincte
+840	STATUS HOLDING h=172.23077>174.47752 | Modele declare; validation distincte
+860	STATUS HOLDING h=174.44843>176.47752 | Modele declare; validation distincte
+880	STATUS HOLDING h=176.70056>176.57753 | Modele declare; validation distincte
+900	STATUS HOLDING h=177.56099>176.57753 | Modele declare; validation distincte
+920	STATUS HOLDING h=177.23795>176.57753 | Modele declare; validation distincte
+940	STATUS HOLDING h=176.99123>176.57753 | Modele declare; validation distincte
+960	STATUS HOLDING h=177.00685>176.57753 | Modele declare; validation distincte
+980	STATUS HOLDING h=176.94296>176.57753 | Modele declare; validation distincte
+1000	STATUS HOLDING h=176.89226>176.57753 | Modele declare; validation distincte
+1020	STATUS HOLDING h=176.86665>176.57753 | Modele declare; validation distincte
+1040	STATUS HOLDING h=176.83336>176.57753 | Modele declare; validation distincte
+1060	STATUS HOLDING h=176.80786>176.57753 | Modele declare; validation distincte
+1080	STATUS HOLDING h=176.78217>176.57753 | Modele declare; validation distincte
+1100	STATUS HOLDING h=176.76015>176.57753 | Modele declare; validation distincte
+1120	STATUS HOLDING h=176.74174>176.57753 | Modele declare; validation distincte
+1140	STATUS HOLDING h=176.72212>176.57753 | Modele declare; validation distincte
+1160	STATUS HOLDING h=176.70734>176.57753 | Modele declare; validation distincte
+1180	STATUS HOLDING h=176.69339>176.57753 | Modele declare; validation distincte
+1200	STATUS HOLDING h=176.68146>176.57753 | Modele declare; validation distincte
+1220	STATUS HOLDING h=176.48418>174.67754 | Modele declare; validation distincte
+1240	STATUS HOLDING h=174.82835>172.67754 | Modele declare; validation distincte
+1260	STATUS HOLDING h=172.58533>170.67754 | Modele declare; validation distincte
+1280	STATUS HOLDING h=170.51338>170.57753 | Modele declare; validation distincte
+1300	STATUS HOLDING h=169.98145>170.57753 | Modele declare; validation distincte
+1320	STATUS HOLDING h=170.2054>170.57753 | Modele declare; validation distincte
+1340	STATUS HOLDING h=170.19176>170.57753 | Modele declare; validation distincte
+1360	STATUS HOLDING h=170.19301>170.57753 | Modele declare; validation distincte
+1380	STATUS HOLDING h=170.2517>170.57753 | Modele declare; validation distincte
+1400	STATUS HOLDING h=170.29288>170.57753 | Modele declare; validation distincte
+1420	STATUS HOLDING h=170.31172>170.57753 | Modele declare; validation distincte
+1440	STATUS HOLDING h=170.33673>170.57753 | Modele declare; validation distincte
+1460	STATUS HOLDING h=170.36905>170.57753 | Modele declare; validation distincte
+1480	STATUS HOLDING h=170.3879>170.57753 | Modele declare; validation distincte
+1500	STATUS HOLDING h=170.40553>170.57753 | Modele declare; validation distincte
+1520	STATUS HOLDING h=170.42355>170.57753 | Modele declare; validation distincte
+1540	STATUS HOLDING h=170.44113>170.57753 | Modele declare; validation distincte
+1560	STATUS HOLDING h=170.45132>170.57753 | Modele declare; validation distincte
+1580	STATUS HOLDING h=170.46834>170.57753 | Modele declare; validation distincte
+1600	STATUS HOLDING h=170.4759>170.57753 | Modele declare; validation distincte
+1620	STATUS HOLDING h=170.47548>170.57753 | Modele declare; validation distincte
+1640	STATUS HOLDING h=170.48965>170.57753 | Modele declare; validation distincte
+1660	STATUS HOLDING h=170.51869>170.57753 | Modele declare; validation distincte
+1680	STATUS HOLDING h=170.5436>170.57753 | Modele declare; validation distincte
+1700	STATUS HOLDING h=170.51881>170.57753 | Modele declare; validation distincte
+1720	STATUS HOLDING h=170.51944>170.57753 | Modele declare; validation distincte
+1740	STATUS HOLDING h=170.53319>170.57753 | Modele declare; validation distincte
+1760	STATUS HOLDING h=170.5316>170.57753 | Modele declare; validation distincte
+1780	STATUS HOLDING h=170.53815>170.57753 | Modele declare; validation distincte
+1800	STATUS HOLDING h=170.54071>170.57753 | Modele declare; validation distincte
+1820	STATUS HOLDING h=170.54416>170.57753 | Modele declare; validation distincte
+1840	STATUS HOLDING h=170.553>170.57753 | Modele declare; validation distincte
+1860	STATUS HOLDING h=170.55496>170.57753 | Modele declare; validation distincte
+1880	STATUS HOLDING h=170.5496>170.57753 | Modele declare; validation distincte
+1900	STATUS HOLDING h=170.55873>170.57753 | Modele declare; validation distincte
+1920	STATUS HOLDING h=170.56381>170.57753 | Modele declare; validation distincte
+1940	STATUS HOLDING h=170.55885>170.57753 | Modele declare; validation distincte
+1960	STATUS HOLDING h=170.5614>170.57753 | Modele declare; validation distincte
+1980	STATUS HOLDING h=170.5658>170.57753 | Modele declare; validation distincte
+2000	STATUS HOLDING h=170.56743>170.57753 | Modele declare; validation distincte
+2020	STATUS HOLDING h=170.57314>170.57753 | Modele declare; validation distincte
+2040	STATUS HOLDING h=170.57518>170.57753 | Modele declare; validation distincte
+2060	STATUS HOLDING h=170.5682>170.57753 | Modele declare; validation distincte
+2080	STATUS HOLDING h=170.5609>170.57753 | Modele declare; validation distincte
+2100	STATUS HOLDING h=170.5695>170.57753 | Modele declare; validation distincte
+2120	STATUS HOLDING h=170.5577>170.57753 | Modele declare; validation distincte
+2140	STATUS HOLDING h=170.56961>170.57753 | Modele declare; validation distincte
+2160	STATUS HOLDING h=170.59808>170.57753 | Modele declare; validation distincte
+2180	STATUS HOLDING h=170.57658>170.57753 | Modele declare; validation distincte
+2200	STATUS HOLDING h=170.56834>170.57753 | Modele declare; validation distincte
+2220	STATUS HOLDING h=170.57391>170.57753 | Modele declare; validation distincte
+2240	STATUS HOLDING h=170.57353>170.57753 | Modele declare; validation distincte
+2260	STATUS HOLDING h=170.57184>170.57753 | Modele declare; validation distincte
+2280	STATUS HOLDING h=170.57079>170.57753 | Modele declare; validation distincte
+2300	STATUS HOLDING h=170.57654>170.57753 | Modele declare; validation distincte
+2320	STATUS HOLDING h=170.57477>170.57753 | Modele declare; validation distincte
+2340	STATUS HOLDING h=170.57274>170.57753 | Modele declare; validation distincte
+2360	STATUS HOLDING h=170.57591>170.57753 | Modele declare; validation distincte
+2380	STATUS HOLDING h=170.57637>170.57753 | Modele declare; validation distincte
+2400	STATUS HOLDING h=170.57442>170.57753 | Modele declare; validation distincte
+2420	STATUS HOLDING h=170.57524>170.57753 | Modele declare; validation distincte
+2440	STATUS HOLDING h=170.57632>170.57753 | Modele declare; validation distincte
+2460	STATUS HOLDING h=170.57422>170.57753 | Modele declare; validation distincte
+2480	STATUS HOLDING h=170.57675>170.57753 | Modele declare; validation distincte
+2500	STATUS HOLDING h=170.57585>170.57753 | Modele declare; validation distincte
+2520	STATUS HOLDING h=170.57677>170.57753 | Modele declare; validation distincte
+2540	STATUS HOLDING h=170.57634>170.57753 | Modele declare; validation distincte
+2560	STATUS HOLDING h=170.57417>170.57753 | Modele declare; validation distincte
+2580	STATUS HOLDING h=170.57846>170.57753 | Modele declare; validation distincte
+2600	STATUS HOLDING h=170.57869>170.57753 | Modele declare; validation distincte
+2620	STATUS HOLDING h=170.57936>170.57753 | Modele declare; validation distincte
+2640	STATUS HOLDING h=170.57697>170.57753 | Modele declare; validation distincte
+2660	STATUS HOLDING h=170.57658>170.57753 | Modele declare; validation distincte
+2680	STATUS HOLDING h=170.57439>170.57753 | Modele declare; validation distincte
+2700	STATUS HOLDING h=170.57838>170.57753 | Modele declare; validation distincte
+2720	STATUS HOLDING h=170.57895>170.57753 | Modele declare; validation distincte
+2740	STATUS HOLDING h=170.57445>170.57753 | Modele declare; validation distincte
+2760	STATUS HOLDING h=170.58176>170.57753 | Modele declare; validation distincte
+2780	STATUS HOLDING h=170.57788>170.57753 | Modele declare; validation distincte
+2800	STATUS HOLDING h=170.57301>170.57753 | Modele declare; validation distincte
+2820	STATUS HOLDING h=170.57848>170.57753 | Modele declare; validation distincte
+2840	STATUS HOLDING h=170.58041>170.57753 | Modele declare; validation distincte
+2860	STATUS HOLDING h=170.57698>170.57753 | Modele declare; validation distincte
+2880	STATUS HOLDING h=170.57036>170.57753 | Modele declare; validation distincte
+2900	STATUS HOLDING h=170.58453>170.57753 | Modele declare; validation distincte
+2920	STATUS HOLDING h=170.57945>170.57753 | Modele declare; validation distincte
+2940	STATUS HOLDING h=170.57237>170.57753 | Modele declare; validation distincte
+2960	STATUS HOLDING h=170.58102>170.57753 | Modele declare; validation distincte
+2980	STATUS HOLDING h=170.5757>170.57753 | Modele declare; validation distincte
+3000	STATUS HOLDING h=170.57872>170.57753 | Modele declare; validation distincte
+3020	STATUS HOLDING h=170.57877>170.57753 | Modele declare; validation distincte
+3040	STATUS HOLDING h=170.57738>170.57753 | Modele declare; validation distincte
+3060	STATUS HOLDING h=170.57312>170.57753 | Modele declare; validation distincte
+3080	STATUS HOLDING h=170.5801>170.57753 | Modele declare; validation distincte
+3100	STATUS HOLDING h=170.5796>170.57753 | Modele declare; validation distincte
+3120	STATUS HOLDING h=170.57578>170.57753 | Modele declare; validation distincte
+3140	STATUS HOLDING h=170.57454>170.57753 | Modele declare; validation distincte
+3160	STATUS HOLDING h=170.5793>170.57753 | Modele declare; validation distincte
+3180	STATUS HOLDING h=170.57898>170.57753 | Modele declare; validation distincte
+3200	STATUS HOLDING h=170.5753>170.57753 | Modele declare; validation distincte
+3220	STATUS HOLDING h=170.57056>170.57753 | Modele declare; validation distincte
+3240	STATUS HOLDING h=170.57>170.57753 | Modele declare; validation distincte
+3260	STATUS HOLDING h=170.58382>170.57753 | Modele declare; validation distincte
+3280	STATUS HOLDING h=170.6079>170.57753 | Modele declare; validation distincte
+3300	STATUS HOLDING h=170.57431>170.57753 | Modele declare; validation distincte
+3320	STATUS HOLDING h=170.57571>170.57753 | Modele declare; validation distincte
+3340	STATUS HOLDING h=170.57684>170.57753 | Modele declare; validation distincte
+3360	STATUS HOLDING h=170.5724>170.57753 | Modele declare; validation distincte
+3380	STATUS HOLDING h=170.57529>170.57753 | Modele declare; validation distincte
+3400	STATUS HOLDING h=170.5789>170.57753 | Modele declare; validation distincte
+3420	STATUS HOLDING h=170.57484>170.57753 | Modele declare; validation distincte
+3440	STATUS HOLDING h=170.57808>170.57753 | Modele declare; validation distincte
+3460	STATUS HOLDING h=170.5777>170.57753 | Modele declare; validation distincte
+3480	STATUS HOLDING h=170.57709>170.57753 | Modele declare; validation distincte
+3500	STATUS HOLDING h=170.57304>170.57753 | Modele declare; validation distincte
+3520	STATUS HOLDING h=170.58113>170.57753 | Modele declare; validation distincte
+3540	STATUS HOLDING h=170.57814>170.57753 | Modele declare; validation distincte
+3560	STATUS HOLDING h=170.57436>170.57753 | Modele declare; validation distincte
+3580	STATUS HOLDING h=170.57811>170.57753 | Modele declare; validation distincte
+3600	SHOCK side5 requested_dv=( 5.000E+0  0.000E+0  0.000E+0) requested_body_dw=( 0.000E+0  0.000E+0  0.000E+0) impulse=( 6.738E+2  0.000E+0  0.000E+0) angular_impulse=( 0.000E+0  0.000E+0  0.000E+0) before_v=( 7.496E-2 -1.321E-1  3.668E-1) before_w=( 1.514E-3 -1.116E-2 -9.965E-4)
+3600	STATUS HOLDING h=170.57701>170.57753 | Modele declare; validation distincte
+3620	STATUS HOLDING h=170.57187>170.57753 | Modele declare; validation distincte
+3640	STATUS HOLDING h=170.57704>170.57753 | Modele declare; validation distincte
+3660	STATUS HOLDING h=170.57446>170.57753 | Modele declare; validation distincte
+3680	STATUS HOLDING h=170.56953>170.57753 | Modele declare; validation distincte
+3700	STATUS HOLDING h=170.57768>170.57753 | Modele declare; validation distincte
+3720	STATUS HOLDING h=170.57802>170.57753 | Modele declare; validation distincte
+3740	STATUS HOLDING h=170.58556>170.57753 | Modele declare; validation distincte
+3760	STATUS HOLDING h=170.58307>170.57753 | Modele declare; validation distincte
+3780	STATUS HOLDING h=170.5611>170.57753 | Modele declare; validation distincte
+3800	STATUS HOLDING h=170.5799>170.57753 | Modele declare; validation distincte
+3820	STATUS HOLDING h=170.58682>170.57753 | Modele declare; validation distincte
+3840	STATUS HOLDING h=170.57597>170.57753 | Modele declare; validation distincte
+3860	STATUS HOLDING h=170.58192>170.57753 | Modele declare; validation distincte
+3880	STATUS HOLDING h=170.57935>170.57753 | Modele declare; validation distincte
+3900	STATUS HOLDING h=170.57841>170.57753 | Modele declare; validation distincte
+3920	STATUS HOLDING h=170.57156>170.57753 | Modele declare; validation distincte
+3940	STATUS HOLDING h=170.58244>170.57753 | Modele declare; validation distincte
+3960	STATUS HOLDING h=170.5792>170.57753 | Modele declare; validation distincte
+3980	STATUS HOLDING h=170.57584>170.57753 | Modele declare; validation distincte
+4000	STATUS HOLDING h=170.57556>170.57753 | Modele declare; validation distincte
+4020	STATUS HOLDING h=170.5793>170.57753 | Modele declare; validation distincte
+4040	STATUS HOLDING h=170.5809>170.57753 | Modele declare; validation distincte
+4060	STATUS HOLDING h=170.5764>170.57753 | Modele declare; validation distincte
+4080	STATUS HOLDING h=170.57835>170.57753 | Modele declare; validation distincte
+4100	STATUS HOLDING h=170.57828>170.57753 | Modele declare; validation distincte
+4120	STATUS HOLDING h=170.5767>170.57753 | Modele declare; validation distincte
+4140	STATUS HOLDING h=170.57603>170.57753 | Modele declare; validation distincte
+4160	STATUS HOLDING h=170.57231>170.57753 | Modele declare; validation distincte
+4180	STATUS HOLDING h=170.57674>170.57753 | Modele declare; validation distincte
+4200	STATUS HOLDING h=170.5819>170.57753 | Modele declare; validation distincte
+4220	STATUS HOLDING h=170.57515>170.57753 | Modele declare; validation distincte
+4240	STATUS HOLDING h=170.57826>170.57753 | Modele declare; validation distincte
+4260	STATUS HOLDING h=170.58025>170.57753 | Modele declare; validation distincte
+4280	STATUS HOLDING h=170.57951>170.57753 | Modele declare; validation distincte
+4300	STATUS HOLDING h=170.57324>170.57753 | Modele declare; validation distincte
+4320	STATUS HOLDING h=170.57718>170.57753 | Modele declare; validation distincte
+4340	STATUS HOLDING h=170.5759>170.57753 | Modele declare; validation distincte
+4360	STATUS HOLDING h=170.58241>170.57753 | Modele declare; validation distincte
+4380	STATUS HOLDING h=170.57797>170.57753 | Modele declare; validation distincte
+4400	STATUS HOLDING h=170.57187>170.57753 | Modele declare; validation distincte
+4400	COMPLETE: shock scenario ended, criteria scored separately
+4420	STATUS Pret: activer sans touche
+4440	STATUS Pret: activer sans touche
+4445	EXPORT: 9 pages complete

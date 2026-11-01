@@ -1,0 +1,37 @@
+40	BUILT balloon blocks=995 native sublevel=8abc7a71-f58a-4e7e-827a-d5bc992dd158
+80	ASSEMBLED native bearings=2
+120	BALLOON capacity=1452 liftStrength=1.5 gain_N_per_level=1006.3038764087111 mass=305.75 filled=184.07410464414832
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	SHAFT 1 input=-256.0 actual=-255.98961 rx=0 electrical=0
+140	SHAFT 2 input=-256.0 actual=-255.98961 rx=0 electrical=0
+140	ENABLE_AUDIT physical=Block{minecraft:lever}[face=floor,facing=north,powered=false] graph=0.0
+140	COMMISSION signal=10 expected=80RPM, pilot OFF
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	SHAFT 1 input=-80.0 actual=-106.41539 rx=10 electrical=10
+160	SHAFT 2 input=-80.0 actual=-106.41539 rx=10 electrical=10
+160	STATUS Pret: activer sans touche
+180	SHAFT 1 input=-80.0 actual=-83.2115 rx=10 electrical=10
+180	SHAFT 2 input=-80.0 actual=-83.2115 rx=10 electrical=10
+180	STATUS Pret: activer sans touche
+200	SHAFT 1 input=-80.0 actual=-80.39044 rx=10 electrical=10
+200	SHAFT 2 input=-80.0 actual=-80.39044 rx=10 electrical=10
+200	COMMISSION_PASS: each shaft observed at 80RPM, temporary writer removed before arming
+200	STATUS Pret: activer sans touche
+220	SHAFT 1 input=-256.0 actual=-226.69563 rx=0 electrical=0
+220	SHAFT 2 input=-256.0 actual=-226.69563 rx=0 electrical=0
+220	STATUS Equilibre sustentation invalide
+240	SHAFT 1 input=-256.0 actual=-252.43729 rx=0 electrical=0
+240	SHAFT 2 input=-256.0 actual=-252.43729 rx=0 electrical=0
+240	STATUS Equilibre sustentation invalide
+260	SHAFT 1 input=-256.0 actual=-255.56686 rx=0 electrical=0
+260	SHAFT 2 input=-256.0 actual=-255.56686 rx=0 electrical=0
+260	STATUS Equilibre sustentation invalide
+280	SHAFT 1 input=-256.0 actual=-255.94736 rx=0 electrical=0
+280	SHAFT 2 input=-256.0 actual=-255.94736 rx=0 electrical=0
+280	STATUS Equilibre sustentation invalide
+300	SHAFT 1 input=-256.0 actual=-255.99991 rx=0 electrical=0
+300	SHAFT 2 input=-256.0 actual=-255.99991 rx=0 electrical=0
+300	WARMUP Equilibre sustentation invalide
+300	ERROR java.lang.IllegalStateException: Controller not armed: Equilibre sustentation invalide

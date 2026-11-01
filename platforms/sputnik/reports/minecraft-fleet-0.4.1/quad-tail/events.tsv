@@ -1,0 +1,128 @@
+40	BUILT quad-banks blocks=333 native sublevel=e8964eeb-a3b1-4a9f-a2d4-ae12d795b901
+80	ASSEMBLED native bearings=6
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	SHAFT 1 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 2 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 3 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 4 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 5 input=-256.0 actual=-255.99065 rx=0 electrical=0
+140	SHAFT 6 input=-256.0 actual=-255.99065 rx=0 electrical=0
+140	ENABLE_AUDIT physical=Block{minecraft:lever}[face=floor,facing=north,powered=false] graph=0.0
+140	COMMISSION signal=10 expected=80RPM, pilot OFF
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	SHAFT 1 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 2 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 3 input=-80.0 actual=-91.31237 rx=10 electrical=10
+160	SHAFT 4 input=-80.0 actual=-91.31237 rx=10 electrical=10
+160	SHAFT 5 input=-80.0 actual=-106.41551 rx=10 electrical=10
+160	SHAFT 6 input=-80.0 actual=-106.41551 rx=10 electrical=10
+160	STATUS Pret: activer sans touche
+180	SHAFT 1 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 2 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 3 input=-80.0 actual=-80.53599 rx=10 electrical=10
+180	SHAFT 4 input=-80.0 actual=-80.53599 rx=10 electrical=10
+180	SHAFT 5 input=-80.0 actual=-83.21151 rx=10 electrical=10
+180	SHAFT 6 input=-80.0 actual=-83.21151 rx=10 electrical=10
+180	STATUS Pret: activer sans touche
+200	SHAFT 1 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 2 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 3 input=-80.0 actual=-80.02539 rx=10 electrical=10
+200	SHAFT 4 input=-80.0 actual=-80.02539 rx=10 electrical=10
+200	SHAFT 5 input=-80.0 actual=-80.39044 rx=10 electrical=10
+200	SHAFT 6 input=-80.0 actual=-80.39044 rx=10 electrical=10
+200	COMMISSION_PASS: each shaft observed at 80RPM, temporary writer removed before arming
+200	STATUS Pret: activer sans touche
+220	SHAFT 1 input=-32.0 actual=-35.55631 rx=13 electrical=13
+220	SHAFT 2 input=-16.0 actual=-20.439266 rx=14 electrical=14
+220	SHAFT 3 input=-256.0 actual=-244.68881 rx=0 electrical=0
+220	SHAFT 4 input=-256.0 actual=-244.68881 rx=0 electrical=0
+220	SHAFT 5 input=0.0 actual=-14.834769 rx=15 electrical=15
+220	SHAFT 6 input=0.0 actual=-13.45171 rx=15 electrical=15
+220	STATUS HOLDING h=172.00687>172.00687 | Modele declare; validation distincte
+240	SHAFT 1 input=-32.0 actual=-33.8365 rx=13 electrical=13
+240	SHAFT 2 input=-16.0 actual=-17.43991 rx=14 electrical=14
+240	SHAFT 3 input=-256.0 actual=-255.46407 rx=0 electrical=0
+240	SHAFT 4 input=-256.0 actual=-255.46407 rx=0 electrical=0
+240	SHAFT 5 input=0.0 actual=-3.472059 rx=15 electrical=15
+240	SHAFT 6 input=0.0 actual=-4.030996 rx=15 electrical=15
+240	STATUS HOLDING h=172.00687>172.00687 | Modele declare; validation distincte
+260	SHAFT 1 input=-32.0 actual=-32.087013 rx=13 electrical=13
+260	SHAFT 2 input=-16.0 actual=-18.010965 rx=14 electrical=14
+260	SHAFT 3 input=-256.0 actual=-255.9746 rx=0 electrical=0
+260	SHAFT 4 input=-256.0 actual=-255.9746 rx=0 electrical=0
+260	SHAFT 5 input=0.0 actual=-2.9777038 rx=15 electrical=15
+260	SHAFT 6 input=0.0 actual=-1.9465334 rx=15 electrical=15
+260	STATUS HOLDING h=172.00687>172.00687 | Modele declare; validation distincte
+280	SHAFT 1 input=-32.0 actual=-32.577785 rx=13 electrical=13
+280	SHAFT 2 input=-16.0 actual=-16.09528 rx=14 electrical=14
+280	SHAFT 3 input=-256.0 actual=-255.99881 rx=0 electrical=0
+280	SHAFT 4 input=-256.0 actual=-255.99881 rx=0 electrical=0
+280	SHAFT 5 input=0.0 actual=-1.7586905 rx=15 electrical=15
+280	SHAFT 6 input=0.0 actual=-2.821884 rx=15 electrical=15
+280	STATUS HOLDING h=172.00687>172.00687 | Modele declare; validation distincte
+300	SHAFT 1 input=-32.0 actual=-33.068466 rx=13 electrical=13
+300	SHAFT 2 input=-16.0 actual=-17.069103 rx=14 electrical=14
+300	SHAFT 3 input=-256.0 actual=-255.99992 rx=0 electrical=0
+300	SHAFT 4 input=-256.0 actual=-255.99992 rx=0 electrical=0
+300	SHAFT 5 input=0.0 actual=-1.8481771 rx=15 electrical=15
+300	SHAFT 6 input=0.0 actual=-2.4317124 rx=15 electrical=15
+300	WARMUP HOLDING h=172.00687>172.00687 | Modele declare; validation distincte
+300	STATUS HOLDING h=172.00687>172.00687 | Modele declare; validation distincte
+310	DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch=838128
+320	RELEASE: fixture lock removed, physical flight begins
+320	STATUS HOLDING h=172.00687>172.00687 | Modele declare; validation distincte
+340	STATUS HOLDING h=171.79274>172.00687 | Modele declare; validation distincte
+360	STATUS DEGRADED h=170.95628>172.00687 | Modele declare; validation distincte
+380	STATUS DEGRADED h=169.77188>172.00687 | Modele declare; validation distincte
+400	STATUS DEGRADED h=168.52484>172.00687 | Modele declare; validation distincte
+420	STATUS DEGRADED h=167.33263>172.00687 | Modele declare; validation distincte
+440	STATUS DEGRADED h=166.25284>172.00687 | Modele declare; validation distincte
+460	STATUS DEGRADED h=165.30612>172.00687 | Modele declare; validation distincte
+480	STATUS DEGRADED h=164.49474>172.00687 | Modele declare; validation distincte
+500	STATUS DEGRADED h=163.81313>172.00687 | Modele declare; validation distincte
+520	STATUS DEGRADED h=163.2458>172.00687 | Modele declare; validation distincte
+540	STATUS DEGRADED h=162.78264>172.00687 | Modele declare; validation distincte
+560	STATUS DEGRADED h=162.4096>172.00687 | Modele declare; validation distincte
+580	STATUS DEGRADED h=162.11427>172.00687 | Modele declare; validation distincte
+600	STATUS DEGRADED h=161.88548>172.00687 | Modele declare; validation distincte
+620	STATUS DEGRADED h=161.71533>172.00687 | Modele declare; validation distincte
+640	STATUS DEGRADED h=161.59131>172.00687 | Modele declare; validation distincte
+660	STATUS DEGRADED h=161.50876>172.00687 | Modele declare; validation distincte
+680	STATUS DEGRADED h=161.45819>172.00687 | Modele declare; validation distincte
+700	STATUS DEGRADED h=161.43251>172.00687 | Modele declare; validation distincte
+720	STATUS DEGRADED h=161.42714>172.00687 | Modele declare; validation distincte
+740	STATUS DEGRADED h=161.44025>172.00687 | Modele declare; validation distincte
+760	STATUS DEGRADED h=161.46455>172.00687 | Modele declare; validation distincte
+780	STATUS DEGRADED h=161.49622>172.00687 | Modele declare; validation distincte
+800	STATUS DEGRADED h=161.53363>172.00687 | Modele declare; validation distincte
+820	STATUS DEGRADED h=161.57297>173.90686 | Modele declare; validation distincte
+840	STATUS DEGRADED h=161.61404>175.90686 | Modele declare; validation distincte
+860	STATUS DEGRADED h=161.65518>177.90686 | Modele declare; validation distincte
+880	STATUS DEGRADED h=161.694>178.00687 | Modele declare; validation distincte
+900	STATUS DEGRADED h=161.73064>178.00687 | Modele declare; validation distincte
+920	STATUS DEGRADED h=161.7636>178.00687 | Modele declare; validation distincte
+940	STATUS DEGRADED h=161.79292>178.00687 | Modele declare; validation distincte
+960	STATUS DEGRADED h=161.81886>178.00687 | Modele declare; validation distincte
+980	STATUS DEGRADED h=161.84116>178.00687 | Modele declare; validation distincte
+1000	STATUS DEGRADED h=161.8612>178.00687 | Modele declare; validation distincte
+1020	STATUS DEGRADED h=161.87906>178.00687 | Modele declare; validation distincte
+1040	STATUS DEGRADED h=161.89114>178.00687 | Modele declare; validation distincte
+1060	STATUS DEGRADED h=161.90062>178.00687 | Modele declare; validation distincte
+1080	STATUS DEGRADED h=161.90881>178.00687 | Modele declare; validation distincte
+1100	STATUS DEGRADED h=161.9141>178.00687 | Modele declare; validation distincte
+1120	STATUS DEGRADED h=161.91656>178.00687 | Modele declare; validation distincte
+1140	STATUS DEGRADED h=161.91972>178.00687 | Modele declare; validation distincte
+1160	STATUS DEGRADED h=161.9197>178.00687 | Modele declare; validation distincte
+1180	STATUS DEGRADED h=161.92014>178.00687 | Modele declare; validation distincte
+1200	STATUS DEGRADED h=161.91917>178.00687 | Modele declare; validation distincte
+1220	STATUS DEGRADED h=161.91585>176.10687 | Modele declare; validation distincte
+1240	STATUS DEGRADED h=161.91353>174.10687 | Modele declare; validation distincte
+1260	STATUS DEGRADED h=161.91132>172.10687 | Modele declare; validation distincte
+1280	STATUS DEGRADED h=161.9091>172.00687 | Modele declare; validation distincte
+1300	STATUS DEGRADED h=161.90689>172.00687 | Modele declare; validation distincte
+1320	STATUS DEGRADED h=161.9033>172.00687 | Modele declare; validation distincte
+1340	STATUS DEGRADED h=161.90126>172.00687 | Modele declare; validation distincte
+1360	STATUS DEGRADED h=161.89868>172.00687 | Modele declare; validation distincte
+1372	ERROR java.lang.IllegalStateException: Enable lever missing

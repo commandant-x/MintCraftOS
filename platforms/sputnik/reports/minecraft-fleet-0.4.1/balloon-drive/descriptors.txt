@@ -1,0 +1,3 @@
+MCV1;1;bearing;drive;-4.957404933869839;-2.7218152085036706;-10.194603446871042;0;0;1;256;16;0.2;0.05;1;8;-1;1;minecraft:cyan_wool;minecraft:netherite_block;minecraft:cyan_wool;minecraft:copper_block;;;0;0.15;0;0
+MCV1;2;bearing;drive;5.042595066130161;-2.7218152085036706;-10.194603446871042;0;0;1;256;16;0.2;0.05;1;8;-1;1;minecraft:yellow_wool;minecraft:netherite_block;minecraft:yellow_wool;minecraft:copper_block;;;0;0.15;0;0
+MCV1;3;linear;lift;0.042595066130161285;2.7781847914963294;1.8053965531289577;0;1;0;256;1;1;0.1;1006.3038764087111;0;0;1;minecraft:red_wool;minecraft:black_wool;;;;;0;0.15;0;0

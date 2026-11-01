@@ -1,0 +1,125 @@
+{
+  "architecture": "quad-banks",
+  "contract": {
+    "steering": "lateral",
+    "provenance": "executed fixture v1/v2 sets steering checkbox false"
+  },
+  "constructed": true,
+  "commissioned": true,
+  "released": true,
+  "completed": false,
+  "faults": [
+    "1372\tERROR java.lang.IllegalStateException: Enable lever missing"
+  ],
+  "controller_globally_qualified": false,
+  "phases": [
+    {
+      "name": "hover",
+      "status": "FAIL",
+      "first_tick": 320,
+      "last_tick": 799,
+      "intent_observed": true,
+      "requested_motion_supported": true,
+      "commands_received": null,
+      "phase_complete": true,
+      "tail_200_fresh_stable": false,
+      "entry_200_fresh_stable": null,
+      "peak_height_error_m": 10.580291748046875,
+      "tail_height_error_m": 10.580291748046875,
+      "tail_vertical_speed_m_s": 0.19683837890625,
+      "tail_horizontal_speed_m_s": 4.65273914530675,
+      "tail_tilt_deg": 4.376380345335771,
+      "peak_tilt_deg": 5.334686588795465,
+      "peak_vertical_speed_m_s": 1.25640869140625,
+      "peak_horizontal_speed_m_s": 4.669209648537437,
+      "forward_delta_m": 89.46500968933091,
+      "left_delta_m": -0.295188903852658,
+      "yaw_delta_deg": 0.21350281324387765,
+      "fresh_tick_gaps": 0
+    },
+    {
+      "name": "climb",
+      "status": "FAIL",
+      "first_tick": 800,
+      "last_tick": 1199,
+      "intent_observed": false,
+      "requested_motion_supported": true,
+      "commands_received": null,
+      "phase_complete": true,
+      "tail_200_fresh_stable": false,
+      "entry_200_fresh_stable": false,
+      "peak_height_error_m": 16.349960327148096,
+      "tail_height_error_m": 16.145660400390284,
+      "tail_vertical_speed_m_s": 0.02227783203125,
+      "tail_horizontal_speed_m_s": 4.295879075201183,
+      "tail_tilt_deg": 3.7914193325112966,
+      "peak_tilt_deg": 3.7914193325112966,
+      "peak_vertical_speed_m_s": 0.04638671875,
+      "peak_horizontal_speed_m_s": 4.345179579840656,
+      "forward_delta_m": 85.36020698499885,
+      "left_delta_m": -0.3943079496476198,
+      "yaw_delta_deg": 0.21581564847170398,
+      "fresh_tick_gaps": 0
+    },
+    {
+      "name": "descend",
+      "status": "ABORT",
+      "first_tick": 1200,
+      "last_tick": 1372,
+      "intent_observed": false,
+      "requested_motion_supported": true,
+      "commands_received": null,
+      "phase_complete": false,
+      "tail_200_fresh_stable": false,
+      "entry_200_fresh_stable": false,
+      "peak_height_error_m": 42.506866455078125,
+      "tail_height_error_m": 42.506866455078125,
+      "tail_vertical_speed_m_s": 0.00732421875,
+      "tail_horizontal_speed_m_s": 4.306956785624952,
+      "tail_tilt_deg": 3.8045639582154918,
+      "peak_tilt_deg": 3.8045639582154918,
+      "peak_vertical_speed_m_s": 0.00732421875,
+      "peak_horizontal_speed_m_s": 4.306956785624952,
+      "forward_delta_m": 20646036.80220918,
+      "left_delta_m": -20326836.899723854,
+      "yaw_delta_deg": -0.4294111489921306,
+      "fresh_tick_gaps": 0
+    },
+    {
+      "name": "forward",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "reverse",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "left",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "right",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "diagonal",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "name": "shock",
+      "status": "NOT_EXECUTED"
+    }
+  ],
+  "status": "ABORT",
+  "run": {
+    "architecture": "quad-banks",
+    "fixture_jar_sha256": "52b9a2bd530f730d0edd823df5878b47c2cbf2ec84e571c9eba75d2c672a88d9",
+    "source_sha256": "c86c5a969b7850692a0a9b1b20ee3c29dde2a6d067446767ba86b27c5ba7d984",
+    "controller_sha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622"
+  },
+  "exit": {
+    "code": 0,
+    "wall_seconds": 172.40310168266296
+  },
+  "trace_sha256": "6e53fbba02b66995e5e8fef6007e5c47cc43188b58b6a728a61cd4e1378960bc"
+}

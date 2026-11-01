@@ -1,0 +1,166 @@
+{
+  "schema": 1,
+  "source_rpm": 256,
+  "gravity_m_s2": 11,
+  "climb_m_s": 2,
+  "tilt_deg": 8,
+  "architectures": [
+    {
+      "id": "tri",
+      "name": "Tricoptere Y fixe",
+      "lift_rotors": 3,
+      "drive_banks": 0,
+      "group_count": 3,
+      "positions_xz": [
+        [
+          -6,
+          -5
+        ],
+        [
+          6,
+          -5
+        ],
+        [
+          0,
+          7
+        ]
+      ],
+      "yaw_control_declared": false
+    },
+    {
+      "id": "quad-banks",
+      "name": "Quad + deux banques reversibles",
+      "lift_rotors": 4,
+      "drive_banks": 2,
+      "rotors_per_bank": 1,
+      "group_count": 6,
+      "positions_xz": [
+        [
+          -6,
+          -5
+        ],
+        [
+          6,
+          -5
+        ],
+        [
+          -6,
+          5
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          -5,
+          -14
+        ],
+        [
+          5,
+          -14
+        ]
+      ],
+      "yaw_control_declared": "measured separately",
+      "reverse_mechanism": "Create gearshift"
+    },
+    {
+      "id": "balloon",
+      "name": "Ballon bruleur + deux banques reversibles",
+      "lift_rotors": 0,
+      "drive_banks": 2,
+      "rotors_per_bank": 1,
+      "group_count": 3,
+      "envelope": {
+        "radius_xz": 6,
+        "bottom_y": 5,
+        "top_y": 17,
+        "material": "aeronautics:white_envelope",
+        "open_bottom": true
+      },
+      "yaw_control_declared": "measured separately",
+      "burner": "aeronautics:adjustable_burner"
+    },
+    {
+      "id": "quad-balanced",
+      "base": "quad-banks",
+      "engine_y": -5,
+      "engine_z": 0,
+      "body_z_min": -8,
+      "steering": "lateral; strafe unsupported with drive by current generic controller"
+    },
+    {
+      "id": "quad-turns",
+      "base": "quad-balanced",
+      "steering": "yaw"
+    },
+    {
+      "id": "balloon-lift",
+      "base": "balloon",
+      "drive_banks": 0,
+      "body_z_min": -8,
+      "steering": "no horizontal authority",
+      "burner_setting": "read after native clamp; 500 in supplied pack",
+      "warmup": "20 fresh native gas-force observations within 5 percent of measured weight"
+    }
+  ],
+  "phases": [
+    {
+      "name": "hover",
+      "start": 320,
+      "stop": 800,
+      "pressed_ticks": 0
+    },
+    {
+      "name": "climb",
+      "start": 800,
+      "stop": 1200,
+      "pressed_ticks": 60
+    },
+    {
+      "name": "descend",
+      "start": 1200,
+      "stop": 1600,
+      "pressed_ticks": 60
+    },
+    {
+      "name": "forward",
+      "start": 1600,
+      "stop": 2000,
+      "pressed_ticks": 60
+    },
+    {
+      "name": "reverse",
+      "start": 2000,
+      "stop": 2400,
+      "pressed_ticks": 60
+    },
+    {
+      "name": "left",
+      "start": 2400,
+      "stop": 2800,
+      "pressed_ticks": 60
+    },
+    {
+      "name": "right",
+      "start": 2800,
+      "stop": 3200,
+      "pressed_ticks": 60
+    },
+    {
+      "name": "diagonal",
+      "start": 3200,
+      "stop": 3600,
+      "pressed_ticks": 60
+    },
+    {
+      "name": "shock",
+      "start": 3600,
+      "stop": 4400,
+      "pressed_ticks": 0
+    }
+  ],
+  "placed_cloth_blocks_per_rotor": 16,
+  "observed_assembled_vertical_sails": 8,
+  "observed_assembled_horizontal_sails": 16,
+  "assembly_note": "Counts are read from native totalSailPower, not inferred from placed cloth. Fate of surplus placed blocks is not independently audited."
+}
