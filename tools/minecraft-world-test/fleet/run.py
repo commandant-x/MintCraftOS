@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-CASES = ['tri', 'quad', 'hex', 'octo', 'quad-banks', 'quad-balanced', 'quad-turns', 'balloon', 'balloon-lift']
+CASES = ['plane-prototype', 'helicopter-tandem', 'tri', 'quad', 'hex', 'octo', 'quad-banks', 'quad-balanced', 'quad-turns', 'balloon', 'balloon-lift']
 
 
 def digest(path):
@@ -35,6 +35,8 @@ def main():
     p.add_argument('--screenshots', type=Path)
     p.add_argument('--timeout', type=int, default=900)
     a = p.parse_args()
+    if a.speed and any(case in ('plane-prototype', 'helicopter-tandem') for case in a.architectures):
+        p.error('--speed is not validated for the experimental aircraft prototypes')
     server, output = a.server.resolve(), a.output.resolve()
     original = a.original_world.resolve() if a.original_world else None
     template = a.graph_template.resolve() if a.graph_template else None

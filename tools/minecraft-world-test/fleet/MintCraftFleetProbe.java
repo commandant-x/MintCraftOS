@@ -79,6 +79,8 @@ public class MintCraftFleetProbe {
    int[][] positions=architecture.equals("hex")?new int[][]{{-12,-8},{12,-8},{-12,8},{12,8},{0,-16},{0,16}}:new int[][]{{-12,-12},{0,-12},{12,-12},{-12,0},{12,0},{-12,12},{0,12},{12,12}};
    for(int i=0;i<positions.length;i++){int x=positions[i][0],z=positions[i][1];for(int zz=Math.min(0,z);zz<=Math.max(0,z);zz++)put(level,0,0,zz,block("minecraft:oak_planks"));motor(level,x,z,net.minecraft.core.Direction.UP,i);}
   }
+  else if(architecture.equals("plane-prototype")){for(int x=-14;x<=14;x++)for(int z=-3;z<=3;z++)if(Math.abs(x)>2)put(level,x,1,z,block("createpropulsion:wing").setValue(BlockStateProperties.FACING,net.minecraft.core.Direction.UP));motor(level,0,-14,net.minecraft.core.Direction.SOUTH,0);}
+  else if(architecture.equals("helicopter-tandem")){motor(level,0,-8,net.minecraft.core.Direction.UP,0);motor(level,0,8,net.minecraft.core.Direction.UP,1);}
   else if(architecture.equals("tri")){motor(level,-6,-5,net.minecraft.core.Direction.UP,0);motor(level,6,-5,net.minecraft.core.Direction.UP,1);motor(level,0,7,net.minecraft.core.Direction.UP,2);}
   else if(architecture.equals("quad-banks")||balanced()){motor(level,-6,-5,net.minecraft.core.Direction.UP,0);motor(level,6,-5,net.minecraft.core.Direction.UP,1);motor(level,-6,5,net.minecraft.core.Direction.UP,2);motor(level,6,5,net.minecraft.core.Direction.UP,3);motor(level,-5,balanced()?0:-14,net.minecraft.core.Direction.SOUTH,4);motor(level,5,balanced()?0:-14,net.minecraft.core.Direction.SOUTH,5);}
   else if(architecture.equals("balloon")||architecture.equals("balloon-lift")){
@@ -112,7 +114,7 @@ public class MintCraftFleetProbe {
    if(be instanceof PropellerBearingBlockEntity b)rotors.add(b);
    if(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString().equals("create:redstone_link"))links.add(be);
   }
-  int expectedRotors=switch(architecture){case "tri"->3;case "quad"->4;case "hex"->6;case "octo"->8;case "balloon-lift"->0;case "balloon"->2;default->6;};
+  int expectedRotors=switch(architecture){case "plane-prototype"->1;case "helicopter-tandem"->2;case "tri"->3;case "quad"->4;case "hex"->6;case "octo"->8;case "balloon-lift"->0;case "balloon"->2;default->6;};
   if(sp==null||rotors.size()!=expectedRotors)throw new IllegalStateException("Unexpected fleet actuator count: expected="+expectedRotors+" actual="+rotors.size());
   for(var rotor:rotors)if(rotor.getScaledThrust()<0){com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity nearestMotor=null;double best=Double.POSITIVE_INFINITY;for(var h:ship.getPlot().getLoadedChunks())for(var be:h.getChunk().getBlockEntities().values())if(be instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity m){double dist=m.getBlockPos().distSqr(rotor.getBlockPos());if(dist<best){best=dist;nearestMotor=m;}}if(nearestMotor==null||best>25)throw new IllegalStateException("Motor association missing");nearestMotor.generatedSpeed.setValue(-(int)nearestMotor.getGeneratedSpeed());event("SOURCE_DIRECTION set for "+rotor.getBlockPos());}
   rotors.sort(Comparator.comparingInt((PropellerBearingBlockEntity b)->-b.getBlockPos().getZ()).thenComparingInt(b->b.getBlockPos().getX()));

@@ -1,0 +1,11 @@
+{
+  "case": "plane-prototype",
+  "start_utc_epoch": 1793544497.9839625,
+  "speed_campaign": false,
+  "source_world_copy": false,
+  "viewer": false,
+  "fixture_sha256": "71f5e15552d2ea5187a8fe0e07306333a6ec0551d54cad685d48b87b0fc4090c",
+  "controller_sha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6",
+  "supervisor_sha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+  "graph_template_sha256": "f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca"
+}

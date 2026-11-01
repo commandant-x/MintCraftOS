@@ -1,0 +1,1 @@
+MCV1;1;bearing;drive;0.02160712331533432;4.209166666666874;-9.478095218539238;0;0;1;256;16;0.2;0.05;1;8;-1;1;minecraft:orange_wool;minecraft:netherite_block;minecraft:orange_wool;minecraft:copper_block;;;0;0.15;0;0

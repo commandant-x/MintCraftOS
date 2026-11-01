@@ -1,0 +1,47 @@
+40	GRAPH_TEMPLATE sha256=f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca
+40	BUILT helicopter-tandem blocks=196 native sublevel=b346ac1b-d306-4e89-a6c0-f5f13826b8dd
+80	ASSEMBLED native bearings=2
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	SHAFT 1 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 2 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	ENABLE_AUDIT physical=Block{minecraft:lever}[face=floor,facing=north,powered=false] graph=0.0
+140	COMMISSION signal=10 expected=80RPM, pilot OFF
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	SHAFT 1 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 2 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	STATUS Pret: activer sans touche
+180	SHAFT 1 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 2 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	STATUS Pret: activer sans touche
+200	SHAFT 1 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 2 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	COMMISSION_PASS: each shaft observed at 80RPM, temporary writer removed before arming
+200	STATUS Pret: activer sans touche
+220	SHAFT 1 input=-128.0 actual=-118.948975 rx=7 electrical=7
+220	SHAFT 2 input=-256.0 actual=-230.55116 rx=0 electrical=0
+220	STATUS HOLDING h=171.1457>171.1457 | Modele declare; non qualifie
+240	SHAFT 1 input=-128.0 actual=-119.820946 rx=7 electrical=7
+240	SHAFT 2 input=-256.0 actual=-239.2938 rx=0 electrical=0
+240	STATUS HOLDING h=171.1457>171.1457 | Modele declare; non qualifie
+260	SHAFT 1 input=-128.0 actual=-120.41916 rx=7 electrical=7
+260	SHAFT 2 input=-256.0 actual=-239.9165 rx=0 electrical=0
+260	STATUS HOLDING h=171.1457>171.1457 | Modele declare; non qualifie
+280	SHAFT 1 input=-112.0 actual=-121.87861 rx=8 electrical=8
+280	SHAFT 2 input=-256.0 actual=-239.73755 rx=0 electrical=0
+280	STATUS HOLDING h=171.1457>171.1457 | Modele declare; non qualifie
+300	SHAFT 1 input=-128.0 actual=-120.1851 rx=7 electrical=7
+300	SHAFT 2 input=-256.0 actual=-240.05043 rx=0 electrical=0
+300	WARMUP HOLDING h=171.1457>171.1457 | Modele declare; non qualifie
+300	STATUS HOLDING h=171.1457>171.1457 | Modele declare; non qualifie
+310	DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch=0
+320	RELEASE: fixture lock removed, physical flight begins
+320	STATUS HOLDING h=171.1457>171.1457 | Modele declare; non qualifie
+340	STATUS DEGRADED h=170.91895>171.1457 | Modele declare; non qualifie
+360	STATUS DEGRADED h=170.61642>171.1457 | Modele declare; non qualifie
+380	STATUS DEGRADED h=170.31886>171.1457 | Modele declare; non qualifie
+400	STATUS DEGRADED h=169.54819>171.1457 | Modele declare; non qualifie
+420	STATUS DEGRADED h=167.16447>171.1457 | Modele declare; non qualifie
+440	STATUS DEGRADED h=160.08696>171.1457 | Modele declare; non qualifie
+444	ABORT: test envelope exceeded; fixture locked; not a flight pass
