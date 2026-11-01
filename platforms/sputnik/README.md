@@ -1,4 +1,6 @@
-# Autopilote Sputnik 0.4.2 — un TXT par architecture
+# Autopilote Sputnik 0.4.3 — un TXT par architecture
+
+**0.4.3 : contrôle horizontal conservé pendant les commandes verticales.** [Campagne de vitesse native : 46 directions, 37 avec freinage confirmé](reports/speed-envelope-0.4.3/README.md). Meilleures vitesses mesurées dans une enveloppe de réglage donnée ; les mondes joints restent en 0.4.2.
 
 **0.4.2 : freinage du tricoptère corrigé après trois essais Minecraft.** Sur le montage du banc, la séquence passe de 5/9 à 9/9 phases conformes. Le changement est limité aux montages à trois groupes sans propulsion auxiliaire ; les autres profils conservent leur loi de freinage. [Mesures, TXT et limites de la campagne](reports/native-fleet-0.4.2/README.md). Cela ne qualifie pas tous les tricoptères ni les autres architectures.
 
@@ -32,7 +34,7 @@ Le rendu utilise moins de formulaires ; aucun gain de FPS chiffré n’est reven
 3. Dans le fond vide de l’éditeur Sputnik, coller avec **Ctrl+V**, puis sauvegarder. Le collage ajoute tout le graphe ; ne pas coller le TXT dans l’éditeur Lua d’un nœud.
 4. Ne pas conserver l’ancien graphe en parallèle. Suivre [Montage → essais → pilotage](AUTOPILOT.md). Renseigner les fréquences et les caractéristiques propres à chaque hélice. Le nouveau pilote exige un passage physique Enable OFF avant activation.
 
-Le [ZIP courant](dist/mintcraft-sputnik-0.4.2.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
+Le [ZIP courant](dist/mintcraft-sputnik-0.4.3.zip) contient aussi les sources, tests et rapports. Aucun programme CC ni accès aux fichiers du serveur n’est nécessaire. Les modèles restent déclarés ; le pilote ne scanne pas les voiles ou la coque.
 
 Le contrôleur continue côté serveur après fermeture de l’éditeur. Une mise à jour ne doit pas s’effectuer en vol : l’expiration Link peut ramener un signal à zéro, qui signifie plein régime pour certaines transmissions.
 
@@ -109,7 +111,7 @@ confirmer. Les versions anciennes de Cosmonautics peuvent utiliser un autre
 
 ## Téléversement sans accès aux fichiers du serveur
 
-1. Télécharger `dist/mintcraft-sputnik-0.4.2.zip` sur votre ordinateur personnel
+1. Télécharger `dist/mintcraft-sputnik-0.4.3.zip` sur votre ordinateur personnel
    depuis GitHub et le décompresser.
 2. Ouvrir le Sputnik en jeu. Sauvegarder son graphe existant : sélectionner les
    nœuds, copier et conserver ce presse-papiers dans un fichier personnel.

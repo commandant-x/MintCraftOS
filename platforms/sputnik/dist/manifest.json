@@ -1,290 +1,55 @@
 {
   "schema": 1,
   "edition": "MintCraft Sputnik",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "target": "Cosmonautics 26.08.307 / Minecraft 1.21.1",
   "hostJarSha256": "3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e",
   "import": "Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns",
   "testedInMinecraft": true,
   "minecraftWorldValidation": {
     "schema": 1,
-    "version": "0.4.2",
-    "testedCurrentSources": true,
     "flightScenarioCompleted": true,
-    "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
+    "testedCurrentSources": true,
+    "controllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6",
     "supervisorSha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
-    "exactCurrentControllerCases": [
-      "tri-final",
-      "quad"
-    ],
     "globallyQualified": false,
-    "notImplemented": [
-      "helicopter construction and flight",
-      "fixed-wing aircraft takeoff and flight",
-      "V22 takeoff and nacelle transition"
+    "architectures": [
+      "tri",
+      "quad",
+      "hex",
+      "octo",
+      "quad-turns",
+      "balloon-lift"
     ],
-    "cases": {
-      "tri-baseline": {
-        "status": "FAIL",
-        "pass": 5,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
-        "controllerSource": "sources/baseline.lua",
-        "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
-        "traceSha256": "e654f3de8118ca92df55bc4caa559b70aafebaa014a987a1f608c4ce6b52e1c6",
-        "report": "tri-baseline/results.json"
-      },
-      "tri-final": {
-        "status": "PASS",
-        "pass": 9,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
-        "controllerSource": "sources/tricopter-1.2.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "1f03269f1f78286df6dcaee8bccf35dc3ba6df48b20c380962546bcb8c41cad7",
-        "report": "tri-final/results.json"
-      },
-      "quad": {
-        "status": "FAIL",
-        "pass": 5,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
-        "controllerSource": "sources/tricopter-1.2.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "0455ec294736a23acd294f2ad392cfb9d650b2b837dd1c93ea5eab2a96c6b42e",
-        "report": "quad/results.json"
-      },
-      "quad-drive": {
-        "status": "FAIL",
-        "pass": 7,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
-        "controllerSource": "sources/baseline.lua",
-        "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
-        "traceSha256": "67f9e8b5a42ca6d033efa1ccc2dfffa07d3503735b6cf81c799449183014f539",
-        "report": "quad-drive/results.json"
-      },
-      "hex": {
-        "status": "FAIL",
-        "pass": 6,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "96b017e7024fd2bfe50eafc89fa85df32625ecf91092f743dcba04cb771bca33",
-        "controllerSource": "sources/multirotor-0.8-conditional.lua",
-        "fixtureSha256": "be7c1fe1ff5d2327ce80b4cb5eca5d4d6cdfe428ed0872b14c7616b053b66f0c",
-        "traceSha256": "b14e88e93a82a753c1a140efaaf05fc782c02de0fb3ea5d43b79998a7192ed7b",
-        "report": "hex/results.json"
-      },
-      "octo": {
-        "status": "FAIL",
-        "pass": 7,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "96b017e7024fd2bfe50eafc89fa85df32625ecf91092f743dcba04cb771bca33",
-        "controllerSource": "sources/multirotor-0.8-conditional.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "056184f14c2e31565468a6ff64931ae3669cbaaa3d170a8ae7e1e73ee17d1c19",
-        "report": "octo/results.json"
-      },
-      "balloon-baseline": {
-        "status": "FAIL",
-        "pass": 0,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
-        "controllerSource": "sources/baseline.lua",
-        "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
-        "traceSha256": "3bd5cb355d941fd0d9e603bb4f5ff42cdb2bef4f9a9e6354353b05b4e7bf829c",
-        "report": "balloon-baseline/results.json"
-      },
-      "balloon-candidate1": {
-        "status": "FAIL",
-        "pass": 2,
-        "holdOnly": 5,
-        "total": 9,
-        "controllerSha256": "9ab8a232b61e37e81ba82cf35995ab89f4350ce8727732fd9ed1b897143bb564",
-        "controllerSource": "sources/balloon-candidate.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "e025237940a45755eec65c0abcf917e861b1b445a7e5b8ea0be1a05cba9a7d40",
-        "report": "balloon-candidate1/results.json"
-      },
-      "balloon-final": {
-        "status": "DOMAIN_PASS",
-        "pass": 4,
-        "holdOnly": 5,
-        "total": 9,
-        "controllerSha256": "d69990e3cd56eba6bece1d555e3f4ee85c049634988693462a34ce311135a0c4",
-        "controllerSource": "sources/balloon-trial2.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "7a7597e9885e4cbf96ab5a6f4cbbd158cafac524ff2418a3854ef611cb69e2ab",
-        "report": "balloon-final/results.json"
-      },
-      "quad-fpv-not-selected": {
-        "status": "FAIL",
-        "pass": 1,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "fa96cedcc5cbfcabb9142485c79192792c2bbb34ac2e1e4ec35d60250d70afa9",
-        "controllerSource": "sources/quad-fpv-tested.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "4b6c4d150ba228eb144a6ca836125f8318c0255597c1059ada480c3f64136bd3",
-        "report": "quad-fpv-not-selected/results.json"
-      }
-    },
-    "clipboards": {
-      "balloon-vertical.clipboard.txt": "75b4b6c40585de86f538566283942bbb57a618211763c4d8cf2bce5e40bd917f",
-      "quad-drive.clipboard.txt": "f522e7367c246be90ac545dec36ccf0e6bd44b3b27108e54ada7ad59314a1ee6",
-      "quadcopter.clipboard.txt": "119a06582a6ab0dcb659d6a5a4594f5cadbab9e35209220ea1b932f91abad085",
-      "hexacopter.clipboard.txt": "aea11043801a3ad99f94b81efc281e1082646060a482063382c724ca6b2d2092",
-      "tricopter.clipboard.txt": "ecad262f85bf29ca131e9049dba53db899ef1db87ecb8492272630dc9e5753cc",
-      "octocopter.clipboard.txt": "7a168d3b95cf4254f42098b0dffaee598c95642bda5eac79d27f9f5efcd9950e"
-    },
-    "preparedWorlds": "prepared-worlds/index.json",
-    "worldArchive": "../../worlds/mintcraft-sputnik-fleet-0.4.2.zip"
+    "directionsTested": 46,
+    "directionsWithConfirmedBraking": 37,
+    "auditedStableStages": 243,
+    "report": "reports/speed-envelope-0.4.3/README.md",
+    "scope": "bounded speed campaign at configured 20 degree tilt and vertical commands 1..5 m/s; not absolute maxima; balloon uses dedicated archived source; no helicopter, airplane or V22 test"
+  },
+  "nativeSpeedValidation": {
+    "schema": 1,
+    "flightScenarioCompleted": true,
+    "testedCurrentSources": true,
+    "controllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6",
+    "supervisorSha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+    "globallyQualified": false,
+    "architectures": [
+      "tri",
+      "quad",
+      "hex",
+      "octo",
+      "quad-turns",
+      "balloon-lift"
+    ],
+    "directionsTested": 46,
+    "directionsWithConfirmedBraking": 37,
+    "auditedStableStages": 243,
+    "report": "reports/speed-envelope-0.4.3/README.md",
+    "scope": "bounded speed campaign at configured 20 degree tilt and vertical commands 1..5 m/s; not absolute maxima; balloon uses dedicated archived source; no helicopter, airplane or V22 test"
   },
   "nativeFleetValidation": {
-    "schema": 1,
-    "version": "0.4.2",
-    "testedCurrentSources": true,
-    "flightScenarioCompleted": true,
-    "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
-    "supervisorSha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
-    "exactCurrentControllerCases": [
-      "tri-final",
-      "quad"
-    ],
-    "globallyQualified": false,
-    "notImplemented": [
-      "helicopter construction and flight",
-      "fixed-wing aircraft takeoff and flight",
-      "V22 takeoff and nacelle transition"
-    ],
-    "cases": {
-      "tri-baseline": {
-        "status": "FAIL",
-        "pass": 5,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
-        "controllerSource": "sources/baseline.lua",
-        "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
-        "traceSha256": "e654f3de8118ca92df55bc4caa559b70aafebaa014a987a1f608c4ce6b52e1c6",
-        "report": "tri-baseline/results.json"
-      },
-      "tri-final": {
-        "status": "PASS",
-        "pass": 9,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
-        "controllerSource": "sources/tricopter-1.2.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "1f03269f1f78286df6dcaee8bccf35dc3ba6df48b20c380962546bcb8c41cad7",
-        "report": "tri-final/results.json"
-      },
-      "quad": {
-        "status": "FAIL",
-        "pass": 5,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
-        "controllerSource": "sources/tricopter-1.2.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "0455ec294736a23acd294f2ad392cfb9d650b2b837dd1c93ea5eab2a96c6b42e",
-        "report": "quad/results.json"
-      },
-      "quad-drive": {
-        "status": "FAIL",
-        "pass": 7,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
-        "controllerSource": "sources/baseline.lua",
-        "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
-        "traceSha256": "67f9e8b5a42ca6d033efa1ccc2dfffa07d3503735b6cf81c799449183014f539",
-        "report": "quad-drive/results.json"
-      },
-      "hex": {
-        "status": "FAIL",
-        "pass": 6,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "96b017e7024fd2bfe50eafc89fa85df32625ecf91092f743dcba04cb771bca33",
-        "controllerSource": "sources/multirotor-0.8-conditional.lua",
-        "fixtureSha256": "be7c1fe1ff5d2327ce80b4cb5eca5d4d6cdfe428ed0872b14c7616b053b66f0c",
-        "traceSha256": "b14e88e93a82a753c1a140efaaf05fc782c02de0fb3ea5d43b79998a7192ed7b",
-        "report": "hex/results.json"
-      },
-      "octo": {
-        "status": "FAIL",
-        "pass": 7,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "96b017e7024fd2bfe50eafc89fa85df32625ecf91092f743dcba04cb771bca33",
-        "controllerSource": "sources/multirotor-0.8-conditional.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "056184f14c2e31565468a6ff64931ae3669cbaaa3d170a8ae7e1e73ee17d1c19",
-        "report": "octo/results.json"
-      },
-      "balloon-baseline": {
-        "status": "FAIL",
-        "pass": 0,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
-        "controllerSource": "sources/baseline.lua",
-        "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
-        "traceSha256": "3bd5cb355d941fd0d9e603bb4f5ff42cdb2bef4f9a9e6354353b05b4e7bf829c",
-        "report": "balloon-baseline/results.json"
-      },
-      "balloon-candidate1": {
-        "status": "FAIL",
-        "pass": 2,
-        "holdOnly": 5,
-        "total": 9,
-        "controllerSha256": "9ab8a232b61e37e81ba82cf35995ab89f4350ce8727732fd9ed1b897143bb564",
-        "controllerSource": "sources/balloon-candidate.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "e025237940a45755eec65c0abcf917e861b1b445a7e5b8ea0be1a05cba9a7d40",
-        "report": "balloon-candidate1/results.json"
-      },
-      "balloon-final": {
-        "status": "DOMAIN_PASS",
-        "pass": 4,
-        "holdOnly": 5,
-        "total": 9,
-        "controllerSha256": "d69990e3cd56eba6bece1d555e3f4ee85c049634988693462a34ce311135a0c4",
-        "controllerSource": "sources/balloon-trial2.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "7a7597e9885e4cbf96ab5a6f4cbbd158cafac524ff2418a3854ef611cb69e2ab",
-        "report": "balloon-final/results.json"
-      },
-      "quad-fpv-not-selected": {
-        "status": "FAIL",
-        "pass": 1,
-        "holdOnly": 0,
-        "total": 9,
-        "controllerSha256": "fa96cedcc5cbfcabb9142485c79192792c2bbb34ac2e1e4ec35d60250d70afa9",
-        "controllerSource": "sources/quad-fpv-tested.lua",
-        "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
-        "traceSha256": "4b6c4d150ba228eb144a6ca836125f8318c0255597c1059ada480c3f64136bd3",
-        "report": "quad-fpv-not-selected/results.json"
-      }
-    },
-    "clipboards": {
-      "balloon-vertical.clipboard.txt": "75b4b6c40585de86f538566283942bbb57a618211763c4d8cf2bce5e40bd917f",
-      "quad-drive.clipboard.txt": "f522e7367c246be90ac545dec36ccf0e6bd44b3b27108e54ada7ad59314a1ee6",
-      "quadcopter.clipboard.txt": "119a06582a6ab0dcb659d6a5a4594f5cadbab9e35209220ea1b932f91abad085",
-      "hexacopter.clipboard.txt": "aea11043801a3ad99f94b81efc281e1082646060a482063382c724ca6b2d2092",
-      "tricopter.clipboard.txt": "ecad262f85bf29ca131e9049dba53db899ef1db87ecb8492272630dc9e5753cc",
-      "octocopter.clipboard.txt": "7a168d3b95cf4254f42098b0dffaee598c95642bda5eac79d27f9f5efcd9950e"
-    },
-    "preparedWorlds": "prepared-worlds/index.json",
-    "worldArchive": "../../worlds/mintcraft-sputnik-fleet-0.4.2.zip"
+    "testedCurrentSources": false
   },
   "flightArchiveExcludes": [
     "sdk/mintcraft-library.lua",
@@ -323,7 +88,7 @@
     "drive_mixer.lua": "197262e4a49b67faca7e685362bcf5c30fbbd9f8b0c88a7dd4249c7fdcf21fc5",
     "flight-telemetry.lua": "639096e161aaf16e68c4d0629378664c7a4420c17acc0ccfea32ecb8c9b08ee6",
     "flight_calibration.lua": "a749b6f0dc4a425ceb329b5313b21f4f16c78c3ae56dcf5bb6761d0921646a2d",
-    "flight_core.lua": "b9bd479f9f4d20a06f0679b88a79384ce488efb359e969564114aadcfdc4e2c4",
+    "flight_core.lua": "ffdf45a8c9a04b6338da0314784b1b74166b1536b872f148a2edd5ecfef78521",
     "flight_journal.lua": "173c2b71ae768fbba90dcf047fdf06b9879b8a9ae2fab8d86e99529f2563b1ee",
     "flight_mission.lua": "4d055e05ec7a08b67a26e4d08941dd751830cdf7bc49f71c8f7a34e72321ea04",
     "gateway.lua": "d50e3d7f1ada57da314436199ef3635815a3712409471c73eeb2a09c74327d14",
@@ -357,7 +122,7 @@
     "nodes": 7,
     "connections": 34,
     "scope": "four declared vertical rotors; nativeFleetValidation identifies measured cases and failures; no global qualification",
-    "controllerSha256": "fa96cedcc5cbfcabb9142485c79192792c2bbb34ac2e1e4ec35d60250d70afa9"
+    "controllerSha256": "1d5326884e1ed2a13e66d9a8870c1c6e88ca97ec993963690edd0fee1231b81c"
   },
   "architectureGraphs": {
     "quad": {
@@ -367,7 +132,7 @@
       "nodes": 7,
       "connections": 34,
       "mapIncluded": true,
-      "flightControllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925"
+      "flightControllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6"
     },
     "balloon": {
       "file": "mintcraft-balloon-autopilot.clipboard.txt",
@@ -376,7 +141,7 @@
       "nodes": 7,
       "connections": 34,
       "mapIncluded": true,
-      "flightControllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925"
+      "flightControllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6"
     },
     "venator": {
       "file": "mintcraft-venator-autopilot.clipboard.txt",
@@ -385,7 +150,7 @@
       "nodes": 7,
       "connections": 34,
       "mapIncluded": true,
-      "flightControllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925"
+      "flightControllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6"
     },
     "helicopter": {
       "file": "mintcraft-helicopter-autopilot.clipboard.txt",
@@ -394,7 +159,7 @@
       "nodes": 7,
       "connections": 34,
       "mapIncluded": true,
-      "flightControllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925"
+      "flightControllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6"
     },
     "hybrid": {
       "file": "mintcraft-hybrid-autopilot.clipboard.txt",
@@ -403,7 +168,7 @@
       "nodes": 7,
       "connections": 34,
       "mapIncluded": true,
-      "flightControllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925"
+      "flightControllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6"
     }
   },
   "developerLibraryImportableAsSingleNode": false,
@@ -422,7 +187,7 @@
     "dashboard": 3755,
     "link-gateway": 3012,
     "numeric-radio": 1269,
-    "autopilot-control": 59991,
+    "autopilot-control": 59975,
     "mount-group": 6817,
     "mount-simple": 8617,
     "groups-simple": 1408,
@@ -432,7 +197,7 @@
     "local-map": 2279,
     "mount-workbench": 14659,
     "flight-operations": 24491,
-    "autopilot-quad-fpv": 59833
+    "autopilot-quad-fpv": 59808
   },
   "modules": {
     "system.libraries.addon": "cbb8718a0f39d9cc7e38559c6e80e8ef517c9f04cd9c38392b30cdfd433f814c",
@@ -583,12 +348,12 @@
       "sha256": "6b7efd7843439efe6fc64b866893c1828e2983dd9564296a350f9d3f0425c9fd"
     },
     "mintcraft-autopilot-control.lua": {
-      "bytes": 59991,
-      "sha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925"
+      "bytes": 59975,
+      "sha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6"
     },
     "mintcraft-autopilot-control.clipboard.txt": {
-      "bytes": 83948,
-      "sha256": "daeb7ad31927fdb74c68d057e276a567da1052438550f13ce724e9aaf1fe07fc"
+      "bytes": 83928,
+      "sha256": "0e0a084c3ef42f6a7756cadb75d1c2f7717f58fba37749e103b652436e0cab7d"
     },
     "mintcraft-mount-group.lua": {
       "bytes": 6817,
@@ -663,12 +428,12 @@
       "sha256": "348ba0dea265bf0d6e061ef228b6aa99de23eea3f559f8a4515d7e05e3253f99"
     },
     "mintcraft-autopilot-quad-fpv.lua": {
-      "bytes": 59833,
-      "sha256": "fa96cedcc5cbfcabb9142485c79192792c2bbb34ac2e1e4ec35d60250d70afa9"
+      "bytes": 59808,
+      "sha256": "1d5326884e1ed2a13e66d9a8870c1c6e88ca97ec993963690edd0fee1231b81c"
     },
     "mintcraft-autopilot-quad-fpv.clipboard.txt": {
-      "bytes": 83736,
-      "sha256": "0d04e8a62930745b0bb193f7272e8075276eb08333b3339447b01d7d4835b634"
+      "bytes": 83704,
+      "sha256": "4772cfec01525f598b88cb81ac81e41d7aa0e6e8dc6a606e500f0e8234661a94"
     },
     "mintcraft-flight-audit.clipboard.txt": {
       "bytes": 5196,
@@ -683,32 +448,32 @@
       "sha256": "59de9c85478343125611b78f1151a58006538ef7fa761a6851ecd7ff3dd3fdd2"
     },
     "mintcraft-autopilot.clipboard.txt": {
-      "bytes": 171696,
-      "sha256": "2b17ce1d4bde670cf09da7e969b8a3c3dcbbede5242fe544d05701c8b1d8a0bb"
+      "bytes": 171676,
+      "sha256": "f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca"
     },
     "mintcraft-quad-autopilot.clipboard.txt": {
-      "bytes": 171588,
-      "sha256": "f68a142aeb731d2f0476569cddd578dcc4d1f4dafcb27772865c43936a5b6543"
+      "bytes": 171568,
+      "sha256": "f5aa0416144652c26ee9aa732de958506720f404ef818f637095b4966036059a"
     },
     "mintcraft-balloon-autopilot.clipboard.txt": {
-      "bytes": 171764,
-      "sha256": "1757f66d62992d75e07cd17facd86287b56ec1e35eb026db7382b95d6795551c"
+      "bytes": 171744,
+      "sha256": "9a7b7a983e510e91ab1975e5bceadd2659dfabdb5eb0bda8b2e69d5cc46b7ae2"
     },
     "mintcraft-venator-autopilot.clipboard.txt": {
-      "bytes": 171768,
-      "sha256": "e19e89387342e8f197c3e05be447169a687b8b64e353525827e4343bb818fff2"
+      "bytes": 171748,
+      "sha256": "a1cfa5e9e615ba1551872dd5c9752f35a4785c28778d625789b9f6a20fe86324"
     },
     "mintcraft-helicopter-autopilot.clipboard.txt": {
-      "bytes": 171584,
-      "sha256": "7aa818b50158989a46929f34bd5691b62bb198c03f3e92f5ae3a187696b99bd1"
+      "bytes": 171560,
+      "sha256": "9ae6ba492fe255fef4c6ab204880f5f5c986b3681e092e7f8a53b3e8f23d00e1"
     },
     "mintcraft-hybrid-autopilot.clipboard.txt": {
-      "bytes": 171696,
-      "sha256": "2b17ce1d4bde670cf09da7e969b8a3c3dcbbede5242fe544d05701c8b1d8a0bb"
+      "bytes": 171676,
+      "sha256": "f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca"
     },
     "mintcraft-quad-fpv.clipboard.txt": {
-      "bytes": 171564,
-      "sha256": "a40c25124dd49850d8deea19955fd5aee35934fff078660f963e8d21ecb52bb9"
+      "bytes": 171528,
+      "sha256": "65b60e0b3ec9eab165eedcce5a676a55b74a5cfceb477cc601ee33cf49cdf793"
     }
   }
 }

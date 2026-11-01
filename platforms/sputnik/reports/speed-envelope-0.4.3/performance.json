@@ -1,0 +1,7 @@
+{
+  "scope": "External 5 second wall-clock samples ending during cruise or braking; approximate interval rate, not per-tick latency; terminal/reset samples excluded. One block is treated as one metre and speed uses 20 game ticks per second.",
+  "samples": 1034,
+  "median_tps": 19.997148920284715,
+  "minimum_tps": 14.984983947865278,
+  "maximum_tps": 24.796197482533273
+}

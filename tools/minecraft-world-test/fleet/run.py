@@ -29,6 +29,8 @@ def main():
     p.add_argument('--architectures', nargs='+', choices=CASES, default=CASES)
     p.add_argument('--controller-for', action='append', default=[], metavar='CASE=LUA',
                    help='Explicit production/candidate controller for one architecture; archived and hashed')
+    p.add_argument('--speed', action='store_true', help='Measure native sustained-speed envelopes instead of the fixed movement sequence')
+    p.add_argument('--speed-directions', nargs='+', choices=['forward','reverse','left','right','forward_left','forward_right','reverse_left','reverse_right','up','down'])
     p.add_argument('--wait-for-viewer', action='store_true')
     p.add_argument('--screenshots', type=Path)
     p.add_argument('--timeout', type=int, default=900)
@@ -83,7 +85,7 @@ def main():
             case_template = dest / 'template.clipboard.txt'
             shutil.copy2(template, case_template)
         started = time.time()
-        run = dict(case=case, start_utc_epoch=started, source_world_copy=bool(original),
+        run = dict(case=case, start_utc_epoch=started, speed_campaign=a.speed, source_world_copy=bool(original),
                    viewer=a.wait_for_viewer, fixture_sha256=digest(a.probe),
                    controller_sha256=digest(server / 'mintcraft-generic-controller.lua'),
                    supervisor_sha256=digest(server / 'mintcraft-operations.lua'))
@@ -98,6 +100,10 @@ def main():
                '@libraries/net/neoforged/neoforge/21.1.264/' + args_file, 'nogui']
         if template:
             cmd.insert(4, '-Dmintcraft.graphTemplate=' + str(case_template))
+        if a.speed:
+            cmd.insert(4, '-Dmintcraft.speed=true')
+            if a.speed_directions:
+                cmd.insert(4, '-Dmintcraft.speedDirections=' + ','.join(a.speed_directions))
         timed_out = False
         with (dest / 'console.log').open('w') as log:
             proc = subprocess.Popen(cmd, cwd=server, stdin=subprocess.PIPE,
@@ -129,6 +135,9 @@ def main():
         # exit 0 alone is therefore not evidence that a flight ran/completed.
         executed = '\tRELEASE:' in events
         completed = '\tCOMPLETE:' in events and '\tEXPORT:' in events
+        if a.speed:
+            summary = dest / 'fixture/speed-results.json'
+            completed = summary.exists() and json.loads(summary.read_text()).get('complete') is True
         fixture_error = (dest / 'fixture/error.txt').exists()
         if timed_out or code != 0 or fixture_error or not completed:
             failed.append(case)

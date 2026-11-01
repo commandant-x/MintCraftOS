@@ -38,7 +38,7 @@ def build(server,jdk,work,fixture='movements',client=None):
  manifest=HERE/'shocks/viewer.mods.toml' if fixture=='viewer' else HERE/'neoforge.mods.toml'
  (classes/'META-INF/neoforge.mods.toml').write_bytes(manifest.read_bytes())
  suffix='.exe' if os.name=='nt' else ''
- subprocess.run([str(jdk/'bin'/('javac'+suffix)),'-proc:none','-cp',os.pathsep.join(map(str,clean)),'-d',str(classes),str(source)],check=True)
+ subprocess.run([str(jdk/'bin'/('javac'+suffix)),'-proc:none','-cp',os.pathsep.join(map(str,clean)),'-d',str(classes),str(source)]+([str(HERE/'fleet/SpeedCampaign.java')] if fixture=='fleet' else []),check=True)
  target=work/('mintcraft-viewer.jar' if fixture=='viewer' else 'mintcraft-test-probe.jar')
  subprocess.run([str(jdk/'bin'/('jar'+suffix)),'cf',str(target),'-C',str(classes),'.'],check=True)
  return target

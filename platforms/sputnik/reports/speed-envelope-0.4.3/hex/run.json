@@ -1,0 +1,11 @@
+{
+  "case": "hex",
+  "start_utc_epoch": 1793534784.2546425,
+  "speed_campaign": true,
+  "source_world_copy": false,
+  "viewer": false,
+  "fixture_sha256": "4f07177bab99d07249f0616a5478788810b206d2615d70f0fce432e797338b7c",
+  "controller_sha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6",
+  "supervisor_sha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+  "graph_template_sha256": "f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca"
+}
