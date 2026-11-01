@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "controller_commit": "7129d4ccabd2762b16f5a43754973a8bc6f3efb6",
+  "production_control_changes": false,
+  "server_physics": "Sable/Rapier native",
+  "screenshots": "actual Minecraft framebuffer, unedited",
+  "number_of_world_copies_tested": 8,
+  "number_of_vehicle_architectures": 1,
+  "report_unit_tests": 8,
+  "source_sha256": {
+    "tools/report-sputnik-shocks.py": "1afaa707272d4647172095deb415c625a6bef241e8cce903cf8936c5ea2ee1bc",
+    "tools/test-sputnik-shock-report.py": "3feabec6e58ac2330e3e61810efd205e949f3445747ee92542188131a92b3d63",
+    "tools/minecraft-world-test/build.py": "3dbff76d5e39a215a05ebd938b6a1e3ab7b15bb031fe6789abacc670f361b44d",
+    "tools/minecraft-world-test/shocks/MintCraftShockProbe.java": "a4c4b97d3d6bf70d6f08f39f65cfc3f0c1ca2f969d68aee95ab1a3f1e2a1d5ef",
+    "tools/minecraft-world-test/shocks/MintCraftViewer.java": "202201f89fc8de4f4c3e6750edbc7fedcc550500f0140652c97158d5f1b8f38e",
+    "tools/minecraft-world-test/shocks/run.py": "8b4f21ea657b2684e2aafc265a73e80d4e11bb11c0bbace03c51033adc3c4eb9",
+    "tools/minecraft-world-test/shocks/capture-x11.py": "a3378e209ad686b5be1fa8cab3b3c4b243107878d8fcdea2756e1bc944eb5cf3"
+  },
+  "compiled_and_executed_class_sha256": {
+    "shock": "99343a0da7b3ce805dc91e1c402e10c30dea76ccef52cb3d5ff2ffc8082dc81e",
+    "viewer": "1b7a61660123db5d597b84f92ae8b518ef0ef4988bc92733453b949387e6f0b7"
+  },
+  "private_world_redistributed": false,
+  "third_party_jars_redistributed": false
+}

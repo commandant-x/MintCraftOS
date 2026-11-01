@@ -1,0 +1,95 @@
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+180	STATUS Pret: activer sans touche
+200	STATUS Pret: activer sans touche
+220	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+240	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+260	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+280	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+300	WARMUP HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+300	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+310	DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch=838681
+320	RELEASE: fixture lock removed, physical flight begins
+320	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+340	STATUS HOLDING h=106.423225>106.13182 | Equilibrage dynamique estime
+360	STATUS HOLDING h=106.397545>106.13182 | Equilibrage dynamique estime
+380	STATUS HOLDING h=106.208084>106.13182 | Equilibrage dynamique estime
+400	STATUS HOLDING h=106.112915>106.13182 | Equilibrage dynamique estime
+420	STATUS HOLDING h=106.08305>106.13182 | Equilibrage dynamique estime
+440	STATUS HOLDING h=106.08169>106.13182 | Equilibrage dynamique estime
+460	STATUS HOLDING h=106.08634>106.13182 | Equilibrage dynamique estime
+480	STATUS HOLDING h=106.0934>106.13182 | Equilibrage dynamique estime
+500	STATUS HOLDING h=106.09822>106.13182 | Equilibrage dynamique estime
+520	STATUS HOLDING h=106.09855>106.13182 | Equilibrage dynamique estime
+540	STATUS HOLDING h=106.09933>106.13182 | Equilibrage dynamique estime
+560	STATUS HOLDING h=106.103355>106.13182 | Equilibrage dynamique estime
+580	STATUS HOLDING h=106.10789>106.13182 | Equilibrage dynamique estime
+600	STATUS HOLDING h=106.10764>106.13182 | Equilibrage dynamique estime
+620	STATUS HOLDING h=106.109215>106.13182 | Equilibrage dynamique estime
+640	STATUS HOLDING h=106.10996>106.13182 | Equilibrage dynamique estime
+660	STATUS HOLDING h=106.112495>106.13182 | Equilibrage dynamique estime
+680	STATUS HOLDING h=106.113884>106.13182 | Equilibrage dynamique estime
+700	STATUS HOLDING h=106.114784>106.13182 | Equilibrage dynamique estime
+720	STATUS HOLDING h=106.11745>106.13182 | Equilibrage dynamique estime
+740	STATUS HOLDING h=106.119896>106.13182 | Equilibrage dynamique estime
+760	STATUS HOLDING h=106.11881>106.13182 | Equilibrage dynamique estime
+780	STATUS HOLDING h=106.120026>106.13182 | Equilibrage dynamique estime
+800	SHOCK inversion requested_dv=( 0.000E+0  0.000E+0  0.000E+0) requested_body_dw=( 0.000E+0  0.000E+0  6.000E+0) impulse=( 0.000E+0  0.000E+0  0.000E+0) angular_impulse=(-2.574E+4 -1.661E+2 -9.076E+3) before_v=( 6.149E-4 -1.275E-1  6.833E-4) before_w=( 1.722E-3  1.392E-5  3.408E-3)
+800	STATUS HOLDING h=106.12061>106.13182 | Equilibrage dynamique estime
+820	STATUS RECOVERING h=105.61955>106.13182 | Redressement actif; perte altitude possible
+840	STATUS RECOVERING h=102.683495>106.13182 | Redressement actif; perte altitude possible
+860	STATUS RECOVERING h=90.86801>106.13182 | Redressement actif; perte altitude possible
+880	STATUS RECOVERING h=84.321075>106.13182 | Redressement actif; perte altitude possible
+900	STATUS RECOVERING h=82.76177>106.13182 | Redressement actif; perte altitude possible
+920	STATUS HOLDING h=82.50891>106.13182 | Equilibrage dynamique estime
+940	STATUS HOLDING h=85.5141>106.13182 | Equilibrage dynamique estime
+960	STATUS RECOVERING h=87.64125>106.13182 | Redressement actif; perte altitude possible
+980	STATUS RECOVERING h=85.6712>106.13182 | Redressement actif; perte altitude possible
+1000	STATUS RECOVERING h=82.48358>106.13182 | Redressement actif; perte altitude possible
+1020	STATUS HOLDING h=83.07614>106.13182 | Equilibrage dynamique estime
+1040	STATUS DEGRADED h=86.72621>106.13182 | Equilibrage dynamique estime
+1060	STATUS RECOVERING h=87.42475>106.13182 | Redressement actif; perte altitude possible
+1080	STATUS RECOVERING h=83.87339>106.13182 | Redressement actif; perte altitude possible
+1100	STATUS DEGRADED h=81.805214>106.13182 | Equilibrage dynamique estime
+1120	STATUS HOLDING h=84.9862>106.13182 | Equilibrage dynamique estime
+1140	STATUS RECOVERING h=87.952194>106.13182 | Redressement actif; perte altitude possible
+1160	STATUS RECOVERING h=85.52649>106.13182 | Redressement actif; perte altitude possible
+1180	STATUS DEGRADED h=82.0733>106.13182 | Equilibrage dynamique estime
+1200	STATUS HOLDING h=83.68604>106.13182 | Equilibrage dynamique estime
+1220	STATUS RECOVERING h=87.15148>106.13182 | Redressement actif; perte altitude possible
+1240	STATUS RECOVERING h=87.24024>106.13182 | Redressement actif; perte altitude possible
+1260	STATUS RECOVERING h=83.43874>106.13182 | Redressement actif; perte altitude possible
+1280	STATUS HOLDING h=82.18602>106.13182 | Equilibrage dynamique estime
+1300	STATUS HOLDING h=85.59395>106.13182 | Equilibrage dynamique estime
+1320	STATUS RECOVERING h=87.8196>106.13182 | Redressement actif; perte altitude possible
+1340	STATUS RECOVERING h=86.018326>106.13182 | Redressement actif; perte altitude possible
+1360	STATUS RECOVERING h=82.35939>106.13182 | Redressement actif; perte altitude possible
+1380	STATUS HOLDING h=83.20809>106.13182 | Equilibrage dynamique estime
+1400	STATUS DEGRADED h=86.947075>106.13182 | Equilibrage dynamique estime
+1420	STATUS RECOVERING h=87.45501>106.13182 | Redressement actif; perte altitude possible
+1440	STATUS RECOVERING h=84.23547>106.13182 | Redressement actif; perte altitude possible
+1460	STATUS DEGRADED h=81.887695>106.13182 | Equilibrage dynamique estime
+1480	STATUS HOLDING h=84.39523>106.13182 | Equilibrage dynamique estime
+1500	STATUS RECOVERING h=87.693695>106.13182 | Redressement actif; perte altitude possible
+1520	STATUS RECOVERING h=86.69284>106.13182 | Redressement actif; perte altitude possible
+1540	STATUS RECOVERING h=82.85433>106.13182 | Redressement actif; perte altitude possible
+1560	STATUS HOLDING h=82.68382>106.13182 | Equilibrage dynamique estime
+1580	STATUS DEGRADED h=85.94558>106.13182 | Equilibrage dynamique estime
+1600	STATUS RECOVERING h=87.305244>106.13182 | Redressement actif; perte altitude possible
+1620	STATUS RECOVERING h=84.41375>106.13182 | Redressement actif; perte altitude possible
+1640	STATUS DEGRADED h=81.84501>106.13182 | Equilibrage dynamique estime
+1660	STATUS HOLDING h=84.62695>106.13182 | Equilibrage dynamique estime
+1680	STATUS HOLDING h=90.68294>106.13182 | Equilibrage dynamique estime
+1700	STATUS HOLDING h=98.60582>106.13182 | Equilibrage dynamique estime
+1720	STATUS HOLDING h=105.28801>106.13182 | Equilibrage dynamique estime
+1740	STATUS HOLDING h=107.88014>106.13182 | Equilibrage dynamique estime
+1760	STATUS HOLDING h=108.72665>106.13182 | Equilibrage dynamique estime
+1780	STATUS HOLDING h=109.58253>106.13182 | Equilibrage dynamique estime
+1800	STATUS HOLDING h=108.872986>106.13182 | Equilibrage dynamique estime
+1800	COMPLETE: shock scenario ended, criteria scored separately
+1820	STATUS Pret: activer sans touche
+1840	STATUS Pret: activer sans touche
+1845	EXPORT: 9 pages complete

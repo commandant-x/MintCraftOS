@@ -1,0 +1,95 @@
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+180	STATUS Pret: activer sans touche
+200	STATUS Pret: activer sans touche
+220	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+240	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+260	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+280	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+300	WARMUP HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+300	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+310	DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch=838667
+320	RELEASE: fixture lock removed, physical flight begins
+320	STATUS HOLDING h=106.13182>106.13182 | Equilibrage dynamique estime
+340	STATUS HOLDING h=106.423325>106.13182 | Equilibrage dynamique estime
+360	STATUS HOLDING h=106.3988>106.13182 | Equilibrage dynamique estime
+380	STATUS HOLDING h=106.20777>106.13182 | Equilibrage dynamique estime
+400	STATUS HOLDING h=106.113144>106.13182 | Equilibrage dynamique estime
+420	STATUS HOLDING h=106.084145>106.13182 | Equilibrage dynamique estime
+440	STATUS HOLDING h=106.08058>106.13182 | Equilibrage dynamique estime
+460	STATUS HOLDING h=106.08783>106.13182 | Equilibrage dynamique estime
+480	STATUS HOLDING h=106.091064>106.13182 | Equilibrage dynamique estime
+500	STATUS HOLDING h=106.096054>106.13182 | Equilibrage dynamique estime
+520	STATUS HOLDING h=106.10172>106.13182 | Equilibrage dynamique estime
+540	STATUS HOLDING h=106.0991>106.13182 | Equilibrage dynamique estime
+560	STATUS HOLDING h=106.10234>106.13182 | Equilibrage dynamique estime
+580	STATUS HOLDING h=106.10508>106.13182 | Equilibrage dynamique estime
+600	STATUS HOLDING h=106.10959>106.13182 | Equilibrage dynamique estime
+620	STATUS HOLDING h=106.10815>106.13182 | Equilibrage dynamique estime
+640	STATUS HOLDING h=106.110985>106.13182 | Equilibrage dynamique estime
+660	STATUS HOLDING h=106.11124>106.13182 | Equilibrage dynamique estime
+680	STATUS HOLDING h=106.11644>106.13182 | Equilibrage dynamique estime
+700	STATUS HOLDING h=106.11395>106.13182 | Equilibrage dynamique estime
+720	STATUS HOLDING h=106.11639>106.13182 | Equilibrage dynamique estime
+740	STATUS HOLDING h=106.119705>106.13182 | Equilibrage dynamique estime
+760	STATUS HOLDING h=106.11803>106.13182 | Equilibrage dynamique estime
+780	STATUS HOLDING h=106.11995>106.13182 | Equilibrage dynamique estime
+800	SHOCK side5 requested_dv=( 5.000E+0  0.000E+0  0.000E+0) requested_body_dw=( 0.000E+0  0.000E+0  0.000E+0) impulse=( 9.675E+2  0.000E+0  0.000E+0) angular_impulse=( 0.000E+0  0.000E+0  0.000E+0) before_v=( 7.217E-4 -1.286E-1  1.520E-3) before_w=( 1.397E-3  2.023E-5  1.675E-3)
+800	STATUS HOLDING h=106.12095>106.13182 | Equilibrage dynamique estime
+820	STATUS HOLDING h=106.15202>106.13182 | Equilibrage dynamique estime
+840	STATUS HOLDING h=106.099724>106.13182 | Equilibrage dynamique estime
+860	STATUS HOLDING h=106.16216>106.13182 | Equilibrage dynamique estime
+880	STATUS HOLDING h=106.128784>106.13182 | Equilibrage dynamique estime
+900	STATUS HOLDING h=106.112>106.13182 | Equilibrage dynamique estime
+920	STATUS HOLDING h=106.11212>106.13182 | Equilibrage dynamique estime
+940	STATUS HOLDING h=106.110275>106.13182 | Equilibrage dynamique estime
+960	STATUS HOLDING h=106.116234>106.13182 | Equilibrage dynamique estime
+980	STATUS HOLDING h=106.11945>106.13182 | Equilibrage dynamique estime
+1000	STATUS HOLDING h=106.12373>106.13182 | Equilibrage dynamique estime
+1020	STATUS HOLDING h=106.125465>106.13182 | Equilibrage dynamique estime
+1040	STATUS HOLDING h=106.12898>106.13182 | Equilibrage dynamique estime
+1060	STATUS HOLDING h=106.125626>106.13182 | Equilibrage dynamique estime
+1080	STATUS HOLDING h=106.128456>106.13182 | Equilibrage dynamique estime
+1100	STATUS HOLDING h=106.125015>106.13182 | Equilibrage dynamique estime
+1120	STATUS HOLDING h=106.12804>106.13182 | Equilibrage dynamique estime
+1140	STATUS HOLDING h=106.1294>106.13182 | Equilibrage dynamique estime
+1160	STATUS HOLDING h=106.12891>106.13182 | Equilibrage dynamique estime
+1180	STATUS HOLDING h=106.132126>106.13182 | Equilibrage dynamique estime
+1200	STATUS HOLDING h=106.13075>106.13182 | Equilibrage dynamique estime
+1220	STATUS HOLDING h=106.12651>106.13182 | Equilibrage dynamique estime
+1240	STATUS HOLDING h=106.12976>106.13182 | Equilibrage dynamique estime
+1260	STATUS HOLDING h=106.13134>106.13182 | Equilibrage dynamique estime
+1280	STATUS HOLDING h=106.13149>106.13182 | Equilibrage dynamique estime
+1300	STATUS HOLDING h=106.13006>106.13182 | Equilibrage dynamique estime
+1320	STATUS HOLDING h=106.12827>106.13182 | Equilibrage dynamique estime
+1340	STATUS HOLDING h=106.133705>106.13182 | Equilibrage dynamique estime
+1360	STATUS HOLDING h=106.13084>106.13182 | Equilibrage dynamique estime
+1380	STATUS HOLDING h=106.12985>106.13182 | Equilibrage dynamique estime
+1400	STATUS HOLDING h=106.130646>106.13182 | Equilibrage dynamique estime
+1420	STATUS HOLDING h=106.13163>106.13182 | Equilibrage dynamique estime
+1440	STATUS HOLDING h=106.13035>106.13182 | Equilibrage dynamique estime
+1460	STATUS HOLDING h=106.13298>106.13182 | Equilibrage dynamique estime
+1480	STATUS HOLDING h=106.1294>106.13182 | Equilibrage dynamique estime
+1500	STATUS HOLDING h=106.1312>106.13182 | Equilibrage dynamique estime
+1520	STATUS HOLDING h=106.13442>106.13182 | Equilibrage dynamique estime
+1540	STATUS HOLDING h=106.1281>106.13182 | Equilibrage dynamique estime
+1560	STATUS HOLDING h=106.13267>106.13182 | Equilibrage dynamique estime
+1580	STATUS HOLDING h=106.13097>106.13182 | Equilibrage dynamique estime
+1600	STATUS HOLDING h=106.13047>106.13182 | Equilibrage dynamique estime
+1620	STATUS HOLDING h=106.13322>106.13182 | Equilibrage dynamique estime
+1640	STATUS HOLDING h=106.1311>106.13182 | Equilibrage dynamique estime
+1660	STATUS HOLDING h=106.13184>106.13182 | Equilibrage dynamique estime
+1680	STATUS HOLDING h=106.132164>106.13182 | Equilibrage dynamique estime
+1700	STATUS HOLDING h=106.13065>106.13182 | Equilibrage dynamique estime
+1720	STATUS HOLDING h=106.130486>106.13182 | Equilibrage dynamique estime
+1740	STATUS HOLDING h=106.13147>106.13182 | Equilibrage dynamique estime
+1760	STATUS HOLDING h=106.13099>106.13182 | Equilibrage dynamique estime
+1780	STATUS HOLDING h=106.13203>106.13182 | Equilibrage dynamique estime
+1800	STATUS HOLDING h=106.131035>106.13182 | Equilibrage dynamique estime
+1800	COMPLETE: shock scenario ended, criteria scored separately
+1820	STATUS Pret: activer sans touche
+1840	STATUS Pret: activer sans touche
+1845	EXPORT: 9 pages complete

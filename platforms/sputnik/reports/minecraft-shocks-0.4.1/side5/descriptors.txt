@@ -1,0 +1,4 @@
+MCV1;1;bearing;lift;-7.005652450025082;1.5090843023255758;7.8730620220303535;0;1;0;256;12;0.2;0.05;1;8;-1;1;minecraft:orange_wool;minecraft:black_wool;;;;;0;0.15;0;1
+MCV1;2;bearing;lift;6.994347549974918;1.5090843023255758;7.8730620220303535;0;1;0;256;12;0.2;0.05;1;8;-1;1;minecraft:white_wool;minecraft:black_wool;;;;;0;0.15;0;1
+MCV1;3;bearing;lift;-7.005652450025082;1.5090843023255758;-8.126937977969646;0;1;0;256;12;0.2;0.05;1;8;-1;1;minecraft:light_blue_wool;minecraft:black_wool;;;;;0;0.15;0;1
+MCV1;4;bearing;lift;6.994347549974918;1.5090843023255758;-8.126937977969646;0;1;0;256;12;0.2;0.05;1;8;-1;1;minecraft:magenta_wool;minecraft:black_wool;;;;;0;0.15;0;1

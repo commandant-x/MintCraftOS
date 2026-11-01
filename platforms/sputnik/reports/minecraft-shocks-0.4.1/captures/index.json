@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "resolution": [
+    1280,
+    720
+  ],
+  "synthetic_images": false,
+  "images": [
+    {
+      "case": "down8",
+      "file": "down8-tick816-wall1793485457115.png",
+      "nearest_observed_server_tick": 816,
+      "universe_tick": 839135,
+      "capture_start_epoch": 1793485457.115911,
+      "capture_end_epoch": 1793485457.7000523,
+      "exit_code": 0,
+      "published_file": "down8.png",
+      "sha256": "ddc063a5658b1124a3057dc42ac1162d868dc232d972234863e9f8cf868f7cb3",
+      "method": "ffmpeg x11grab; unedited actual Minecraft framebuffer",
+      "tick_meaning": "server tick observed before capture; rendering and acquisition latency remain"
+    },
+    {
+      "case": "up8",
+      "file": "up8-tick822-wall1793485691895.png",
+      "nearest_observed_server_tick": 822,
+      "universe_tick": 838854,
+      "capture_start_epoch": 1793485691.895644,
+      "capture_end_epoch": 1793485692.8096888,
+      "exit_code": 0,
+      "published_file": "up8.png",
+      "sha256": "74b81324313f45c2b60d338c0262b9c91cba1e603b99938aa4c1a904494b4a76",
+      "method": "ffmpeg x11grab; unedited actual Minecraft framebuffer",
+      "tick_meaning": "server tick observed before capture; rendering and acquisition latency remain"
+    },
+    {
+      "case": "roll2",
+      "file": "roll2-tick812-wall1793485944987.png",
+      "nearest_observed_server_tick": 812,
+      "universe_tick": 838803,
+      "capture_start_epoch": 1793485944.987585,
+      "capture_end_epoch": 1793485945.9048479,
+      "exit_code": 0,
+      "published_file": "roll2.png",
+      "sha256": "115167dfc551accac3c7ae42c773ec9e4c9a61f7d7ea2d3c5651c99f23f5379a",
+      "method": "ffmpeg x11grab; unedited actual Minecraft framebuffer",
+      "tick_meaning": "server tick observed before capture; rendering and acquisition latency remain"
+    },
+    {
+      "case": "pitch2",
+      "file": "pitch2-tick820-wall1793486206295.png",
+      "nearest_observed_server_tick": 820,
+      "universe_tick": 839104,
+      "capture_start_epoch": 1793486206.295498,
+      "capture_end_epoch": 1793486207.100632,
+      "exit_code": 0,
+      "published_file": "pitch2.png",
+      "sha256": "c6461b68c5683f71821a9613521d1eb7fa6ec09b5ced357180ce842b89c9938a",
+      "method": "ffmpeg x11grab; unedited actual Minecraft framebuffer",
+      "tick_meaning": "server tick observed before capture; rendering and acquisition latency remain"
+    },
+    {
+      "case": "combined",
+      "file": "combined-tick813-wall1793496606920.png",
+      "nearest_observed_server_tick": 813,
+      "universe_tick": 841340,
+      "capture_start_epoch": 1793496606.9204295,
+      "capture_end_epoch": 1793496607.5326908,
+      "exit_code": 0,
+      "published_file": "combined.png",
+      "sha256": "919f77b670cd4d9b833f16d99a88a338b469b8c23532ef4af2e8c3d64a7b84d9",
+      "method": "ffmpeg x11grab; unedited actual Minecraft framebuffer",
+      "tick_meaning": "server tick observed before capture; rendering and acquisition latency remain"
+    },
+    {
+      "case": "inversion",
+      "file": "inversion-tick845-wall1793496837300.png",
+      "nearest_observed_server_tick": 845,
+      "universe_tick": 839016,
+      "capture_start_epoch": 1793496837.300563,
+      "capture_end_epoch": 1793496838.0634873,
+      "exit_code": 0,
+      "published_file": "inversion.png",
+      "sha256": "16c10290d0a23def836aa8a34ad5ff74afda7ddbc524683ed5524089626d599a",
+      "method": "ffmpeg x11grab; unedited actual Minecraft framebuffer",
+      "tick_meaning": "server tick observed before capture; rendering and acquisition latency remain"
+    },
+    {
+      "case": "side5",
+      "file": "observer-1793485111503.png",
+      "published_file": "side5.png",
+      "epoch": 1793485111.503,
+      "sha256": "6ead9b3842f5de15bbc7dffb282aafa5fbfdc6760817dbefb6e0221a98289dcf",
+      "method": "Minecraft Screenshot.grab; unedited",
+      "tick_meaning": "case association by wall-clock interval; no exact server tick association"
+    },
+    {
+      "case": "side12",
+      "file": "observer-1793485309629.png",
+      "published_file": "side12.png",
+      "epoch": 1793485309.629,
+      "sha256": "cf2b997c5e7ed25a98bb2e83055441cab575b68a0a09088f2f1d94b3812931dc",
+      "method": "Minecraft Screenshot.grab; unedited",
+      "tick_meaning": "case association by wall-clock interval; no exact server tick association"
+    }
+  ]
+}

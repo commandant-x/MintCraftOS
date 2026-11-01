@@ -1,0 +1,57 @@
+{
+  "case": "pitch2",
+  "label": "Rotation locale X : +2 rad/s",
+  "status": "ABORT",
+  "impulse_tick": 800,
+  "end_tick": 1258,
+  "impulse_event": "800\tSHOCK pitch2 requested_dv=( 0.000E+0  0.000E+0  0.000E+0) requested_body_dw=( 2.000E+0  0.000E+0  0.000E+0) impulse=( 0.000E+0  0.000E+0  0.000E+0) angular_impulse=(-3.869E+3  4.663E-1  1.190E+4) before_v=( 7.113E-5 -1.294E-1  2.235E-3) before_w=(-8.658E-4  3.771E-5 -2.254E-3)",
+  "completed": false,
+  "aborted": true,
+  "baseline_200_fresh_stable": true,
+  "tail_200_fresh_stable": false,
+  "target_preserved": true,
+  "horizontal_protection_observed": false,
+  "disturbance_observed": true,
+  "horizontal_protection_at_end": false,
+  "fresh_tick_gaps": 0,
+  "free_response_seconds": 22.9,
+  "first_20_stable_seconds": null,
+  "sustained_200_recovery_seconds": null,
+  "peak_height_error_m": 168.82725524902344,
+  "height_loss_m": 3.9113388061523438,
+  "peak_tilt_deg": 69.16980194731848,
+  "peak_tilt_tick": 816,
+  "peak_tilt_seconds": 0.8,
+  "inverted_observed": false,
+  "peak_vertical_speed_m_s": 12.6031494140625,
+  "peak_horizontal_speed_m_s": 23.945648059158433,
+  "max_displacement_m": 342.5196996237152,
+  "final_displacement_m": 342.5196996237152,
+  "tail_height_error_m": 168.82725524902344,
+  "tail_vertical_speed_m_s": 12.6031494140625,
+  "tail_horizontal_speed_m_s": 23.945648059158433,
+  "tail_tilt_deg": 16.5929112959558,
+  "first_response_delta_v": [
+    0.0054931640625,
+    -0.18341064453125,
+    -0.010986328125
+  ],
+  "faults": [
+    "1258\tABORT: test envelope exceeded; fixture locked; not a flight pass"
+  ],
+  "run": {
+    "case": "pitch2",
+    "start_utc_epoch": 1793486053.7068803,
+    "controller_sha256": "c197b53608077a95b27fef549efa7c013a5e4221bd07b5b52710c952c4f011de",
+    "supervisor_sha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+    "fixture_sha256": "67ca4ba69f1e643aba38abe48130f03a4d4cb37f455afdfb6309938b999bccea",
+    "viewer": true,
+    "source_world_copy": true
+  },
+  "exit": {
+    "exit_code": -9,
+    "wall_timeout": true,
+    "reason": "Flight ABORT at tick1258; server shutdown stalled and required termination; capture precedes termination"
+  },
+  "trace_sha256": "249ac9d7bbb927052ba05d3eef84505b44fd75df0c0e435a6b800d1a7f4688f7"
+}
