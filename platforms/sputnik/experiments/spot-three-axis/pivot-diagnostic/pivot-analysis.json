@@ -1,0 +1,16 @@
+{
+  "complete": true,
+  "pivot_assembled_sampled": true,
+  "pivot_powered_states": [
+    "true"
+  ],
+  "sampled_on_mean_z_degrees": -43.90026893570492,
+  "sampled_off_mean_z_degrees": -43.90021895428581,
+  "sampled_change_z_degrees": 4.998141912437859e-05,
+  "on_final_five_span_degrees": 7.356313982143092e-05,
+  "off_final_five_span_degrees": 0.0,
+  "rotation_over_5_degrees": false,
+  "off_motion_under_2_degrees": true,
+  "single_axis_fixture_only": true,
+  "full_leg_or_walking_tested": false
+}
