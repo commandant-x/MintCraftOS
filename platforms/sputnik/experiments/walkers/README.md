@@ -1,5 +1,7 @@
 # Essais de séquencement pour bipède et quadrupède
 
+Pour le quadrupède, la cible est un robot inspiré de Spot de Boston Dynamics, avec **un seul moteur créatif**. Le [premier banc de transmission à un moteur](../spot-one-motor/README.md) a été mesuré dans Minecraft.
+
 Ces deux TXT Sputnik contiennent chacun **un indicateur expérimental de phases**, sans transmission Link, sans commande moteur et sans qualification de marche. Ils sont destinés à préparer un banc d'essai de jambes ; aucun bipède ou quadrupède physique n'a encore été construit ou testé avec eux.
 
 - [Bipède : TXT à importer](bipede.clipboard.txt)

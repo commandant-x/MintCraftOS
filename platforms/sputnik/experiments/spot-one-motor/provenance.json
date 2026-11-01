@@ -1,0 +1,12 @@
+{
+  "fixture_source": "b1ea417d365800b334845b618bcd57e3046bb619b61345b9533128e175bcfbcf",
+  "fixture_jar": "8b90dcc252a6072cb72abb63929f5973f6b1cfa7b1c7e93d933fe3eccaebced1",
+  "measurements": "ff5a79c04884254e9d1e455e1b48b4c35acec57c7572bfc485cdfe6dd44a69df",
+  "modpack_index": "61a71c20d8024e7108da943e3d165eeaf30a741f6126d1876eb6778fdc1fd3b2",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "create": "6.0.10",
+  "aeronautics": "1.3.2",
+  "cosmonautics": "26.08.307",
+  "scope": "static unloaded bench, one creative motor, no legs or active Sputnik actuator commands"
+}
