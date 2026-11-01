@@ -23,8 +23,8 @@ function M.new(groups,p,config)
  local gravity=Geometry.bodyVector(vec(0,p.gravity,0),p.q)
  local wanted={gravity.z-offset[1],gravity.x-offset[2],gravity.y-offset[3],-offset[4],-offset[5],-offset[6]}
  local allocation,result=V.solve(initial,wanted);if not allocation then return nil,result end
- if math.abs(result.actual[3]-wanted[3])>math.max(.5,p.gravity*.1) then return nil,'Portance modele insuffisante au depart' end
- if math.max(math.abs(result.actual[4]-wanted[4]),math.abs(result.actual[5]-wanted[5]),math.abs(result.actual[6]-wanted[6]))>.1 then return nil,'Equilibre sustentation invalide' end
+ if math.abs(result.actual[3]-wanted[3])>math.max(.5,p.gravity*.1) then return nil,'Portance initiale insuffisante' end
+ if math.max(math.abs(result.actual[4]-wanted[4]),math.abs(result.actual[5]-wanted[5]),math.abs(result.actual[6]-wanted[6]))>.1 then return nil,'Equilibre portance invalide' end
  for i,m in ipairs(metadata) do m.column=initial.columns[i].response end
  s.initialSignals=V.signals(metadata,allocation,s.quant)
  if not s.initialSignals then return nil,'Initialisation niveaux impossible' end
@@ -82,11 +82,11 @@ function M.new(groups,p,config)
   local oldV=V.copy(self.velocity)
   for _,axis in ipairs({'x','y','z'}) do
    local k=self.filters[axis]
-   if math.abs(p[axis]-k.x-k.v*dt)>20 then return nil,'Discontinuite de pose' end
+   if math.abs(p[axis]-k.x-k.v*dt)>20 then return nil,'Pose discontinue' end
    if not Filter.update(k,p[axis],dt) then return nil,'Estimateur perdu' end
    self.velocity[axis]=k.v;self.acceleration[axis]=self.acceleration[axis]+dt/(.1+dt)*((k.v-oldV[axis])/dt-self.acceleration[axis])
   end
-  local worldRate=Geometry.angularVelocity(self.previous.q,p.q,dt);if not worldRate then return nil,'Rotation non observable' end
+  local worldRate=Geometry.angularVelocity(self.previous.q,p.q,dt);if not worldRate then return nil,'Rotation absente' end
   local rate=Geometry.bodyVector(worldRate,p.q)
   for _,axis in ipairs({'x','y','z'}) do local old=omegaNow[axis];omegaNow[axis]=old+dt/(.05+dt)*(rate[axis]-old);accelNow[axis]=accelNow[axis]+dt/(.1+dt)*((omegaNow[axis]-old)/dt-accelNow[axis]) end
   self.tick=p.tick;self.samples=self.samples+1
@@ -101,7 +101,7 @@ function M.new(groups,p,config)
    self.target=vec(p.x,self.target.y,p.z);self.target.y=self.target.y+command.vertical*(cfg.climb or 1)*dt
   end
   local provisional=V.matrix(groupList,p,v,mass0,nil)
-  if not provisional then return nil,'Modele physique indisponible' end
+  if not provisional then return nil,'Modele indisponible' end
   local caps=V.capabilities(provisional,groupList)
   local drive,yawAvailable=caps.drive,caps.yaw.available
   self.capabilities=caps;self.bodyYawControlled=yawAvailable
@@ -163,7 +163,10 @@ function M.new(groups,p,config)
   else
    desiredYaw=(yawAvailable or caps.surface) and self.heading or p.yaw
    if speed>.12 then
-    self.braking=true;worldAx=-1.2*(v.x+.4*self.acceleration.x);worldAz=-1.2*(v.z+.4*self.acceleration.z);self.target.x=p.x;self.target.z=p.z
+    -- Three-rotor tilt craft need more lead while attitude catches up.
+    -- Keep the existing law for the other architectures and mixed quads.
+    local lead=#groupList==3 and not drive and 1.2 or .4
+    self.braking=true;worldAx=-1.2*(v.x+lead*self.acceleration.x);worldAz=-1.2*(v.z+lead*self.acceleration.z);self.target.x=p.x;self.target.z=p.z
    else
     self.braking=false;worldAx=.3*(self.target.x-p.x)-.9*v.x;worldAz=.3*(self.target.z-p.z)-.9*v.z
    end
@@ -261,7 +264,7 @@ function M.new(groups,p,config)
   self.previous=p
   local info={phase=self.phase,mode=self.mode,targetY=self.target.y,altitude=p.y,verticalSpeed=v.y,speed=speed,bodyYaw=p.yaw,course=self.course,bodyYawControlled=yawAvailable,
    capabilities=caps,residual=allocation.normalizedResidual,saturated=allocation.saturated,pitchTarget=pitchTarget,rollTarget=rollTarget,mass=p.mass,
-   massChanged=self.massAdapted==true,rxConfirmed=false,shaftConfirmed=false,reason=cal and not cal.complete and cal.reason or mission and (mission.paused and mission.events[#mission.events] or mission.phase) or 'Modele declare; validation distincte'}
+   massChanged=self.massAdapted==true,rxConfirmed=false,shaftConfirmed=false,reason=cal and not cal.complete and cal.reason or mission and (mission.paused and mission.events[#mission.events] or mission.phase) or 'Modele non qualifie'}
   info.reversing=reversing;self.info=info;return signals,info
  end
  return s

@@ -1,0 +1,152 @@
+{
+  "pack_sha256": "06602b8f5195d93b7a1b99c9a07d7d95ddeb4756729dbde888462b733b597420",
+  "dependencies": {
+    "minecraft": "1.21.1",
+    "neoforge": "21.1.264"
+  },
+  "indexed_files": 42,
+  "server_files": [
+    {
+      "path": "mods/ritchiesprojectilelib-2.1.2+mc.1.21.1-neoforge.jar",
+      "sha512": "6d64c84505a5a8fbb96d106603065465c5a2314ec09636900c5c1a31014c12fa68f1a41e758313cbf0d6f95d9a1f53bd67339020f7d8db0e184c23f66aee0330"
+    },
+    {
+      "path": "mods/createdeco-2.1.3.jar",
+      "sha512": "c536662f9d47ad57a37419165ded14835b23ad6c3e82a920298ecd7ee074244b0b6062ef9cc7ea4501ddd35919a840faccd7fc64e43eb8df31e12076681c3c0d"
+    },
+    {
+      "path": "mods/forgified-fabric-api-0.116.15+2.3.6+1.21.1.jar",
+      "sha512": "470ae4e8569484e6942a2f7e09a37ae58a58e0ad44f49f0d483db88024db19d41bfac3c68221c38623829871ade9d89bc5aa31cf0e682e798b2f9029b808011d"
+    },
+    {
+      "path": "mods/rechiseledcreate-1.1.1-neoforge-mc1.21.jar",
+      "sha512": "ca77dea4dd3276105176578855b0ffd9f48256bed58701a86171b05db1116a29592871ca7d6d5acc9a023270a45654feb4ab7153026eb751d567e7bf892ca560"
+    },
+    {
+      "path": "mods/mezz_config-1.21.1-neoforge-0.6.9-standalone.jar",
+      "sha512": "2a20fdcca268c0f80547806582c94d79de6d339aabd3714af4bc5cf25ce983028f72ae707d52b44786adeb4e4c1976bebd7dbc4a75a3bf4575ec44c2bcd28dc3"
+    },
+    {
+      "path": "mods/createpropulsion-1.1.5.jar",
+      "sha512": "6096c9c5cb220219a0b58b56f9fefd63f8b79a0967d326727b4206d62df1813da73956aeae2fa5b839160a1bb5af8e099726d12d2d93f10e5f157beb85bb9c52"
+    },
+    {
+      "path": "mods/azimuth-1.4.10.jar",
+      "sha512": "29d2ee1b146d91047bc265a4902d43c20a825005921aeb9c7c4e96be0ae880b1bc842ca5e2b9c607dc46bede744ab023dc5ba8876ac8892f06d3550637819349"
+    },
+    {
+      "path": "mods/interiors-1.21.1-neoforge-0.6.1.jar",
+      "sha512": "68b0d915e41fb0ce9d12a8c580d688a604770ded2b21e963058aa6d80cbc5661c481416d051a541395b5c79f461edcb658046e53cfcfb405179a450662ed01b5"
+    },
+    {
+      "path": "mods/cosmonautics-26.08.307.jar",
+      "sha512": "72ff1be7f31767eb64635a5fd827428410b0899fe5431f951bb4ab2a006ed105bf1cae24b803d51a5b18b067f5f956c493bb827573b22567e204b6b2d84a0de8"
+    },
+    {
+      "path": "mods/connector-2.0.0-beta.17+1.21.1-full.jar",
+      "sha512": "cb92b662047208792e61191d372d1e255766200406c35769007101f8c578c1018938610c3b90352afd93ec42d7963acf3607e35c50e669df50ac85d7c5529560"
+    },
+    {
+      "path": "mods/supermartijn642configlib-1.1.8-neoforge-mc1.21.jar",
+      "sha512": "768d8ca178c5e653986f5131b7aeb7fa57ce7d32c16ed399ced01b273565a2b640130c55c7092747efeff40dbb0348876b18b415f59b0d16dd2c7f32f1798ce2"
+    },
+    {
+      "path": "mods/gadgets-and-gizmos-bundled-2.0.0-Pre-Release-5.jar",
+      "sha512": "6021ffdd4e9f9d302f47b4392eb130c093b94baf7968318cc338345506154b0a8bfe55abe0e14d9f976f69677d758d1df6d5debdcd6510ec1ffce140f8f17d4c"
+    },
+    {
+      "path": "mods/sable-neoforge-1.21.1-2.0.6.jar",
+      "sha512": "76d293ce751a01cb9c095a3659b0a41e03e005480bc9d76dfdc73ec7c2eabf7923740c7b077921d42616673c496cd5143569f2085ddcebe174fd91d81e2a04b8"
+    },
+    {
+      "path": "mods/aeroworks-1.5.0.jar",
+      "sha512": "d79435aaf9c8d8697d1cb5a95b2189ab00ac1387dcbcdc0fbd701a25a22678eba2107e55b8da47bf0089282280ee2b3ff36418d9d7bda744b210d5fa5f4ca697"
+    },
+    {
+      "path": "mods/create_aero_radar-0.1.1-1.21.1.jar",
+      "sha512": "743fb4f8051eb1f361455e125383e67b7681e979d082f75b89fc3c4f1c818727651a6962274edf56aaf8dbcef567ca74d85ae0ea69a52dfdfd51c91afad88da6"
+    },
+    {
+      "path": "mods/resourcefullib-neoforge-1.21-3.0.12.jar",
+      "sha512": "a9d20e345faa9bcb297bd95ac9524205834804d1bb13518397dd4f7f62b352b08c3339ee7f7870d3669078ceeb33d5c31ea527aecce4b31d62ec1ff7d8b562c8"
+    },
+    {
+      "path": "mods/chipped-neoforge-1.21.1-4.0.2.jar",
+      "sha512": "f3083b01267e7c674c4b42f45a317c93ee7723443cba2051fe5bc593638b533b0fe90699e2101661c934dff458eab693cce4e188533bfe977778c249563a2fa5"
+    },
+    {
+      "path": "mods/rechiseled-1.2.6-neoforge-mc1.21.jar",
+      "sha512": "fc7556e42439e526edddafdbde108cd1326fd5742d75ae73fe9519f57af18b75cd2861053247b65fa3acd9c58e186bc540496d1e7095a3206b401d9459958e34"
+    },
+    {
+      "path": "mods/create_radar-5.0.2-1.21.1.jar",
+      "sha512": "e518aceb82273c653a9ecdbbf57388caf3cedd5d781c3493c171da9661a6ca3086cde144d19367861f0737e19416a8c5fc637b34a4782a30fd70604087cc4388"
+    },
+    {
+      "path": "mods/struts-1.3.1.jar",
+      "sha512": "f7c9c3b66c926c163a8c747d3b50c45589f1796711bc9de0e3bb3f024cb18a552e9b7df6e667b813d12aba50377a39a1cd80a493925f164deb89c8a9dc709f49"
+    },
+    {
+      "path": "mods/bits_n_bobs-2.3.5.jar",
+      "sha512": "33aaa835f1b1774a2b2f14ed6015efdf47a5b3827e702814c651ccde08ef5fda7572f6734c3b0f136795b45972a153c8dfe330df708b6487e58e18a29c689cb8"
+    },
+    {
+      "path": "mods/createdieselgenerators-1.21.1-1.3.15.jar",
+      "sha512": "1507ebcd07d3185aac3ae6ce768b4d6bab16cb6f39776d25a850c8133a4dc5826b8ddbeca112d76afc64deaa37ec177cac4237c6c34621c4b65e73d83f8ab43f"
+    },
+    {
+      "path": "mods/supermartijn642corelib-1.1.25-neoforge-mc1.21.jar",
+      "sha512": "c9c4f22ed1657da646331f519e5d40495cc7e92a6683800691823dfcaf858973c8f202285322c095ebeca245c6a512aa8edf83a97c8a65be0080f9b176f5c2e2"
+    },
+    {
+      "path": "mods/createaddition-1.7.2.jar",
+      "sha512": "f3a3ddb5600189da818fc71ea659d17f0d1097c5ad664433eed400b3ecc67d0f9305b348e5b7c5fd872d7a6e51330c7158b3181e77192c576c205a74dd0298ff"
+    },
+    {
+      "path": "mods/Measurements-neoforge-1.21.1-3.0.3.jar",
+      "sha512": "f5f224f62e0ae5cc4d1e940baea615cc2bfb42cbadf0279a3097829e2c0a44f86b944b4bad67f7bb8175bc2fa44fce10f354d7f495d13ea6feacaada260abcca"
+    },
+    {
+      "path": "mods/create-1.21.1-6.0.10.jar",
+      "sha512": "11cc8fc049d2f67f6548c7abfada6b82a3adb5c7ca410a742de04bbca76e03862c518721b88d806f6e6d768a4d68531fdb903a85859b25d1484d550cc7bafd4b"
+    },
+    {
+      "path": "mods/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar",
+      "sha512": "d14b32d3fd143a06514d6ad388eee11e9d657c84e1a937aaf8d033b1137fb43ef8b05cff1011a994cc42f3106823c51234f8bc18d72bb05bc317a20ea83c50ed"
+    },
+    {
+      "path": "mods/create_connected-1.3.3-mc1.21.1.jar",
+      "sha512": "485675693980a266611669857fa9cd348e2a29140b87bf0a8ab3e13c3591422cceaa36b7a2eb90084d35ec1868c8eec9f924383bb4dada2dddcb72e9f09361b0"
+    },
+    {
+      "path": "mods/Create Encased-1.21.1-1.10.0-fix1.jar",
+      "sha512": "b6b35dd0c7a8d332f3a5a98404c65c7b95b08c1cb09b18eafae3b7d303c04090fbcf6a2247273c214ef6c263c43524e17ca5bf0f865657495501a07e18174e02"
+    },
+    {
+      "path": "mods/createbigcannons-5.11.7+mc.1.21.1.jar",
+      "sha512": "24f414dfbb973a0f4d9c9b2aa059edc7bed4d23b4f39eb1f7d23a1d6b437e3b5d64cca6e4b85ff7eb2815743fa711d54ad652bffe96d1eb1234544716006440d"
+    },
+    {
+      "path": "mods/create-aeronautics-bundled-1.21.1-1.3.2.jar",
+      "sha512": "dc7e8e1148fa442243889ba29412207137e1bb86206e6c92bc0a589f1374a466e93de22bdbf14f753984d86c29308fbbdc0f14a4b9618b14c0ac1666a36b46f5"
+    },
+    {
+      "path": "mods/Axiom-6.1.5-for-MC1.21.1.jar",
+      "sha512": "1827d9e9ccb0a7ce2b80bd19e36f2e0e95d6006a6efb332bb42380fd14ce93d52679e772b4ba4d5c26561ba3e3c5de958e453f9b1e0e5578ea4ce6c46d255bd9"
+    },
+    {
+      "path": "mods/jei-1.21.1-neoforge-19.70.0.461.jar",
+      "sha512": "c969bcd27cdfae8772ff78b138bdc63f7256002402020f1d4b71576a29f68ebcebc7c99678c1ca64d3c1be2517bcaa20b644a64fc45e81b3c56051b52c240354"
+    },
+    {
+      "path": "mods/CreateNumismatics-1.1.0+neoforge-mc1.21.1.jar",
+      "sha512": "f0a8e65828f4a36c500f4f2cad99dce89f4899711f3ebe4b8a691bf26a8be9ac8f83386507f87aaead712ab8c5f8a847cd06befb1927cb1f81de95f6cb6b7754"
+    },
+    {
+      "path": "mods/copycats-3.0.9+mc.1.21.1-neoforge.jar",
+      "sha512": "432b5cde473976476b0729172710d32805576d0c3a5fd66d21f882d96cef0c4eef1b85e4e3a1a316e2adc473784b11e156b0265b0f62bcfd5b035a6ff7dfcc6e"
+    }
+  ],
+  "world": "fresh disposable superflat; not a copy of a user world",
+  "client_used": false
+}

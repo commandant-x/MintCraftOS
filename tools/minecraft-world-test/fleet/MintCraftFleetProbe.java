@@ -56,11 +56,28 @@ public class MintCraftFleetProbe {
  }
  private void frequency(ServerLevel level,BlockPos pos,String first,String second){var be=level.getBlockEntity(pos);var tag=be.saveWithFullMetadata(level.registryAccess());tag.putBoolean("Transmitter",false);tag.put("FrequencyFirst",new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse("minecraft:"+first))).save(level.registryAccess()));tag.put("FrequencyLast",new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse("minecraft:"+second))).save(level.registryAccess()));be.loadWithComponents(tag,level.registryAccess());}
  private void construct(MinecraftServer server)throws Exception{
-  var level=server.overworld();var container=SubLevelContainer.getContainer(level);var original=container.getSubLevel(TARGET);if(!(original instanceof ServerSubLevel old))throw new IllegalStateException("Source graph not loaded");
-  net.minecraft.nbt.CompoundTag graph=null;for(var h:old.getPlot().getLoadedChunks())for(var be:h.getChunk().getBlockEntities().values())if(be instanceof SputnikBlockEntity s)graph=s.graph.save();if(graph==null)throw new IllegalStateException("Source graph missing");
+  var level=server.overworld();var container=SubLevelContainer.getContainer(level);
+  net.minecraft.nbt.CompoundTag graph=null;
+  String template=System.getProperty("mintcraft.graphTemplate");
+  if(template!=null){
+   // A production clipboard allows construction in a fresh disposable world.
+   // No user world, fixed ship UUID or private save is required on this route.
+   String encoded=Files.readString(Path.of(template)).strip();
+   graph=net.minecraft.nbt.TagParser.parseTag(new String(Base64.getDecoder().decode(encoded),java.nio.charset.StandardCharsets.UTF_8));
+   event("GRAPH_TEMPLATE sha256="+HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+  }else{
+   var original=container.getSubLevel(TARGET);if(!(original instanceof ServerSubLevel old))throw new IllegalStateException("Source graph not loaded; provide -Dmintcraft.graphTemplate=/path/to/production.clipboard.txt for a fresh world");
+   for(var h:old.getPlot().getLoadedChunks())for(var be:h.getChunk().getBlockEntities().values())if(be instanceof SputnikBlockEntity s)graph=s.graph.save();
+  }
+  if(graph==null)throw new IllegalStateException("Source graph missing");
   for(int x=-7;x<=7;x++)for(int z=(balanced()||architecture.equals("balloon-lift")?-8:-14);z<=8;z++)if(Math.abs(x)<=2||Math.abs(z)<=1)put(level,x,0,z,block("minecraft:oak_planks"));
   put(level,0,1,0,block("rocketnautics:sputnik"));
-  if(architecture.equals("tri")){motor(level,-6,-5,net.minecraft.core.Direction.UP,0);motor(level,6,-5,net.minecraft.core.Direction.UP,1);motor(level,0,7,net.minecraft.core.Direction.UP,2);}
+  if(architecture.equals("quad")){motor(level,-6,-5,net.minecraft.core.Direction.UP,0);motor(level,6,-5,net.minecraft.core.Direction.UP,1);motor(level,-6,5,net.minecraft.core.Direction.UP,2);motor(level,6,5,net.minecraft.core.Direction.UP,3);}
+  else if(architecture.equals("hex")||architecture.equals("octo")){
+   int[][] positions=architecture.equals("hex")?new int[][]{{-12,-8},{12,-8},{-12,8},{12,8},{0,-16},{0,16}}:new int[][]{{-12,-12},{0,-12},{12,-12},{-12,0},{12,0},{-12,12},{0,12},{12,12}};
+   for(int i=0;i<positions.length;i++){int x=positions[i][0],z=positions[i][1];for(int zz=Math.min(0,z);zz<=Math.max(0,z);zz++)put(level,0,0,zz,block("minecraft:oak_planks"));motor(level,x,z,net.minecraft.core.Direction.UP,i);}
+  }
+  else if(architecture.equals("tri")){motor(level,-6,-5,net.minecraft.core.Direction.UP,0);motor(level,6,-5,net.minecraft.core.Direction.UP,1);motor(level,0,7,net.minecraft.core.Direction.UP,2);}
   else if(architecture.equals("quad-banks")||balanced()){motor(level,-6,-5,net.minecraft.core.Direction.UP,0);motor(level,6,-5,net.minecraft.core.Direction.UP,1);motor(level,-6,5,net.minecraft.core.Direction.UP,2);motor(level,6,5,net.minecraft.core.Direction.UP,3);motor(level,-5,balanced()?0:-14,net.minecraft.core.Direction.SOUTH,4);motor(level,5,balanced()?0:-14,net.minecraft.core.Direction.SOUTH,5);}
   else if(architecture.equals("balloon")||architecture.equals("balloon-lift")){
    put(level,0,1,0,block("aeronautics:adjustable_burner"));put(level,-1,1,0,block("rocketnautics:sputnik"));
@@ -93,7 +110,8 @@ public class MintCraftFleetProbe {
    if(be instanceof PropellerBearingBlockEntity b)rotors.add(b);
    if(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString().equals("create:redstone_link"))links.add(be);
   }
-  if(sp==null||rotors.size()!=(architecture.equals("tri")?3:architecture.equals("balloon-lift")?0:architecture.equals("balloon")?2:6))throw new IllegalStateException("Unexpected fleet actuator count");
+  int expectedRotors=switch(architecture){case "tri"->3;case "quad"->4;case "hex"->6;case "octo"->8;case "balloon-lift"->0;case "balloon"->2;default->6;};
+  if(sp==null||rotors.size()!=expectedRotors)throw new IllegalStateException("Unexpected fleet actuator count: expected="+expectedRotors+" actual="+rotors.size());
   for(var rotor:rotors)if(rotor.getScaledThrust()<0){com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity nearestMotor=null;double best=Double.POSITIVE_INFINITY;for(var h:ship.getPlot().getLoadedChunks())for(var be:h.getChunk().getBlockEntities().values())if(be instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity m){double dist=m.getBlockPos().distSqr(rotor.getBlockPos());if(dist<best){best=dist;nearestMotor=m;}}if(nearestMotor==null||best>25)throw new IllegalStateException("Motor association missing");nearestMotor.generatedSpeed.setValue(-(int)nearestMotor.getGeneratedSpeed());event("SOURCE_DIRECTION set for "+rotor.getBlockPos());}
   rotors.sort(Comparator.comparingInt((PropellerBearingBlockEntity b)->-b.getBlockPos().getZ()).thenComparingInt(b->b.getBlockPos().getX()));
   var center=ship.getMassTracker().getCenterOfMass();var bounds=ship.getPlot().getBoundingBox();double radius=0;
@@ -134,8 +152,45 @@ public class MintCraftFleetProbe {
   for(int i=0;i<6;i++)lua.append("transmitWirelessRedstone('minecraft:").append(keys[i]).append("','minecraft:").append(keys[i]).append("',a[").append(i+1).append("])\n");
   lua.append("output('Scenario tick',t)\n");var n=new WNode(ResourceLocation.parse("rocketnautics:lua_script"),"Test fixture: six key radio transmitter",20,1200);dev.devce.rocketnautics.registry.RocketNodes.setupLuaEvaluatorPublic(n);n.getCustomData().putString("code",lua.toString());sp.graph.addNode(n);event("DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch="+base);
  }
+ private int preparedShips,preparedMotors;private boolean prepared;
+ private void prepareWorldCopy(MinecraftServer server)throws Exception{
+  Path out=Path.of("mintcraft-world-export");Files.createDirectories(out);
+  if(ticks==40){
+   String encoded=Files.readString(Path.of(System.getProperty("mintcraft.exportGraph"))).strip();
+   var graph=net.minecraft.nbt.TagParser.parseTag(new String(Base64.getDecoder().decode(encoded),java.nio.charset.StandardCharsets.UTF_8));
+   if(graph.getList("nodes",10).size()!=7||graph.getList("conns",10).size()!=34)throw new IllegalStateException("Expected a seven-node production graph");
+   for(ServerLevel level:server.getAllLevels())for(var craft:SubLevelContainer.getContainer(level).getAllSubLevels()){
+    SputnikBlockEntity computer=null;
+    for(var holder:craft.getPlot().getLoadedChunks())for(var be:holder.getChunk().getBlockEntities().values()){
+     if(be instanceof SputnikBlockEntity s)computer=s;
+     if(be instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity motor){motor.generatedSpeed.setValue(0);motor.setChanged();preparedMotors++;}
+    }
+    if(computer==null)continue;
+    computer.graph.load(graph.copy());computer.setChanged();preparedShips++;
+    var staff=PhysicsStaffServerHandler.get(level);if(!staff.isLocked(craft))staff.toggleLock(craft.getUniqueId());
+    var bounds=craft.getPlot().getBoundingBox();for(var pos:BlockPos.betweenClosed(bounds.minX(),bounds.minY(),bounds.minZ(),bounds.maxX(),bounds.maxY(),bounds.maxZ())){
+     var state=level.getBlockState(pos);if(state.getBlock() instanceof LeverBlock)level.setBlock(pos,state.setValue(BlockStateProperties.POWERED,false),3);
+    }
+    var p=craft.logicalPose().position();server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),"setworldspawn "+(int)p.x()+" "+(int)(p.y()+12)+" "+(int)p.z());
+    Files.writeString(out.resolve("prepared.json"),"{\"ship\":\""+craft.getUniqueId()+"\",\"x\":"+p.x()+",\"y\":"+p.y()+",\"z\":"+p.z()+",\"nodes\":7,\"connections\":34,\"motors_stopped\":"+preparedMotors+",\"physics_staff_locked\":true,\"test_transmitters_removed\":true}");
+   }
+   if(preparedShips!=1)throw new IllegalStateException("Expected one prepared craft, found "+preparedShips);
+   server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),"defaultgamemode creative");prepared=true;
+  }
+  if(ticks==80){
+   if(!prepared)throw new IllegalStateException("World preparation missing");
+   for(ServerLevel level:server.getAllLevels())for(var craft:SubLevelContainer.getContainer(level).getAllSubLevels())for(var holder:craft.getPlot().getLoadedChunks())for(var be:holder.getChunk().getBlockEntities().values()){
+    if(be instanceof com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity motor&&motor.generatedSpeed.value!=0)throw new IllegalStateException("Motor not stopped");
+    if(be instanceof SputnikBlockEntity s&&(s.graph.save().getList("nodes",10).size()!=7||s.graph.save().getList("conns",10).size()!=34))throw new IllegalStateException("Prepared graph shape changed");
+   }
+   Files.writeString(out.resolve("verified.txt"),"Reloaded in Minecraft; seven production nodes, 34 connections, creative sources zero, levers OFF, staff lock retained. No new flight qualification.\n");server.halt(false);
+  }
+ }
  private void tick(ServerTickEvent.Post event){
   MinecraftServer server=event.getServer();ticks++;
+  if(Boolean.getBoolean("mintcraft.prepareWorld")){
+   try{prepareWorldCopy(server);}catch(Throwable error){try{Files.createDirectories(Path.of("mintcraft-world-export"));Files.writeString(Path.of("mintcraft-world-export/error.txt"),error.toString());}catch(Exception ignored){}error.printStackTrace();server.halt(false);}return;
+  }
   if(viewer && ticks==300 && server.getPlayerList().getPlayers().stream().noneMatch(p->p.getGameProfile().getName().equals("MintObserver")&&p.tickCount>200)){ticks--;return;}
   if(ship!=null)for(var player:server.getPlayerList().getPlayers())if(player.getGameProfile().getName().equals("MintObserver")){
    player.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);

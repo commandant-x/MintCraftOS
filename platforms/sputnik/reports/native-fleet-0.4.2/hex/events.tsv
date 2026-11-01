@@ -1,0 +1,285 @@
+40	GRAPH_TEMPLATE sha256=18974b7cb430d1847637eb5d9361b37fce176432bb67b6806808cb5c5009fc3f
+40	BUILT hex blocks=354 native sublevel=a565d9fd-73b1-485b-b796-296135fa70bd
+80	ASSEMBLED native bearings=6
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	SHAFT 1 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 2 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 3 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 4 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 5 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 6 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	ENABLE_AUDIT physical=Block{minecraft:lever}[face=floor,facing=north,powered=false] graph=0.0
+140	COMMISSION signal=10 expected=80RPM, pilot OFF
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	SHAFT 1 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 2 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 3 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 4 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 5 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 6 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	STATUS Pret: activer sans touche
+180	SHAFT 1 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 2 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 3 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 4 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 5 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 6 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	STATUS Pret: activer sans touche
+200	SHAFT 1 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 2 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 3 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 4 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 5 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 6 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	COMMISSION_PASS: each shaft observed at 80RPM, temporary writer removed before arming
+200	STATUS Pret: activer sans touche
+220	SHAFT 1 input=-144.0 actual=-141.69427 rx=6 electrical=6
+220	SHAFT 2 input=-80.0 actual=-77.11406 rx=10 electrical=10
+220	SHAFT 3 input=-16.0 actual=-21.96105 rx=14 electrical=14
+220	SHAFT 4 input=-112.0 actual=-106.33855 rx=8 electrical=8
+220	SHAFT 5 input=-160.0 actual=-153.15805 rx=5 electrical=5
+220	SHAFT 6 input=-128.0 actual=-119.71581 rx=7 electrical=7
+220	STATUS HOLDING h=171.57158>171.57158 | Modele declare; non qualifie
+240	SHAFT 1 input=-144.0 actual=-146.8585 rx=6 electrical=6
+240	SHAFT 2 input=-80.0 actual=-76.895515 rx=10 electrical=10
+240	SHAFT 3 input=-16.0 actual=-17.91184 rx=14 electrical=14
+240	SHAFT 4 input=-112.0 actual=-105.6261 rx=8 electrical=8
+240	SHAFT 5 input=-160.0 actual=-155.57121 rx=5 electrical=5
+240	SHAFT 6 input=-112.0 actual=-125.70456 rx=8 electrical=8
+240	STATUS HOLDING h=171.57158>171.57158 | Modele declare; non qualifie
+260	SHAFT 1 input=-160.0 actual=-144.51067 rx=5 electrical=5
+260	SHAFT 2 input=-64.0 actual=-79.47768 rx=11 electrical=11
+260	SHAFT 3 input=-16.0 actual=-17.419853 rx=14 electrical=14
+260	SHAFT 4 input=-112.0 actual=-105.816696 rx=8 electrical=8
+260	SHAFT 5 input=-144.0 actual=-158.2311 rx=6 electrical=6
+260	SHAFT 6 input=-128.0 actual=-124.02749 rx=7 electrical=7
+260	STATUS HOLDING h=171.57158>171.57158 | Modele declare; non qualifie
+280	SHAFT 1 input=-160.0 actual=-145.8914 rx=5 electrical=5
+280	SHAFT 2 input=-64.0 actual=-78.10803 rx=11 electrical=11
+280	SHAFT 3 input=-16.0 actual=-16.067272 rx=14 electrical=14
+280	SHAFT 4 input=-112.0 actual=-107.45202 rx=8 electrical=8
+280	SHAFT 5 input=-160.0 actual=-159.52367 rx=5 electrical=5
+280	SHAFT 6 input=-128.0 actual=-120.94102 rx=7 electrical=7
+280	STATUS HOLDING h=171.57158>171.57158 | Modele declare; non qualifie
+300	SHAFT 1 input=-160.0 actual=-147.52061 rx=5 electrical=5
+300	SHAFT 2 input=-64.0 actual=-76.47937 rx=11 electrical=11
+300	SHAFT 3 input=-16.0 actual=-17.058876 rx=14 electrical=14
+300	SHAFT 4 input=-112.0 actual=-106.25176 rx=8 electrical=8
+300	SHAFT 5 input=-160.0 actual=-155.34833 rx=5 electrical=5
+300	SHAFT 6 input=-128.0 actual=-125.511116 rx=7 electrical=7
+300	WARMUP HOLDING h=171.57158>171.57158 | Modele declare; non qualifie
+300	STATUS HOLDING h=171.57158>171.57158 | Modele declare; non qualifie
+310	DRIVER: synthetic six-key radio; no actuator outputs; scenario epoch=0
+320	RELEASE: fixture lock removed, physical flight begins
+320	STATUS HOLDING h=171.57158>171.57158 | Modele declare; non qualifie
+340	STATUS HOLDING h=171.64572>171.57158 | Modele declare; non qualifie
+360	STATUS HOLDING h=171.5744>171.57158 | Modele declare; non qualifie
+380	STATUS HOLDING h=171.56062>171.57158 | Modele declare; non qualifie
+400	STATUS HOLDING h=171.57101>171.57158 | Modele declare; non qualifie
+420	STATUS HOLDING h=171.56743>171.57158 | Modele declare; non qualifie
+440	STATUS HOLDING h=171.5647>171.57158 | Modele declare; non qualifie
+460	STATUS HOLDING h=171.56673>171.57158 | Modele declare; non qualifie
+480	STATUS HOLDING h=171.56795>171.57158 | Modele declare; non qualifie
+500	STATUS HOLDING h=171.56773>171.57158 | Modele declare; non qualifie
+520	STATUS HOLDING h=171.56717>171.57158 | Modele declare; non qualifie
+540	STATUS HOLDING h=171.56755>171.57158 | Modele declare; non qualifie
+560	STATUS HOLDING h=171.56754>171.57158 | Modele declare; non qualifie
+580	STATUS HOLDING h=171.57101>171.57158 | Modele declare; non qualifie
+600	STATUS HOLDING h=171.57018>171.57158 | Modele declare; non qualifie
+620	STATUS HOLDING h=171.56767>171.57158 | Modele declare; non qualifie
+640	STATUS HOLDING h=171.57004>171.57158 | Modele declare; non qualifie
+660	STATUS HOLDING h=171.57005>171.57158 | Modele declare; non qualifie
+680	STATUS HOLDING h=171.5711>171.57158 | Modele declare; non qualifie
+700	STATUS HOLDING h=171.5696>171.57158 | Modele declare; non qualifie
+720	STATUS HOLDING h=171.5693>171.57158 | Modele declare; non qualifie
+740	STATUS HOLDING h=171.57266>171.57158 | Modele declare; non qualifie
+760	STATUS HOLDING h=171.57005>171.57158 | Modele declare; non qualifie
+780	STATUS HOLDING h=171.57074>171.57158 | Modele declare; non qualifie
+800	STATUS HOLDING h=171.56999>171.57158 | Modele declare; non qualifie
+820	STATUS HOLDING h=171.76917>173.47157 | Modele declare; non qualifie
+840	STATUS HOLDING h=173.21408>175.47157 | Modele declare; non qualifie
+860	STATUS HOLDING h=175.3968>177.47157 | Modele declare; non qualifie
+880	STATUS HOLDING h=177.65591>177.57158 | Modele declare; non qualifie
+900	STATUS HOLDING h=178.58705>177.57158 | Modele declare; non qualifie
+920	STATUS HOLDING h=178.31793>177.57158 | Modele declare; non qualifie
+940	STATUS HOLDING h=177.99385>177.57158 | Modele declare; non qualifie
+960	STATUS HOLDING h=177.98096>177.57158 | Modele declare; non qualifie
+980	STATUS HOLDING h=177.93288>177.57158 | Modele declare; non qualifie
+1000	STATUS HOLDING h=177.88666>177.57158 | Modele declare; non qualifie
+1020	STATUS HOLDING h=177.85648>177.57158 | Modele declare; non qualifie
+1040	STATUS HOLDING h=177.82527>177.57158 | Modele declare; non qualifie
+1060	STATUS HOLDING h=177.79807>177.57158 | Modele declare; non qualifie
+1080	STATUS HOLDING h=177.77325>177.57158 | Modele declare; non qualifie
+1100	STATUS HOLDING h=177.75378>177.57158 | Modele declare; non qualifie
+1120	STATUS HOLDING h=177.73349>177.57158 | Modele declare; non qualifie
+1140	STATUS HOLDING h=177.71667>177.57158 | Modele declare; non qualifie
+1160	STATUS HOLDING h=177.70134>177.57158 | Modele declare; non qualifie
+1180	STATUS HOLDING h=177.68729>177.57158 | Modele declare; non qualifie
+1200	STATUS HOLDING h=177.6743>177.57158 | Modele declare; non qualifie
+1220	STATUS HOLDING h=177.45674>175.67159 | Modele declare; non qualifie
+1240	STATUS HOLDING h=175.81873>173.67159 | Modele declare; non qualifie
+1260	STATUS HOLDING h=173.59682>171.67159 | Modele declare; non qualifie
+1280	STATUS HOLDING h=171.52936>171.57158 | Modele declare; non qualifie
+1300	STATUS HOLDING h=170.98128>171.57158 | Modele declare; non qualifie
+1320	STATUS HOLDING h=171.15564>171.57158 | Modele declare; non qualifie
+1340	STATUS HOLDING h=171.18318>171.57158 | Modele declare; non qualifie
+1360	STATUS HOLDING h=171.19122>171.57158 | Modele declare; non qualifie
+1380	STATUS HOLDING h=171.24252>171.57158 | Modele declare; non qualifie
+1400	STATUS HOLDING h=171.28932>171.57158 | Modele declare; non qualifie
+1420	STATUS HOLDING h=171.31572>171.57158 | Modele declare; non qualifie
+1440	STATUS HOLDING h=171.33582>171.57158 | Modele declare; non qualifie
+1460	STATUS HOLDING h=171.35918>171.57158 | Modele declare; non qualifie
+1480	STATUS HOLDING h=171.38356>171.57158 | Modele declare; non qualifie
+1500	STATUS HOLDING h=171.40292>171.57158 | Modele declare; non qualifie
+1520	STATUS HOLDING h=171.41875>171.57158 | Modele declare; non qualifie
+1540	STATUS HOLDING h=171.43376>171.57158 | Modele declare; non qualifie
+1560	STATUS HOLDING h=171.44896>171.57158 | Modele declare; non qualifie
+1580	STATUS HOLDING h=171.46133>171.57158 | Modele declare; non qualifie
+1600	STATUS HOLDING h=171.47218>171.57158 | Modele declare; non qualifie
+1620	STATUS HOLDING h=171.43994>171.57158 | Modele declare; non qualifie
+1640	STATUS HOLDING h=171.42572>171.57158 | Modele declare; non qualifie
+1660	STATUS HOLDING h=171.50043>171.57158 | Modele declare; non qualifie
+1680	STATUS HOLDING h=171.45854>171.57158 | Modele declare; non qualifie
+1700	STATUS HOLDING h=171.36671>171.57158 | Modele declare; non qualifie
+1720	STATUS HOLDING h=171.47224>171.57158 | Modele declare; non qualifie
+1740	STATUS HOLDING h=171.5487>171.57158 | Modele declare; non qualifie
+1760	STATUS HOLDING h=171.5313>171.57158 | Modele declare; non qualifie
+1780	STATUS HOLDING h=171.53606>171.57158 | Modele declare; non qualifie
+1800	STATUS HOLDING h=171.57687>171.57158 | Modele declare; non qualifie
+1820	STATUS HOLDING h=171.57843>171.57158 | Modele declare; non qualifie
+1840	STATUS HOLDING h=171.56259>171.57158 | Modele declare; non qualifie
+1860	STATUS HOLDING h=171.56755>171.57158 | Modele declare; non qualifie
+1880	STATUS HOLDING h=171.57195>171.57158 | Modele declare; non qualifie
+1900	STATUS HOLDING h=171.57045>171.57158 | Modele declare; non qualifie
+1920	STATUS HOLDING h=171.56952>171.57158 | Modele declare; non qualifie
+1940	STATUS HOLDING h=171.56941>171.57158 | Modele declare; non qualifie
+1960	STATUS HOLDING h=171.5698>171.57158 | Modele declare; non qualifie
+1980	STATUS HOLDING h=171.57022>171.57158 | Modele declare; non qualifie
+2000	STATUS HOLDING h=171.57025>171.57158 | Modele declare; non qualifie
+2020	STATUS HOLDING h=171.5116>171.57158 | Modele declare; non qualifie
+2040	STATUS HOLDING h=171.47333>171.57158 | Modele declare; non qualifie
+2060	STATUS HOLDING h=171.55191>171.57158 | Modele declare; non qualifie
+2080	STATUS HOLDING h=171.54507>171.57158 | Modele declare; non qualifie
+2100	STATUS HOLDING h=171.49478>171.57158 | Modele declare; non qualifie
+2120	STATUS HOLDING h=171.55452>171.57158 | Modele declare; non qualifie
+2140	STATUS HOLDING h=171.58347>171.57158 | Modele declare; non qualifie
+2160	STATUS HOLDING h=171.53651>171.57158 | Modele declare; non qualifie
+2180	STATUS HOLDING h=171.50955>171.57158 | Modele declare; non qualifie
+2200	STATUS HOLDING h=171.5712>171.57158 | Modele declare; non qualifie
+2220	STATUS HOLDING h=171.63808>171.57158 | Modele declare; non qualifie
+2240	STATUS HOLDING h=171.62204>171.57158 | Modele declare; non qualifie
+2260	STATUS HOLDING h=171.59337>171.57158 | Modele declare; non qualifie
+2280	STATUS HOLDING h=171.59686>171.57158 | Modele declare; non qualifie
+2300	STATUS HOLDING h=171.59612>171.57158 | Modele declare; non qualifie
+2320	STATUS HOLDING h=171.58955>171.57158 | Modele declare; non qualifie
+2340	STATUS HOLDING h=171.58879>171.57158 | Modele declare; non qualifie
+2360	STATUS HOLDING h=171.58656>171.57158 | Modele declare; non qualifie
+2380	STATUS HOLDING h=171.58366>171.57158 | Modele declare; non qualifie
+2400	STATUS HOLDING h=171.58589>171.57158 | Modele declare; non qualifie
+2420	STATUS HOLDING h=171.53908>171.57158 | Modele declare; non qualifie
+2440	STATUS HOLDING h=171.5066>171.57158 | Modele declare; non qualifie
+2460	STATUS HOLDING h=171.57092>171.57158 | Modele declare; non qualifie
+2480	STATUS HOLDING h=171.55196>171.57158 | Modele declare; non qualifie
+2500	STATUS HOLDING h=171.50543>171.57158 | Modele declare; non qualifie
+2520	STATUS HOLDING h=171.56532>171.57158 | Modele declare; non qualifie
+2540	STATUS HOLDING h=171.59464>171.57158 | Modele declare; non qualifie
+2560	STATUS HOLDING h=171.56071>171.57158 | Modele declare; non qualifie
+2580	STATUS HOLDING h=171.52069>171.57158 | Modele declare; non qualifie
+2600	STATUS HOLDING h=171.55132>171.57158 | Modele declare; non qualifie
+2620	STATUS HOLDING h=171.62036>171.57158 | Modele declare; non qualifie
+2640	STATUS HOLDING h=171.62048>171.57158 | Modele declare; non qualifie
+2660	STATUS HOLDING h=171.58936>171.57158 | Modele declare; non qualifie
+2680	STATUS HOLDING h=171.59404>171.57158 | Modele declare; non qualifie
+2700	STATUS HOLDING h=171.59926>171.57158 | Modele declare; non qualifie
+2720	STATUS HOLDING h=171.59142>171.57158 | Modele declare; non qualifie
+2740	STATUS HOLDING h=171.58739>171.57158 | Modele declare; non qualifie
+2760	STATUS HOLDING h=171.58926>171.57158 | Modele declare; non qualifie
+2780	STATUS HOLDING h=171.5851>171.57158 | Modele declare; non qualifie
+2800	STATUS HOLDING h=171.58272>171.57158 | Modele declare; non qualifie
+2820	STATUS HOLDING h=171.5389>171.57158 | Modele declare; non qualifie
+2840	STATUS HOLDING h=171.5102>171.57158 | Modele declare; non qualifie
+2860	STATUS HOLDING h=171.57251>171.57158 | Modele declare; non qualifie
+2880	STATUS HOLDING h=171.5471>171.57158 | Modele declare; non qualifie
+2900	STATUS HOLDING h=171.49739>171.57158 | Modele declare; non qualifie
+2920	STATUS HOLDING h=171.56055>171.57158 | Modele declare; non qualifie
+2940	STATUS HOLDING h=171.59528>171.57158 | Modele declare; non qualifie
+2960	STATUS HOLDING h=171.56175>171.57158 | Modele declare; non qualifie
+2980	STATUS HOLDING h=171.5269>171.57158 | Modele declare; non qualifie
+3000	STATUS HOLDING h=171.56088>171.57158 | Modele declare; non qualifie
+3020	STATUS HOLDING h=171.61905>171.57158 | Modele declare; non qualifie
+3040	STATUS HOLDING h=171.61446>171.57158 | Modele declare; non qualifie
+3060	STATUS HOLDING h=171.58873>171.57158 | Modele declare; non qualifie
+3080	STATUS HOLDING h=171.59581>171.57158 | Modele declare; non qualifie
+3100	STATUS HOLDING h=171.59773>171.57158 | Modele declare; non qualifie
+3120	STATUS HOLDING h=171.59103>171.57158 | Modele declare; non qualifie
+3140	STATUS HOLDING h=171.58978>171.57158 | Modele declare; non qualifie
+3160	STATUS HOLDING h=171.58606>171.57158 | Modele declare; non qualifie
+3180	STATUS HOLDING h=171.58646>171.57158 | Modele declare; non qualifie
+3200	STATUS HOLDING h=171.5828>171.57158 | Modele declare; non qualifie
+3220	STATUS HOLDING h=171.54228>171.57158 | Modele declare; non qualifie
+3240	STATUS HOLDING h=171.51723>171.57158 | Modele declare; non qualifie
+3260	STATUS HOLDING h=171.57826>171.57158 | Modele declare; non qualifie
+3280	STATUS HOLDING h=171.53993>171.57158 | Modele declare; non qualifie
+3300	STATUS HOLDING h=171.46643>171.57158 | Modele declare; non qualifie
+3320	STATUS HOLDING h=171.5449>171.57158 | Modele declare; non qualifie
+3340	STATUS HOLDING h=171.58112>171.57158 | Modele declare; non qualifie
+3360	STATUS HOLDING h=171.55301>171.57158 | Modele declare; non qualifie
+3380	STATUS HOLDING h=171.54982>171.57158 | Modele declare; non qualifie
+3400	STATUS HOLDING h=171.6064>171.57158 | Modele declare; non qualifie
+3420	STATUS HOLDING h=171.62407>171.57158 | Modele declare; non qualifie
+3440	STATUS HOLDING h=171.60042>171.57158 | Modele declare; non qualifie
+3460	STATUS HOLDING h=171.59341>171.57158 | Modele declare; non qualifie
+3480	STATUS HOLDING h=171.59877>171.57158 | Modele declare; non qualifie
+3500	STATUS HOLDING h=171.59529>171.57158 | Modele declare; non qualifie
+3520	STATUS HOLDING h=171.59128>171.57158 | Modele declare; non qualifie
+3540	STATUS HOLDING h=171.58856>171.57158 | Modele declare; non qualifie
+3560	STATUS HOLDING h=171.58762>171.57158 | Modele declare; non qualifie
+3580	STATUS HOLDING h=171.58545>171.57158 | Modele declare; non qualifie
+3600	SHOCK side5 requested_dv=( 5.000E+0  0.000E+0  0.000E+0) requested_body_dw=( 0.000E+0  0.000E+0  0.000E+0) impulse=( 8.312E+2  0.000E+0  0.000E+0) angular_impulse=( 0.000E+0  0.000E+0  0.000E+0) before_v=(-9.085E-2 -1.327E-1  4.059E-2) before_w=(-1.515E-3  2.248E-3 -3.876E-3)
+3600	STATUS HOLDING h=171.58371>171.57158 | Modele declare; non qualifie
+3620	STATUS HOLDING h=171.53456>171.57158 | Modele declare; non qualifie
+3640	STATUS HOLDING h=171.54375>171.57158 | Modele declare; non qualifie
+3660	STATUS HOLDING h=171.59094>171.57158 | Modele declare; non qualifie
+3680	STATUS HOLDING h=171.58238>171.57158 | Modele declare; non qualifie
+3700	STATUS HOLDING h=171.5564>171.57158 | Modele declare; non qualifie
+3720	STATUS HOLDING h=171.49998>171.57158 | Modele declare; non qualifie
+3740	STATUS HOLDING h=171.52963>171.57158 | Modele declare; non qualifie
+3760	STATUS HOLDING h=171.60396>171.57158 | Modele declare; non qualifie
+3780	STATUS HOLDING h=171.61267>171.57158 | Modele declare; non qualifie
+3800	STATUS HOLDING h=171.58365>171.57158 | Modele declare; non qualifie
+3820	STATUS HOLDING h=171.58667>171.57158 | Modele declare; non qualifie
+3840	STATUS HOLDING h=171.59564>171.57158 | Modele declare; non qualifie
+3860	STATUS HOLDING h=171.58865>171.57158 | Modele declare; non qualifie
+3880	STATUS HOLDING h=171.5834>171.57158 | Modele declare; non qualifie
+3900	STATUS HOLDING h=171.5831>171.57158 | Modele declare; non qualifie
+3920	STATUS HOLDING h=171.58273>171.57158 | Modele declare; non qualifie
+3940	STATUS HOLDING h=171.58086>171.57158 | Modele declare; non qualifie
+3960	STATUS HOLDING h=171.57964>171.57158 | Modele declare; non qualifie
+3980	STATUS HOLDING h=171.579>171.57158 | Modele declare; non qualifie
+4000	STATUS HOLDING h=171.57779>171.57158 | Modele declare; non qualifie
+4020	STATUS HOLDING h=171.57735>171.57158 | Modele declare; non qualifie
+4040	STATUS HOLDING h=171.57843>171.57158 | Modele declare; non qualifie
+4060	STATUS HOLDING h=171.5756>171.57158 | Modele declare; non qualifie
+4080	STATUS HOLDING h=171.57594>171.57158 | Modele declare; non qualifie
+4100	STATUS HOLDING h=171.57524>171.57158 | Modele declare; non qualifie
+4120	STATUS HOLDING h=171.57451>171.57158 | Modele declare; non qualifie
+4140	STATUS HOLDING h=171.5753>171.57158 | Modele declare; non qualifie
+4160	STATUS HOLDING h=171.57391>171.57158 | Modele declare; non qualifie
+4180	STATUS HOLDING h=171.57484>171.57158 | Modele declare; non qualifie
+4200	STATUS HOLDING h=171.57385>171.57158 | Modele declare; non qualifie
+4220	STATUS HOLDING h=171.57329>171.57158 | Modele declare; non qualifie
+4240	STATUS HOLDING h=171.57298>171.57158 | Modele declare; non qualifie
+4260	STATUS HOLDING h=171.57372>171.57158 | Modele declare; non qualifie
+4280	STATUS HOLDING h=171.57208>171.57158 | Modele declare; non qualifie
+4300	STATUS HOLDING h=171.57294>171.57158 | Modele declare; non qualifie
+4320	STATUS HOLDING h=171.57391>171.57158 | Modele declare; non qualifie
+4340	STATUS HOLDING h=171.57167>171.57158 | Modele declare; non qualifie
+4360	STATUS HOLDING h=171.57248>171.57158 | Modele declare; non qualifie
+4380	STATUS HOLDING h=171.57292>171.57158 | Modele declare; non qualifie
+4400	STATUS HOLDING h=171.57173>171.57158 | Modele declare; non qualifie
+4400	COMPLETE: shock scenario ended, criteria scored separately
+4420	STATUS Pret: activer sans touche
+4440	STATUS Pret: activer sans touche
+4445	EXPORT: 9 pages complete
