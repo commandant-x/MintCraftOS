@@ -1,0 +1,8 @@
+tick	event
+40	Placed one creative motor, three swivel bearings and two segments of 7 blocks each; motor speed 0; root cog connected via two gearboxes
+80	Assembled knee axis=x child=8a9846a1-324b-432f-b597-0078c42f2215
+120	Assembled hip_pitch axis=x child=9abe48c3-cb0c-4a20-823c-d74bf828dc93
+160	Assembled hip_roll axis=z child=c43a11d6-c134-4359-b1c6-1102bf9e655e
+220	AUDIT pivots=3 children=3
+230	Released child bodies and set the single creative motor to 4 RPM; no impulse applied
+260	Motor commanded to stop after 30 ticks

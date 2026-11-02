@@ -1,0 +1,12 @@
+{
+  "motor_rpm_first_sample": 4.0,
+  "cog_rpm_first_sample": -4.0,
+  "target_angle_after_stop_degrees": -36.000001430511475,
+  "actual_angle_final_degrees": -34.90073532301406,
+  "last_five_samples_range_degrees": 1.1908962981921078,
+  "motor_stopped_at_tick": 260,
+  "last_sample_tick": 360,
+  "test_only_impulse_applied": false,
+  "other_axes_independently_driven": false,
+  "foot_contact_tested": false
+}

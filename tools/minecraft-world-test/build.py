@@ -34,7 +34,7 @@ def build(server,jdk,work,fixture='movements',client=None):
  classes=work/'classes'
  if classes.exists():shutil.rmtree(classes)
  (classes/'META-INF').mkdir(parents=True,exist_ok=True)
- source={'movements':HERE/'MintCraftProbe.java', 'shocks':HERE/'shocks/MintCraftShockProbe.java', 'viewer':HERE/'shocks/MintCraftViewer.java', 'fleet':HERE/'fleet/MintCraftFleetProbe.java', 'spot':HERE/'spot/SpotTransmissionProbe.java', 'spot-linkage':HERE/'spot-linkage/SpotLinkageProbe.java', 'spot-pivot':HERE/'spot-linkage/SpotPivotProbe.java'}[fixture]
+ source={'movements':HERE/'MintCraftProbe.java', 'shocks':HERE/'shocks/MintCraftShockProbe.java', 'viewer':HERE/'shocks/MintCraftViewer.java', 'fleet':HERE/'fleet/MintCraftFleetProbe.java', 'spot':HERE/'spot/SpotTransmissionProbe.java', 'spot-linkage':HERE/'spot-linkage/SpotLinkageProbe.java', 'spot-pivot':HERE/'spot-linkage/SpotPivotProbe.java', 'spot-universal':HERE/'spot-universal/UniversalTransmissionProbe.java', 'spot-leg':HERE/'spot-leg/SpotLegProbe.java', 'spot-leg-powered':HERE/'spot-leg/SpotPoweredLegProbe.java', 'spot-leg-two-drive':HERE/'spot-leg/SpotTwoDriveProbe.java', 'spot-leg-three-drive':HERE/'spot-leg/SpotThreeDriveProbe.java', 'spot-leg-redstone':HERE/'spot-leg/SpotRedstoneLegProbe.java', 'spot-leg-redstone-slow':HERE/'spot-leg/SpotRedstoneSlowLegProbe.java'}[fixture]
  manifest=HERE/'shocks/viewer.mods.toml' if fixture=='viewer' else HERE/'neoforge.mods.toml'
  (classes/'META-INF/neoforge.mods.toml').write_bytes(manifest.read_bytes())
  suffix='.exe' if os.name=='nt' else ''
@@ -43,5 +43,5 @@ def build(server,jdk,work,fixture='movements',client=None):
  subprocess.run([str(jdk/'bin'/('jar'+suffix)),'cf',str(target),'-C',str(classes),'.'],check=True)
  return target
 if __name__=='__main__':
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--server',type=Path,required=True);p.add_argument('--java-home',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--fixture',choices=['movements','shocks','viewer','fleet','spot','spot-linkage','spot-pivot'],default='movements');p.add_argument('--client',type=Path);a=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--server',type=Path,required=True);p.add_argument('--java-home',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--fixture',choices=['movements','shocks','viewer','fleet','spot','spot-linkage','spot-pivot','spot-universal','spot-leg','spot-leg-powered','spot-leg-two-drive','spot-leg-three-drive','spot-leg-redstone','spot-leg-redstone-slow'],default='movements');p.add_argument('--client',type=Path);a=p.parse_args()
  print(build(a.server,a.java_home,a.work,a.fixture,a.client))

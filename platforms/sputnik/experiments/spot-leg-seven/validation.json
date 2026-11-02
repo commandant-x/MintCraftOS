@@ -1,0 +1,21 @@
+{
+  "fixtureJarSha256": "b5a8641dbaf4a2c5ae9cca46ae5dccc88f5a5e35dbefc6e2c502f4e564765e91",
+  "fixtureSourceSha256": "fd7d74402ecd2c2fc9423e74252b869849997add48470c7946c1cd2f9aec8f7f",
+  "linkageModSha256": "2b1015c61e66e6e9df0e74e819e2797882b9ca246afc431984858fce95752c41",
+  "motorCountPlaced": 1,
+  "motorRpm": 0,
+  "segmentLengthsBlocks": [
+    7,
+    7
+  ],
+  "pivotCountObserved": 3,
+  "pivotAxes": [
+    "Z",
+    "X",
+    "X"
+  ],
+  "distinctChildStructuresObserved": 3,
+  "staffLockedDuringObservation": true,
+  "footContactTested": false,
+  "walkingTested": false
+}

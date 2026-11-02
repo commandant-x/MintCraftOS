@@ -1,0 +1,16 @@
+tick	event
+40	Placed one creative motor, three swivel bearings and two segments of 7 blocks each; motor speed 0; three redstone clutches installed, initially powered and disengaged
+80	Assembled knee axis=x child=efd4a74a-6b49-4cf9-a726-b47d3bb87e38
+120	Assembled hip_pitch axis=x child=ca4fd6d0-c408-48ee-abce-6444a788eaa6
+160	Assembled hip_roll axis=z child=07f8db18-bf84-480b-a5e0-dcf7d5856d68
+220	AUDIT pivots=3 children=3
+225	Found redstone control for knee at BlockPos{x=20481033, y=123, z=20483082}
+225	Found redstone control for hip_pitch at BlockPos{x=20481033, y=128, z=20485129}
+230	Released child bodies and set the single creative motor to 4 RPM; no impulse applied
+260	Redstone hip_roll set OFF (clutch engaged)
+300	Redstone hip_roll set ON (clutch disengaged)
+320	Redstone hip_pitch set OFF (clutch engaged)
+360	Redstone hip_pitch set ON (clutch disengaged)
+380	Redstone knee set OFF (clutch engaged)
+420	Redstone knee set ON (clutch disengaged)
+480	Motor commanded to stop

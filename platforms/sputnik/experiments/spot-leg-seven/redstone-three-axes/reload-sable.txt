@@ -1,0 +1,2 @@
+[00:44:10] [Server thread/ERROR] [de.ry.sa.Sable/]: Attempted to snatch sub-level with ID global->[chunkPos=[2, 2], storageIndex=0, subLevelIndex=2] stored at ca4fd6d0-c408-48ee-abce-6444a788eaa6, but the requested sub-level wasn't present in the holding chunk
+[00:44:10] [Server thread/ERROR] [de.ry.sa.Sable/]: Attempted to snatch sub-level with ID global->[chunkPos=[2, 2], storageIndex=0, subLevelIndex=1] stored at efd4a74a-6b49-4cf9-a726-b47d3bb87e38, but the requested sub-level wasn't present in the holding chunk

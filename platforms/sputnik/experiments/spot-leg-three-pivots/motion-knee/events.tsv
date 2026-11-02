@@ -1,0 +1,7 @@
+tick	event
+40	Placed one creative motor, three swivel bearings and three short segments; motor speed 0
+80	Assembled knee axis=x child=9a2113b9-323f-4ecd-9250-cb7710fb2fb3
+120	Assembled hip_pitch axis=x child=ade32a8d-15c1-44cc-9245-03f787126764
+160	Assembled hip_roll axis=z child=62ca294a-b115-456d-b479-fd7a4d834384
+220	AUDIT pivots=3 children=3
+230	Applied test-only angular velocity on knee; no motor-driven movement claimed

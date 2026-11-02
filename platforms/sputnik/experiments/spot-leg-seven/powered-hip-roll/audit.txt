@@ -1,0 +1,5 @@
+root axis=z assembled=true
+child axis=x assembled=true body=236b09c2-632e-47b3-a444-909d85bddf9f
+child axis=x assembled=true body=6a0af30c-558d-4666-ab6d-957058141d1f
+lower_planks=7 upper_planks=7
+pivot_count=3 retained_children=3 creative_motor_count=1 motor_rpm=0

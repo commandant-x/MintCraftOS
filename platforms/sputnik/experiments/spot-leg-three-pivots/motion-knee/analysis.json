@@ -1,0 +1,12 @@
+{
+  "axis": "knee",
+  "complete": true,
+  "motor_rpm": 0,
+  "rotation_caused_by_test_impulse": true,
+  "max_sampled_axis_rotation_deg": 8.683041015942917,
+  "max_sampled_other_rotation_deg": 0.015192284779616603,
+  "last_five_axis_span_deg": 14.057988618638104,
+  "rotation_over_5_degrees_observed": true,
+  "powered_motion_tested": false,
+  "walking_tested": false
+}

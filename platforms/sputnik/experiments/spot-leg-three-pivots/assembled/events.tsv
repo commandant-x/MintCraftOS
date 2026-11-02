@@ -1,0 +1,6 @@
+tick	event
+40	Placed one creative motor, three swivel bearings and three short segments; motor speed 0
+80	Assembled knee axis=x child=2085642d-de88-4d36-be82-7549cd82335d
+120	Assembled hip_pitch axis=x child=c3b2073b-e082-4e93-9e2c-44ae73766420
+160	Assembled hip_roll axis=z child=628ae5e3-e77a-47ff-92fd-60acc1d620a6
+220	AUDIT pivots=3 children=3

@@ -1,0 +1,12 @@
+{
+  "axis": "hip_pitch",
+  "complete": true,
+  "motor_rpm": 0,
+  "rotation_caused_by_test_impulse": true,
+  "max_sampled_axis_rotation_deg": 2.7501855550327896,
+  "max_sampled_other_rotation_deg": 0.04788615232914146,
+  "last_five_axis_span_deg": 3.9796410846981587,
+  "rotation_over_5_degrees_observed": false,
+  "powered_motion_tested": false,
+  "walking_tested": false
+}
