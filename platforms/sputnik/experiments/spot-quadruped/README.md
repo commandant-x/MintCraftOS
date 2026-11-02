@@ -2,7 +2,7 @@
 
 Ce prototype Minecraft inspiré de Spot possède quatre pattes à trois axes, deux segments porteurs de sept blocs par patte et un seul moteur créatif. Douze embrayages sélectionnent les axes, un inverseur fournit le sens commun et treize récepteurs Create Redstone Link les relient au graphe Sputnik. Les axes sont actionnés successivement. Le châssis rectangulaire et les contrepoids restent ceux d'un banc mécanique expérimental : son apparence n'est pas encore une reproduction finie de Spot.
 
-[Télécharger le monde et les TXT](quadrupede-sputnik.zip) · [Vue dans Minecraft](screenshots/quadrupede-face.png) · [Vue de dessus](screenshots/quadrupede-dessus.png) · [Commande Sputnik et fréquences](controller/README.md)
+[Télécharger le monde et les TXT](quadrupede-sputnik.zip) · [Vue du monde Sputnik dans Minecraft](screenshots/quadrupede-sputnik.png) · [Vue de dessus](screenshots/quadrupede-dessus.png) · [Commande Sputnik et fréquences](controller/README.md)
 
 ## Ouvrir et commander
 
