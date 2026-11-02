@@ -1,5 +1,7 @@
 # Banc d'une patte longue à trois axes
 
+**Suite des travaux :** [contrepoids, inversion, réouverture et contact](../spot-leg-recovery/README.md). Les résultats ci-dessous décrivent les versions précédentes du banc.
+
 Cette patte expérimentale inspirée de Spot comporte une cuisse de sept blocs et une jambe de sept blocs, trois pivots Simulated (hanche latérale, hanche avant/arrière et genou) et un moteur créatif. [Capture du banc dans Minecraft](screenshots/patte-7-blocs.png). [Monde Minecraft](spot-patte-7-blocs-monde.zip) : extraire son dossier dans `saves` de l'instance VENATOR 1.0.0 avec Create Aeronautics: Transmission & Linkage 0.2.9. Conserver le dossier `sublevels` de la sauvegarde. À la réouverture de cette copie, Minecraft a signalé des erreurs de chargement de sous-structures Sable : les segments sont visibles, mais la persistance des articulations après rechargement reste à vérifier. Le moteur du monde fourni est à 0 tr/min et les structures Sable sont maintenues par le Physics Staff : il sert à observer le montage, pas à marcher.
 
 Le [relevé d'assemblage](assembled/audit.txt) confirme la présence de trois pivots assemblés, de leurs trois structures Sable et de sept blocs de bois dans chacun des deux segments. Le fixture et les événements sont joints. Cet audit est statique ; le nombre de moteurs et la vitesse affichés dans son récapitulatif sont ceux fixés dans le code du montage.

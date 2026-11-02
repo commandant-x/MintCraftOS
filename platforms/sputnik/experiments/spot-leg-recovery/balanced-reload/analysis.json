@@ -1,0 +1,60 @@
+{
+  "axes": {
+    "hip_roll": {
+      "forward_rpm": [
+        4.0,
+        4.0,
+        4.0
+      ],
+      "reverse_rpm": [
+        -4.0,
+        -4.0,
+        -4.0
+      ],
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_physical_degrees": 45.188122410512534,
+      "reverse_physical_degrees": -45.37788624196585,
+      "net_physical_degrees": 0.0003413221335987464
+    },
+    "hip_pitch": {
+      "forward_rpm": [
+        -4.0,
+        -4.0,
+        -4.0
+      ],
+      "reverse_rpm": [
+        4.0,
+        4.0,
+        4.0
+      ],
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_physical_degrees": -47.97812679236622,
+      "reverse_physical_degrees": 47.978646864075706,
+      "net_physical_degrees": 0.0004972176110058623
+    },
+    "knee": {
+      "forward_rpm": [
+        -4.0,
+        -4.0,
+        -4.0
+      ],
+      "reverse_rpm": [
+        4.0,
+        4.0,
+        4.0
+      ],
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_physical_degrees": -47.994790815129264,
+      "reverse_physical_degrees": 47.99484972859296,
+      "net_physical_degrees": 5.812746568144531e-05
+    }
+  },
+  "method": "one creative motor, common redstone reverser, one redstone clutch per axis",
+  "control": "test-only redstone block placement; no Sputnik controller",
+  "test_only_impulse_applied": false,
+  "foot_contact_tested": false,
+  "walking_tested": false
+}

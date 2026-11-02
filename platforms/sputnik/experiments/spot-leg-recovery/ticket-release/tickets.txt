@@ -1,0 +1,2 @@
+removed_command_forced=3
+remaining_ticket_entries=0

@@ -1,0 +1,2 @@
+swivel_stiffness=48000.0
+swivel_damping=220.0

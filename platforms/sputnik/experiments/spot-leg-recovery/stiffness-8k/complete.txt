@@ -1,0 +1,1 @@
+Three redstone clutch phases measured without impulse; inspect speeds and relative poses. No walking qualification.

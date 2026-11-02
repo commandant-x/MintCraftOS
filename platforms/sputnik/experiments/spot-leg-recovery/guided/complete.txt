@@ -1,0 +1,1 @@
+Three selected redstone clutch phases tested in each direction; inspect speed and physical angles. Ground collision callback recorded; inspect contact counts. Vertical test guide used; no unguided support or walking qualification.

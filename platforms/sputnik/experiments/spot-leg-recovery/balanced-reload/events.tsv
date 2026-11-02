@@ -1,0 +1,25 @@
+tick	event
+200	Recovered all three pivots and child bodies from saved world
+220	AUDIT pivots=3 children=3
+225	Found redstone control for knee at BlockPos{x=20481033, y=123, z=20483082}
+225	Found redstone control for hip_pitch at BlockPos{x=20481037, y=127, z=20485129}
+230	Released child bodies and set the single creative motor to 4 RPM; no impulse applied
+240	Redstone reset_common_direction set OFF
+260	Redstone hip_roll set OFF
+300	Redstone hip_roll set ON
+310	Redstone common_direction_reversed set ON
+320	Redstone hip_roll set OFF
+360	Redstone hip_roll set ON
+370	Redstone common_direction_forward set OFF
+380	Redstone hip_pitch set OFF
+420	Redstone hip_pitch set ON
+430	Redstone common_direction_reversed set ON
+440	Redstone hip_pitch set OFF
+480	Redstone hip_pitch set ON
+490	Redstone common_direction_forward set OFF
+500	Redstone knee set OFF
+540	Redstone knee set ON
+550	Redstone common_direction_reversed set ON
+560	Redstone knee set OFF
+600	Redstone knee set ON
+660	Motor commanded to stop
