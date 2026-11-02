@@ -1,0 +1,32 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+80	Assembled front_left_knee child=442a9f2f-ae87-4161-9787-0af1dddd8295
+80	Assembled front_right_knee child=007f59e5-2dd1-4018-9414-b3f3af29111b
+80	Assembled rear_left_knee child=d1c8361d-c61a-4818-8788-6e6d5449d093
+80	Assembled rear_right_knee child=455f90ea-d680-412c-a702-b02b00df97dc
+120	Assembled front_left_hip child=e6de1fe1-81ec-4dfb-b805-e45c439f2786
+120	Assembled front_right_hip child=50df9811-6fc2-4a70-9753-e33e21768810
+120	Assembled rear_left_hip child=afebf596-0d40-454f-a7e9-cfc6c9752bf4
+120	Assembled rear_right_hip child=124622bf-cfa5-4308-abc8-a58f0384290c
+160	Assembled front_left_roll child=94260a87-4c16-45ab-8390-f644d90782c8
+160	Assembled front_right_roll child=2357605f-eaf7-4714-95bf-f34c211d6cde
+160	Assembled rear_left_roll child=b6c9f873-0a21-4fd4-abce-1a17a85ab969
+160	Assembled rear_right_roll child=a905d880-c326-4902-b961-0b283b2cadb3
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+230	Released leg bodies; chassis locked; motor set to 4 RPM
+260	Select front_left axis=0 forward
+340	Select front_left axis=1 forward
+420	Select front_left axis=2 forward
+500	Select front_right axis=0 forward
+580	Select front_right axis=1 forward
+660	Select front_right axis=2 forward
+740	Select rear_left axis=0 forward
+820	Select rear_left axis=1 forward
+900	Select rear_left axis=2 forward
+980	Select rear_right axis=0 forward
+1060	Select rear_right axis=1 forward
+1140	Select rear_right axis=2 forward
+1230	Motor stopped after isolated axis tests
+1240	Placed solid test floor under feet
+1280	Released chassis under gravity on solid floor

@@ -1,0 +1,29 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+80	Assembled front_left_knee child=3af9caec-ebd7-4eb1-aa31-339d8f18eeac
+80	Assembled front_right_knee child=8437d36f-26e3-4c05-a83b-1f81abffe068
+80	Assembled rear_left_knee child=00fb89ae-aa96-4010-ab04-28e46b84c094
+80	Assembled rear_right_knee child=72b194fd-6c7b-4edd-96d1-e4dd4b0f6301
+120	Assembled front_left_hip child=eadd99eb-1584-454b-b52b-0c1b7df2fc71
+120	Assembled front_right_hip child=9fc0ca3c-7752-4dd6-9e59-afca70ab2fad
+120	Assembled rear_left_hip child=8ffa1512-7732-4bb8-a522-9e5ca16440f1
+120	Assembled rear_right_hip child=a97293b6-558c-49a6-9e5f-ad6b781d5050
+160	Assembled front_left_roll child=0d3f2a5f-4053-4a36-a962-e8ee57d66ef9
+160	Assembled front_right_roll child=9757264f-3d5c-49aa-910c-bd1892bd27d2
+160	Assembled rear_left_roll child=3fd2edcd-1358-4340-a6e2-d45029592f9b
+160	Assembled rear_right_roll child=3e3a3f11-7a6f-4f37-8e42-34588deb8d91
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+230	Released twelve leg bodies; chassis temporarily locked; motor set to 4 RPM
+240	Placed full-block instrumented contact surface
+280	Released chassis without guide; motor runs with all clutches disengaged
+330	Stored pre-gait chassis pose for abort monitoring
+340	Gait cycle=0 leg=rear_left initial_reverse=false
+460	Gait cycle=1 leg=front_right initial_reverse=false
+580	Gait cycle=2 leg=front_left initial_reverse=true
+700	Gait cycle=3 leg=rear_right initial_reverse=true
+820	Gait cycle=4 leg=rear_left initial_reverse=false
+940	Gait cycle=5 leg=front_right initial_reverse=false
+1060	Gait cycle=6 leg=front_left initial_reverse=true
+1180	Gait cycle=7 leg=rear_right initial_reverse=true
+1320	Gait motor stopped after eight reduced-amplitude cycles

@@ -1,0 +1,17 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+80	Assembled front_left_knee child=f8e07d60-ad8f-4328-a1d0-a5bc97aca18e
+80	Assembled front_right_knee child=21631769-cd53-489a-84b3-e24037bfd86d
+80	Assembled rear_left_knee child=420448d5-b3c1-4482-9c41-e54276f38345
+80	Assembled rear_right_knee child=466a33d0-ffa6-4bbd-98ab-5c20f461f9b0
+120	Assembled front_left_hip child=1cc650c0-5be2-49b8-82c5-34d4ddad7f21
+120	Assembled front_right_hip child=a8060890-32ab-4931-b1c8-5fd4e5a2d2df
+120	Assembled rear_left_hip child=b05a0004-2f03-4250-8f7e-9ad363f4ab0a
+120	Assembled rear_right_hip child=a2c7c247-feed-4875-b79d-203735b0014b
+160	Assembled front_left_roll child=cc0dec28-43fb-454f-a679-e3aab6b3a2b7
+160	Assembled front_right_roll child=2fda17f3-54b8-42c3-96d7-ef33a3f89c6c
+160	Assembled rear_left_roll child=df7544bc-4f21-43a9-9009-0afaf2696cf6
+160	Assembled rear_right_roll child=38cf1c26-3235-407f-9c94-6f13e1d66d0d
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+220	Removed 13 forced tickets before saving

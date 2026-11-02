@@ -1,0 +1,23 @@
+{
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "create": "6.0.10",
+  "simulated": "1.3.2",
+  "sable": "2.0.6",
+  "transmission_linkage": "0.2.9",
+  "motor_count_observed": 1,
+  "leg_count": 4,
+  "pivot_count": 12,
+  "segment_length_blocks": 7,
+  "physical_gait_method": "direct redstone fixture trials and separate Sputnik UI, wireless receiver and mechanism trial",
+  "gait_trials": "same settings, two isolated fresh worlds",
+  "walking_with_player_tested": false,
+  "sustained_walking_tested": false,
+  "linkage_mod_sha256": "2b1015c61e66e6e9df0e74e819e2797882b9ca246afc431984858fce95752c41",
+  "assembly_fixture_source_sha256": "b2eb01fa1e27d6b5e28b8a491359ce4644717afa52c00caf60ff976fd0b89bfc",
+  "dynamic_fixture_source_sha256": "6d25747a653ae1b39da1a25b5fee29c060c23c06b6d64773a54eba355704bd5e",
+  "gait_fixture_source_sha256": "832c0e4a1e5bbae4fcc9e8b9d3328e74a13061244acf4482945bdd567213100b",
+  "sputnik_ui_fixture_source_sha256": "d796f60de04a2107e9053b8ccf8799734ae8baff4cd8451837661b57ec553281",
+  "sputnik_wireless_lua_sha256": "8ff345989b3294f50ce1ae8eacbc9bdb40536517f5e46632ed553755bb638b9a",
+  "sputnik_replay_fixture_source_sha256": "d3ce8e53c043aca36f850edfc28d8e50f1d07d1d4af6ff3bc4499f2cc58678e0"
+}

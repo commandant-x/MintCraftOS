@@ -1,0 +1,45 @@
+{
+  "one_motor": true,
+  "four_legs": true,
+  "pivots": 12,
+  "blocks_per_main_segment": 7,
+  "rpm_direction_cases_passed": 12,
+  "physical_round_trip_cases": 12,
+  "standing_ticks": 220,
+  "four_foot_contact_callbacks_after_release": true,
+  "standing_chassis_and_all_leg_bodies_unlocked": true,
+  "reduced_gait_trials": 2,
+  "cycles_each": [
+    8,
+    8
+  ],
+  "horizontal_progress_blocks": [
+    2.3930185932668393,
+    2.3930185932668393
+  ],
+  "max_tilt_degrees": [
+    5.946918583949474,
+    5.946918583949474
+  ],
+  "after_reload_one_leg_movement": true,
+  "sable_snatch_errors_on_reload": 0,
+  "sputnik_controller_physically_connected": true,
+  "sputnik_gait_tested_in_game": true,
+  "player_tested": false,
+  "terrain_variation_tested": false,
+  "continuous_robust_walking_qualified": false,
+  "extended_gait_cycles": 16,
+  "extended_gait_abort": null,
+  "extended_gait_horizontal_progress_blocks": 4.928023427948352,
+  "extended_gait_max_tilt_degrees": 12.712771042748788,
+  "sputnik_ui_tested": true,
+  "sputnik_ui_cycles": 8,
+  "sputnik_ui_horizontal_progress_blocks": 2.7278532150623285,
+  "sputnik_ui_max_orientation_change_degrees": 5.972066706511522,
+  "sputnik_reload_graph_and_receivers_present": true,
+  "wireless_loss_failsafe": false,
+  "sputnik_reloaded_gait_tested": true,
+  "sputnik_reloaded_cycles": 8,
+  "sputnik_reloaded_horizontal_progress_blocks": 2.9223257013728423,
+  "sputnik_reloaded_max_orientation_change_degrees": 5.2632756424493525
+}

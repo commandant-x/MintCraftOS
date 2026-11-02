@@ -1,0 +1,113 @@
+{
+  "first_observed_fall_tick": 500,
+  "cycles": [
+    {
+      "index": 0,
+      "leg": "front_left",
+      "started_after_observed_fall": false,
+      "fall_during_cycle": false,
+      "foot_center_peak_lift_blocks": 0.7115118140162053,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 502
+    },
+    {
+      "index": 1,
+      "leg": "rear_right",
+      "started_after_observed_fall": false,
+      "fall_during_cycle": true,
+      "foot_center_peak_lift_blocks": 3.1437108284466717,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 0
+    },
+    {
+      "index": 2,
+      "leg": "front_right",
+      "started_after_observed_fall": true,
+      "fall_during_cycle": false,
+      "foot_center_peak_lift_blocks": 0.0,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 0
+    },
+    {
+      "index": 3,
+      "leg": "rear_left",
+      "started_after_observed_fall": true,
+      "fall_during_cycle": false,
+      "foot_center_peak_lift_blocks": 0.0,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 0
+    },
+    {
+      "index": 4,
+      "leg": "front_left",
+      "started_after_observed_fall": true,
+      "fall_during_cycle": false,
+      "foot_center_peak_lift_blocks": 0.4465552476762866,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 0
+    },
+    {
+      "index": 5,
+      "leg": "rear_right",
+      "started_after_observed_fall": true,
+      "fall_during_cycle": false,
+      "foot_center_peak_lift_blocks": 0.9790244991320023,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 0
+    },
+    {
+      "index": 6,
+      "leg": "front_right",
+      "started_after_observed_fall": true,
+      "fall_during_cycle": false,
+      "foot_center_peak_lift_blocks": 0.9778341888850406,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 0
+    },
+    {
+      "index": 7,
+      "leg": "rear_left",
+      "started_after_observed_fall": true,
+      "fall_during_cycle": false,
+      "foot_center_peak_lift_blocks": 0.34372159065931385,
+      "knee_forward_rpm": -4.0,
+      "hip_forward_rpm": -4.0,
+      "knee_reverse_rpm": 4.0,
+      "selected_knee_reversed": true,
+      "foot_callbacks_increase": 0
+    }
+  ],
+  "all_eight_knee_direction_reversals_observed": true,
+  "body_displacement_x_blocks": -45.34302520751953,
+  "body_displacement_y_blocks": -230.20818710327148,
+  "body_displacement_z_blocks": 23.660728454589844,
+  "horizontal_net_displacement_blocks": 51.14508779904077,
+  "horizontal_sampled_path_length_blocks": 93.97749273702972,
+  "max_orientation_change_degrees": 178.17713686641184,
+  "max_vertical_drop_blocks": 230.3168716430664,
+  "motor_final_rpm": 0.0,
+  "all_thirteen_bodies_staff_unlocked_after_release": true,
+  "test_guide_present": false,
+  "limitations": "eight scripted leg cycles using test-only redstone blocks; no Sputnik controller, no player, no contact force measurement and no claim of robust gait"
+}

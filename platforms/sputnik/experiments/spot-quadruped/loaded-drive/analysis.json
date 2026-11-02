@@ -1,0 +1,11 @@
+{
+  "all_thirteen_bodies_unlocked_after_reload": true,
+  "knee_forward_rpm": -4.0,
+  "knee_reverse_rpm": 4.0,
+  "knee_forward_rotation_degrees": -18.08307743731777,
+  "knee_reverse_rotation_degrees": 18.004312812596698,
+  "foot_center_peak_lift_blocks": 0.46614653374791715,
+  "foot_center_final_y": 166.00015476356683,
+  "sable_snatch_errors": 0,
+  "limitations": "one leg cycle after reload; no contact force sensor, sustained walking, player or Sputnik controller"
+}

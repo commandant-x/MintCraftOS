@@ -1,0 +1,38 @@
+{
+  "sample_ticks": 22,
+  "duration_game_ticks": 220,
+  "motor_rpm": 0,
+  "all_twelve_leg_bodies_staff_unlocked": true,
+  "chassis_staff_unlocked_after_initial_sample": true,
+  "test_guide_present": false,
+  "floor": "instrumented full blocks with Sable contact callback",
+  "feet": {
+    "front_left": {
+      "callbacks_before_release": 1280,
+      "callbacks_after_release": 600,
+      "foot_y_final": 165.99518357156927
+    },
+    "front_right": {
+      "callbacks_before_release": 1280,
+      "callbacks_after_release": 720,
+      "foot_y_final": 165.99689595613708
+    },
+    "rear_left": {
+      "callbacks_before_release": 1280,
+      "callbacks_after_release": 720,
+      "foot_y_final": 165.99675827992488
+    },
+    "rear_right": {
+      "callbacks_before_release": 1280,
+      "callbacks_after_release": 1296,
+      "foot_y_final": 165.99957455865987
+    }
+  },
+  "all_four_foot_callbacks_after_release": true,
+  "max_absolute_vertical_displacement_blocks": 0.0046539306640625,
+  "max_horizontal_displacement_blocks": 0.007521906893912257,
+  "max_orientation_change_degrees": 0.013480071697102464,
+  "within_test_tolerance": true,
+  "walking_tested": false,
+  "limitations": "static standing only; callback counts do not measure loads, and no player or gait tested"
+}

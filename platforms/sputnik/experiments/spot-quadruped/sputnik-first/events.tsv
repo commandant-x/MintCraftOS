@@ -1,0 +1,34 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+80	Assembled front_left_knee child=5eaef959-bfbf-4ffe-91f8-e6096490a078
+80	Assembled front_right_knee child=167d90c8-c10d-4c5c-9857-6c4f0dcfe671
+80	Assembled rear_left_knee child=df77f58e-8b7c-41bf-8cc5-6f998890e9d8
+80	Assembled rear_right_knee child=2f1fac2f-85fb-4d7e-9559-3ec0eeae33d1
+120	Assembled front_left_hip child=b9ce9d14-1740-4e52-90c1-d6516006c8f4
+120	Assembled front_right_hip child=44b61a37-846a-4b2b-9f98-b1fbf62bc2cb
+120	Assembled rear_left_hip child=fbee5ee9-cd27-4afa-8139-f3b7d7c4c0c4
+120	Assembled rear_right_hip child=77ab35bc-a4fa-453a-a673-616eca920ce5
+160	Assembled front_left_roll child=05cd0188-dfd8-4548-aa1a-103c85f2f20f
+160	Assembled front_right_roll child=e5808ce9-b90e-4b3e-8f7f-1c6e3cd0631a
+160	Assembled rear_left_roll child=589fe893-d2b9-4766-89e0-6ed087d2cb3e
+160	Assembled rear_right_roll child=0affc017-7abc-495c-b098-8581ce8dda4d
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+200	Installed candidate Lua with 13 explicit wireless channels
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+225	All twelve receivers powered by Sputnik and common reverser at zero before motor start
+230	Released twelve leg bodies; chassis temporarily locked; motor set to 4 RPM
+240	Placed full-block instrumented contact surface
+280	Released chassis without guide; motor runs with all clutches disengaged
+300	Sputnik controller enabled, start low
+330	Stored pre-gait chassis pose for abort monitoring
+340	Sputnik start pulse high
+340	Gait cycle=0 leg=rear_left source=Sputnik
+341	Sputnik start pulse low
+460	Gait cycle=1 leg=front_right source=Sputnik
+580	Gait cycle=2 leg=front_left source=Sputnik
+700	Gait cycle=3 leg=rear_right source=Sputnik
+820	Gait cycle=4 leg=rear_left source=Sputnik
+940	Gait cycle=5 leg=front_right source=Sputnik
+1060	Gait cycle=6 leg=front_left source=Sputnik
+1180	Gait cycle=7 leg=rear_right source=Sputnik
+1320	Gait motor stopped after eight reduced-amplitude cycles

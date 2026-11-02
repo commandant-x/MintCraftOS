@@ -1,0 +1,39 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+80	Assembled front_left_knee child=d4262b41-9b46-44db-877e-e4c5c7830d1a
+80	Assembled front_right_knee child=6f32d850-4321-4b77-9bc2-8c450feb880b
+80	Assembled rear_left_knee child=b1d1bee1-aeb9-4a76-86bd-59066e723c8e
+80	Assembled rear_right_knee child=308d208a-5e35-4034-bf6b-b2d089594f64
+120	Assembled front_left_hip child=6d3f7f96-7dbb-4987-9218-e9ece64967f5
+120	Assembled front_right_hip child=66a08d34-541d-4d1a-babf-959800f0c8dd
+120	Assembled rear_left_hip child=14bb8163-c1d3-4a2a-a907-04852ce52504
+120	Assembled rear_right_hip child=ab55fbc2-563f-4959-93ef-a13f657102e3
+160	Assembled front_left_roll child=7b9aaf0e-3c11-4b23-97da-33ef3f0f82c7
+160	Assembled front_right_roll child=e15c9364-53bf-420a-b752-3a4f2e583141
+160	Assembled rear_left_roll child=1eadc890-130e-4803-8d76-fd12d323b73b
+160	Assembled rear_right_roll child=14fe8a49-9985-4139-8777-da2ecab17189
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+200	Installed operator controls connected to candidate Lua with 13 explicit wireless channels
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+225	All twelve receivers powered by Sputnik and common reverser at zero before motor start
+230	Released twelve leg bodies; chassis temporarily locked; motor set to 4 RPM
+240	Placed full-block instrumented contact surface
+280	Released chassis without guide; motor runs with all clutches disengaged
+300	Sputnik controller enabled, start low
+330	Stored pre-gait chassis pose for abort monitoring
+340	Sputnik start pulse high
+340	Gait cycle=0 leg=rear_left source=Sputnik
+341	Sputnik start pulse low
+460	Gait cycle=1 leg=front_right source=Sputnik
+580	Gait cycle=2 leg=front_left source=Sputnik
+700	Gait cycle=3 leg=rear_right source=Sputnik
+820	Gait cycle=4 leg=rear_left source=Sputnik
+940	Gait cycle=5 leg=front_right source=Sputnik
+1060	Gait cycle=6 leg=front_left source=Sputnik
+1180	Gait cycle=7 leg=rear_right source=Sputnik
+1320	Gait motor stopped after eight reduced-amplitude cycles
+1340	Operator controls reset to OFF
+1360	Replaced 1248 temporary sensor blocks with stone for delivery
+1370	Removed 13 forced tickets before saving
+1380	All twelve receivers powered by Sputnik and common reverser at zero before motor start
+1380	Delivery state: operator OFF, receivers closed, motor stopped
