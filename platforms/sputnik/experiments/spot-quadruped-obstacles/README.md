@@ -1,5 +1,7 @@
 # Quadrupède : comprendre un arbre et s'arrêter
 
+> **Archive d’un essai abandonné :** ce prototype dépend d’un mod ajouté et ne répond pas à la contrainte actuelle. Ne pas installer ce capteur ni utiliser ce monde pour la version sans ajout. Voir l’expérience [sans mod supplémentaire](../spot-quadruped-native-sensing/README.md).
+
 Cette expérience reprend le robot à un moteur créatif, quatre pattes de trois axes et quatre pieds en slime. Le mod optionnel [capteur Sputnik](../../../../addons/sputnik-obstacle/README.md) ajoute le nœud « Terrain avant - quadrupede ». Il observe les blocs statiques déjà chargés devant le châssis. Un bloc non-air est traité comme un obstacle ; du bois et des feuilles proches donnent un indice d'arbre possible, pas une identification certaine. Il ne détecte pas les entités ou les structures mobiles et ses dimensions sont propres à ce robot.
 
 ## Installer et essayer le monde

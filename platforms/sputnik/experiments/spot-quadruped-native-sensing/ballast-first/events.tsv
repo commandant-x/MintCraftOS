@@ -1,0 +1,4 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	Placed ballast in chassis copy: 9 bedrock, 145 iron blocks, 1 stone, 3 wool; before=418.25
+240	total_sable=10001.0 sputnik_getShipMass=9838.0 orientation_change=0.0770284742867831 vertical_drop=0.027557092185844567 motor=0.0

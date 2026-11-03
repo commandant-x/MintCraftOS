@@ -1,0 +1,6 @@
+tick	event
+100	Vanilla dispenser, arrow, sculk sensor, wool acoustic barrier and stone target placed
+180	BLOCKED shot
+300	Removed target, retained the same wool barrier
+360	CLEAR shot
+455	RESULT blocked_peak=2 clear_peak=0 arrows_seen=true,true
