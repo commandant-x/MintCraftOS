@@ -178,13 +178,15 @@ public class SpotQuadrupedWireless128WalkProbe {
   if(tick==220)addBallast(l);
   if(tick==245){if(Math.abs(robotMass(l)-10000)>.001)throw new IllegalStateException("mass wrong");for(int i=0;i<12;i++){Leg a=legs.get(i/3);if(received(l,control(a,i%3))!=15)throw new IllegalStateException("unsafe gate");}Files.writeString(out.resolve("stand.csv"),"tick,phase,x,y,z,qx,qy,qz,qw,locked,fl_x,fl_y,fl_z,fr_x,fr_y,fr_z,rl_x,rl_y,rl_z,rr_x,rr_y,rr_z\n");}
   if(tick==250){var c=SubLevelContainer.getContainer(l);var staff=PhysicsStaffServerHandler.get(l);for(Leg a:legs)for(UUID id:List.of(a.kneeId,a.hipId,a.rollId)){var sub=c.getSubLevel(id);if(staff.isLocked(sub))staff.removeLock(sub);}if(!staff.isLocked(chassis))throw new IllegalStateException("expected locked chassis");staff.removeLock(chassis);event("Released chassis and legs; motor stopped");}
-  if(tick>=250&&tick<=720)recordStand(l,tick<360?"settle":"gait");
+  if(tick>=250&&tick<=900)recordStand(l,tick<360?"settle":"gait");
   if(tick==350){baselineY=chassis.logicalPose().position().y();var q=chassis.logicalPose().orientation();double tilt=Math.toDegrees(Math.acos(Math.max(-1,Math.min(1,1-2*(q.x()*q.x()+q.z()*q.z())))));event("Settled y="+baselineY+" tilt="+tilt);if(tilt>10)throw new IllegalStateException("unstable before gait");}
   if(tick==360){motor.generatedSpeed.setValue(128);event("Motor enabled 128 rpm");}
   if(tick==380)input("Enable",true);
   if(tick==400)input("Start",true);
   if(tick==401)input("Start",false);
   if(tick>=360&&!halted){var q=chassis.logicalPose().orientation();double tilt=Math.toDegrees(Math.acos(Math.max(-1,Math.min(1,1-2*(q.x()*q.x()+q.z()*q.z())))));double drop=baselineY-chassis.logicalPose().position().y();if(tilt>15||drop>1.5){halted=true;input("Enable",false);motor.generatedSpeed.setValue(0);event("SAFETY STOP tilt="+tilt+" drop="+drop);}}
-  if(tick==720){if(!halted){input("Enable",false);motor.generatedSpeed.setValue(0);event("Timed gait complete");}event("Final mass="+robotMass(l));sputnik.setChanged();Files.writeString(out.resolve("complete.txt"),"Unheld flat-ground trial; inspect events and stand.csv for outcome.\n");server.halt(false);return;}
+  if(tick==500&&Double.parseDouble(System.getProperty("mintcraft.spot.lateralDv","0"))!=0){double dv=Double.parseDouble(System.getProperty("mintcraft.spot.lateralDv"));double mass=chassis.getMassTracker().getMass();dev.ryanhcode.sable.api.physics.handle.RigidBodyHandle.of(chassis).applyLinearAndAngularImpulse(new org.joml.Vector3d(mass*dv,0,0),new org.joml.Vector3d());event("Applied lateral impulse: chassis nominal delta_v="+dv+" mass="+mass);}
+  if(tick==720){if(!halted){input("Enable",false);motor.generatedSpeed.setValue(0);event("Timed gait complete");}event("Final mass="+robotMass(l));}
+  if(tick==900){sputnik.setChanged();Files.writeString(out.resolve("complete.txt"),"Unheld flat-ground trial; inspect events and stand.csv for outcome.\n");server.halt(false);return;}
  }catch(Exception ex){try{Files.createDirectories(out);Files.writeString(out.resolve("error.txt"),"tick="+tick+" "+ex+"\n");}catch(Exception ignored){}ex.printStackTrace();server.halt(false);}}
 }
