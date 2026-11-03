@@ -1,0 +1,14 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	Installed experimental timed gait from /workspace/MintCraftOS/platforms/sputnik/experiments/spot-quadruped-course/gait-experimental-16rpm.lua
+200	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+210	Built 250-block marked course with seven transverse obstacle strips
+220	All 12 receivers closed and reverser zero
+230	Motor set to 16 RPM after closed receiver check
+250	Armed saved Sputnik interface
+280	Start sequence=0
+523	Start sequence=1
+766	Start sequence=2
+1009	Start sequence=3
+1252	Start sequence=4
+1368	ABORT_STABILITY progress=15.528568267822266 tilt=17.428547025821 drop=2.037567138671875

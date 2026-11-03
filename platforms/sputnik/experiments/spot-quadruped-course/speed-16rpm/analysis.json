@@ -1,0 +1,52 @@
+{
+  "result": "ABORT_STABILITY tick=1368 progress=15.528568267822266 tilt=17.428547025821 drop=2.037567138671875",
+  "samples": 1090,
+  "start_z": 42.372013092041016,
+  "last_z": 57.90058135986328,
+  "net_progress_z_blocks": 15.528568267822266,
+  "maximum_progress_z_blocks": 15.528568267822266,
+  "target_progress_blocks": 250,
+  "lateral_displacement_blocks": 0.3036994934082031,
+  "maximum_orientation_change_degrees": 23.291605588166334,
+  "maximum_vertical_drop_blocks": 2.037567138671875,
+  "feet_reaching_obstacle_z": {
+    "64": {
+      "first_sample_foot_reaching_strip_z": 901,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "82": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "112": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "152": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "202": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "252": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "286": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    }
+  },
+  "limitations": "sampled every 10 ticks; no obstacle contact-force sensing, player, terrain feedback, or independent steering",
+  "motor_rpm": 16.0,
+  "elapsed_game_ticks": 1088,
+  "nominal_game_seconds": 54.4,
+  "mean_forward_blocks_per_game_second": 0.28545162257026224,
+  "mean_horizontal_blocks_per_game_second": 0.2855062092025064,
+  "peak_single_tick_horizontal_blocks_per_game_second": 2.373359272305623,
+  "target_blocks_per_second": 25,
+  "speed_at_nominal_20_tps": true,
+  "speed_note": "single-tick peak includes vibration or slip; not sustained speed, real-time speed varies with server tick rate"
+}

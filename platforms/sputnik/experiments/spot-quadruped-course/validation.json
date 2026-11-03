@@ -1,0 +1,26 @@
+{
+  "course_length_blocks": 250,
+  "course_reached": false,
+  "target_blocks_per_game_second": 25,
+  "target_reached": false,
+  "motor_count": 1,
+  "legs": 4,
+  "pivots": 12,
+  "tested_speeds_rpm": [
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256
+  ],
+  "best_test_completed_time_limit_forward_blocks_per_game_second": 0.12588187323676214,
+  "best_test_completed_time_limit_rpm": 32,
+  "best_test_completed_time_limit_seconds": 45,
+  "fastest_aborted_forward_blocks_per_game_second": 1.1611658213089924,
+  "fastest_aborted_rpm": 64,
+  "all_feet_cleared_first_obstacle_demonstrated": false,
+  "player_tested": false,
+  "nominal_ticks_per_second": 20
+}
