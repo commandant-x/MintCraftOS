@@ -1,0 +1,1 @@
+Saved and reloaded controller and operator match sources; inspect motion trace.

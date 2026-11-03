@@ -1,0 +1,22 @@
+{
+  "target_blocks_per_game_second": 10,
+  "target_reached": false,
+  "course_250_completed": false,
+  "baseline_slime_8rpm_mean_forward_blocks_per_game_second": 0.10553194681803385,
+  "feedback_32rpm_aborted": true,
+  "feedback_32rpm_mean_before_abort": 1.0849272315181904,
+  "tilt_guard_triggered_in_game": true,
+  "configuration_original_swivel_max_rpm": 96,
+  "configuration_restored_after_test": true,
+  "cap_256_stable_walking_demonstrated": false,
+  "nominal_ticks_per_second": 20,
+  "player_or_variable_load_tested": false,
+  "time_limited_16rpm_trial_mean_forward_blocks_per_game_second": 0.17671326531304254,
+  "time_limited_16rpm_reload_mean_forward_blocks_per_game_second": 0.113042238023546,
+  "time_limited_16rpm_trial_duration_game_seconds": 90,
+  "time_limited_16rpm_trial_max_yaw_change_degrees": 14.32116825561502,
+  "saved_16rpm_controller_reloaded_and_operated": true,
+  "slime_feet_reloaded": true,
+  "trials_at_16rpm": 2,
+  "other_settings_single_trial": true
+}

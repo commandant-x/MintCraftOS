@@ -1,0 +1,16 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	Installed feedback controller from /workspace/MintCraftOS/platforms/sputnik/experiments/spot-quadruped-slime-speed/guard-32rpm-and-higher.lua
+200	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1 slimeFeet=true
+210	Built 250-block marked course with seven transverse obstacle strips
+220	All 12 receivers closed and reverser zero
+230	Motor set to 32 RPM after closed receiver check
+250	Armed saved Sputnik interface
+280	Start sequence=0
+402	Start sequence=1
+524	Start sequence=2
+646	Start sequence=3
+768	Start sequence=4
+890	Start sequence=5
+1012	Start sequence=6
+1065	ABORT_STABILITY progress=7.649585723876953 tilt=25.126502281225623 drop=-0.030426025390625

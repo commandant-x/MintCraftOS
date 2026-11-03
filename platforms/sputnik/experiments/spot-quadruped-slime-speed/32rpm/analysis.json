@@ -1,0 +1,60 @@
+{
+  "result": "ABORT_STABILITY tick=1065 progress=7.649585723876953 tilt=25.126502281225623 drop=-0.030426025390625",
+  "samples": 787,
+  "start_z": 43.054054260253906,
+  "last_z": 50.70363998413086,
+  "net_progress_z_blocks": 7.649585723876953,
+  "maximum_progress_z_blocks": 7.649585723876953,
+  "target_progress_blocks": 250,
+  "lateral_displacement_blocks": -0.4781455993652344,
+  "maximum_orientation_change_degrees": 25.126502281225623,
+  "maximum_vertical_drop_blocks": 0.0395965576171875,
+  "feet_reaching_obstacle_z": {
+    "64": {
+      "first_sample_foot_reaching_strip_z": 1021,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "82": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "112": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "152": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "202": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "252": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "286": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    }
+  },
+  "limitations": "one unladen robot, one run per setting on flat track with obstacles; fixture presses UI, no player, force sensors or robust course qualification; simulation seconds assume 20 ticks/s",
+  "motor_rpm": 32.0,
+  "elapsed_game_ticks": 785,
+  "nominal_game_seconds": 39.25,
+  "mean_forward_blocks_per_game_second": 0.1948939037930434,
+  "mean_horizontal_blocks_per_game_second": 0.19527425883319208,
+  "peak_single_tick_horizontal_blocks_per_game_second": 2.0006747059995442,
+  "target_blocks_per_second": 10,
+  "speed_at_nominal_20_tps": true,
+  "speed_note": "single-tick peak includes vibration or slip; not sustained speed, real-time speed varies with server tick rate",
+  "maximum_tilt_from_world_up_degrees": 1.2856724198639662,
+  "maximum_abs_yaw_change_degrees": 25.12601169728123,
+  "maximum_lateral_shift_blocks": 2.02740478515625,
+  "first_tick_all_foot_centers_beyond_first_strip": null,
+  "best_forward_blocks_in_one_game_second": 1.1990852355957031,
+  "best_horizontal_blocks_in_one_game_second": 1.5242459971663083,
+  "ticks_with_multiple_cogs_running": 0,
+  "slime_feet_count": 4
+}

@@ -1,0 +1,2 @@
+start chassis z=42.27; goal +250 blocks z=292.27; floor x=16..72 z=20..315 y=165
+obstacles across x=22..66 at y=166: carpet z=64; bottom slabs z=82,112,202,286; full blocks z=152,252
