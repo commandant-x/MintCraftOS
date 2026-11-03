@@ -1,0 +1,1 @@
+Three redstone clutch phases on one leg with one 128 RPM motor and a common 2:1 reducer; inspect speeds and relative poses. No individual reducer or walking qualification.

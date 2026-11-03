@@ -1,0 +1,10 @@
+tick	event
+50	Constructed one creative motor and three separately clutched and reversible small-to-large gear branches
+110	Motor commanded to 128 RPM; all clutches powered closed
+150	All three branches have 128 RPM input, 64 RPM reduced, 0 output when closed
+160	Opened branch A only
+190	A runs at 64 RPM while B and C remain stopped
+200	Opened branch B as well
+230	Reversed branch A alone while A and B are running
+260	A reversed independently; B unchanged; C stopped
+300	A closed; B and C running at reduced speed

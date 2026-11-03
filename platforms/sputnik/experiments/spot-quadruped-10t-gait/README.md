@@ -1,0 +1,41 @@
+# Marche du quadrupède de 10 tonnes et transmissions à 128 tr/min
+
+Tous les essais utilisent des copies du monde et les mods déjà présents dans VENATOR. Le Spot conserve un moteur créatif et quatre pattes à trois axes. Les temps en secondes sont des secondes de jeu à 20 ticks/s ; si le serveur ralentit, le temps réel est plus long. Ce sont des essais isolés : les positions initiales et le tassement après rechargement peuvent varier.
+
+## Recherche et limites
+
+Le [travail du MIT sur le Cheetah](https://dspace.mit.edu/entities/publication/bcafd754-adcc-4381-8ddc-941fbd7428fa) met en avant le retour de contact et l’adaptation des trajectoires d’appui. Le [travail sur les marges de stabilité d’une marche statique](https://www.mdpi.com/2218-6581/5/3/13) utilise le polygone des pieds en appui et la projection du centre de masse. Ces idées motivent les mesures et le réglage des impulsions ; notre montage ne mesure pas encore les forces ou le contact des pieds et n’implémente pas le contrôleur du MIT.
+
+La [documentation officielle de Create](https://github.com/Creators-of-Create/Create/wiki/Cogwheel) décrit la réduction de vitesse entre un petit et un grand pignon. Des bancs distincts vérifient le rapport et la commande redstone. Une réduction ne démontre pas à elle seule que la patte développe assez d’effort ou que le robot marche plus vite.
+
+## Essais de marche
+
+| Configuration à 10 t | Durée ou arrêt | Progression | Observations |
+| --- | --- | --- | --- |
+| 8 tr/min, marche précédente | 60 s | 1,21 bloc, soit 0,020 bloc/s | un essai ; quatre pieds slime |
+| 16 tr/min, correction de cap | 50 s | 3,67 blocs, soit 0,073 bloc/s | seuil de stabilité non atteint ; pieds avant presque à hauteur du sol |
+| 24 tr/min, correction de cap | 50 s | 6,28 blocs, soit 0,126 bloc/s | inclinaison maximale par rapport à la verticale 2,11° ; pied avant gauche peu dégagé |
+| 16 tr/min, genoux plus amples | arrêt après 14,9 s | −3,59 blocs | protection d’inclinaison ; flexion des deux pieds avant plus importante mais pas instable |
+| 24 tr/min, un bloc de miel ajouté à côté de chaque slime | 50 s | 3,75 blocs, soit 0,075 bloc/s | un bloc de fer retiré pour conserver 10 t ; inférieur au résultat slime seul dans cet essai |
+
+Le seuil d’arrêt extérieur de 25° concerne le changement d’orientation total, qui peut inclure le cap ; il ne faut pas l’appeler uniquement « inclinaison ». La commande Lua dispose aussi d’une protection d’inclinaison de 12° par rapport à l’armement. Les positions des pieds ne mesurent pas leurs forces de contact. Ni les 10 blocs/s, ni la stabilité comparable à Spot, ni le passage d’obstacles ne sont validés.
+
+## Transmission
+
+Un moteur créatif à **128 tr/min** a entraîné sur le banc trois branches. Sur chaque branche, un petit pignon entraîne un grand pignon : l’entrée est à 128 tr/min et la sortie à 64 tr/min. Chaque branche possède son embrayage et son inverseur redstone ; un des axes a été inversé sans inverser les autres. Le test a ensuite fait tourner trois véritables pivots assemblés avec des petites pièces, sans charge de 10 t. Voir [le banc à trois pivots](three-swivels/rpm.csv) et [ses événements](three-swivels/events.tsv). Un autre banc a mesuré trois branches à réduction totale 8:1 : 128 tr/min en entrée, 64 tr/min après la première paire de pignons et 16 tr/min en sortie, avec embrayages et inverseurs séparés ([mesures](three-stage/rpm.csv)). Ce second banc ne comporte pas de pivot.
+
+Une patte complète à trois axes et deux segments de sept blocs a aussi été essayée avec un seul moteur à 128 tr/min, trois embrayages et **un réducteur commun** avant les axes. L’essai sélectionne séparément les trois pivots à 64 tr/min, sans charge au sol. Cette patte est une étape intermédiaire : la réduction n’est pas encore indépendante pour chaque axe, et ce montage n’est pas le quadrupède de 10 t. Voir [mesures](reduced-leg/drive.csv). Les consignes angulaires et les rotations physiques ne sont pas interchangeables.
+
+Un premier essai de patte à trois réducteurs indépendants a conservé un seul des sept blocs inférieurs ([échec de construction](individual-leg2/events.tsv)). Une correction a ensuite conservé les deux segments complets et trois pivots : les deux hanches ont chacune reçu 64 tr/min quand leur embrayage était ouvert, mais le genou est resté à 0 tr/min ([traces](individual-leg4/drive.csv)). Le banc de cette dernière version ne vérifiait pas automatiquement le signal du genou : son fichier `complete.txt` signifie que le protocole s’est terminé, et non que les trois transmissions fonctionnent. Le diagnostic a montré une liaison axiale manquante vers la jambe supérieure ([traces](individual-leg6/knee-network.csv)) ; après correction, deux essais de la patte ont confirmé trois pignons à 64 tr/min sélectionnés indépendamment avec le moteur à 128 tr/min, les autres restant arrêtés. Les deux segments de sept blocs et les trois pivots ont été retrouvés. Les rotations physiques mesurées après 16 ticks sont d’environ 26,7°, 47,9° et 72,3° pour une consigne respective de 76,8° : elles ne démontrent pas une précision suffisante ([analyse](individual-leg/analysis.json), [répétition](individual-leg-repeat/analysis.json)). Les inversions individuelles ont ensuite été vérifiées sur une patte complète, puis sur les douze pivots du quadrupède de 10 t, châssis maintenu ([analyse](quad-reversible128/analysis.json), [événements](quad-reversible128/events.tsv)).
+
+Les bancs emploient un programme d’observation temporaire sur des copies isolées du serveur ; aucun mod ou datapack supplémentaire n’est requis par les composants de jeu testés. Les sauvegardes de référence restent conservées.
+
+## Commande Sputnik et premier essai libre à 128 tr/min
+
+Le quadrupède complet dispose de douze réducteurs indépendants 2:1, douze embrayages et douze inverseurs, pour un seul moteur à 128 tr/min. Les douze axes ont été sélectionnés et inversés individuellement à ±64 tr/min, les autres restant arrêtés. Les deux segments de chaque patte ont sept blocs et chaque pied contient un bloc de slime. Masse totale mesurée : 10 000 unités. Le châssis était maintenu pour cet essai mécanique.
+
+Sputnik commande ensuite les 24 récepteurs Create sans ajout au modpack. Un premier programme à impulsions d’un tick a échoué à entraîner les pignons malgré la réception du signal ; des impulsions de trois ticks ont commandé les huit axes de hanches et genoux à ±64 tr/min, dans les deux sens, sans activation simultanée ([mesures](quad-wireless128-3tick/wireless.csv), [événements](quad-wireless128-3tick/events.tsv)). Les quatre axes latéraux n’étaient pas sollicités dans cette séquence. Le test d’un tick ne permet pas d’identifier à lui seul la cause précise du retard.
+
+Sur sol plat et châssis libéré, moteur arrêté, le corps s’est stabilisé à 0,07° de la verticale. Après démarrage du moteur et de la séquence, l’arrêt de sécurité est intervenu au tick 535 à 16,74° d’inclinaison, après environ 4,35 blocs de déplacement horizontal depuis le tick 400 ; le robot a ensuite perdu son équilibre ([positions](quad-wireless128-walk/stand.csv), [événements](quad-wireless128-walk/events.tsv)). Ce n’est pas une marche stable : ne pas utiliser cette séquence sur le parcours ou près de constructions. L’écart entre le seuil Lua de 12° et l’arrêt externe à 16,74° reste à comprendre ; les deux protections ne mesurent pas nécessairement les mêmes angles. Aucun obstacle, capteur de contact ni reconnaissance d’arbre n’a été validé dans cet essai.
+
+Une seconde séquence utilise des impulsions de deux ticks. Sur banc maintenu, les huit pignons de hanches et genoux ont tourné dans les deux sens ([mesures](quad-wireless128-2tick/wireless.csv)). Dans un essai libre sur le même sol plat, du tick 400 au tick 720, le déplacement horizontal net est de 7,98 blocs en 16 secondes de jeu, soit environ 0,50 bloc/s, avec une inclinaison maximale de 6,54° et sans arrêt externe ([positions](quad-wireless128-walk-2tick/stand.csv), [événements](quad-wireless128-walk-2tick/events.tsv)). C’est un seul essai : le déplacement inclut tout glissement éventuel et le protocole de marche ne consigne pas encore l’état de chaque pignon ni l’arrêt éventuel du contrôleur Lua. La stabilité après le tick 720, la détection des contacts et le franchissement d’obstacles ne sont pas validés.

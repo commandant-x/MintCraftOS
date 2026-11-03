@@ -1,0 +1,14 @@
+tick	event
+40	Built one motor, three swivel axes, three separate clutches and three 2:1 reducers; motor initially stopped
+80	Assembled knee axis=x child=4cd1b50c-1200-4caa-8f6f-6a8befc03eb5
+80	DIAGNOSTIC after=knee child=4cd1b50c-1200-4caa-8f6f-6a8befc03eb5 wood=1 box=BoundingBox3i{minX=20481031, minY=128, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+80	DIAGNOSTIC overworld_lower_planks=6
+120	Assembled hip_pitch axis=x child=ad83159a-bfd4-48d8-96e5-7ddbe375de14
+120	DIAGNOSTIC after=hip_pitch child=4cd1b50c-1200-4caa-8f6f-6a8befc03eb5 wood=1 box=BoundingBox3i{minX=20481031, minY=128, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+120	DIAGNOSTIC after=hip_pitch child=ad83159a-bfd4-48d8-96e5-7ddbe375de14 wood=7 box=BoundingBox3i{minX=20481029, minY=122, minZ=20509702, maxX=20481032, maxY=129, maxZ=20509704}
+120	DIAGNOSTIC overworld_lower_planks=6
+160	Assembled hip_roll axis=z child=64292670-6101-4e23-89e7-e7a7cde4b6d0
+160	DIAGNOSTIC after=hip_roll child=4cd1b50c-1200-4caa-8f6f-6a8befc03eb5 wood=1 box=BoundingBox3i{minX=20481031, minY=128, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+160	DIAGNOSTIC after=hip_roll child=ad83159a-bfd4-48d8-96e5-7ddbe375de14 wood=7 box=BoundingBox3i{minX=20481029, minY=122, minZ=20509702, maxX=20481032, maxY=129, maxZ=20509704}
+160	DIAGNOSTIC after=hip_roll child=64292670-6101-4e23-89e7-e7a7cde4b6d0 wood=0 box=BoundingBox3i{minX=20481032, minY=128, minZ=20511750, maxX=20481034, maxY=131, maxZ=20511753}
+160	DIAGNOSTIC overworld_lower_planks=6

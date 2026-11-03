@@ -1,0 +1,31 @@
+tick	event
+40	Built one motor, three swivel axes, three separate clutches and three 2:1 reducers; motor initially stopped
+70	GLUE y=-8 down=true boxes=1 state=Block{minecraft:oak_planks}
+70	GLUE y=-9 down=true boxes=1 state=Block{minecraft:oak_planks}
+70	GLUE y=-10 down=true boxes=1 state=Block{minecraft:oak_planks}
+70	GLUE y=-11 down=true boxes=1 state=Block{minecraft:oak_planks}
+70	GLUE y=-12 down=true boxes=1 state=Block{minecraft:oak_planks}
+70	GLUE y=-13 down=true boxes=1 state=Block{minecraft:oak_planks}
+80	Assembled knee axis=x child=ad75adbd-7472-4399-9e36-16ae24a9e24b
+80	DIAGNOSTIC after=knee child=ad75adbd-7472-4399-9e36-16ae24a9e24b wood=7 box=BoundingBox3i{minX=20481031, minY=122, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+80	DIAGNOSTIC overworld_lower_planks=0
+120	Assembled hip_pitch axis=x child=30433de6-3306-4b62-8007-3159eb1ec7f5
+120	DIAGNOSTIC after=hip_pitch child=ad75adbd-7472-4399-9e36-16ae24a9e24b wood=7 box=BoundingBox3i{minX=20481031, minY=122, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+120	DIAGNOSTIC after=hip_pitch child=30433de6-3306-4b62-8007-3159eb1ec7f5 wood=7 box=BoundingBox3i{minX=20481029, minY=122, minZ=20509702, maxX=20481032, maxY=129, maxZ=20509704}
+120	DIAGNOSTIC overworld_lower_planks=0
+160	Assembled hip_roll axis=z child=54369394-0b88-4851-9f2d-eaaa94796297
+160	DIAGNOSTIC after=hip_roll child=ad75adbd-7472-4399-9e36-16ae24a9e24b wood=7 box=BoundingBox3i{minX=20481031, minY=122, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+160	DIAGNOSTIC after=hip_roll child=30433de6-3306-4b62-8007-3159eb1ec7f5 wood=7 box=BoundingBox3i{minX=20481029, minY=122, minZ=20509702, maxX=20481032, maxY=129, maxZ=20509704}
+160	DIAGNOSTIC after=hip_roll child=54369394-0b88-4851-9f2d-eaaa94796297 wood=0 box=BoundingBox3i{minX=20481032, minY=128, minZ=20511750, maxX=20481034, maxY=131, maxZ=20511753}
+160	DIAGNOSTIC overworld_lower_planks=0
+220	AUDIT pivots=3 children=3
+225	Found redstone control for knee at BlockPos{x=20481031, y=123, z=20509702}
+225	Found redstone control for hip_pitch at BlockPos{x=20481032, y=130, z=20511753}
+230	Released child bodies and set the single creative motor to 128 RPM with independent 2:1 reducers; no impulse applied
+260	Redstone hip_roll set OFF (clutch engaged)
+264	Redstone hip_roll set ON (clutch disengaged)
+280	Redstone hip_pitch set OFF (clutch engaged)
+284	Redstone hip_pitch set ON (clutch disengaged)
+300	Redstone knee set OFF (clutch engaged)
+304	Redstone knee set ON (clutch disengaged)
+330	Motor commanded to stop

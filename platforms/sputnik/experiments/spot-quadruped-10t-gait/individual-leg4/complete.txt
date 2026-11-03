@@ -1,0 +1,1 @@
+Experimental leg with 128 RPM motor and separate reductions; inspect speeds and relative poses. No walking qualification.

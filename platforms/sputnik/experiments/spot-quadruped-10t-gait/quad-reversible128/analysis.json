@@ -1,0 +1,94 @@
+{
+  "motor_count": 1,
+  "motor_rpm": 128,
+  "joint_reduction": "2:1",
+  "mass_sable_units": 10000,
+  "slime_feet": 4,
+  "selected_cases": [
+    {
+      "leg": "front_left",
+      "axis": "roll",
+      "forward_rpm": -64.0,
+      "reverse_rpm": 64.0,
+      "relative_orientation_change_between_samples_degrees": 10.720329545965122
+    },
+    {
+      "leg": "front_left",
+      "axis": "hip",
+      "forward_rpm": -64.0,
+      "reverse_rpm": 64.0,
+      "relative_orientation_change_between_samples_degrees": 11.135177936278819
+    },
+    {
+      "leg": "front_left",
+      "axis": "knee",
+      "forward_rpm": -64.0,
+      "reverse_rpm": 64.0,
+      "relative_orientation_change_between_samples_degrees": 11.226242877081855
+    },
+    {
+      "leg": "front_right",
+      "axis": "roll",
+      "forward_rpm": 64.0,
+      "reverse_rpm": -64.0,
+      "relative_orientation_change_between_samples_degrees": 31.324688537755748
+    },
+    {
+      "leg": "front_right",
+      "axis": "hip",
+      "forward_rpm": 64.0,
+      "reverse_rpm": -64.0,
+      "relative_orientation_change_between_samples_degrees": 6.234297366896617
+    },
+    {
+      "leg": "front_right",
+      "axis": "knee",
+      "forward_rpm": 64.0,
+      "reverse_rpm": -64.0,
+      "relative_orientation_change_between_samples_degrees": 11.1920130812431
+    },
+    {
+      "leg": "rear_left",
+      "axis": "roll",
+      "forward_rpm": 64.0,
+      "reverse_rpm": -64.0,
+      "relative_orientation_change_between_samples_degrees": 30.903596113373677
+    },
+    {
+      "leg": "rear_left",
+      "axis": "hip",
+      "forward_rpm": 64.0,
+      "reverse_rpm": -64.0,
+      "relative_orientation_change_between_samples_degrees": 5.836862077850847
+    },
+    {
+      "leg": "rear_left",
+      "axis": "knee",
+      "forward_rpm": 64.0,
+      "reverse_rpm": -64.0,
+      "relative_orientation_change_between_samples_degrees": 11.18741548858316
+    },
+    {
+      "leg": "rear_right",
+      "axis": "roll",
+      "forward_rpm": -64.0,
+      "reverse_rpm": 64.0,
+      "relative_orientation_change_between_samples_degrees": 10.720569784352941
+    },
+    {
+      "leg": "rear_right",
+      "axis": "hip",
+      "forward_rpm": -64.0,
+      "reverse_rpm": 64.0,
+      "relative_orientation_change_between_samples_degrees": 11.147106085988826
+    },
+    {
+      "leg": "rear_right",
+      "axis": "knee",
+      "forward_rpm": -64.0,
+      "reverse_rpm": 64.0,
+      "relative_orientation_change_between_samples_degrees": 11.162235982235362
+    }
+  ],
+  "limitations": "one held-chassis run with test-only adjacent redstone blocks; no Sputnik receiver, foot contact, unsupported standing, walking, or positioning accuracy qualification; orientation change is the difference between two samples, not a full trajectory or angle error"
+}

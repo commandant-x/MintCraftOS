@@ -1,0 +1,38 @@
+{
+  "motor_count": 1,
+  "motor_rpm": 128,
+  "reduction_per_joint": "2:1",
+  "axes": {
+    "roll": {
+      "sample_tick": 261,
+      "motor_rpm": 128.0,
+      "selected_cog_rpm": 64.0,
+      "other_cogs_rpm": {
+        "hip_cog_rpm": 0.0,
+        "knee_cog_rpm": 0.0
+      },
+      "relative_physical_rotation_degrees_over_16_ticks": 26.7160470984633
+    },
+    "hip": {
+      "sample_tick": 281,
+      "motor_rpm": 128.0,
+      "selected_cog_rpm": 64.0,
+      "other_cogs_rpm": {
+        "cog_rpm": 0.0,
+        "knee_cog_rpm": 0.0
+      },
+      "relative_physical_rotation_degrees_over_16_ticks": 47.8984638810305
+    },
+    "knee": {
+      "sample_tick": 301,
+      "motor_rpm": 128.0,
+      "selected_cog_rpm": 64.0,
+      "other_cogs_rpm": {
+        "cog_rpm": 0.0,
+        "hip_cog_rpm": 0.0
+      },
+      "relative_physical_rotation_degrees_over_16_ticks": 72.2594212655346
+    }
+  },
+  "limitations": "one unloaded isolated leg; motor reversal and independent per-axis reverse on this leg are not tested; no Sputnik control, 10 t body, contact sensing, or walking test; physical rotations are not a positioning-accuracy test"
+}
