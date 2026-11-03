@@ -1,0 +1,1 @@
+tick=937 java.lang.IllegalStateException: terrain stop was not due to observed tree

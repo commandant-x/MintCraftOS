@@ -1,0 +1,1 @@
+TIME_LIMIT tick=2080 progress=0.0 tilt=1.7075472925031877E-6 drop=0.0
