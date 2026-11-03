@@ -1,0 +1,10 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	Installed experimental timed gait from /workspace/MintCraftOS/platforms/sputnik/experiments/spot-quadruped-balance/gait-feedback.lua
+200	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+210	Built 250-block marked course with seven transverse obstacle strips
+220	All 12 receivers closed and reverser zero
+230	Motor set to 0 RPM after closed receiver check
+250	Standing disturbance test; controls off
+400	Applied one lateral chassis impulse: nominal delta_v=0.3 chassis_mass=255.25
+1480	TIME_LIMIT progress=-2.25067138671875E-4 tilt=0.0034532120298014775 drop=6.103515625E-5

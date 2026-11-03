@@ -1,0 +1,19 @@
+{
+  "angular_perturbation": null,
+  "result": "TIME_LIMIT tick=6780 progress=24.249073028564453 tilt=15.223681003666401 drop=-0.0182952880859375",
+  "samples": 6502,
+  "net_forward_blocks": 24.249073028564453,
+  "net_lateral_blocks": 8.755836486816406,
+  "maximum_tilt_from_world_up_degrees": 2.84958489457308,
+  "maximum_vertical_drop_blocks": 0.1269683837890625,
+  "max_abs_yaw_change_degrees": 16.49569630976768,
+  "telemetry_samples": 651,
+  "max_sputnik_vs_physics_yaw_error_degrees": 0.0,
+  "feedback_yaw_error_range_degrees": [
+    -0.85578815670209,
+    16.456528797062106
+  ],
+  "first_tick_all_foot_centers_beyond_first_strip": null,
+  "perturbation": null,
+  "limitations": "physical pose sampled per tick, Sputnik outputs every ten ticks; foot center is not a contact-force measurement; single copy, no player or variable load"
+}

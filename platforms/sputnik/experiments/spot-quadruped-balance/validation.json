@@ -1,0 +1,21 @@
+{
+  "one_motor": true,
+  "legs": 4,
+  "pivots": 12,
+  "sputnik_pose_checked_against_physics": true,
+  "yaw_correction_tested_in_game": true,
+  "tilt_guard_tested_in_lua": true,
+  "tilt_guard_triggered_by_physical_push_test": false,
+  "one_axis_running_at_a_time_in_recorded_gait_tests": true,
+  "static_motor_off_perturbations_tested": true,
+  "walking_small_perturbation_tested": true,
+  "contact_feedback": false,
+  "joint_position_feedback": false,
+  "hardware_link_loss_failsafe": false,
+  "spot_level_stability_demonstrated": false,
+  "first_obstacle_fully_crossed_demonstrated": false,
+  "course_250_completed": false,
+  "target_25_blocks_per_second_met": false,
+  "saved_controller_reloaded_and_operated": true,
+  "player_or_variable_load_tested": false
+}
