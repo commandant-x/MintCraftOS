@@ -1,0 +1,28 @@
+{
+  "angular_perturbation": null,
+  "result": "TIME_LIMIT tick=2080 progress=9.497875213623047 tilt=0.13376541836035902 drop=-0.00128173828125",
+  "samples": 1802,
+  "net_forward_blocks": 9.497875213623047,
+  "net_lateral_blocks": 1.7844657897949219,
+  "maximum_tilt_from_world_up_degrees": 1.781238094207939,
+  "maximum_vertical_drop_blocks": 0.074859619140625,
+  "max_abs_yaw_change_degrees": 4.0629563427615665,
+  "telemetry_samples": 181,
+  "max_sputnik_vs_physics_yaw_error_degrees": 0.0,
+  "feedback_yaw_error_range_degrees": [
+    -2.9249969583746065,
+    4.007663621777084
+  ],
+  "first_tick_all_foot_centers_beyond_first_strip": null,
+  "perturbation": null,
+  "limitations": "one trial per material and scenario; positions do not measure contact forces, slipperiness coefficient or general adhesion; reload, settling and solver variation may influence the result",
+  "ticks_with_multiple_cogs_running": 0,
+  "final_feet_z": {
+    "front_left": 47.1390298641187,
+    "front_right": 45.838032084398506,
+    "rear_left": 63.11218676066833,
+    "rear_right": 61.77936952257905
+  },
+  "slime_feet_count": 4,
+  "wood_feet_count": 0
+}

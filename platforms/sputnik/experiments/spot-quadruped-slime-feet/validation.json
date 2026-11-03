@@ -1,0 +1,15 @@
+{
+  "feet_count": 4,
+  "slime_blocks_per_foot": 1,
+  "lower_segment_length_blocks": 7,
+  "pivots": 12,
+  "motors": 1,
+  "saved_slime_feet_verified_after_reload": true,
+  "saved_sputnik_controller_matches_previous": true,
+  "feet_material_controlled_trials_each": 1,
+  "contact_force_measured": false,
+  "friction_coefficient_measured": false,
+  "adhesion_improvement_demonstrated": false,
+  "course_250_completed": false,
+  "spot_stability_demonstrated": false
+}

@@ -1,0 +1,5 @@
+front_left lower_planks=6 lower_slime=1 lower_total=7 upper_planks=7 foot=BlockPos{x=20481032, y=123, z=20481032} axes=z,x,x
+front_right lower_planks=6 lower_slime=1 lower_total=7 upper_planks=7 foot=BlockPos{x=20481032, y=128, z=20483080} axes=z,x,x
+rear_left lower_planks=6 lower_slime=1 lower_total=7 upper_planks=7 foot=BlockPos{x=20481032, y=124, z=20485128} axes=z,x,x
+rear_right lower_planks=6 lower_slime=1 lower_total=7 upper_planks=7 foot=BlockPos{x=20481032, y=123, z=20487176} axes=z,x,x
+pivots=12 leg_bodies=12 chassis=1 motor_count_observed=1 motor_rpm=0.0
