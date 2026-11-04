@@ -1,0 +1,149 @@
+{
+  "description": "Ten-tick body-angle change after isolated grounded pulse; one trial, not a force or contact measurement.",
+  "samples": [
+    {
+      "axis": "front_left_roll",
+      "tick": 408,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.23503101427749584,
+      "roll_change": -0.25462642498686705,
+      "drop_change": -0.062728881839206
+    },
+    {
+      "axis": "front_left_roll",
+      "tick": 458,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.10050702648229048,
+      "roll_change": 0.25726716176217224,
+      "drop_change": 0.0679168701230708
+    },
+    {
+      "axis": "front_left_hip",
+      "tick": 528,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.415621917178413,
+      "roll_change": 0.3646575212744949,
+      "drop_change": 0.026519775390625
+    },
+    {
+      "axis": "front_left_hip",
+      "tick": 578,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": 0.03691484353109331,
+      "roll_change": -0.14084741079068408,
+      "drop_change": -0.0138397216796875
+    },
+    {
+      "axis": "front_right_roll",
+      "tick": 648,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.9671166426594198,
+      "roll_change": -0.4476937156789802,
+      "drop_change": 0.06726074218033773
+    },
+    {
+      "axis": "front_right_roll",
+      "tick": 698,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": 1.2385438410668996,
+      "roll_change": 0.49233161456595553,
+      "drop_change": -0.12673950200343143
+    },
+    {
+      "axis": "front_right_hip",
+      "tick": 768,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.10539321766208332,
+      "roll_change": 0.06731400024941081,
+      "drop_change": -0.0052642822265625
+    },
+    {
+      "axis": "front_right_hip",
+      "tick": 818,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.02656941230384291,
+      "roll_change": 0.021242409931574002,
+      "drop_change": -0.018280029296875
+    },
+    {
+      "axis": "rear_left_roll",
+      "tick": 888,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.8021292915410925,
+      "roll_change": 0.6360779572631543,
+      "drop_change": 0.029876708977013777
+    },
+    {
+      "axis": "rear_left_roll",
+      "tick": 938,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -1.3224886143859749,
+      "roll_change": -1.2263095231595855,
+      "drop_change": -0.0480194091796875
+    },
+    {
+      "axis": "rear_left_hip",
+      "tick": 1008,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.10021834908300775,
+      "roll_change": 0.08494749561126014,
+      "drop_change": 0.0136566162109375
+    },
+    {
+      "axis": "rear_left_hip",
+      "tick": 1058,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.0009351587791854854,
+      "roll_change": -0.054766719573308364,
+      "drop_change": -0.0105133056640625
+    },
+    {
+      "axis": "rear_right_roll",
+      "tick": 1128,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.5554397336716761,
+      "roll_change": 0.2661178924165313,
+      "drop_change": 0.019256591792753852
+    },
+    {
+      "axis": "rear_right_roll",
+      "tick": 1178,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": 0.24307414987080733,
+      "roll_change": -0.4103743416377199,
+      "drop_change": 0.04283142086953262
+    },
+    {
+      "axis": "rear_right_hip",
+      "tick": 1248,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.036501530006688654,
+      "roll_change": -0.04704744072699896,
+      "drop_change": 0.003173828125
+    },
+    {
+      "axis": "rear_right_hip",
+      "tick": 1298,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.08328139513062638,
+      "roll_change": 0.08940921638014743,
+      "drop_change": 0.0020599365234375
+    }
+  ]
+}

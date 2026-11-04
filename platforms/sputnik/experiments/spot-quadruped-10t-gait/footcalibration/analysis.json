@@ -1,0 +1,209 @@
+{
+  "context": "locked chassis, no ground contact; four-tick selection followed by four ticks",
+  "axes": [
+    {
+      "leg": "front_left",
+      "axis": "roll",
+      "forward_rpm": -64.0,
+      "forward_displacement_xyz": [
+        -15.66120719356675,
+        9.23706609470301,
+        0.0013117640019473242
+      ],
+      "forward_displacement_norm": 18.182321153209884,
+      "reverse_rpm": 64.0,
+      "reverse_displacement_xyz": [
+        15.66118741317268,
+        -9.237066144832113,
+        -0.0012532768007176287
+      ]
+    },
+    {
+      "leg": "front_left",
+      "axis": "hip",
+      "forward_rpm": -64.0,
+      "forward_displacement_xyz": [
+        -0.0006461301988096579,
+        10.386507871185842,
+        13.136055887032917
+      ],
+      "forward_displacement_norm": 16.7462088379114,
+      "reverse_rpm": 64.0,
+      "reverse_displacement_xyz": [
+        0.0006989963448944536,
+        -10.38650774939586,
+        -13.135857979295729
+      ]
+    },
+    {
+      "leg": "front_left",
+      "axis": "knee",
+      "forward_rpm": -64.0,
+      "forward_displacement_xyz": [
+        -0.00015115780017538327,
+        5.013465342679467,
+        6.327627516819803
+      ],
+      "forward_displacement_norm": 8.073023272399999,
+      "reverse_rpm": 64.0,
+      "reverse_displacement_xyz": [
+        0.00011700443710793706,
+        -5.013465425465483,
+        -6.327733727229365
+      ]
+    },
+    {
+      "leg": "front_right",
+      "axis": "roll",
+      "forward_rpm": 64.0,
+      "forward_displacement_xyz": [
+        10.233865204282615,
+        18.022676603982575,
+        8.056861217279845
+      ],
+      "forward_displacement_norm": 22.236498862583456,
+      "reverse_rpm": -64.0,
+      "reverse_displacement_xyz": [
+        -10.228205421116598,
+        -18.021912602772574,
+        -8.069467841895339
+      ]
+    },
+    {
+      "leg": "front_right",
+      "axis": "hip",
+      "forward_rpm": 64.0,
+      "forward_displacement_xyz": [
+        0.0017454149313209655,
+        2.0128559794925422,
+        -8.034265377115904
+      ],
+      "forward_displacement_norm": 8.282572812271288,
+      "reverse_rpm": -64.0,
+      "reverse_displacement_xyz": [
+        -0.001685665243719825,
+        -2.012855828089073,
+        8.034010445226212
+      ]
+    },
+    {
+      "leg": "front_right",
+      "axis": "knee",
+      "forward_rpm": 64.0,
+      "forward_displacement_xyz": [
+        -0.0005474624824799434,
+        5.012425575458678,
+        -6.327550832893742
+      ],
+      "forward_displacement_norm": 8.072317510608817,
+      "reverse_rpm": -64.0,
+      "reverse_displacement_xyz": [
+        0.0006126920918774204,
+        -5.0124101333151145,
+        6.327871066218279
+      ]
+    },
+    {
+      "leg": "rear_left",
+      "axis": "roll",
+      "forward_rpm": 64.0,
+      "forward_displacement_xyz": [
+        12.644362192528185,
+        17.22147639670891,
+        4.778461147987919
+      ],
+      "forward_displacement_norm": 21.89275760339634,
+      "reverse_rpm": -64.0,
+      "reverse_displacement_xyz": [
+        -12.643329810748696,
+        -17.221427905376117,
+        -4.7810314266351455
+      ]
+    },
+    {
+      "leg": "rear_left",
+      "axis": "hip",
+      "forward_rpm": 64.0,
+      "forward_displacement_xyz": [
+        0.10325256247470804,
+        2.638670626597559,
+        -8.724469675033006
+      ],
+      "forward_displacement_norm": 9.115350507681912,
+      "reverse_rpm": -64.0,
+      "reverse_displacement_xyz": [
+        -0.10321796111341541,
+        -2.638655279265123,
+        8.724536755323697
+      ]
+    },
+    {
+      "leg": "rear_left",
+      "axis": "knee",
+      "forward_rpm": 64.0,
+      "forward_displacement_xyz": [
+        -0.0006174832259588925,
+        5.012197607655196,
+        -6.327208719615221
+      ],
+      "forward_displacement_norm": 8.071907793145614,
+      "reverse_rpm": -64.0,
+      "reverse_displacement_xyz": [
+        0.0006940241170383388,
+        -5.012182167200649,
+        6.327572786927476
+      ]
+    },
+    {
+      "leg": "rear_right",
+      "axis": "roll",
+      "forward_rpm": -64.0,
+      "forward_displacement_xyz": [
+        -15.661211411166683,
+        9.237071573727036,
+        0.0014167436644214604
+      ],
+      "forward_displacement_norm": 18.18232757736413,
+      "reverse_rpm": 64.0,
+      "reverse_displacement_xyz": [
+        15.66120709605596,
+        -9.237086838077232,
+        -0.0014299555344265968
+      ]
+    },
+    {
+      "leg": "rear_right",
+      "axis": "hip",
+      "forward_rpm": -64.0,
+      "forward_displacement_xyz": [
+        -0.0006158257850543691,
+        10.389634966328828,
+        13.136826503660679
+      ],
+      "forward_displacement_norm": 16.748752959551517,
+      "reverse_rpm": 64.0,
+      "reverse_displacement_xyz": [
+        0.0006891905251293906,
+        -10.389619527636228,
+        -13.136608522469658
+      ]
+    },
+    {
+      "leg": "rear_right",
+      "axis": "knee",
+      "forward_rpm": -64.0,
+      "forward_displacement_xyz": [
+        -0.00018095458766964612,
+        5.013554191259402,
+        6.327643052345749
+      ],
+      "forward_displacement_norm": 8.073090626230993,
+      "reverse_rpm": 64.0,
+      "reverse_displacement_xyz": [
+        0.00013746222743549197,
+        -5.013554292972856,
+        -6.327697127039585
+      ]
+    }
+  ]
+}
