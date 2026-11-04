@@ -1,0 +1,18 @@
+{
+  "capacity": 500.0,
+  "scope": "effective first-order time in closed-loop observations; one-tick alignment and state-dependent native response remain limitations",
+  "seconds": {
+    "fill": {
+      "samples": 1853,
+      "median": 4.644659302042175,
+      "p10": 1.637550772380772,
+      "p90": 6.193058734337713
+    },
+    "drain": {
+      "samples": 1903,
+      "median": 4.722460013484504,
+      "p10": 1.6027833153179731,
+      "p90": 6.792470543908201
+    }
+  }
+}

@@ -1,0 +1,4 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1 slimeFeet=true
+200	total_sable=10000.0 honey_feet=4 slime_feet=4 motor=0.0

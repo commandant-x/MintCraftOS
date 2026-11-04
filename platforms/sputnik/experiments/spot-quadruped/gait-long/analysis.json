@@ -1,0 +1,287 @@
+{
+  "cycles_started": 16,
+  "cycles": [
+    {
+      "index": 0,
+      "leg": "rear_left",
+      "start_tick": 340,
+      "sampled_peak_lift_blocks": 0.19030206306081254,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.15008663661631,
+        40.70388361765988
+      ],
+      "approx_support_triangle_margin_blocks": -1.4739078720731433,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 1,
+      "leg": "front_right",
+      "start_tick": 460,
+      "sampled_peak_lift_blocks": 0.41114569496815534,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.1169567066418,
+        40.67522242397918
+      ],
+      "approx_support_triangle_margin_blocks": 1.4866963905249058,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 2,
+      "leg": "front_left",
+      "start_tick": 580,
+      "sampled_peak_lift_blocks": 0.2555652527042014,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        40.87442635145208,
+        40.50625363761588
+      ],
+      "approx_support_triangle_margin_blocks": -2.8851048294484865,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 3,
+      "leg": "rear_right",
+      "start_tick": 700,
+      "sampled_peak_lift_blocks": 0.41190371241609114,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.04017949880075,
+        41.851280386173805
+      ],
+      "approx_support_triangle_margin_blocks": 2.8882099952637685,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 4,
+      "leg": "rear_left",
+      "start_tick": 820,
+      "sampled_peak_lift_blocks": 0.16077323602246452,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.206289199561986,
+        41.93945572308429
+      ],
+      "approx_support_triangle_margin_blocks": -1.474592731722322,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 5,
+      "leg": "front_right",
+      "start_tick": 940,
+      "sampled_peak_lift_blocks": 0.4106742578440503,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.153018991065494,
+        41.88410809681765
+      ],
+      "approx_support_triangle_margin_blocks": 1.4847729719084222,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 6,
+      "leg": "front_left",
+      "start_tick": 1060,
+      "sampled_peak_lift_blocks": 0.25442301281773894,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        40.881916788808695,
+        41.710346641871524
+      ],
+      "approx_support_triangle_margin_blocks": -2.88668087313102,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 7,
+      "leg": "rear_right",
+      "start_tick": 1180,
+      "sampled_peak_lift_blocks": 0.4114269599132001,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.10701902724657,
+        42.983879240371145
+      ],
+      "approx_support_triangle_margin_blocks": 2.897037323320684,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 8,
+      "leg": "rear_left",
+      "start_tick": 1300,
+      "sampled_peak_lift_blocks": 0.1579197681997755,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.2818857689655,
+        43.06541881936906
+      ],
+      "approx_support_triangle_margin_blocks": -1.4741712029656295,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 9,
+      "leg": "front_right",
+      "start_tick": 1420,
+      "sampled_peak_lift_blocks": 0.4110506371189615,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.24881900687186,
+        43.01113564597699
+      ],
+      "approx_support_triangle_margin_blocks": 1.490453790831548,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 10,
+      "leg": "front_left",
+      "start_tick": 1540,
+      "sampled_peak_lift_blocks": 0.2590151174867401,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        40.97105682025504,
+        42.86390239194262
+      ],
+      "approx_support_triangle_margin_blocks": -2.883671809394563,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 11,
+      "leg": "rear_right",
+      "start_tick": 1660,
+      "sampled_peak_lift_blocks": 0.41386713960653765,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.38386954350999,
+        44.37186032417281
+      ],
+      "approx_support_triangle_margin_blocks": 2.892044841661678,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 12,
+      "leg": "rear_left",
+      "start_tick": 1780,
+      "sampled_peak_lift_blocks": 0.15904809484212024,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.56132737082517,
+        44.39519873646208
+      ],
+      "approx_support_triangle_margin_blocks": -1.480276447720067,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 13,
+      "leg": "front_right",
+      "start_tick": 1900,
+      "sampled_peak_lift_blocks": 0.4109273441604273,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.51627957742637,
+        44.35933612055538
+      ],
+      "approx_support_triangle_margin_blocks": 1.4866662617538087,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 14,
+      "leg": "front_left",
+      "start_tick": 2020,
+      "sampled_peak_lift_blocks": 0.2694361895561599,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.23114371351461,
+        44.218517084183766
+      ],
+      "approx_support_triangle_margin_blocks": -2.886141316096054,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    },
+    {
+      "index": 15,
+      "leg": "rear_right",
+      "start_tick": 2140,
+      "sampled_peak_lift_blocks": 0.41306982533416203,
+      "finished_return_phase": true,
+      "projected_com_xz": [
+        41.66648521547462,
+        45.46366543676745
+      ],
+      "approx_support_triangle_margin_blocks": 2.8818794273154813,
+      "knee_target_at_20": -12.000000476837158,
+      "hip_target_at_40": -7.200000286102295,
+      "knee_return_target": 0.0,
+      "hip_return_target": 0.0,
+      "commands_observed": true
+    }
+  ],
+  "abort": null,
+  "last_tick": 2360,
+  "net_horizontal_displacement_blocks": 4.928023427948352,
+  "body_displacement_x_blocks": 0.4548225402832031,
+  "body_displacement_z_blocks": 4.906990051269531,
+  "max_orientation_change_degrees": 12.712771042748788,
+  "max_vertical_drop_blocks": 0.0981597900390625,
+  "all_thirteen_bodies_staff_unlocked_after_release": true,
+  "test_guide_present": false,
+  "limitations": "support triangle uses foot centers as a geometric approximation; no contact force, Sputnik control, player, or validated walking"
+}

@@ -1,0 +1,6 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+230	Motor set to 4 RPM; joints remain disengaged
+260	Bend rear-left knee after reload
+380	Motor stopped

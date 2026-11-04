@@ -74,5 +74,21 @@ class FleetReport(unittest.TestCase):
             self.assertFalse(phase['requested_motion_supported'])
             self.assertIsNone(phase['intent_observed'])
 
+    def test_fixed_multirotors_must_actually_translate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder);self.fixture(path,'40\tBUILT quad\n200\tCOMMISSION_PASS: test\n320\tRELEASE: test\n')
+            with (path/'flight.csv').open() as f:rows=list(csv.DictReader(f))
+            for row in rows:
+                row['tick']=str(int(row['tick'])+2080);row['universe_tick']=str(int(row['universe_tick'])+2080)
+            with (path/'flight.csv').open('w') as f:
+                w=csv.DictWriter(f,fieldnames=rows[0]);w.writeheader();w.writerows(rows)
+            for architecture in ('quad','hex','octo'):
+                with self.subTest(architecture=architecture):
+                    r=fleet.analyze(path,architecture)[0]
+                    phase=next(p for p in r['phases'] if p['name']=='left')
+                    self.assertEqual(phase['status'],'FAIL')
+                    self.assertTrue(phase['requested_motion_supported'])
+                    self.assertFalse(phase['intent_observed'])
+
 
 if __name__=='__main__':unittest.main()

@@ -1,0 +1,13 @@
+{
+  "motor_count": 1,
+  "motor_rpm_first_sample": 4,
+  "hip_roll_cog_rpm_first_sample": -4,
+  "hip_pitch_cog_rpm_first_sample": 4,
+  "hip_pitch_target_degrees": 36.000001430511475,
+  "hip_pitch_final_relative_angle_degrees": 35.85770254876065,
+  "hip_pitch_last_five_sample_range_degrees": 0.001149965611610071,
+  "independent_commands": false,
+  "knee_driven": false,
+  "foot_contact_tested": false,
+  "test_only_impulse_applied": false
+}

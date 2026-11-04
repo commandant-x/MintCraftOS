@@ -1,0 +1,6 @@
+tick,phase,brass,linked,first_locked,second_locked,motor_rpm,source_joint_rpm,target_joint_rpm,shaft_rpm,second_x,second_y,second_z,endpoint_distance
+220,baseline,true,true,true,true,64.0,64.0,64.0,64.0,36.94270706176758,170.5,32.5,2.9999987296760082
+340,extended_1,true,true,true,true,64.0,64.0,64.0,64.0,37.94270706176758,170.5,32.5,3.9999987296760082
+460,extended_1_and_lateral_0_5,true,true,true,true,64.0,64.0,64.0,64.0,37.94270706176758,171.0,32.5,4.0311276136297725
+580,motor_off,true,true,true,true,0.0,0.0,0.0,0.0,37.94270706176758,171.0,32.5,4.0311276136297725
+700,motor_on,true,true,true,true,64.0,64.0,64.0,64.0,37.94270706176758,171.0,32.5,4.0311276136297725

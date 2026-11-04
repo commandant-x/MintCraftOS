@@ -1,0 +1,3 @@
+Native compact form: source RPM, sails, shared members, XYZ, expert parameters and copy field retained across fresh evaluator reload
+Native workbench: pending last keystroke survives actual NBT save/fresh evaluator reload
+Minecraft SNBT: 6 clipboard artifacts parsed AND binary-serialized; old 108508-byte failure reproduced, UUID/Lua/pin links round-trip exact; optional actual Sputnik CODEC

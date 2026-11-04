@@ -1,0 +1,1796 @@
+40	GRAPH_TEMPLATE sha256=f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca
+40	BUILT octo blocks=407 native sublevel=06a63562-cef6-4452-a817-2d996eaad4f2
+80	ASSEMBLED native bearings=8
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	SHAFT 1 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 2 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 3 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 4 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 5 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 6 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 7 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	SHAFT 8 input=-256.0 actual=-255.99992 rx=0 electrical=0
+140	ENABLE_AUDIT physical=Block{minecraft:lever}[face=floor,facing=north,powered=false] graph=0.0
+140	COMMISSION signal=10 expected=80RPM, pilot OFF
+140	STATUS Pret: activer sans touche
+160	STATUS Pret: activer sans touche
+160	SHAFT 1 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 2 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 3 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 4 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 5 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 6 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 7 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	SHAFT 8 input=-80.0 actual=-89.71256 rx=10 electrical=10
+160	STATUS Pret: activer sans touche
+180	SHAFT 1 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 2 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 3 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 4 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 5 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 6 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 7 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	SHAFT 8 input=-80.0 actual=-80.46019 rx=10 electrical=10
+180	STATUS Pret: activer sans touche
+200	SHAFT 1 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 2 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 3 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 4 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 5 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 6 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 7 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	SHAFT 8 input=-80.0 actual=-80.0218 rx=10 electrical=10
+200	COMMISSION_PASS: each shaft observed at 80RPM, temporary writer removed before arming
+200	STATUS Pret: activer sans touche
+220	SHAFT 1 input=-80.0 actual=-72.03913 rx=10 electrical=10
+220	SHAFT 2 input=-112.0 actual=-117.60414 rx=8 electrical=8
+220	SHAFT 3 input=-48.0 actual=-55.00829 rx=12 electrical=12
+220	SHAFT 4 input=-16.0 actual=-25.826782 rx=14 electrical=14
+220	SHAFT 5 input=-128.0 actual=-116.096176 rx=7 electrical=7
+220	SHAFT 6 input=-144.0 actual=-136.09148 rx=6 electrical=6
+220	SHAFT 7 input=-144.0 actual=-134.41081 rx=6 electrical=6
+220	SHAFT 8 input=-48.0 actual=-50.74246 rx=12 electrical=12
+220	STATUS HOLDING h=171.75446>171.75446 | Modele non qualifie
+240	SHAFT 1 input=-80.0 actual=-71.94703 rx=10 electrical=10
+240	SHAFT 2 input=-112.0 actual=-119.9413 rx=8 electrical=8
+240	SHAFT 3 input=-64.0 actual=-52.34678 rx=11 electrical=11
+240	SHAFT 4 input=-16.0 actual=-23.110544 rx=14 electrical=14
+240	SHAFT 5 input=-112.0 actual=-118.87036 rx=8 electrical=8
+240	SHAFT 6 input=-144.0 actual=-139.07437 rx=6 electrical=6
+240	SHAFT 7 input=-144.0 actual=-137.35733 rx=7 electrical=7
+240	SHAFT 8 input=-48.0 actual=-49.359516 rx=11 electrical=11
+240	STATUS HOLDING h=171.75446>171.75446 | Modele non qualifie
+260	SHAFT 1 input=-64.0 actual=-72.80544 rx=11 electrical=11
+260	SHAFT 2 input=-128.0 actual=-116.110344 rx=7 electrical=7
+260	SHAFT 3 input=-48.0 actual=-53.37393 rx=12 electrical=12
+260	SHAFT 4 input=-32.0 actual=-22.657368 rx=13 electrical=13
+260	SHAFT 5 input=-128.0 actual=-122.90501 rx=7 electrical=7
+260	SHAFT 6 input=-144.0 actual=-141.19322 rx=6 electrical=6
+260	SHAFT 7 input=-128.0 actual=-135.39198 rx=7 electrical=7
+260	SHAFT 8 input=-48.0 actual=-48.18928 rx=12 electrical=12
+260	STATUS HOLDING h=171.75446>171.75446 | Modele non qualifie
+280	SHAFT 1 input=-64.0 actual=-73.86355 rx=11 electrical=11
+280	SHAFT 2 input=-128.0 actual=-117.07001 rx=7 electrical=7
+280	SHAFT 3 input=-48.0 actual=-54.359295 rx=12 electrical=12
+280	SHAFT 4 input=-32.0 actual=-20.771194 rx=13 electrical=13
+280	SHAFT 5 input=-112.0 actual=-120.43732 rx=8 electrical=8
+280	SHAFT 6 input=-128.0 actual=-141.99774 rx=7 electrical=7
+280	SHAFT 7 input=-144.0 actual=-135.7997 rx=6 electrical=6
+280	SHAFT 8 input=-48.0 actual=-48.787174 rx=12 electrical=12
+280	STATUS HOLDING h=171.75446>171.75446 | Modele non qualifie
+300	SHAFT 1 input=-80.0 actual=-73.36672 rx=10 electrical=10
+300	SHAFT 2 input=-112.0 actual=-118.009094 rx=8 electrical=8
+300	SHAFT 3 input=-48.0 actual=-53.513126 rx=12 electrical=12
+300	SHAFT 4 input=-16.0 actual=-22.568588 rx=14 electrical=14
+300	SHAFT 5 input=-128.0 actual=-119.07204 rx=7 electrical=7
+300	SHAFT 6 input=-144.0 actual=-139.97365 rx=6 electrical=6
+300	SHAFT 7 input=-128.0 actual=-134.7876 rx=7 electrical=7
+300	SHAFT 8 input=-64.0 actual=-51.98678 rx=12 electrical=12
+300	WARMUP HOLDING h=171.75446>171.75446 | Modele non qualifie
+300	STATUS HOLDING h=171.75446>171.75446 | Modele non qualifie
+320	RELEASE: fixture lock removed, physical flight begins
+320	SPEED forward PHASE BASELINE goal=0.0
+320	STATUS HOLDING h=171.75446>171.75446 | Modele non qualifie
+340	STATUS HOLDING h=171.84308>171.76752 | Modele non qualifie
+359	SPEED forward PHASE CRUISE goal=2.0
+359	SPEED forward REQUEST requested=2.0 revision=102 confirmation=false
+360	STATUS HOLDING h=171.78206>171.76752 | Modele non qualifie
+380	STATUS HOLDING h=171.67937>171.78584 | Modele non qualifie
+400	STATUS HOLDING h=171.68044>171.78584 | Modele non qualifie
+420	STATUS HOLDING h=171.8088>171.78584 | Modele non qualifie
+440	STATUS HOLDING h=171.81297>171.78584 | Modele non qualifie
+460	STATUS HOLDING h=171.77202>171.78584 | Modele non qualifie
+480	STATUS HOLDING h=171.79141>171.78584 | Modele non qualifie
+500	STATUS HOLDING h=171.80911>171.78584 | Modele non qualifie
+520	STATUS HOLDING h=171.79536>171.78584 | Modele non qualifie
+540	STATUS HOLDING h=171.81386>171.78584 | Modele non qualifie
+560	STATUS HOLDING h=171.84755>171.78584 | Modele non qualifie
+580	STATUS HOLDING h=171.83328>171.78584 | Modele non qualifie
+600	STATUS HOLDING h=171.80983>171.78584 | Modele non qualifie
+620	STATUS HOLDING h=171.8042>171.78584 | Modele non qualifie
+631	SPEED forward RESULT CRUISE_STABLE mean=1.6187530517578126
+631	SPEED forward PHASE CRUISE goal=4.0
+631	SPEED forward REQUEST requested=4.0 revision=103 confirmation=false
+640	STATUS HOLDING h=171.80455>171.78584 | Modele non qualifie
+660	STATUS HOLDING h=171.66216>171.78584 | Modele non qualifie
+680	STATUS HOLDING h=171.74193>171.78584 | Modele non qualifie
+700	STATUS HOLDING h=171.86623>171.78584 | Modele non qualifie
+720	STATUS HOLDING h=171.88611>171.78584 | Modele non qualifie
+740	STATUS HOLDING h=171.84842>171.78584 | Modele non qualifie
+760	STATUS HOLDING h=171.84076>171.78584 | Modele non qualifie
+780	STATUS HOLDING h=171.81937>171.78584 | Modele non qualifie
+800	STATUS HOLDING h=171.81664>171.78584 | Modele non qualifie
+820	STATUS HOLDING h=171.83862>171.78584 | Modele non qualifie
+840	STATUS HOLDING h=171.84718>171.78584 | Modele non qualifie
+860	STATUS HOLDING h=171.84058>171.78584 | Modele non qualifie
+880	STATUS HOLDING h=171.8329>171.78584 | Modele non qualifie
+900	STATUS HOLDING h=171.82487>171.78584 | Modele non qualifie
+906	SPEED forward RESULT CRUISE_STABLE mean=3.2121002197265627
+906	SPEED forward PHASE CRUISE goal=6.0
+906	SPEED forward REQUEST requested=6.0 revision=104 confirmation=false
+920	STATUS HOLDING h=171.79558>171.78584 | Modele non qualifie
+940	STATUS HOLDING h=171.69106>171.78584 | Modele non qualifie
+960	STATUS HOLDING h=171.79729>171.78584 | Modele non qualifie
+980	STATUS HOLDING h=171.88782>171.78584 | Modele non qualifie
+1000	STATUS HOLDING h=171.9153>171.78584 | Modele non qualifie
+1020	STATUS HOLDING h=171.88495>171.78584 | Modele non qualifie
+1040	STATUS HOLDING h=171.84024>171.78584 | Modele non qualifie
+1060	STATUS HOLDING h=171.8172>171.78584 | Modele non qualifie
+1080	STATUS HOLDING h=171.81337>171.78584 | Modele non qualifie
+1100	STATUS HOLDING h=171.81926>171.78584 | Modele non qualifie
+1120	STATUS HOLDING h=171.82457>171.78584 | Modele non qualifie
+1140	STATUS HOLDING h=171.82573>171.78584 | Modele non qualifie
+1160	STATUS HOLDING h=171.82028>171.78584 | Modele non qualifie
+1180	STATUS HOLDING h=171.81264>171.78584 | Modele non qualifie
+1185	SPEED forward RESULT CRUISE_STABLE mean=4.825799560546875
+1185	SPEED forward PHASE CRUISE goal=8.0
+1185	SPEED forward REQUEST requested=8.0 revision=105 confirmation=false
+1200	STATUS HOLDING h=171.77974>171.78584 | Modele non qualifie
+1220	STATUS HOLDING h=171.71658>171.78584 | Modele non qualifie
+1240	STATUS HOLDING h=171.80609>171.78584 | Modele non qualifie
+1260	STATUS HOLDING h=171.89795>171.78584 | Modele non qualifie
+1280	STATUS HOLDING h=171.93367>171.78584 | Modele non qualifie
+1300	STATUS HOLDING h=171.89708>171.78584 | Modele non qualifie
+1320	STATUS HOLDING h=171.83795>171.78584 | Modele non qualifie
+1340	STATUS HOLDING h=171.80226>171.78584 | Modele non qualifie
+1360	STATUS HOLDING h=171.79852>171.78584 | Modele non qualifie
+1380	STATUS HOLDING h=171.81104>171.78584 | Modele non qualifie
+1400	STATUS HOLDING h=171.82367>171.78584 | Modele non qualifie
+1420	STATUS HOLDING h=171.82724>171.78584 | Modele non qualifie
+1440	STATUS HOLDING h=171.82228>171.78584 | Modele non qualifie
+1460	STATUS HOLDING h=171.811>171.78584 | Modele non qualifie
+1480	STATUS HOLDING h=171.80086>171.78584 | Modele non qualifie
+1500	STATUS HOLDING h=171.79662>171.78584 | Modele non qualifie
+1520	STATUS HOLDING h=171.79521>171.78584 | Modele non qualifie
+1540	STATUS HOLDING h=171.7965>171.78584 | Modele non qualifie
+1560	STATUS HOLDING h=171.79724>171.78584 | Modele non qualifie
+1580	STATUS HOLDING h=171.79538>171.78584 | Modele non qualifie
+1585	SPEED forward RESULT CRUISE_NOT_STABLE mean=6.545297241210939
+1585	SPEED forward PHASE CRUISE goal=7.0
+1600	STATUS HOLDING h=171.79037>171.78584 | Modele non qualifie
+1620	STATUS HOLDING h=171.78488>171.78584 | Modele non qualifie
+1640	STATUS HOLDING h=171.76965>171.78584 | Modele non qualifie
+1660	STATUS HOLDING h=171.74226>171.78584 | Modele non qualifie
+1680	STATUS HOLDING h=171.73459>171.78584 | Modele non qualifie
+1700	STATUS HOLDING h=171.7476>171.78584 | Modele non qualifie
+1720	STATUS HOLDING h=171.76845>171.78584 | Modele non qualifie
+1740	STATUS HOLDING h=171.7846>171.78584 | Modele non qualifie
+1760	STATUS HOLDING h=171.78812>171.78584 | Modele non qualifie
+1780	STATUS HOLDING h=171.78036>171.78584 | Modele non qualifie
+1800	STATUS HOLDING h=171.77101>171.78584 | Modele non qualifie
+1820	STATUS HOLDING h=171.76654>171.78584 | Modele non qualifie
+1840	STATUS HOLDING h=171.7662>171.78584 | Modele non qualifie
+1860	STATUS HOLDING h=171.77121>171.78584 | Modele non qualifie
+1880	STATUS HOLDING h=171.77652>171.78584 | Modele non qualifie
+1900	STATUS HOLDING h=171.7793>171.78584 | Modele non qualifie
+1920	STATUS HOLDING h=171.77905>171.78584 | Modele non qualifie
+1940	STATUS HOLDING h=171.77632>171.78584 | Modele non qualifie
+1960	STATUS HOLDING h=171.77454>171.78584 | Modele non qualifie
+1980	STATUS HOLDING h=171.77423>171.78584 | Modele non qualifie
+1985	SPEED forward RESULT CRUISE_NOT_STABLE mean=5.980084228515626
+1985	SPEED forward PHASE CRUISE goal=6.5
+2000	STATUS HOLDING h=171.77425>171.78584 | Modele non qualifie
+2020	STATUS HOLDING h=171.77724>171.78584 | Modele non qualifie
+2040	STATUS HOLDING h=171.77287>171.78584 | Modele non qualifie
+2060	STATUS HOLDING h=171.76006>171.78584 | Modele non qualifie
+2080	STATUS HOLDING h=171.75378>171.78584 | Modele non qualifie
+2100	STATUS HOLDING h=171.7572>171.78584 | Modele non qualifie
+2120	STATUS HOLDING h=171.7692>171.78584 | Modele non qualifie
+2140	STATUS HOLDING h=171.77884>171.78584 | Modele non qualifie
+2160	STATUS HOLDING h=171.78247>171.78584 | Modele non qualifie
+2180	STATUS HOLDING h=171.7795>171.78584 | Modele non qualifie
+2200	STATUS HOLDING h=171.77325>171.78584 | Modele non qualifie
+2220	STATUS HOLDING h=171.76987>171.78584 | Modele non qualifie
+2240	STATUS HOLDING h=171.76956>171.78584 | Modele non qualifie
+2260	STATUS HOLDING h=171.77232>171.78584 | Modele non qualifie
+2280	STATUS HOLDING h=171.77591>171.78584 | Modele non qualifie
+2300	STATUS HOLDING h=171.77846>171.78584 | Modele non qualifie
+2320	STATUS HOLDING h=171.77806>171.78584 | Modele non qualifie
+2340	STATUS HOLDING h=171.77756>171.78584 | Modele non qualifie
+2360	STATUS HOLDING h=171.77551>171.78584 | Modele non qualifie
+2380	STATUS HOLDING h=171.77364>171.78584 | Modele non qualifie
+2385	SPEED forward RESULT CRUISE_NOT_STABLE mean=5.813964843750001
+2385	SPEED forward PHASE CRUISE goal=6.0
+2385	SPEED forward REQUEST requested=6.0 revision=108 confirmation=true
+2400	STATUS HOLDING h=171.77243>171.78584 | Modele non qualifie
+2420	STATUS HOLDING h=171.76344>171.78584 | Modele non qualifie
+2440	STATUS HOLDING h=171.76376>171.78584 | Modele non qualifie
+2460	STATUS HOLDING h=171.74786>171.78584 | Modele non qualifie
+2480	STATUS HOLDING h=171.74515>171.78584 | Modele non qualifie
+2500	STATUS HOLDING h=171.76393>171.78584 | Modele non qualifie
+2520	STATUS HOLDING h=171.78029>171.78584 | Modele non qualifie
+2540	STATUS HOLDING h=171.7881>171.78584 | Modele non qualifie
+2560	STATUS HOLDING h=171.78917>171.78584 | Modele non qualifie
+2580	STATUS HOLDING h=171.78471>171.78584 | Modele non qualifie
+2600	STATUS HOLDING h=171.77837>171.78584 | Modele non qualifie
+2620	STATUS HOLDING h=171.77312>171.78584 | Modele non qualifie
+2640	STATUS HOLDING h=171.77356>171.78584 | Modele non qualifie
+2660	STATUS HOLDING h=171.77559>171.78584 | Modele non qualifie
+2680	STATUS HOLDING h=171.77844>171.78584 | Modele non qualifie
+2700	STATUS HOLDING h=171.78111>171.78584 | Modele non qualifie
+2720	STATUS HOLDING h=171.78252>171.78584 | Modele non qualifie
+2740	STATUS HOLDING h=171.78157>171.78584 | Modele non qualifie
+2760	STATUS HOLDING h=171.77856>171.78584 | Modele non qualifie
+2780	STATUS HOLDING h=171.77611>171.78584 | Modele non qualifie
+2785	SPEED forward RESULT CRUISE_NOT_STABLE mean=5.598193359375001
+2785	SPEED forward DIRECTION_COMPLETE braking=false
+2785	SPEED reverse PHASE RESET_OFF goal=6.0
+2800	STATUS Pret: activer sans touche
+2815	SPEED reverse PHASE RESET_LOCK goal=6.0
+2820	STATUS Pret: activer sans touche
+2840	STATUS Pret: activer sans touche
+2845	SPEED reverse PHASE RESET_WARM goal=6.0
+2860	STATUS HOLDING h=171.83168>171.83168 | Modele non qualifie
+2880	STATUS HOLDING h=171.83168>171.83168 | Modele non qualifie
+2900	STATUS HOLDING h=171.83168>171.83168 | Modele non qualifie
+2920	STATUS HOLDING h=171.83168>171.83168 | Modele non qualifie
+2940	STATUS HOLDING h=171.83168>171.83168 | Modele non qualifie
+2945	SPEED reverse PHASE BASELINE goal=6.0
+2960	STATUS HOLDING h=171.91118>171.84467 | Modele non qualifie
+2980	STATUS HOLDING h=171.87582>171.84467 | Modele non qualifie
+2985	SPEED reverse PHASE CRUISE goal=2.0
+2985	SPEED reverse REQUEST requested=2.0 revision=110 confirmation=false
+3000	STATUS HOLDING h=171.7981>171.8576 | Modele non qualifie
+3020	STATUS HOLDING h=171.68944>171.8576 | Modele non qualifie
+3040	STATUS HOLDING h=171.83748>171.8576 | Modele non qualifie
+3060	STATUS HOLDING h=171.90588>171.8576 | Modele non qualifie
+3080	STATUS HOLDING h=171.8508>171.8576 | Modele non qualifie
+3100	STATUS HOLDING h=171.84883>171.8576 | Modele non qualifie
+3120	STATUS HOLDING h=171.8699>171.8576 | Modele non qualifie
+3140	STATUS HOLDING h=171.82664>171.8576 | Modele non qualifie
+3160	STATUS HOLDING h=171.83246>171.8576 | Modele non qualifie
+3180	STATUS HOLDING h=171.89616>171.8576 | Modele non qualifie
+3200	STATUS HOLDING h=171.92535>171.8576 | Modele non qualifie
+3220	STATUS HOLDING h=171.88695>171.8576 | Modele non qualifie
+3240	STATUS HOLDING h=171.86397>171.8576 | Modele non qualifie
+3260	STATUS HOLDING h=171.86414>171.8576 | Modele non qualifie
+3280	STATUS HOLDING h=171.86543>171.8576 | Modele non qualifie
+3300	STATUS HOLDING h=171.87022>171.8576 | Modele non qualifie
+3320	STATUS HOLDING h=171.87897>171.8576 | Modele non qualifie
+3335	SPEED reverse RESULT CRUISE_STABLE mean=1.8195461273193358
+3335	SPEED reverse PHASE CRUISE goal=4.0
+3335	SPEED reverse REQUEST requested=4.0 revision=111 confirmation=false
+3340	STATUS HOLDING h=171.8815>171.8576 | Modele non qualifie
+3360	STATUS HOLDING h=171.72467>171.8576 | Modele non qualifie
+3380	STATUS HOLDING h=171.74005>171.8576 | Modele non qualifie
+3400	STATUS HOLDING h=171.91061>171.8576 | Modele non qualifie
+3420	STATUS HOLDING h=171.95245>171.8576 | Modele non qualifie
+3440	STATUS HOLDING h=171.8736>171.8576 | Modele non qualifie
+3460	STATUS HOLDING h=171.85902>171.8576 | Modele non qualifie
+3480	STATUS HOLDING h=171.83862>171.8576 | Modele non qualifie
+3500	STATUS HOLDING h=171.80807>171.8576 | Modele non qualifie
+3520	STATUS HOLDING h=171.86179>171.8576 | Modele non qualifie
+3540	STATUS HOLDING h=171.92928>171.8576 | Modele non qualifie
+3560	STATUS HOLDING h=171.93764>171.8576 | Modele non qualifie
+3580	STATUS HOLDING h=171.89856>171.8576 | Modele non qualifie
+3600	STATUS HOLDING h=171.87038>171.8576 | Modele non qualifie
+3620	STATUS HOLDING h=171.86603>171.8576 | Modele non qualifie
+3640	STATUS HOLDING h=171.87222>171.8576 | Modele non qualifie
+3660	STATUS HOLDING h=171.88397>171.8576 | Modele non qualifie
+3680	STATUS HOLDING h=171.90068>171.8576 | Modele non qualifie
+3689	SPEED reverse RESULT CRUISE_STABLE mean=3.6726608276367188
+3689	SPEED reverse PHASE CRUISE goal=6.0
+3689	SPEED reverse REQUEST requested=6.0 revision=112 confirmation=false
+3700	STATUS HOLDING h=171.89331>171.8576 | Modele non qualifie
+3720	STATUS HOLDING h=171.69675>171.8576 | Modele non qualifie
+3740	STATUS HOLDING h=171.78079>171.8576 | Modele non qualifie
+3760	STATUS HOLDING h=171.9447>171.8576 | Modele non qualifie
+3780	STATUS HOLDING h=171.9802>171.8576 | Modele non qualifie
+3800	STATUS HOLDING h=171.88033>171.8576 | Modele non qualifie
+3820	STATUS HOLDING h=171.82962>171.8576 | Modele non qualifie
+3840	STATUS HOLDING h=171.80153>171.8576 | Modele non qualifie
+3860	STATUS HOLDING h=171.80873>171.8576 | Modele non qualifie
+3880	STATUS HOLDING h=171.8751>171.8576 | Modele non qualifie
+3900	STATUS HOLDING h=171.92287>171.8576 | Modele non qualifie
+3920	STATUS HOLDING h=171.93855>171.8576 | Modele non qualifie
+3940	STATUS HOLDING h=171.91812>171.8576 | Modele non qualifie
+3960	STATUS HOLDING h=171.89542>171.8576 | Modele non qualifie
+3980	STATUS HOLDING h=171.87846>171.8576 | Modele non qualifie
+4000	STATUS HOLDING h=171.86613>171.8576 | Modele non qualifie
+4020	STATUS HOLDING h=171.87036>171.8576 | Modele non qualifie
+4040	STATUS HOLDING h=171.88008>171.8576 | Modele non qualifie
+4044	SPEED reverse RESULT CRUISE_STABLE mean=5.544580078125
+4044	SPEED reverse PHASE CRUISE goal=8.0
+4044	SPEED reverse REQUEST requested=8.0 revision=113 confirmation=false
+4060	STATUS HOLDING h=171.83775>171.8576 | Modele non qualifie
+4080	STATUS HOLDING h=171.69829>171.8576 | Modele non qualifie
+4100	STATUS HOLDING h=171.80746>171.8576 | Modele non qualifie
+4120	STATUS HOLDING h=171.97531>171.8576 | Modele non qualifie
+4140	STATUS HOLDING h=172.00772>171.8576 | Modele non qualifie
+4160	STATUS HOLDING h=171.88278>171.8576 | Modele non qualifie
+4180	STATUS HOLDING h=171.79945>171.8576 | Modele non qualifie
+4200	STATUS HOLDING h=171.77122>171.8576 | Modele non qualifie
+4220	STATUS HOLDING h=171.81174>171.8576 | Modele non qualifie
+4240	STATUS HOLDING h=171.8699>171.8576 | Modele non qualifie
+4260	STATUS HOLDING h=171.91327>171.8576 | Modele non qualifie
+4280	STATUS HOLDING h=171.93271>171.8576 | Modele non qualifie
+4300	STATUS HOLDING h=171.92296>171.8576 | Modele non qualifie
+4320	STATUS HOLDING h=171.89555>171.8576 | Modele non qualifie
+4336	SPEED reverse RESULT CRUISE_STABLE mean=7.616180419921875
+4336	SPEED reverse PHASE CRUISE goal=10.0
+4336	SPEED reverse REQUEST requested=10.0 revision=114 confirmation=false
+4340	STATUS HOLDING h=171.8672>171.8576 | Modele non qualifie
+4360	STATUS HOLDING h=171.7022>171.8576 | Modele non qualifie
+4380	STATUS HOLDING h=171.67572>171.8576 | Modele non qualifie
+4400	STATUS HOLDING h=171.85449>171.8576 | Modele non qualifie
+4420	STATUS HOLDING h=172.04376>171.8576 | Modele non qualifie
+4440	STATUS HOLDING h=172.03734>171.8576 | Modele non qualifie
+4460	STATUS HOLDING h=171.86166>171.8576 | Modele non qualifie
+4480	STATUS HOLDING h=171.76866>171.8576 | Modele non qualifie
+4500	STATUS HOLDING h=171.75743>171.8576 | Modele non qualifie
+4520	STATUS HOLDING h=171.81163>171.8576 | Modele non qualifie
+4540	STATUS HOLDING h=171.87233>171.8576 | Modele non qualifie
+4560	STATUS HOLDING h=171.92075>171.8576 | Modele non qualifie
+4580	STATUS HOLDING h=171.94086>171.8576 | Modele non qualifie
+4600	STATUS HOLDING h=171.92421>171.8576 | Modele non qualifie
+4620	STATUS HOLDING h=171.88611>171.8576 | Modele non qualifie
+4627	SPEED reverse RESULT CRUISE_STABLE mean=9.59556884765625
+4627	SPEED reverse PHASE CRUISE goal=12.0
+4627	SPEED reverse REQUEST requested=12.0 revision=115 confirmation=false
+4640	STATUS HOLDING h=171.83142>171.8576 | Modele non qualifie
+4660	STATUS HOLDING h=171.63835>171.8576 | Modele non qualifie
+4680	STATUS HOLDING h=171.71692>171.8576 | Modele non qualifie
+4700	STATUS HOLDING h=171.9471>171.8576 | Modele non qualifie
+4720	STATUS HOLDING h=172.1002>171.8576 | Modele non qualifie
+4740	STATUS HOLDING h=171.99576>171.8576 | Modele non qualifie
+4760	STATUS HOLDING h=171.80312>171.8576 | Modele non qualifie
+4780	STATUS HOLDING h=171.74062>171.8576 | Modele non qualifie
+4800	STATUS HOLDING h=171.75871>171.8576 | Modele non qualifie
+4820	STATUS HOLDING h=171.81969>171.8576 | Modele non qualifie
+4840	STATUS HOLDING h=171.88815>171.8576 | Modele non qualifie
+4860	STATUS HOLDING h=171.93726>171.8576 | Modele non qualifie
+4880	STATUS HOLDING h=171.94533>171.8576 | Modele non qualifie
+4900	STATUS HOLDING h=171.91179>171.8576 | Modele non qualifie
+4916	SPEED reverse RESULT CRUISE_STABLE mean=11.623095703125
+4916	SPEED reverse PHASE CRUISE goal=16.0
+4916	SPEED reverse REQUEST requested=16.0 revision=116 confirmation=false
+4920	STATUS HOLDING h=171.86461>171.8576 | Modele non qualifie
+4940	STATUS HOLDING h=171.62317>171.8576 | Modele non qualifie
+4960	STATUS HOLDING h=171.49814>171.8576 | Modele non qualifie
+4980	STATUS HOLDING h=171.65215>171.8576 | Modele non qualifie
+5000	STATUS HOLDING h=172.05896>171.8576 | Modele non qualifie
+5020	STATUS HOLDING h=172.33406>171.8576 | Modele non qualifie
+5040	STATUS HOLDING h=172.0145>171.8576 | Modele non qualifie
+5060	STATUS HOLDING h=171.75336>171.8576 | Modele non qualifie
+5080	STATUS HOLDING h=171.71916>171.8576 | Modele non qualifie
+5100	STATUS HOLDING h=171.67493>171.8576 | Modele non qualifie
+5120	STATUS HOLDING h=171.75801>171.8576 | Modele non qualifie
+5140	STATUS HOLDING h=171.90572>171.8576 | Modele non qualifie
+5160	STATUS HOLDING h=172.02145>171.8576 | Modele non qualifie
+5180	STATUS HOLDING h=172.02512>171.8576 | Modele non qualifie
+5200	STATUS HOLDING h=171.9165>171.8576 | Modele non qualifie
+5220	STATUS HOLDING h=171.80396>171.8576 | Modele non qualifie
+5240	STATUS HOLDING h=171.78036>171.8576 | Modele non qualifie
+5260	STATUS HOLDING h=171.808>171.8576 | Modele non qualifie
+5280	STATUS HOLDING h=171.85402>171.8576 | Modele non qualifie
+5282	SPEED reverse RESULT CRUISE_STABLE mean=15.470947265625
+5282	SPEED reverse PHASE CRUISE goal=20.0
+5282	SPEED reverse REQUEST requested=20.0 revision=117 confirmation=false
+5300	STATUS HOLDING h=171.80096>171.8576 | Modele non qualifie
+5320	STATUS HOLDING h=171.50452>171.8576 | Modele non qualifie
+5340	STATUS HOLDING h=171.55579>171.8576 | Modele non qualifie
+5360	STATUS HOLDING h=172.03236>171.8576 | Modele non qualifie
+5380	STATUS HOLDING h=172.4234>171.8576 | Modele non qualifie
+5400	STATUS HOLDING h=172.05132>171.8576 | Modele non qualifie
+5420	STATUS HOLDING h=171.74948>171.8576 | Modele non qualifie
+5440	STATUS HOLDING h=171.751>171.8576 | Modele non qualifie
+5460	STATUS HOLDING h=171.64809>171.8576 | Modele non qualifie
+5480	STATUS HOLDING h=171.7092>171.8576 | Modele non qualifie
+5500	STATUS HOLDING h=171.89098>171.8576 | Modele non qualifie
+5520	STATUS HOLDING h=172.0507>171.8576 | Modele non qualifie
+5540	STATUS HOLDING h=172.06534>171.8576 | Modele non qualifie
+5560	STATUS HOLDING h=171.9012>171.8576 | Modele non qualifie
+5580	STATUS HOLDING h=171.77708>171.8576 | Modele non qualifie
+5600	STATUS HOLDING h=171.76472>171.8576 | Modele non qualifie
+5620	STATUS HOLDING h=171.79372>171.8576 | Modele non qualifie
+5640	STATUS HOLDING h=171.85196>171.8576 | Modele non qualifie
+5660	STATUS HOLDING h=171.90923>171.8576 | Modele non qualifie
+5680	STATUS HOLDING h=171.93764>171.8576 | Modele non qualifie
+5682	SPEED reverse RESULT CRUISE_NOT_STABLE mean=19.538525390625
+5682	SPEED reverse PHASE CRUISE goal=18.0
+5700	STATUS HOLDING h=171.89844>171.8576 | Modele non qualifie
+5720	STATUS HOLDING h=171.82344>171.8576 | Modele non qualifie
+5740	STATUS HOLDING h=171.81688>171.8576 | Modele non qualifie
+5760	STATUS HOLDING h=171.74045>171.8576 | Modele non qualifie
+5780	STATUS HOLDING h=171.65092>171.8576 | Modele non qualifie
+5800	STATUS HOLDING h=171.74028>171.8576 | Modele non qualifie
+5820	STATUS HOLDING h=171.92134>171.8576 | Modele non qualifie
+5840	STATUS HOLDING h=172.05907>171.8576 | Modele non qualifie
+5860	STATUS HOLDING h=172.0535>171.8576 | Modele non qualifie
+5880	STATUS HOLDING h=171.91444>171.8576 | Modele non qualifie
+5900	STATUS HOLDING h=171.79243>171.8576 | Modele non qualifie
+5920	STATUS HOLDING h=171.7759>171.8576 | Modele non qualifie
+5940	STATUS HOLDING h=171.81252>171.8576 | Modele non qualifie
+5960	STATUS HOLDING h=171.8646>171.8576 | Modele non qualifie
+5980	STATUS HOLDING h=171.91275>171.8576 | Modele non qualifie
+6000	STATUS HOLDING h=171.93414>171.8576 | Modele non qualifie
+6020	STATUS HOLDING h=171.91885>171.8576 | Modele non qualifie
+6032	SPEED reverse RESULT CRUISE_STABLE mean=17.556591796875
+6032	SPEED reverse PHASE CRUISE goal=19.0
+6040	STATUS HOLDING h=171.88264>171.8576 | Modele non qualifie
+6060	STATUS HOLDING h=171.75925>171.8576 | Modele non qualifie
+6080	STATUS HOLDING h=171.7271>171.8576 | Modele non qualifie
+6100	STATUS HOLDING h=171.86702>171.8576 | Modele non qualifie
+6120	STATUS HOLDING h=172.01353>171.8576 | Modele non qualifie
+6140	STATUS HOLDING h=172.03676>171.8576 | Modele non qualifie
+6160	STATUS HOLDING h=171.94196>171.8576 | Modele non qualifie
+6180	STATUS HOLDING h=171.82504>171.8576 | Modele non qualifie
+6200	STATUS HOLDING h=171.77034>171.8576 | Modele non qualifie
+6220	STATUS HOLDING h=171.78508>171.8576 | Modele non qualifie
+6240	STATUS HOLDING h=171.8443>171.8576 | Modele non qualifie
+6243	SPEED reverse RESULT CRUISE_STABLE mean=18.21005859375
+6243	SPEED reverse PHASE CRUISE goal=19.5
+6260	STATUS HOLDING h=171.88953>171.8576 | Modele non qualifie
+6280	STATUS HOLDING h=171.8619>171.8576 | Modele non qualifie
+6300	STATUS HOLDING h=171.87692>171.8576 | Modele non qualifie
+6320	STATUS HOLDING h=171.91794>171.8576 | Modele non qualifie
+6340	STATUS HOLDING h=171.92796>171.8576 | Modele non qualifie
+6360	STATUS HOLDING h=171.893>171.8576 | Modele non qualifie
+6363	SPEED reverse RESULT CRUISE_STABLE mean=18.83232421875
+6363	SPEED reverse PHASE BRAKE goal=19.5
+6380	STATUS HOLDING h=171.96307>171.8814 | Modele non qualifie
+6400	STATUS HOLDING h=171.89354>171.8814 | Modele non qualifie
+6420	STATUS HOLDING h=171.71857>171.8814 | Modele non qualifie
+6440	STATUS HOLDING h=171.76184>171.8814 | Modele non qualifie
+6460	STATUS HOLDING h=171.80084>171.8814 | Modele non qualifie
+6480	STATUS HOLDING h=171.81482>171.8814 | Modele non qualifie
+6500	STATUS HOLDING h=171.6544>171.8814 | Modele non qualifie
+6520	STATUS HOLDING h=171.5673>171.8814 | Modele non qualifie
+6540	STATUS HOLDING h=171.75336>171.8814 | Modele non qualifie
+6560	STATUS HOLDING h=171.93723>171.8814 | Modele non qualifie
+6580	STATUS HOLDING h=171.91586>171.8814 | Modele non qualifie
+6600	STATUS HOLDING h=171.87134>171.8814 | Modele non qualifie
+6620	STATUS HOLDING h=171.91031>171.8814 | Modele non qualifie
+6640	STATUS HOLDING h=171.9187>171.8814 | Modele non qualifie
+6660	STATUS HOLDING h=171.89874>171.8814 | Modele non qualifie
+6680	STATUS HOLDING h=171.89223>171.8814 | Modele non qualifie
+6700	STATUS HOLDING h=171.90257>171.8814 | Modele non qualifie
+6710	SPEED reverse DIRECTION_COMPLETE braking=true
+6710	SPEED left PHASE RESET_OFF goal=19.5
+6720	STATUS Pret: activer sans touche
+6740	SPEED left PHASE RESET_LOCK goal=19.5
+6740	STATUS Pret: activer sans touche
+6760	STATUS Pret: activer sans touche
+6770	SPEED left PHASE RESET_WARM goal=19.5
+6780	STATUS HOLDING h=171.83142>171.83142 | Modele non qualifie
+6800	STATUS HOLDING h=171.83142>171.83142 | Modele non qualifie
+6820	STATUS HOLDING h=171.83142>171.83142 | Modele non qualifie
+6840	STATUS HOLDING h=171.83142>171.83142 | Modele non qualifie
+6860	STATUS HOLDING h=171.83142>171.83142 | Modele non qualifie
+6870	SPEED left PHASE BASELINE goal=19.5
+6880	STATUS HOLDING h=171.89249>171.8444 | Modele non qualifie
+6900	STATUS HOLDING h=171.89441>171.8444 | Modele non qualifie
+6910	SPEED left PHASE CRUISE goal=2.0
+6910	SPEED left REQUEST requested=2.0 revision=123 confirmation=false
+6920	STATUS HOLDING h=171.82883>171.85698 | Modele non qualifie
+6940	STATUS HOLDING h=171.68245>171.85698 | Modele non qualifie
+6960	STATUS HOLDING h=171.7942>171.85698 | Modele non qualifie
+6980	STATUS HOLDING h=171.86568>171.85698 | Modele non qualifie
+7000	STATUS HOLDING h=171.81781>171.85698 | Modele non qualifie
+7020	STATUS HOLDING h=171.83958>171.85698 | Modele non qualifie
+7040	STATUS HOLDING h=171.88557>171.85698 | Modele non qualifie
+7060	STATUS HOLDING h=171.83072>171.85698 | Modele non qualifie
+7080	STATUS HOLDING h=171.8265>171.85698 | Modele non qualifie
+7100	STATUS HOLDING h=171.89029>171.85698 | Modele non qualifie
+7120	STATUS HOLDING h=171.92036>171.85698 | Modele non qualifie
+7140	STATUS HOLDING h=171.87848>171.85698 | Modele non qualifie
+7160	STATUS HOLDING h=171.86792>171.85698 | Modele non qualifie
+7180	STATUS HOLDING h=171.87656>171.85698 | Modele non qualifie
+7200	STATUS HOLDING h=171.86871>171.85698 | Modele non qualifie
+7220	STATUS HOLDING h=171.86525>171.85698 | Modele non qualifie
+7240	STATUS HOLDING h=171.87689>171.85698 | Modele non qualifie
+7260	STATUS HOLDING h=171.88441>171.85698 | Modele non qualifie
+7261	SPEED left RESULT CRUISE_STABLE mean=1.903419327735901
+7261	SPEED left PHASE CRUISE goal=4.0
+7261	SPEED left REQUEST requested=4.0 revision=124 confirmation=false
+7280	STATUS HOLDING h=171.79428>171.85698 | Modele non qualifie
+7300	STATUS HOLDING h=171.70969>171.85698 | Modele non qualifie
+7320	STATUS HOLDING h=171.86195>171.85698 | Modele non qualifie
+7340	STATUS HOLDING h=171.91425>171.85698 | Modele non qualifie
+7360	STATUS HOLDING h=171.85402>171.85698 | Modele non qualifie
+7380	STATUS HOLDING h=171.87996>171.85698 | Modele non qualifie
+7400	STATUS HOLDING h=171.87321>171.85698 | Modele non qualifie
+7420	STATUS HOLDING h=171.82365>171.85698 | Modele non qualifie
+7440	STATUS HOLDING h=171.84595>171.85698 | Modele non qualifie
+7460	STATUS HOLDING h=171.91924>171.85698 | Modele non qualifie
+7480	STATUS HOLDING h=171.92276>171.85698 | Modele non qualifie
+7500	STATUS HOLDING h=171.87544>171.85698 | Modele non qualifie
+7520	STATUS HOLDING h=171.86667>171.85698 | Modele non qualifie
+7540	STATUS HOLDING h=171.86966>171.85698 | Modele non qualifie
+7560	STATUS HOLDING h=171.86212>171.85698 | Modele non qualifie
+7580	STATUS HOLDING h=171.8685>171.85698 | Modele non qualifie
+7600	STATUS HOLDING h=171.89394>171.85698 | Modele non qualifie
+7612	SPEED left RESULT CRUISE_STABLE mean=3.881001281738282
+7612	SPEED left PHASE CRUISE goal=6.0
+7612	SPEED left REQUEST requested=6.0 revision=125 confirmation=false
+7620	STATUS HOLDING h=171.8918>171.85698 | Modele non qualifie
+7640	STATUS HOLDING h=171.7046>171.85698 | Modele non qualifie
+7660	STATUS HOLDING h=171.76944>171.85698 | Modele non qualifie
+7680	STATUS HOLDING h=171.92107>171.85698 | Modele non qualifie
+7700	STATUS HOLDING h=171.92464>171.85698 | Modele non qualifie
+7720	STATUS HOLDING h=171.86263>171.85698 | Modele non qualifie
+7740	STATUS HOLDING h=171.87769>171.85698 | Modele non qualifie
+7760	STATUS HOLDING h=171.84673>171.85698 | Modele non qualifie
+7780	STATUS HOLDING h=171.80797>171.85698 | Modele non qualifie
+7800	STATUS HOLDING h=171.86514>171.85698 | Modele non qualifie
+7820	STATUS HOLDING h=171.92844>171.85698 | Modele non qualifie
+7840	STATUS HOLDING h=171.91483>171.85698 | Modele non qualifie
+7860	STATUS HOLDING h=171.86443>171.85698 | Modele non qualifie
+7880	STATUS HOLDING h=171.85855>171.85698 | Modele non qualifie
+7900	STATUS HOLDING h=171.85866>171.85698 | Modele non qualifie
+7920	STATUS HOLDING h=171.85301>171.85698 | Modele non qualifie
+7940	STATUS HOLDING h=171.87714>171.85698 | Modele non qualifie
+7960	STATUS HOLDING h=171.9022>171.85698 | Modele non qualifie
+7962	SPEED left RESULT CRUISE_STABLE mean=5.877355957031251
+7962	SPEED left PHASE CRUISE goal=8.0
+7962	SPEED left REQUEST requested=8.0 revision=126 confirmation=false
+7980	STATUS HOLDING h=171.81306>171.85698 | Modele non qualifie
+8000	STATUS HOLDING h=171.69615>171.85698 | Modele non qualifie
+8020	STATUS HOLDING h=171.83812>171.85698 | Modele non qualifie
+8040	STATUS HOLDING h=171.97005>171.85698 | Modele non qualifie
+8060	STATUS HOLDING h=171.91096>171.85698 | Modele non qualifie
+8080	STATUS HOLDING h=171.85648>171.85698 | Modele non qualifie
+8100	STATUS HOLDING h=171.86252>171.85698 | Modele non qualifie
+8120	STATUS HOLDING h=171.81407>171.85698 | Modele non qualifie
+8140	STATUS HOLDING h=171.81248>171.85698 | Modele non qualifie
+8160	STATUS HOLDING h=171.8892>171.85698 | Modele non qualifie
+8180	STATUS HOLDING h=171.93443>171.85698 | Modele non qualifie
+8200	STATUS HOLDING h=171.89981>171.85698 | Modele non qualifie
+8220	STATUS HOLDING h=171.85072>171.85698 | Modele non qualifie
+8240	STATUS HOLDING h=171.85092>171.85698 | Modele non qualifie
+8260	STATUS HOLDING h=171.84633>171.85698 | Modele non qualifie
+8280	STATUS HOLDING h=171.85516>171.85698 | Modele non qualifie
+8300	STATUS HOLDING h=171.89114>171.85698 | Modele non qualifie
+8306	SPEED left RESULT CRUISE_STABLE mean=7.8743408203125
+8306	SPEED left PHASE CRUISE goal=10.0
+8306	SPEED left REQUEST requested=10.0 revision=127 confirmation=false
+8320	STATUS HOLDING h=171.87378>171.85698 | Modele non qualifie
+8340	STATUS HOLDING h=171.6864>171.85698 | Modele non qualifie
+8360	STATUS HOLDING h=171.78517>171.85698 | Modele non qualifie
+8380	STATUS HOLDING h=171.96855>171.85698 | Modele non qualifie
+8400	STATUS HOLDING h=171.97186>171.85698 | Modele non qualifie
+8420	STATUS HOLDING h=171.85507>171.85698 | Modele non qualifie
+8440	STATUS HOLDING h=171.84958>171.85698 | Modele non qualifie
+8460	STATUS HOLDING h=171.81764>171.85698 | Modele non qualifie
+8480	STATUS HOLDING h=171.79195>171.85698 | Modele non qualifie
+8500	STATUS HOLDING h=171.86086>171.85698 | Modele non qualifie
+8520	STATUS HOLDING h=171.92844>171.85698 | Modele non qualifie
+8540	STATUS HOLDING h=171.93394>171.85698 | Modele non qualifie
+8560	STATUS HOLDING h=171.86667>171.85698 | Modele non qualifie
+8580	STATUS HOLDING h=171.83757>171.85698 | Modele non qualifie
+8589	SPEED left RESULT CRUISE_STABLE mean=10.021728515625
+8589	SPEED left PHASE CRUISE goal=12.0
+8589	SPEED left REQUEST requested=12.0 revision=128 confirmation=false
+8600	STATUS HOLDING h=171.82681>171.85698 | Modele non qualifie
+8620	STATUS HOLDING h=171.6189>171.85698 | Modele non qualifie
+8640	STATUS HOLDING h=171.71422>171.85698 | Modele non qualifie
+8660	STATUS HOLDING h=171.95644>171.85698 | Modele non qualifie
+8680	STATUS HOLDING h=172.07619>171.85698 | Modele non qualifie
+8700	STATUS HOLDING h=171.90602>171.85698 | Modele non qualifie
+8720	STATUS HOLDING h=171.8397>171.85698 | Modele non qualifie
+8740	STATUS HOLDING h=171.8325>171.85698 | Modele non qualifie
+8760	STATUS HOLDING h=171.77353>171.85698 | Modele non qualifie
+8780	STATUS HOLDING h=171.8265>171.85698 | Modele non qualifie
+8800	STATUS HOLDING h=171.91446>171.85698 | Modele non qualifie
+8820	STATUS HOLDING h=171.96744>171.85698 | Modele non qualifie
+8840	STATUS HOLDING h=171.92702>171.85698 | Modele non qualifie
+8860	STATUS HOLDING h=171.842>171.85698 | Modele non qualifie
+8874	SPEED left RESULT CRUISE_STABLE mean=11.9801513671875
+8874	SPEED left PHASE CRUISE goal=16.0
+8874	SPEED left REQUEST requested=16.0 revision=129 confirmation=false
+8880	STATUS HOLDING h=171.83295>171.85698 | Modele non qualifie
+8900	STATUS HOLDING h=171.54077>171.85698 | Modele non qualifie
+8920	STATUS HOLDING h=171.4664>171.85698 | Modele non qualifie
+8940	STATUS HOLDING h=171.72552>171.85698 | Modele non qualifie
+8960	STATUS HOLDING h=172.20546>171.85698 | Modele non qualifie
+8980	STATUS HOLDING h=172.25993>171.85698 | Modele non qualifie
+9000	STATUS HOLDING h=171.86566>171.85698 | Modele non qualifie
+9020	STATUS HOLDING h=171.84659>171.85698 | Modele non qualifie
+9040	STATUS HOLDING h=171.76959>171.85698 | Modele non qualifie
+9060	STATUS HOLDING h=171.69565>171.85698 | Modele non qualifie
+9080	STATUS HOLDING h=171.80798>171.85698 | Modele non qualifie
+9100	STATUS HOLDING h=171.98027>171.85698 | Modele non qualifie
+9120	STATUS HOLDING h=172.06403>171.85698 | Modele non qualifie
+9140	STATUS HOLDING h=171.92938>171.85698 | Modele non qualifie
+9160	STATUS HOLDING h=171.83124>171.85698 | Modele non qualifie
+9180	STATUS HOLDING h=171.8276>171.85698 | Modele non qualifie
+9200	STATUS HOLDING h=171.82108>171.85698 | Modele non qualifie
+9220	STATUS HOLDING h=171.85391>171.85698 | Modele non qualifie
+9240	STATUS HOLDING h=171.90276>171.85698 | Modele non qualifie
+9260	STATUS HOLDING h=171.9391>171.85698 | Modele non qualifie
+9274	SPEED left RESULT CRUISE_NOT_STABLE mean=15.7260498046875
+9274	SPEED left PHASE CRUISE goal=14.0
+9280	STATUS HOLDING h=171.93867>171.85698 | Modele non qualifie
+9300	STATUS HOLDING h=171.80774>171.85698 | Modele non qualifie
+9320	STATUS HOLDING h=171.81833>171.85698 | Modele non qualifie
+9340	STATUS HOLDING h=171.8456>171.85698 | Modele non qualifie
+9360	STATUS HOLDING h=171.7155>171.85698 | Modele non qualifie
+9380	STATUS HOLDING h=171.70541>171.85698 | Modele non qualifie
+9400	STATUS HOLDING h=171.83902>171.85698 | Modele non qualifie
+9420	STATUS HOLDING h=171.98712>171.85698 | Modele non qualifie
+9440	STATUS HOLDING h=172.02635>171.85698 | Modele non qualifie
+9460	STATUS HOLDING h=171.8942>171.85698 | Modele non qualifie
+9480	STATUS HOLDING h=171.82385>171.85698 | Modele non qualifie
+9500	STATUS HOLDING h=171.81331>171.85698 | Modele non qualifie
+9520	STATUS HOLDING h=171.82614>171.85698 | Modele non qualifie
+9540	STATUS HOLDING h=171.86392>171.85698 | Modele non qualifie
+9560	STATUS HOLDING h=171.90703>171.85698 | Modele non qualifie
+9580	STATUS HOLDING h=171.93336>171.85698 | Modele non qualifie
+9600	STATUS HOLDING h=171.92764>171.85698 | Modele non qualifie
+9619	SPEED left RESULT CRUISE_STABLE mean=13.77509765625
+9619	SPEED left PHASE CRUISE goal=15.0
+9620	STATUS HOLDING h=171.89973>171.85698 | Modele non qualifie
+9640	STATUS HOLDING h=171.80528>171.85698 | Modele non qualifie
+9660	STATUS HOLDING h=171.72882>171.85698 | Modele non qualifie
+9680	STATUS HOLDING h=171.8246>171.85698 | Modele non qualifie
+9700	STATUS HOLDING h=171.96442>171.85698 | Modele non qualifie
+9720	STATUS HOLDING h=172.0149>171.85698 | Modele non qualifie
+9740	STATUS HOLDING h=171.91943>171.85698 | Modele non qualifie
+9760	STATUS HOLDING h=171.7991>171.85698 | Modele non qualifie
+9780	STATUS HOLDING h=171.77995>171.85698 | Modele non qualifie
+9800	STATUS HOLDING h=171.80908>171.85698 | Modele non qualifie
+9820	STATUS HOLDING h=171.85281>171.85698 | Modele non qualifie
+9840	STATUS HOLDING h=171.896>171.85698 | Modele non qualifie
+9860	STATUS HOLDING h=171.91852>171.85698 | Modele non qualifie
+9880	STATUS HOLDING h=171.9158>171.85698 | Modele non qualifie
+9897	SPEED left RESULT CRUISE_STABLE mean=14.614013671875
+9897	SPEED left PHASE CRUISE goal=15.5
+9900	STATUS HOLDING h=171.88634>171.85698 | Modele non qualifie
+9920	STATUS HOLDING h=171.83043>171.85698 | Modele non qualifie
+9940	STATUS HOLDING h=171.79266>171.85698 | Modele non qualifie
+9960	STATUS HOLDING h=171.84087>171.85698 | Modele non qualifie
+9980	STATUS HOLDING h=171.91321>171.85698 | Modele non qualifie
+10000	STATUS HOLDING h=171.94582>171.85698 | Modele non qualifie
+10020	STATUS HOLDING h=171.91959>171.85698 | Modele non qualifie
+10032	SPEED left RESULT CRUISE_STABLE mean=15.08466796875
+10032	SPEED left PHASE BRAKE goal=15.5
+10040	STATUS HOLDING h=171.88269>171.88197 | Modele non qualifie
+10060	STATUS HOLDING h=171.87344>171.88197 | Modele non qualifie
+10080	STATUS HOLDING h=171.7685>171.88197 | Modele non qualifie
+10100	STATUS HOLDING h=171.77753>171.88197 | Modele non qualifie
+10120	STATUS HOLDING h=171.81387>171.88197 | Modele non qualifie
+10140	STATUS HOLDING h=171.78699>171.88197 | Modele non qualifie
+10160	STATUS HOLDING h=171.59152>171.88197 | Modele non qualifie
+10180	STATUS HOLDING h=171.63393>171.88197 | Modele non qualifie
+10200	STATUS HOLDING h=171.8611>171.88197 | Modele non qualifie
+10220	STATUS HOLDING h=171.94824>171.88197 | Modele non qualifie
+10240	STATUS HOLDING h=171.88916>171.88197 | Modele non qualifie
+10260	STATUS HOLDING h=171.88844>171.88197 | Modele non qualifie
+10280	STATUS HOLDING h=171.9201>171.88197 | Modele non qualifie
+10300	STATUS HOLDING h=171.91394>171.88197 | Modele non qualifie
+10320	STATUS HOLDING h=171.89465>171.88197 | Modele non qualifie
+10340	STATUS HOLDING h=171.89896>171.88197 | Modele non qualifie
+10360	STATUS HOLDING h=171.90388>171.88197 | Modele non qualifie
+10362	SPEED left DIRECTION_COMPLETE braking=true
+10362	SPEED right PHASE RESET_OFF goal=15.5
+10380	STATUS Pret: activer sans touche
+10392	SPEED right PHASE RESET_LOCK goal=15.5
+10400	STATUS Pret: activer sans touche
+10420	STATUS Pret: activer sans touche
+10422	SPEED right PHASE RESET_WARM goal=15.5
+10440	STATUS HOLDING h=171.83147>171.83147 | Modele non qualifie
+10460	STATUS HOLDING h=171.83147>171.83147 | Modele non qualifie
+10480	STATUS HOLDING h=171.83147>171.83147 | Modele non qualifie
+10500	STATUS HOLDING h=171.83147>171.83147 | Modele non qualifie
+10520	STATUS HOLDING h=171.83147>171.83147 | Modele non qualifie
+10522	SPEED right PHASE BASELINE goal=15.5
+10540	STATUS HOLDING h=171.91585>171.84445 | Modele non qualifie
+10560	STATUS HOLDING h=171.86377>171.84445 | Modele non qualifie
+10562	SPEED right PHASE CRUISE goal=2.0
+10562	SPEED right REQUEST requested=2.0 revision=135 confirmation=false
+10580	STATUS HOLDING h=171.7697>171.85672 | Modele non qualifie
+10600	STATUS HOLDING h=171.71103>171.85672 | Modele non qualifie
+10620	STATUS HOLDING h=171.83994>171.85672 | Modele non qualifie
+10640	STATUS HOLDING h=171.84045>171.85672 | Modele non qualifie
+10660	STATUS HOLDING h=171.80173>171.85672 | Modele non qualifie
+10680	STATUS HOLDING h=171.86978>171.85672 | Modele non qualifie
+10700	STATUS HOLDING h=171.8701>171.85672 | Modele non qualifie
+10720	STATUS HOLDING h=171.8239>171.85672 | Modele non qualifie
+10740	STATUS HOLDING h=171.84976>171.85672 | Modele non qualifie
+10760	STATUS HOLDING h=171.91373>171.85672 | Modele non qualifie
+10780	STATUS HOLDING h=171.90363>171.85672 | Modele non qualifie
+10800	STATUS HOLDING h=171.86592>171.85672 | Modele non qualifie
+10820	STATUS HOLDING h=171.87363>171.85672 | Modele non qualifie
+10840	STATUS HOLDING h=171.87436>171.85672 | Modele non qualifie
+10860	STATUS HOLDING h=171.86725>171.85672 | Modele non qualifie
+10880	STATUS HOLDING h=171.86992>171.85672 | Modele non qualifie
+10900	STATUS HOLDING h=171.88104>171.85672 | Modele non qualifie
+10913	SPEED right RESULT CRUISE_STABLE mean=1.8986846923828122
+10913	SPEED right PHASE CRUISE goal=4.0
+10913	SPEED right REQUEST requested=4.0 revision=136 confirmation=false
+10920	STATUS HOLDING h=171.8811>171.85672 | Modele non qualifie
+10940	STATUS HOLDING h=171.71797>171.85672 | Modele non qualifie
+10960	STATUS HOLDING h=171.77148>171.85672 | Modele non qualifie
+10980	STATUS HOLDING h=171.89804>171.85672 | Modele non qualifie
+11000	STATUS HOLDING h=171.88097>171.85672 | Modele non qualifie
+11020	STATUS HOLDING h=171.85066>171.85672 | Modele non qualifie
+11040	STATUS HOLDING h=171.89285>171.85672 | Modele non qualifie
+11060	STATUS HOLDING h=171.85223>171.85672 | Modele non qualifie
+11080	STATUS HOLDING h=171.82391>171.85672 | Modele non qualifie
+11100	STATUS HOLDING h=171.882>171.85672 | Modele non qualifie
+11120	STATUS HOLDING h=171.93341>171.85672 | Modele non qualifie
+11140	STATUS HOLDING h=171.90271>171.85672 | Modele non qualifie
+11160	STATUS HOLDING h=171.86592>171.85672 | Modele non qualifie
+11180	STATUS HOLDING h=171.87057>171.85672 | Modele non qualifie
+11200	STATUS HOLDING h=171.86783>171.85672 | Modele non qualifie
+11220	STATUS HOLDING h=171.86356>171.85672 | Modele non qualifie
+11240	STATUS HOLDING h=171.88458>171.85672 | Modele non qualifie
+11260	STATUS HOLDING h=171.90302>171.85672 | Modele non qualifie
+11264	SPEED right RESULT CRUISE_STABLE mean=3.848153686523437
+11264	SPEED right PHASE CRUISE goal=6.0
+11264	SPEED right REQUEST requested=6.0 revision=137 confirmation=false
+11280	STATUS HOLDING h=171.84073>171.85672 | Modele non qualifie
+11300	STATUS HOLDING h=171.71165>171.85672 | Modele non qualifie
+11320	STATUS HOLDING h=171.84029>171.85672 | Modele non qualifie
+11340	STATUS HOLDING h=171.93678>171.85672 | Modele non qualifie
+11360	STATUS HOLDING h=171.88344>171.85672 | Modele non qualifie
+11380	STATUS HOLDING h=171.86745>171.85672 | Modele non qualifie
+11400	STATUS HOLDING h=171.87636>171.85672 | Modele non qualifie
+11420	STATUS HOLDING h=171.8238>171.85672 | Modele non qualifie
+11440	STATUS HOLDING h=171.82927>171.85672 | Modele non qualifie
+11460	STATUS HOLDING h=171.90405>171.85672 | Modele non qualifie
+11480	STATUS HOLDING h=171.9356>171.85672 | Modele non qualifie
+11500	STATUS HOLDING h=171.89714>171.85672 | Modele non qualifie
+11520	STATUS HOLDING h=171.86095>171.85672 | Modele non qualifie
+11540	STATUS HOLDING h=171.86075>171.85672 | Modele non qualifie
+11560	STATUS HOLDING h=171.85884>171.85672 | Modele non qualifie
+11580	STATUS HOLDING h=171.87177>171.85672 | Modele non qualifie
+11600	STATUS HOLDING h=171.90292>171.85672 | Modele non qualifie
+11620	STATUS HOLDING h=171.9095>171.85672 | Modele non qualifie
+11640	STATUS HOLDING h=171.88254>171.85672 | Modele non qualifie
+11660	STATUS HOLDING h=171.85315>171.85672 | Modele non qualifie
+11664	SPEED right RESULT CRUISE_NOT_STABLE mean=5.857250976562499
+11664	SPEED right PHASE CRUISE goal=5.0
+11680	STATUS HOLDING h=171.82808>171.85672 | Modele non qualifie
+11700	STATUS HOLDING h=171.80276>171.85672 | Modele non qualifie
+11720	STATUS HOLDING h=171.85399>171.85672 | Modele non qualifie
+11740	STATUS HOLDING h=171.81546>171.85672 | Modele non qualifie
+11760	STATUS HOLDING h=171.80228>171.85672 | Modele non qualifie
+11780	STATUS HOLDING h=171.87164>171.85672 | Modele non qualifie
+11800	STATUS HOLDING h=171.91669>171.85672 | Modele non qualifie
+11820	STATUS HOLDING h=171.88618>171.85672 | Modele non qualifie
+11840	STATUS HOLDING h=171.84935>171.85672 | Modele non qualifie
+11860	STATUS HOLDING h=171.85022>171.85672 | Modele non qualifie
+11880	STATUS HOLDING h=171.85011>171.85672 | Modele non qualifie
+11900	STATUS HOLDING h=171.85596>171.85672 | Modele non qualifie
+11920	STATUS HOLDING h=171.8844>171.85672 | Modele non qualifie
+11940	STATUS HOLDING h=171.89786>171.85672 | Modele non qualifie
+11941	SPEED right RESULT CRUISE_STABLE mean=4.82222900390625
+11941	SPEED right PHASE CRUISE goal=5.5
+11960	STATUS HOLDING h=171.86328>171.85672 | Modele non qualifie
+11980	STATUS HOLDING h=171.84802>171.85672 | Modele non qualifie
+12000	STATUS HOLDING h=171.88834>171.85672 | Modele non qualifie
+12020	STATUS HOLDING h=171.88962>171.85672 | Modele non qualifie
+12040	STATUS HOLDING h=171.85461>171.85672 | Modele non qualifie
+12060	STATUS HOLDING h=171.83907>171.85672 | Modele non qualifie
+12080	STATUS HOLDING h=171.8415>171.85672 | Modele non qualifie
+12100	STATUS HOLDING h=171.8522>171.85672 | Modele non qualifie
+12120	STATUS HOLDING h=171.87715>171.85672 | Modele non qualifie
+12136	SPEED right RESULT CRUISE_STABLE mean=5.326501464843749
+12136	SPEED right PHASE BRAKE goal=5.5
+12140	STATUS HOLDING h=171.89362>171.89337 | Modele non qualifie
+12160	STATUS HOLDING h=171.66502>171.89337 | Modele non qualifie
+12180	STATUS HOLDING h=171.72263>171.89337 | Modele non qualifie
+12200	STATUS HOLDING h=171.8317>171.89337 | Modele non qualifie
+12220	STATUS HOLDING h=171.70032>171.89337 | Modele non qualifie
+12240	STATUS HOLDING h=171.7491>171.89337 | Modele non qualifie
+12260	STATUS HOLDING h=171.92479>171.89337 | Modele non qualifie
+12280	STATUS HOLDING h=171.96117>171.89337 | Modele non qualifie
+12300	STATUS HOLDING h=171.89693>171.89337 | Modele non qualifie
+12320	STATUS HOLDING h=171.91214>171.89337 | Modele non qualifie
+12340	STATUS HOLDING h=171.9509>171.89337 | Modele non qualifie
+12360	STATUS HOLDING h=171.93977>171.89337 | Modele non qualifie
+12380	STATUS HOLDING h=171.92053>171.89337 | Modele non qualifie
+12400	STATUS HOLDING h=171.91893>171.89337 | Modele non qualifie
+12419	SPEED right DIRECTION_COMPLETE braking=true
+12419	SPEED forward_left PHASE RESET_OFF goal=5.5
+12420	STATUS HOLDING h=171.91612>171.89337 | Modele non qualifie
+12440	STATUS Pret: activer sans touche
+12449	SPEED forward_left PHASE RESET_LOCK goal=5.5
+12460	STATUS Pret: activer sans touche
+12479	SPEED forward_left PHASE RESET_WARM goal=5.5
+12480	STATUS Maintien initialise; montage non certifie
+12500	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+12520	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+12540	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+12560	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+12579	SPEED forward_left PHASE BASELINE goal=5.5
+12580	STATUS HOLDING h=171.8379>171.83144 | Modele non qualifie
+12600	STATUS HOLDING h=171.9146>171.84439 | Modele non qualifie
+12619	SPEED forward_left PHASE CRUISE goal=2.0
+12619	SPEED forward_left REQUEST requested=2.0 revision=142 confirmation=false
+12620	STATUS HOLDING h=171.85388>171.84439 | Modele non qualifie
+12640	STATUS HOLDING h=171.753>171.85715 | Modele non qualifie
+12660	STATUS HOLDING h=171.74739>171.85715 | Modele non qualifie
+12680	STATUS HOLDING h=171.86694>171.85715 | Modele non qualifie
+12700	STATUS HOLDING h=171.86215>171.85715 | Modele non qualifie
+12720	STATUS HOLDING h=171.82513>171.85715 | Modele non qualifie
+12740	STATUS HOLDING h=171.87025>171.85715 | Modele non qualifie
+12760	STATUS HOLDING h=171.86288>171.85715 | Modele non qualifie
+12780	STATUS HOLDING h=171.83585>171.85715 | Modele non qualifie
+12800	STATUS HOLDING h=171.87138>171.85715 | Modele non qualifie
+12820	STATUS HOLDING h=171.9227>171.85715 | Modele non qualifie
+12840	STATUS HOLDING h=171.90147>171.85715 | Modele non qualifie
+12860	STATUS HOLDING h=171.86699>171.85715 | Modele non qualifie
+12880	STATUS HOLDING h=171.86736>171.85715 | Modele non qualifie
+12900	STATUS HOLDING h=171.87622>171.85715 | Modele non qualifie
+12920	STATUS HOLDING h=171.87766>171.85715 | Modele non qualifie
+12940	STATUS HOLDING h=171.87984>171.85715 | Modele non qualifie
+12948	SPEED forward_left RESULT CRUISE_STABLE mean=1.7478878018103268
+12948	SPEED forward_left PHASE CRUISE goal=4.0
+12948	SPEED forward_left REQUEST requested=4.0 revision=143 confirmation=false
+12960	STATUS HOLDING h=171.86888>171.85715 | Modele non qualifie
+12980	STATUS HOLDING h=171.7305>171.85715 | Modele non qualifie
+13000	STATUS HOLDING h=171.83199>171.85715 | Modele non qualifie
+13020	STATUS HOLDING h=171.93196>171.85715 | Modele non qualifie
+13040	STATUS HOLDING h=171.90439>171.85715 | Modele non qualifie
+13060	STATUS HOLDING h=171.86508>171.85715 | Modele non qualifie
+13080	STATUS HOLDING h=171.86702>171.85715 | Modele non qualifie
+13100	STATUS HOLDING h=171.83072>171.85715 | Modele non qualifie
+13120	STATUS HOLDING h=171.85365>171.85715 | Modele non qualifie
+13140	STATUS HOLDING h=171.9178>171.85715 | Modele non qualifie
+13160	STATUS HOLDING h=171.93735>171.85715 | Modele non qualifie
+13180	STATUS HOLDING h=171.90598>171.85715 | Modele non qualifie
+13200	STATUS HOLDING h=171.88023>171.85715 | Modele non qualifie
+13220	STATUS HOLDING h=171.88223>171.85715 | Modele non qualifie
+13240	STATUS HOLDING h=171.8818>171.85715 | Modele non qualifie
+13260	STATUS HOLDING h=171.88312>171.85715 | Modele non qualifie
+13280	STATUS HOLDING h=171.89583>171.85715 | Modele non qualifie
+13300	STATUS HOLDING h=171.90073>171.85715 | Modele non qualifie
+13320	STATUS HOLDING h=171.88872>171.85715 | Modele non qualifie
+13340	STATUS HOLDING h=171.87485>171.85715 | Modele non qualifie
+13348	SPEED forward_left RESULT CRUISE_NOT_STABLE mean=3.636632394392791
+13348	SPEED forward_left PHASE CRUISE goal=3.0
+13360	STATUS HOLDING h=171.8652>171.85715 | Modele non qualifie
+13380	STATUS HOLDING h=171.78204>171.85715 | Modele non qualifie
+13400	STATUS HOLDING h=171.82191>171.85715 | Modele non qualifie
+13420	STATUS HOLDING h=171.802>171.85715 | Modele non qualifie
+13440	STATUS HOLDING h=171.78903>171.85715 | Modele non qualifie
+13460	STATUS HOLDING h=171.85335>171.85715 | Modele non qualifie
+13480	STATUS HOLDING h=171.90276>171.85715 | Modele non qualifie
+13500	STATUS HOLDING h=171.87642>171.85715 | Modele non qualifie
+13520	STATUS HOLDING h=171.84187>171.85715 | Modele non qualifie
+13540	STATUS HOLDING h=171.84387>171.85715 | Modele non qualifie
+13560	STATUS HOLDING h=171.85258>171.85715 | Modele non qualifie
+13580	STATUS HOLDING h=171.859>171.85715 | Modele non qualifie
+13600	STATUS HOLDING h=171.87222>171.85715 | Modele non qualifie
+13615	SPEED forward_left RESULT CRUISE_STABLE mean=2.739311558514927
+13615	SPEED forward_left PHASE CRUISE goal=3.5
+13620	STATUS HOLDING h=171.88132>171.85715 | Modele non qualifie
+13640	STATUS HOLDING h=171.84787>171.85715 | Modele non qualifie
+13660	STATUS HOLDING h=171.85965>171.85715 | Modele non qualifie
+13680	STATUS HOLDING h=171.88629>171.85715 | Modele non qualifie
+13700	STATUS HOLDING h=171.86978>171.85715 | Modele non qualifie
+13720	STATUS HOLDING h=171.848>171.85715 | Modele non qualifie
+13740	STATUS HOLDING h=171.84146>171.85715 | Modele non qualifie
+13760	STATUS HOLDING h=171.8492>171.85715 | Modele non qualifie
+13780	STATUS HOLDING h=171.86415>171.85715 | Modele non qualifie
+13800	STATUS HOLDING h=171.8819>171.85715 | Modele non qualifie
+13809	SPEED forward_left RESULT CRUISE_STABLE mean=3.2363600651621613
+13809	SPEED forward_left PHASE BRAKE goal=3.5
+13820	STATUS HOLDING h=171.8624>171.88576 | Modele non qualifie
+13840	STATUS HOLDING h=171.60062>171.88576 | Modele non qualifie
+13860	STATUS HOLDING h=171.81705>171.88576 | Modele non qualifie
+13880	STATUS HOLDING h=171.79034>171.88576 | Modele non qualifie
+13900	STATUS HOLDING h=171.76933>171.88576 | Modele non qualifie
+13920	STATUS HOLDING h=171.89326>171.88576 | Modele non qualifie
+13940	STATUS HOLDING h=171.94136>171.88576 | Modele non qualifie
+13960	STATUS HOLDING h=171.89279>171.88576 | Modele non qualifie
+13980	STATUS HOLDING h=171.89331>171.88576 | Modele non qualifie
+14000	STATUS HOLDING h=171.92105>171.88576 | Modele non qualifie
+14020	STATUS HOLDING h=171.915>171.88576 | Modele non qualifie
+14040	STATUS HOLDING h=171.90108>171.88576 | Modele non qualifie
+14060	STATUS HOLDING h=171.90054>171.88576 | Modele non qualifie
+14076	SPEED forward_left DIRECTION_COMPLETE braking=true
+14076	SPEED forward_right PHASE RESET_OFF goal=3.5
+14080	STATUS Pret: activer sans touche
+14100	STATUS Pret: activer sans touche
+14106	SPEED forward_right PHASE RESET_LOCK goal=3.5
+14120	STATUS Pret: activer sans touche
+14136	SPEED forward_right PHASE RESET_WARM goal=3.5
+14140	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+14160	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+14180	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+14200	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+14220	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+14236	SPEED forward_right PHASE BASELINE goal=3.5
+14240	STATUS HOLDING h=171.85732>171.84444 | Modele non qualifie
+14260	STATUS HOLDING h=171.91035>171.84444 | Modele non qualifie
+14276	SPEED forward_right PHASE CRUISE goal=2.0
+14276	SPEED forward_right REQUEST requested=2.0 revision=148 confirmation=false
+14280	STATUS HOLDING h=171.84525>171.857 | Modele non qualifie
+14300	STATUS HOLDING h=171.73448>171.857 | Modele non qualifie
+14320	STATUS HOLDING h=171.76982>171.857 | Modele non qualifie
+14340	STATUS HOLDING h=171.87108>171.857 | Modele non qualifie
+14360	STATUS HOLDING h=171.84755>171.857 | Modele non qualifie
+14380	STATUS HOLDING h=171.82376>171.857 | Modele non qualifie
+14400	STATUS HOLDING h=171.8754>171.857 | Modele non qualifie
+14420	STATUS HOLDING h=171.86116>171.857 | Modele non qualifie
+14440	STATUS HOLDING h=171.8407>171.857 | Modele non qualifie
+14460	STATUS HOLDING h=171.88144>171.857 | Modele non qualifie
+14480	STATUS HOLDING h=171.92365>171.857 | Modele non qualifie
+14500	STATUS HOLDING h=171.89424>171.857 | Modele non qualifie
+14520	STATUS HOLDING h=171.86531>171.857 | Modele non qualifie
+14540	STATUS HOLDING h=171.87035>171.857 | Modele non qualifie
+14560	STATUS HOLDING h=171.878>171.857 | Modele non qualifie
+14580	STATUS HOLDING h=171.8788>171.857 | Modele non qualifie
+14600	STATUS HOLDING h=171.8818>171.857 | Modele non qualifie
+14605	SPEED forward_right RESULT CRUISE_STABLE mean=1.7311923898733181
+14605	SPEED forward_right PHASE CRUISE goal=4.0
+14605	SPEED forward_right REQUEST requested=4.0 revision=149 confirmation=false
+14620	STATUS HOLDING h=171.85129>171.857 | Modele non qualifie
+14640	STATUS HOLDING h=171.74043>171.857 | Modele non qualifie
+14660	STATUS HOLDING h=171.85555>171.857 | Modele non qualifie
+14680	STATUS HOLDING h=171.93015>171.857 | Modele non qualifie
+14700	STATUS HOLDING h=171.89737>171.857 | Modele non qualifie
+14720	STATUS HOLDING h=171.86797>171.857 | Modele non qualifie
+14740	STATUS HOLDING h=171.86328>171.857 | Modele non qualifie
+14760	STATUS HOLDING h=171.8395>171.857 | Modele non qualifie
+14780	STATUS HOLDING h=171.87502>171.857 | Modele non qualifie
+14800	STATUS HOLDING h=171.92703>171.857 | Modele non qualifie
+14820	STATUS HOLDING h=171.93456>171.857 | Modele non qualifie
+14840	STATUS HOLDING h=171.90732>171.857 | Modele non qualifie
+14860	STATUS HOLDING h=171.89255>171.857 | Modele non qualifie
+14880	STATUS HOLDING h=171.89748>171.857 | Modele non qualifie
+14900	STATUS HOLDING h=171.88976>171.857 | Modele non qualifie
+14920	STATUS HOLDING h=171.88658>171.857 | Modele non qualifie
+14940	STATUS HOLDING h=171.89508>171.857 | Modele non qualifie
+14960	STATUS HOLDING h=171.89824>171.857 | Modele non qualifie
+14962	SPEED forward_right RESULT CRUISE_STABLE mean=3.4468477655115812
+14962	SPEED forward_right PHASE CRUISE goal=6.0
+14962	SPEED forward_right REQUEST requested=6.0 revision=150 confirmation=false
+14980	STATUS HOLDING h=171.83517>171.857 | Modele non qualifie
+15000	STATUS HOLDING h=171.76213>171.857 | Modele non qualifie
+15020	STATUS HOLDING h=171.86874>171.857 | Modele non qualifie
+15040	STATUS HOLDING h=171.95386>171.857 | Modele non qualifie
+15060	STATUS HOLDING h=171.94978>171.857 | Modele non qualifie
+15080	STATUS HOLDING h=171.90033>171.857 | Modele non qualifie
+15100	STATUS HOLDING h=171.85564>171.857 | Modele non qualifie
+15120	STATUS HOLDING h=171.83638>171.857 | Modele non qualifie
+15140	STATUS HOLDING h=171.87567>171.857 | Modele non qualifie
+15160	STATUS HOLDING h=171.90598>171.857 | Modele non qualifie
+15180	STATUS HOLDING h=171.91507>171.857 | Modele non qualifie
+15200	STATUS HOLDING h=171.91422>171.857 | Modele non qualifie
+15220	STATUS HOLDING h=171.90524>171.857 | Modele non qualifie
+15240	STATUS HOLDING h=171.89262>171.857 | Modele non qualifie
+15260	STATUS HOLDING h=171.88272>171.857 | Modele non qualifie
+15280	STATUS HOLDING h=171.8761>171.857 | Modele non qualifie
+15300	STATUS HOLDING h=171.87593>171.857 | Modele non qualifie
+15320	STATUS HOLDING h=171.87793>171.857 | Modele non qualifie
+15340	STATUS HOLDING h=171.8801>171.857 | Modele non qualifie
+15360	STATUS HOLDING h=171.87999>171.857 | Modele non qualifie
+15362	SPEED forward_right RESULT CRUISE_NOT_STABLE mean=5.173398472382178
+15362	SPEED forward_right PHASE CRUISE goal=5.0
+15380	STATUS HOLDING h=171.85353>171.857 | Modele non qualifie
+15400	STATUS HOLDING h=171.80434>171.857 | Modele non qualifie
+15420	STATUS HOLDING h=171.7989>171.857 | Modele non qualifie
+15440	STATUS HOLDING h=171.78859>171.857 | Modele non qualifie
+15460	STATUS HOLDING h=171.8221>171.857 | Modele non qualifie
+15480	STATUS HOLDING h=171.86877>171.857 | Modele non qualifie
+15500	STATUS HOLDING h=171.88568>171.857 | Modele non qualifie
+15520	STATUS HOLDING h=171.88545>171.857 | Modele non qualifie
+15540	STATUS HOLDING h=171.87932>171.857 | Modele non qualifie
+15560	STATUS HOLDING h=171.87361>171.857 | Modele non qualifie
+15580	STATUS HOLDING h=171.86678>171.857 | Modele non qualifie
+15600	STATUS HOLDING h=171.86307>171.857 | Modele non qualifie
+15620	STATUS HOLDING h=171.86227>171.857 | Modele non qualifie
+15640	STATUS HOLDING h=171.865>171.857 | Modele non qualifie
+15660	STATUS HOLDING h=171.86826>171.857 | Modele non qualifie
+15680	STATUS HOLDING h=171.86711>171.857 | Modele non qualifie
+15700	STATUS HOLDING h=171.86583>171.857 | Modele non qualifie
+15720	STATUS HOLDING h=171.86385>171.857 | Modele non qualifie
+15740	STATUS HOLDING h=171.86096>171.857 | Modele non qualifie
+15760	STATUS HOLDING h=171.85979>171.857 | Modele non qualifie
+15762	SPEED forward_right RESULT CRUISE_NOT_STABLE mean=4.251004779782496
+15762	SPEED forward_right PHASE CRUISE goal=4.5
+15780	STATUS HOLDING h=171.85307>171.857 | Modele non qualifie
+15800	STATUS HOLDING h=171.84079>171.857 | Modele non qualifie
+15820	STATUS HOLDING h=171.84814>171.857 | Modele non qualifie
+15840	STATUS HOLDING h=171.83963>171.857 | Modele non qualifie
+15860	STATUS HOLDING h=171.8389>171.857 | Modele non qualifie
+15880	STATUS HOLDING h=171.85406>171.857 | Modele non qualifie
+15900	STATUS HOLDING h=171.86433>171.857 | Modele non qualifie
+15920	STATUS HOLDING h=171.86555>171.857 | Modele non qualifie
+15940	STATUS HOLDING h=171.86385>171.857 | Modele non qualifie
+15952	SPEED forward_right RESULT CRUISE_STABLE mean=3.8076949211207536
+15952	SPEED forward_right PHASE BRAKE goal=4.5
+15960	STATUS HOLDING h=171.86761>171.862 | Modele non qualifie
+15980	STATUS HOLDING h=171.58466>171.862 | Modele non qualifie
+16000	STATUS HOLDING h=171.65561>171.862 | Modele non qualifie
+16020	STATUS HOLDING h=171.73796>171.862 | Modele non qualifie
+16040	STATUS HOLDING h=171.71948>171.862 | Modele non qualifie
+16060	STATUS HOLDING h=171.79396>171.862 | Modele non qualifie
+16080	STATUS HOLDING h=171.86412>171.862 | Modele non qualifie
+16100	STATUS HOLDING h=171.84178>171.862 | Modele non qualifie
+16120	STATUS HOLDING h=171.82722>171.862 | Modele non qualifie
+16140	STATUS HOLDING h=171.86653>171.862 | Modele non qualifie
+16160	STATUS HOLDING h=171.87523>171.862 | Modele non qualifie
+16180	STATUS HOLDING h=171.85844>171.862 | Modele non qualifie
+16200	STATUS HOLDING h=171.85646>171.862 | Modele non qualifie
+16220	SPEED forward_right DIRECTION_COMPLETE braking=true
+16220	SPEED reverse_left PHASE RESET_OFF goal=4.5
+16220	STATUS HOLDING h=171.85931>171.862 | Modele non qualifie
+16240	STATUS Pret: activer sans touche
+16250	SPEED reverse_left PHASE RESET_LOCK goal=4.5
+16260	STATUS Pret: activer sans touche
+16280	SPEED reverse_left PHASE RESET_WARM goal=4.5
+16280	STATUS Pret: activer sans touche
+16300	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+16320	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+16340	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+16360	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+16380	SPEED reverse_left PHASE BASELINE goal=4.5
+16380	STATUS HOLDING h=171.83148>171.83148 | Modele non qualifie
+16400	STATUS HOLDING h=171.91505>171.84444 | Modele non qualifie
+16420	SPEED reverse_left PHASE CRUISE goal=2.0
+16420	SPEED reverse_left REQUEST requested=2.0 revision=155 confirmation=false
+16420	STATUS HOLDING h=171.85686>171.84444 | Modele non qualifie
+16440	STATUS HOLDING h=171.74783>171.85686 | Modele non qualifie
+16460	STATUS HOLDING h=171.71849>171.85686 | Modele non qualifie
+16480	STATUS HOLDING h=171.8602>171.85686 | Modele non qualifie
+16500	STATUS HOLDING h=171.87434>171.85686 | Modele non qualifie
+16520	STATUS HOLDING h=171.82837>171.85686 | Modele non qualifie
+16540	STATUS HOLDING h=171.86725>171.85686 | Modele non qualifie
+16560	STATUS HOLDING h=171.8602>171.85686 | Modele non qualifie
+16580	STATUS HOLDING h=171.81929>171.85686 | Modele non qualifie
+16600	STATUS HOLDING h=171.84413>171.85686 | Modele non qualifie
+16620	STATUS HOLDING h=171.90788>171.85686 | Modele non qualifie
+16640	STATUS HOLDING h=171.9071>171.85686 | Modele non qualifie
+16660	STATUS HOLDING h=171.86847>171.85686 | Modele non qualifie
+16680	STATUS HOLDING h=171.86676>171.85686 | Modele non qualifie
+16700	STATUS HOLDING h=171.86942>171.85686 | Modele non qualifie
+16720	STATUS HOLDING h=171.86134>171.85686 | Modele non qualifie
+16740	STATUS HOLDING h=171.86528>171.85686 | Modele non qualifie
+16760	STATUS HOLDING h=171.87924>171.85686 | Modele non qualifie
+16775	SPEED reverse_left RESULT CRUISE_STABLE mean=1.8966737297690353
+16775	SPEED reverse_left PHASE CRUISE goal=4.0
+16775	SPEED reverse_left REQUEST requested=4.0 revision=156 confirmation=false
+16780	STATUS HOLDING h=171.87967>171.85686 | Modele non qualifie
+16800	STATUS HOLDING h=171.7214>171.85686 | Modele non qualifie
+16820	STATUS HOLDING h=171.74246>171.85686 | Modele non qualifie
+16840	STATUS HOLDING h=171.89803>171.85686 | Modele non qualifie
+16860	STATUS HOLDING h=171.92043>171.85686 | Modele non qualifie
+16880	STATUS HOLDING h=171.85774>171.85686 | Modele non qualifie
+16900	STATUS HOLDING h=171.87267>171.85686 | Modele non qualifie
+16920	STATUS HOLDING h=171.85231>171.85686 | Modele non qualifie
+16940	STATUS HOLDING h=171.81604>171.85686 | Modele non qualifie
+16960	STATUS HOLDING h=171.85907>171.85686 | Modele non qualifie
+16980	STATUS HOLDING h=171.92603>171.85686 | Modele non qualifie
+17000	STATUS HOLDING h=171.91737>171.85686 | Modele non qualifie
+17020	STATUS HOLDING h=171.86949>171.85686 | Modele non qualifie
+17040	STATUS HOLDING h=171.86092>171.85686 | Modele non qualifie
+17060	STATUS HOLDING h=171.86195>171.85686 | Modele non qualifie
+17080	STATUS HOLDING h=171.85797>171.85686 | Modele non qualifie
+17100	STATUS HOLDING h=171.87341>171.85686 | Modele non qualifie
+17120	STATUS HOLDING h=171.89848>171.85686 | Modele non qualifie
+17131	SPEED reverse_left RESULT CRUISE_STABLE mean=3.8648705940260983
+17131	SPEED reverse_left PHASE CRUISE goal=6.0
+17131	SPEED reverse_left REQUEST requested=6.0 revision=157 confirmation=false
+17140	STATUS HOLDING h=171.88873>171.85686 | Modele non qualifie
+17160	STATUS HOLDING h=171.69171>171.85686 | Modele non qualifie
+17180	STATUS HOLDING h=171.7645>171.85686 | Modele non qualifie
+17200	STATUS HOLDING h=171.92566>171.85686 | Modele non qualifie
+17220	STATUS HOLDING h=171.94466>171.85686 | Modele non qualifie
+17240	STATUS HOLDING h=171.86053>171.85686 | Modele non qualifie
+17260	STATUS HOLDING h=171.86171>171.85686 | Modele non qualifie
+17280	STATUS HOLDING h=171.83669>171.85686 | Modele non qualifie
+17300	STATUS HOLDING h=171.80415>171.85686 | Modele non qualifie
+17320	STATUS HOLDING h=171.86269>171.85686 | Modele non qualifie
+17340	STATUS HOLDING h=171.92682>171.85686 | Modele non qualifie
+17360	STATUS HOLDING h=171.92542>171.85686 | Modele non qualifie
+17380	STATUS HOLDING h=171.8711>171.85686 | Modele non qualifie
+17400	STATUS HOLDING h=171.85042>171.85686 | Modele non qualifie
+17420	STATUS HOLDING h=171.85378>171.85686 | Modele non qualifie
+17440	STATUS HOLDING h=171.85374>171.85686 | Modele non qualifie
+17460	STATUS HOLDING h=171.88066>171.85686 | Modele non qualifie
+17480	STATUS HOLDING h=171.90685>171.85686 | Modele non qualifie
+17485	SPEED reverse_left RESULT CRUISE_STABLE mean=5.8321678759485485
+17485	SPEED reverse_left PHASE CRUISE goal=8.0
+17485	SPEED reverse_left REQUEST requested=8.0 revision=158 confirmation=false
+17500	STATUS HOLDING h=171.85866>171.85686 | Modele non qualifie
+17520	STATUS HOLDING h=171.68723>171.85686 | Modele non qualifie
+17540	STATUS HOLDING h=171.80357>171.85686 | Modele non qualifie
+17560	STATUS HOLDING h=171.9637>171.85686 | Modele non qualifie
+17580	STATUS HOLDING h=171.95052>171.85686 | Modele non qualifie
+17600	STATUS HOLDING h=171.8511>171.85686 | Modele non qualifie
+17620	STATUS HOLDING h=171.84872>171.85686 | Modele non qualifie
+17640	STATUS HOLDING h=171.81085>171.85686 | Modele non qualifie
+17660	STATUS HOLDING h=171.80006>171.85686 | Modele non qualifie
+17680	STATUS HOLDING h=171.87381>171.85686 | Modele non qualifie
+17700	STATUS HOLDING h=171.93315>171.85686 | Modele non qualifie
+17720	STATUS HOLDING h=171.92981>171.85686 | Modele non qualifie
+17740	STATUS HOLDING h=171.8691>171.85686 | Modele non qualifie
+17760	STATUS HOLDING h=171.84047>171.85686 | Modele non qualifie
+17780	STATUS HOLDING h=171.8423>171.85686 | Modele non qualifie
+17800	STATUS HOLDING h=171.85974>171.85686 | Modele non qualifie
+17820	STATUS HOLDING h=171.88869>171.85686 | Modele non qualifie
+17832	SPEED reverse_left RESULT CRUISE_STABLE mean=7.795424994690225
+17832	SPEED reverse_left PHASE CRUISE goal=10.0
+17832	SPEED reverse_left REQUEST requested=10.0 revision=159 confirmation=false
+17840	STATUS HOLDING h=171.90227>171.85686 | Modele non qualifie
+17860	STATUS HOLDING h=171.71623>171.85686 | Modele non qualifie
+17880	STATUS HOLDING h=171.73608>171.85686 | Modele non qualifie
+17900	STATUS HOLDING h=171.91647>171.85686 | Modele non qualifie
+17920	STATUS HOLDING h=172.0196>171.85686 | Modele non qualifie
+17940	STATUS HOLDING h=171.89372>171.85686 | Modele non qualifie
+17960	STATUS HOLDING h=171.82849>171.85686 | Modele non qualifie
+17980	STATUS HOLDING h=171.82027>171.85686 | Modele non qualifie
+18000	STATUS HOLDING h=171.77914>171.85686 | Modele non qualifie
+18020	STATUS HOLDING h=171.83488>171.85686 | Modele non qualifie
+18040	STATUS HOLDING h=171.90765>171.85686 | Modele non qualifie
+18060	STATUS HOLDING h=171.94824>171.85686 | Modele non qualifie
+18080	STATUS HOLDING h=171.92186>171.85686 | Modele non qualifie
+18100	STATUS HOLDING h=171.85027>171.85686 | Modele non qualifie
+18117	SPEED reverse_left RESULT CRUISE_STABLE mean=9.933667736254217
+18117	SPEED reverse_left PHASE CRUISE goal=12.0
+18117	SPEED reverse_left REQUEST requested=12.0 revision=160 confirmation=false
+18120	STATUS HOLDING h=171.82762>171.85686 | Modele non qualifie
+18140	STATUS HOLDING h=171.68611>171.85686 | Modele non qualifie
+18160	STATUS HOLDING h=171.65227>171.85686 | Modele non qualifie
+18180	STATUS HOLDING h=171.85034>171.85686 | Modele non qualifie
+18200	STATUS HOLDING h=172.06862>171.85686 | Modele non qualifie
+18220	STATUS HOLDING h=172.01468>171.85686 | Modele non qualifie
+18240	STATUS HOLDING h=171.83687>171.85686 | Modele non qualifie
+18260	STATUS HOLDING h=171.82877>171.85686 | Modele non qualifie
+18280	STATUS HOLDING h=171.77518>171.85686 | Modele non qualifie
+18300	STATUS HOLDING h=171.79541>171.85686 | Modele non qualifie
+18320	STATUS HOLDING h=171.87444>171.85686 | Modele non qualifie
+18340	STATUS HOLDING h=171.94812>171.85686 | Modele non qualifie
+18360	STATUS HOLDING h=171.96774>171.85686 | Modele non qualifie
+18380	STATUS HOLDING h=171.90868>171.85686 | Modele non qualifie
+18400	STATUS HOLDING h=171.83253>171.85686 | Modele non qualifie
+18420	STATUS HOLDING h=171.82597>171.85686 | Modele non qualifie
+18440	STATUS HOLDING h=171.85284>171.85686 | Modele non qualifie
+18460	STATUS HOLDING h=171.87625>171.85686 | Modele non qualifie
+18470	SPEED reverse_left RESULT CRUISE_STABLE mean=11.66138371919243
+18470	SPEED reverse_left PHASE CRUISE goal=16.0
+18470	SPEED reverse_left REQUEST requested=16.0 revision=161 confirmation=false
+18480	STATUS HOLDING h=171.88576>171.85686 | Modele non qualifie
+18500	STATUS HOLDING h=171.56659>171.85686 | Modele non qualifie
+18520	STATUS HOLDING h=171.51263>171.85686 | Modele non qualifie
+18540	STATUS HOLDING h=171.83905>171.85686 | Modele non qualifie
+18560	STATUS HOLDING h=172.27695>171.85686 | Modele non qualifie
+18580	STATUS HOLDING h=172.14798>171.85686 | Modele non qualifie
+18600	STATUS HOLDING h=171.80196>171.85686 | Modele non qualifie
+18620	STATUS HOLDING h=171.81514>171.85686 | Modele non qualifie
+18640	STATUS HOLDING h=171.7017>171.85686 | Modele non qualifie
+18660	STATUS HOLDING h=171.71107>171.85686 | Modele non qualifie
+18680	STATUS HOLDING h=171.85057>171.85686 | Modele non qualifie
+18700	STATUS HOLDING h=172.00648>171.85686 | Modele non qualifie
+18720	STATUS HOLDING h=172.04958>171.85686 | Modele non qualifie
+18740	STATUS HOLDING h=171.90584>171.85686 | Modele non qualifie
+18760	STATUS HOLDING h=171.81313>171.85686 | Modele non qualifie
+18780	STATUS HOLDING h=171.8052>171.85686 | Modele non qualifie
+18800	STATUS HOLDING h=171.81969>171.85686 | Modele non qualifie
+18820	STATUS HOLDING h=171.85718>171.85686 | Modele non qualifie
+18840	STATUS HOLDING h=171.90378>171.85686 | Modele non qualifie
+18860	STATUS HOLDING h=171.93344>171.85686 | Modele non qualifie
+18870	SPEED reverse_left RESULT CRUISE_NOT_STABLE mean=15.656338504381186
+18870	SPEED reverse_left PHASE CRUISE goal=14.0
+18880	STATUS HOLDING h=171.92513>171.85686 | Modele non qualifie
+18900	STATUS HOLDING h=171.79744>171.85686 | Modele non qualifie
+18920	STATUS HOLDING h=171.82166>171.85686 | Modele non qualifie
+18940	STATUS HOLDING h=171.81512>171.85686 | Modele non qualifie
+18960	STATUS HOLDING h=171.68768>171.85686 | Modele non qualifie
+18980	STATUS HOLDING h=171.72351>171.85686 | Modele non qualifie
+19000	STATUS HOLDING h=171.86902>171.85686 | Modele non qualifie
+19020	STATUS HOLDING h=172.00575>171.85686 | Modele non qualifie
+19040	STATUS HOLDING h=172.02293>171.85686 | Modele non qualifie
+19060	STATUS HOLDING h=171.88531>171.85686 | Modele non qualifie
+19080	STATUS HOLDING h=171.81287>171.85686 | Modele non qualifie
+19100	STATUS HOLDING h=171.80888>171.85686 | Modele non qualifie
+19120	STATUS HOLDING h=171.83139>171.85686 | Modele non qualifie
+19140	STATUS HOLDING h=171.86783>171.85686 | Modele non qualifie
+19160	STATUS HOLDING h=171.90811>171.85686 | Modele non qualifie
+19180	STATUS HOLDING h=171.93074>171.85686 | Modele non qualifie
+19200	STATUS HOLDING h=171.92258>171.85686 | Modele non qualifie
+19218	SPEED reverse_left RESULT CRUISE_STABLE mean=13.737206506067114
+19218	SPEED reverse_left PHASE CRUISE goal=15.0
+19220	STATUS HOLDING h=171.89436>171.85686 | Modele non qualifie
+19240	STATUS HOLDING h=171.80011>171.85686 | Modele non qualifie
+19260	STATUS HOLDING h=171.73401>171.85686 | Modele non qualifie
+19280	STATUS HOLDING h=171.82971>171.85686 | Modele non qualifie
+19300	STATUS HOLDING h=171.96704>171.85686 | Modele non qualifie
+19320	STATUS HOLDING h=172.01299>171.85686 | Modele non qualifie
+19340	STATUS HOLDING h=171.93211>171.85686 | Modele non qualifie
+19360	STATUS HOLDING h=171.81035>171.85686 | Modele non qualifie
+19380	STATUS HOLDING h=171.77922>171.85686 | Modele non qualifie
+19400	STATUS HOLDING h=171.8035>171.85686 | Modele non qualifie
+19420	STATUS HOLDING h=171.84814>171.85686 | Modele non qualifie
+19428	SPEED reverse_left RESULT CRUISE_STABLE mean=14.434352334794069
+19428	SPEED reverse_left PHASE CRUISE goal=15.5
+19440	STATUS HOLDING h=171.88953>171.85686 | Modele non qualifie
+19460	STATUS HOLDING h=171.87012>171.85686 | Modele non qualifie
+19480	STATUS HOLDING h=171.87152>171.85686 | Modele non qualifie
+19500	STATUS HOLDING h=171.90651>171.85686 | Modele non qualifie
+19520	STATUS HOLDING h=171.92049>171.85686 | Modele non qualifie
+19540	STATUS HOLDING h=171.89769>171.85686 | Modele non qualifie
+19548	SPEED reverse_left RESULT CRUISE_STABLE mean=15.077740094267718
+19548	SPEED reverse_left PHASE BRAKE goal=15.5
+19560	STATUS HOLDING h=171.90686>171.87883 | Modele non qualifie
+19580	STATUS HOLDING h=171.8456>171.87883 | Modele non qualifie
+19600	STATUS HOLDING h=171.76254>171.87883 | Modele non qualifie
+19620	STATUS HOLDING h=171.78738>171.87883 | Modele non qualifie
+19640	STATUS HOLDING h=171.81625>171.87883 | Modele non qualifie
+19660	STATUS HOLDING h=171.75537>171.87883 | Modele non qualifie
+19680	STATUS HOLDING h=171.57164>171.87883 | Modele non qualifie
+19700	STATUS HOLDING h=171.66603>171.87883 | Modele non qualifie
+19720	STATUS HOLDING h=171.88979>171.87883 | Modele non qualifie
+19740	STATUS HOLDING h=171.94315>171.87883 | Modele non qualifie
+19760	STATUS HOLDING h=171.87724>171.87883 | Modele non qualifie
+19780	STATUS HOLDING h=171.89375>171.87883 | Modele non qualifie
+19800	STATUS HOLDING h=171.91982>171.87883 | Modele non qualifie
+19820	STATUS HOLDING h=171.9077>171.87883 | Modele non qualifie
+19840	STATUS HOLDING h=171.89162>171.87883 | Modele non qualifie
+19860	STATUS HOLDING h=171.89636>171.87883 | Modele non qualifie
+19880	STATUS HOLDING h=171.90091>171.87883 | Modele non qualifie
+19882	SPEED reverse_left DIRECTION_COMPLETE braking=true
+19882	SPEED reverse_right PHASE RESET_OFF goal=15.5
+19900	STATUS Pret: activer sans touche
+19912	SPEED reverse_right PHASE RESET_LOCK goal=15.5
+19920	STATUS Pret: activer sans touche
+19940	STATUS Pret: activer sans touche
+19942	SPEED reverse_right PHASE RESET_WARM goal=15.5
+19960	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+19980	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+20000	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+20020	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+20040	STATUS HOLDING h=171.83144>171.83144 | Modele non qualifie
+20042	SPEED reverse_right PHASE BASELINE goal=15.5
+20060	STATUS HOLDING h=171.91405>171.84439 | Modele non qualifie
+20080	STATUS HOLDING h=171.86409>171.84439 | Modele non qualifie
+20082	SPEED reverse_right PHASE CRUISE goal=2.0
+20082	SPEED reverse_right REQUEST requested=2.0 revision=167 confirmation=false
+20100	STATUS HOLDING h=171.77086>171.85706 | Modele non qualifie
+20120	STATUS HOLDING h=171.71223>171.85706 | Modele non qualifie
+20140	STATUS HOLDING h=171.84831>171.85706 | Modele non qualifie
+20160	STATUS HOLDING h=171.87209>171.85706 | Modele non qualifie
+20180	STATUS HOLDING h=171.82368>171.85706 | Modele non qualifie
+20200	STATUS HOLDING h=171.86168>171.85706 | Modele non qualifie
+20220	STATUS HOLDING h=171.8671>171.85706 | Modele non qualifie
+20240	STATUS HOLDING h=171.82355>171.85706 | Modele non qualifie
+20260	STATUS HOLDING h=171.84052>171.85706 | Modele non qualifie
+20280	STATUS HOLDING h=171.90341>171.85706 | Modele non qualifie
+20300	STATUS HOLDING h=171.91005>171.85706 | Modele non qualifie
+20320	STATUS HOLDING h=171.86974>171.85706 | Modele non qualifie
+20340	STATUS HOLDING h=171.86635>171.85706 | Modele non qualifie
+20360	STATUS HOLDING h=171.86995>171.85706 | Modele non qualifie
+20380	STATUS HOLDING h=171.86328>171.85706 | Modele non qualifie
+20400	STATUS HOLDING h=171.86548>171.85706 | Modele non qualifie
+20420	STATUS HOLDING h=171.87737>171.85706 | Modele non qualifie
+20437	SPEED reverse_right RESULT CRUISE_STABLE mean=1.8963969767029738
+20437	SPEED reverse_right PHASE CRUISE goal=4.0
+20437	SPEED reverse_right REQUEST requested=4.0 revision=168 confirmation=false
+20440	STATUS HOLDING h=171.8809>171.85706 | Modele non qualifie
+20460	STATUS HOLDING h=171.7467>171.85706 | Modele non qualifie
+20480	STATUS HOLDING h=171.73283>171.85706 | Modele non qualifie
+20500	STATUS HOLDING h=171.88298>171.85706 | Modele non qualifie
+20520	STATUS HOLDING h=171.91722>171.85706 | Modele non qualifie
+20540	STATUS HOLDING h=171.85568>171.85706 | Modele non qualifie
+20560	STATUS HOLDING h=171.87253>171.85706 | Modele non qualifie
+20580	STATUS HOLDING h=171.85931>171.85706 | Modele non qualifie
+20600	STATUS HOLDING h=171.81909>171.85706 | Modele non qualifie
+20620	STATUS HOLDING h=171.85394>171.85706 | Modele non qualifie
+20640	STATUS HOLDING h=171.92223>171.85706 | Modele non qualifie
+20660	STATUS HOLDING h=171.9191>171.85706 | Modele non qualifie
+20680	STATUS HOLDING h=171.87312>171.85706 | Modele non qualifie
+20700	STATUS HOLDING h=171.86139>171.85706 | Modele non qualifie
+20720	STATUS HOLDING h=171.86353>171.85706 | Modele non qualifie
+20740	STATUS HOLDING h=171.85786>171.85706 | Modele non qualifie
+20760	STATUS HOLDING h=171.87189>171.85706 | Modele non qualifie
+20780	STATUS HOLDING h=171.89856>171.85706 | Modele non qualifie
+20793	SPEED reverse_right RESULT CRUISE_STABLE mean=3.8614432797401514
+20793	SPEED reverse_right PHASE CRUISE goal=6.0
+20793	SPEED reverse_right REQUEST requested=6.0 revision=169 confirmation=false
+20800	STATUS HOLDING h=171.89413>171.85706 | Modele non qualifie
+20820	STATUS HOLDING h=171.70767>171.85706 | Modele non qualifie
+20840	STATUS HOLDING h=171.75452>171.85706 | Modele non qualifie
+20860	STATUS HOLDING h=171.909>171.85706 | Modele non qualifie
+20880	STATUS HOLDING h=171.942>171.85706 | Modele non qualifie
+20900	STATUS HOLDING h=171.86342>171.85706 | Modele non qualifie
+20920	STATUS HOLDING h=171.8619>171.85706 | Modele non qualifie
+20940	STATUS HOLDING h=171.8422>171.85706 | Modele non qualifie
+20960	STATUS HOLDING h=171.80592>171.85706 | Modele non qualifie
+20980	STATUS HOLDING h=171.8581>171.85706 | Modele non qualifie
+21000	STATUS HOLDING h=171.92282>171.85706 | Modele non qualifie
+21020	STATUS HOLDING h=171.92735>171.85706 | Modele non qualifie
+21040	STATUS HOLDING h=171.87558>171.85706 | Modele non qualifie
+21060	STATUS HOLDING h=171.85182>171.85706 | Modele non qualifie
+21080	STATUS HOLDING h=171.85335>171.85706 | Modele non qualifie
+21100	STATUS HOLDING h=171.85417>171.85706 | Modele non qualifie
+21120	STATUS HOLDING h=171.8795>171.85706 | Modele non qualifie
+21140	STATUS HOLDING h=171.90717>171.85706 | Modele non qualifie
+21147	SPEED reverse_right RESULT CRUISE_STABLE mean=5.825642329969827
+21147	SPEED reverse_right PHASE CRUISE goal=8.0
+21147	SPEED reverse_right REQUEST requested=8.0 revision=170 confirmation=false
+21160	STATUS HOLDING h=171.87901>171.85706 | Modele non qualifie
+21180	STATUS HOLDING h=171.69441>171.85706 | Modele non qualifie
+21200	STATUS HOLDING h=171.7883>171.85706 | Modele non qualifie
+21220	STATUS HOLDING h=171.94557>171.85706 | Modele non qualifie
+21240	STATUS HOLDING h=171.95459>171.85706 | Modele non qualifie
+21260	STATUS HOLDING h=171.85428>171.85706 | Modele non qualifie
+21280	STATUS HOLDING h=171.84813>171.85706 | Modele non qualifie
+21300	STATUS HOLDING h=171.81866>171.85706 | Modele non qualifie
+21320	STATUS HOLDING h=171.80025>171.85706 | Modele non qualifie
+21340	STATUS HOLDING h=171.86757>171.85706 | Modele non qualifie
+21360	STATUS HOLDING h=171.92715>171.85706 | Modele non qualifie
+21380	STATUS HOLDING h=171.93146>171.85706 | Modele non qualifie
+21400	STATUS HOLDING h=171.87758>171.85706 | Modele non qualifie
+21420	STATUS HOLDING h=171.84163>171.85706 | Modele non qualifie
+21440	STATUS HOLDING h=171.8427>171.85706 | Modele non qualifie
+21460	STATUS HOLDING h=171.85956>171.85706 | Modele non qualifie
+21480	STATUS HOLDING h=171.88763>171.85706 | Modele non qualifie
+21493	SPEED reverse_right RESULT CRUISE_STABLE mean=7.786484737749134
+21493	SPEED reverse_right PHASE CRUISE goal=10.0
+21493	SPEED reverse_right REQUEST requested=10.0 revision=171 confirmation=false
+21500	STATUS HOLDING h=171.90205>171.85706 | Modele non qualifie
+21520	STATUS HOLDING h=171.73>171.85706 | Modele non qualifie
+21540	STATUS HOLDING h=171.73521>171.85706 | Modele non qualifie
+21560	STATUS HOLDING h=171.90196>171.85706 | Modele non qualifie
+21580	STATUS HOLDING h=172.01158>171.85706 | Modele non qualifie
+21600	STATUS HOLDING h=171.90045>171.85706 | Modele non qualifie
+21620	STATUS HOLDING h=171.82881>171.85706 | Modele non qualifie
+21640	STATUS HOLDING h=171.8212>171.85706 | Modele non qualifie
+21660	STATUS HOLDING h=171.78175>171.85706 | Modele non qualifie
+21680	STATUS HOLDING h=171.8353>171.85706 | Modele non qualifie
+21700	STATUS HOLDING h=171.90436>171.85706 | Modele non qualifie
+21720	STATUS HOLDING h=171.94604>171.85706 | Modele non qualifie
+21740	STATUS HOLDING h=171.92735>171.85706 | Modele non qualifie
+21760	STATUS HOLDING h=171.85999>171.85706 | Modele non qualifie
+21780	STATUS HOLDING h=171.82784>171.85706 | Modele non qualifie
+21800	STATUS HOLDING h=171.84514>171.85706 | Modele non qualifie
+21820	STATUS HOLDING h=171.87259>171.85706 | Modele non qualifie
+21840	STATUS HOLDING h=171.88898>171.85706 | Modele non qualifie
+21842	SPEED reverse_right RESULT CRUISE_STABLE mean=9.701544743582476
+21842	SPEED reverse_right PHASE CRUISE goal=12.0
+21842	SPEED reverse_right REQUEST requested=12.0 revision=172 confirmation=false
+21860	STATUS HOLDING h=171.82848>171.85706 | Modele non qualifie
+21880	STATUS HOLDING h=171.69276>171.85706 | Modele non qualifie
+21900	STATUS HOLDING h=171.8052>171.85706 | Modele non qualifie
+21920	STATUS HOLDING h=172.00299>171.85706 | Modele non qualifie
+21940	STATUS HOLDING h=172.02359>171.85706 | Modele non qualifie
+21960	STATUS HOLDING h=171.85126>171.85706 | Modele non qualifie
+21980	STATUS HOLDING h=171.81071>171.85706 | Modele non qualifie
+22000	STATUS HOLDING h=171.7764>171.85706 | Modele non qualifie
+22020	STATUS HOLDING h=171.79553>171.85706 | Modele non qualifie
+22040	STATUS HOLDING h=171.8616>171.85706 | Modele non qualifie
+22060	STATUS HOLDING h=171.92429>171.85706 | Modele non qualifie
+22080	STATUS HOLDING h=171.95567>171.85706 | Modele non qualifie
+22100	STATUS HOLDING h=171.93742>171.85706 | Modele non qualifie
+22120	STATUS HOLDING h=171.89452>171.85706 | Modele non qualifie
+22123	SPEED reverse_right RESULT CRUISE_STABLE mean=11.78466992714761
+22123	SPEED reverse_right PHASE CRUISE goal=16.0
+22123	SPEED reverse_right REQUEST requested=16.0 revision=173 confirmation=false
+22140	STATUS HOLDING h=171.74918>171.85706 | Modele non qualifie
+22160	STATUS HOLDING h=171.47371>171.85706 | Modele non qualifie
+22180	STATUS HOLDING h=171.56145>171.85706 | Modele non qualifie
+22200	STATUS HOLDING h=171.93198>171.85706 | Modele non qualifie
+22220	STATUS HOLDING h=172.30959>171.85706 | Modele non qualifie
+22240	STATUS HOLDING h=172.10867>171.85706 | Modele non qualifie
+22260	STATUS HOLDING h=171.78703>171.85706 | Modele non qualifie
+22280	STATUS HOLDING h=171.78142>171.85706 | Modele non qualifie
+22300	STATUS HOLDING h=171.69005>171.85706 | Modele non qualifie
+22320	STATUS HOLDING h=171.73611>171.85706 | Modele non qualifie
+22340	STATUS HOLDING h=171.87807>171.85706 | Modele non qualifie
+22360	STATUS HOLDING h=172.01442>171.85706 | Modele non qualifie
+22380	STATUS HOLDING h=172.0486>171.85706 | Modele non qualifie
+22400	STATUS HOLDING h=171.9503>171.85706 | Modele non qualifie
+22420	STATUS HOLDING h=171.81812>171.85706 | Modele non qualifie
+22440	STATUS HOLDING h=171.7871>171.85706 | Modele non qualifie
+22460	STATUS HOLDING h=171.81245>171.85706 | Modele non qualifie
+22480	STATUS HOLDING h=171.85594>171.85706 | Modele non qualifie
+22500	STATUS HOLDING h=171.9009>171.85706 | Modele non qualifie
+22520	STATUS HOLDING h=171.92552>171.85706 | Modele non qualifie
+22523	SPEED reverse_right RESULT CRUISE_NOT_STABLE mean=15.4571539818878
+22523	SPEED reverse_right PHASE CRUISE goal=14.0
+22540	STATUS HOLDING h=171.89192>171.85706 | Modele non qualifie
+22560	STATUS HOLDING h=171.81474>171.85706 | Modele non qualifie
+22580	STATUS HOLDING h=171.81693>171.85706 | Modele non qualifie
+22600	STATUS HOLDING h=171.74332>171.85706 | Modele non qualifie
+22620	STATUS HOLDING h=171.67842>171.85706 | Modele non qualifie
+22640	STATUS HOLDING h=171.77419>171.85706 | Modele non qualifie
+22660	STATUS HOLDING h=171.9205>171.85706 | Modele non qualifie
+22680	STATUS HOLDING h=172.02649>171.85706 | Modele non qualifie
+22700	STATUS HOLDING h=172.02489>171.85706 | Modele non qualifie
+22720	STATUS HOLDING h=171.93143>171.85706 | Modele non qualifie
+22740	STATUS HOLDING h=171.83131>171.85706 | Modele non qualifie
+22760	STATUS HOLDING h=171.80356>171.85706 | Modele non qualifie
+22780	STATUS HOLDING h=171.82365>171.85706 | Modele non qualifie
+22800	STATUS HOLDING h=171.86728>171.85706 | Modele non qualifie
+22820	STATUS HOLDING h=171.90843>171.85706 | Modele non qualifie
+22840	STATUS HOLDING h=171.9245>171.85706 | Modele non qualifie
+22860	STATUS HOLDING h=171.91151>171.85706 | Modele non qualifie
+22871	SPEED reverse_right RESULT CRUISE_STABLE mean=13.485040765032123
+22871	SPEED reverse_right PHASE CRUISE goal=15.0
+22880	STATUS HOLDING h=171.8809>171.85706 | Modele non qualifie
+22900	STATUS HOLDING h=171.77802>171.85706 | Modele non qualifie
+22920	STATUS HOLDING h=171.7656>171.85706 | Modele non qualifie
+22940	STATUS HOLDING h=171.87782>171.85706 | Modele non qualifie
+22960	STATUS HOLDING h=171.98796>171.85706 | Modele non qualifie
+22980	STATUS HOLDING h=172.00012>171.85706 | Modele non qualifie
+23000	STATUS HOLDING h=171.92317>171.85706 | Modele non qualifie
+23020	STATUS HOLDING h=171.83559>171.85706 | Modele non qualifie
+23040	STATUS HOLDING h=171.79584>171.85706 | Modele non qualifie
+23060	STATUS HOLDING h=171.8102>171.85706 | Modele non qualifie
+23080	STATUS HOLDING h=171.85686>171.85706 | Modele non qualifie
+23083	SPEED reverse_right RESULT CRUISE_STABLE mean=14.081972851942975
+23083	SPEED reverse_right PHASE CRUISE goal=15.5
+23100	STATUS HOLDING h=171.88872>171.85706 | Modele non qualifie
+23120	STATUS HOLDING h=171.86526>171.85706 | Modele non qualifie
+23140	STATUS HOLDING h=171.8785>171.85706 | Modele non qualifie
+23160	STATUS HOLDING h=171.91153>171.85706 | Modele non qualifie
+23180	STATUS HOLDING h=171.91782>171.85706 | Modele non qualifie
+23200	STATUS HOLDING h=171.89304>171.85706 | Modele non qualifie
+23203	SPEED reverse_right RESULT CRUISE_STABLE mean=14.637593744337721
+23203	SPEED reverse_right PHASE BRAKE goal=15.5
+23220	STATUS HOLDING h=171.97514>171.88463 | Modele non qualifie
+23240	STATUS HOLDING h=171.86565>171.88463 | Modele non qualifie
+23260	STATUS HOLDING h=171.69183>171.88463 | Modele non qualifie
+23280	STATUS HOLDING h=171.73506>171.88463 | Modele non qualifie
+23300	STATUS HOLDING h=171.78712>171.88463 | Modele non qualifie
+23320	STATUS HOLDING h=171.63994>171.88463 | Modele non qualifie
+23340	STATUS HOLDING h=171.55064>171.88463 | Modele non qualifie
+23360	STATUS HOLDING h=171.73856>171.88463 | Modele non qualifie
+23380	STATUS HOLDING h=171.94878>171.88463 | Modele non qualifie
+23400	STATUS HOLDING h=171.94296>171.88463 | Modele non qualifie
+23420	STATUS HOLDING h=171.88173>171.88463 | Modele non qualifie
+23440	STATUS HOLDING h=171.90625>171.88463 | Modele non qualifie
+23460	STATUS HOLDING h=171.91539>171.88463 | Modele non qualifie
+23480	STATUS HOLDING h=171.90164>171.88463 | Modele non qualifie
+23500	STATUS HOLDING h=171.89769>171.88463 | Modele non qualifie
+23520	STATUS HOLDING h=171.89844>171.88463 | Modele non qualifie
+23530	SPEED reverse_right DIRECTION_COMPLETE braking=true
+23530	SPEED up PHASE RESET_OFF goal=15.5
+23540	STATUS Pret: activer sans touche
+23560	SPEED up PHASE RESET_LOCK goal=15.5
+23560	STATUS Pret: activer sans touche
+23580	STATUS Pret: activer sans touche
+23590	SPEED up PHASE RESET_WARM goal=15.5
+23600	STATUS HOLDING h=171.83151>171.83151 | Modele non qualifie
+23620	STATUS HOLDING h=171.83151>171.83151 | Modele non qualifie
+23640	STATUS HOLDING h=171.83151>171.83151 | Modele non qualifie
+23660	STATUS HOLDING h=171.83151>171.83151 | Modele non qualifie
+23680	STATUS HOLDING h=171.83151>171.83151 | Modele non qualifie
+23690	SPEED up PHASE BASELINE goal=15.5
+23700	STATUS HOLDING h=171.89189>171.84447 | Modele non qualifie
+23720	STATUS HOLDING h=171.89302>171.84447 | Modele non qualifie
+23730	SPEED up PHASE CRUISE goal=1.0
+23730	SPEED up REQUEST requested=1.0 revision=179 confirmation=false
+23740	STATUS HOLDING h=171.84163>172.30049 | Modele non qualifie
+23760	STATUS HOLDING h=172.22571>173.30049 | Modele non qualifie
+23780	STATUS HOLDING h=173.20378>174.30049 | Modele non qualifie
+23800	STATUS HOLDING h=174.38591>175.30049 | Modele non qualifie
+23820	STATUS HOLDING h=175.62018>176.30049 | Modele non qualifie
+23840	STATUS HOLDING h=176.74524>177.30049 | Modele non qualifie
+23860	STATUS HOLDING h=177.7921>178.30049 | Modele non qualifie
+23880	STATUS HOLDING h=178.82819>179.30049 | Modele non qualifie
+23890	SPEED up RESULT CRUISE_STABLE mean=1.0508066813151042
+23890	SPEED up PHASE BRAKE goal=1.0
+23900	STATUS HOLDING h=179.85164>179.45444 | Modele non qualifie
+23920	STATUS HOLDING h=180.28857>179.45444 | Modele non qualifie
+23940	STATUS HOLDING h=180.06134>179.45444 | Modele non qualifie
+23960	STATUS HOLDING h=179.8477>179.45444 | Modele non qualifie
+23980	STATUS HOLDING h=179.83406>179.45444 | Modele non qualifie
+24000	STATUS HOLDING h=179.7876>179.45444 | Modele non qualifie
+24020	STATUS HOLDING h=179.74686>179.45444 | Modele non qualifie
+24040	STATUS HOLDING h=179.719>179.45444 | Modele non qualifie
+24051	SPEED up PHASE RESET_OFF goal=1.0
+24060	STATUS Pret: activer sans touche
+24080	STATUS Pret: activer sans touche
+24081	SPEED up PHASE RESET_LOCK goal=1.0
+24100	STATUS Pret: activer sans touche
+24111	SPEED up PHASE RESET_WARM goal=1.0
+24120	STATUS HOLDING h=171.83304>171.83304 | Modele non qualifie
+24140	STATUS HOLDING h=171.83304>171.83304 | Modele non qualifie
+24160	STATUS HOLDING h=171.83304>171.83304 | Modele non qualifie
+24180	STATUS HOLDING h=171.83304>171.83304 | Modele non qualifie
+24200	STATUS HOLDING h=171.83304>171.83304 | Modele non qualifie
+24211	SPEED up PHASE BASELINE goal=1.0
+24220	STATUS HOLDING h=171.8884>171.846 | Modele non qualifie
+24240	STATUS HOLDING h=171.89886>171.846 | Modele non qualifie
+24251	SPEED up PHASE CRUISE goal=2.0
+24251	SPEED up REQUEST requested=2.0 revision=182 confirmation=false
+24260	STATUS HOLDING h=171.84358>172.65222 | Modele non qualifie
+24280	STATUS HOLDING h=172.5105>174.65222 | Modele non qualifie
+24300	STATUS HOLDING h=174.3815>176.65222 | Modele non qualifie
+24320	STATUS HOLDING h=176.69118>178.65222 | Modele non qualifie
+24340	STATUS HOLDING h=179.18442>180.65222 | Modele non qualifie
+24360	STATUS HOLDING h=181.50043>182.65222 | Modele non qualifie
+24380	STATUS HOLDING h=183.62108>184.65222 | Modele non qualifie
+24400	STATUS HOLDING h=185.69211>186.65222 | Modele non qualifie
+24411	SPEED up RESULT CRUISE_STABLE mean=2.1149749755859375
+24411	SPEED up PHASE BRAKE goal=2.0
+24420	STATUS HOLDING h=187.7465>187.04442 | Modele non qualifie
+24440	STATUS HOLDING h=188.69235>187.04442 | Modele non qualifie
+24460	STATUS HOLDING h=188.30978>187.04442 | Modele non qualifie
+24480	STATUS HOLDING h=187.88657>187.04442 | Modele non qualifie
+24500	STATUS HOLDING h=187.84082>187.04442 | Modele non qualifie
+24520	STATUS HOLDING h=187.74689>187.04442 | Modele non qualifie
+24540	STATUS HOLDING h=187.66307>187.04442 | Modele non qualifie
+24560	STATUS HOLDING h=187.60431>187.04442 | Modele non qualifie
+24578	SPEED up PHASE RESET_OFF goal=2.0
+24580	STATUS Pret: activer sans touche
+24600	STATUS Pret: activer sans touche
+24608	SPEED up PHASE RESET_LOCK goal=2.0
+24620	STATUS Pret: activer sans touche
+24638	SPEED up PHASE RESET_WARM goal=2.0
+24640	STATUS HOLDING h=171.8347>171.8347 | Modele non qualifie
+24660	STATUS HOLDING h=171.8347>171.8347 | Modele non qualifie
+24680	STATUS HOLDING h=171.8347>171.8347 | Modele non qualifie
+24700	STATUS HOLDING h=171.8347>171.8347 | Modele non qualifie
+24720	STATUS HOLDING h=171.8347>171.8347 | Modele non qualifie
+24738	SPEED up PHASE BASELINE goal=2.0
+24740	STATUS HOLDING h=171.84766>171.84766 | Modele non qualifie
+24760	STATUS HOLDING h=171.91696>171.84766 | Modele non qualifie
+24778	SPEED up PHASE CRUISE goal=3.0
+24778	SPEED up REQUEST requested=3.0 revision=185 confirmation=false
+24780	STATUS HOLDING h=171.85391>172.0039 | Modele non qualifie
+24800	STATUS HOLDING h=172.2419>175.0039 | Modele non qualifie
+24820	STATUS HOLDING h=174.52573>178.0039 | Modele non qualifie
+24840	STATUS HOLDING h=177.79962>181.0039 | Modele non qualifie
+24860	STATUS HOLDING h=181.48799>184.0039 | Modele non qualifie
+24880	STATUS HOLDING h=185.12886>187.0039 | Modele non qualifie
+24900	STATUS HOLDING h=188.4072>190.0039 | Modele non qualifie
+24920	STATUS HOLDING h=191.50781>193.0039 | Modele non qualifie
+24940	STATUS HOLDING h=194.52078>196.0039 | Modele non qualifie
+24958	SPEED up RESULT CRUISE_STABLE mean=3.0382181803385415
+24958	SPEED up PHASE BRAKE goal=3.0
+24960	STATUS HOLDING h=197.50407>197.50407 | Modele non qualifie
+24980	STATUS HOLDING h=199.59753>197.50407 | Modele non qualifie
+25000	STATUS HOLDING h=199.38092>197.50407 | Modele non qualifie
+25020	STATUS HOLDING h=198.63918>197.50407 | Modele non qualifie
+25040	STATUS HOLDING h=198.52565>197.50407 | Modele non qualifie
+25060	STATUS HOLDING h=198.43141>197.50407 | Modele non qualifie
+25080	STATUS HOLDING h=198.30806>197.50407 | Modele non qualifie
+25100	STATUS HOLDING h=198.23347>197.50407 | Modele non qualifie
+25120	STATUS HOLDING h=198.15523>197.50407 | Modele non qualifie
+25140	STATUS HOLDING h=198.08328>197.50407 | Modele non qualifie
+25148	SPEED up PHASE RESET_OFF goal=3.0
+25160	STATUS Pret: activer sans touche
+25178	SPEED up PHASE RESET_LOCK goal=3.0
+25180	STATUS Pret: activer sans touche
+25200	STATUS Pret: activer sans touche
+25208	SPEED up PHASE RESET_WARM goal=3.0
+25220	STATUS HOLDING h=171.83678>171.83678 | Modele non qualifie
+25240	STATUS HOLDING h=171.83678>171.83678 | Modele non qualifie
+25260	STATUS HOLDING h=171.83678>171.83678 | Modele non qualifie
+25280	STATUS HOLDING h=171.83678>171.83678 | Modele non qualifie
+25300	STATUS HOLDING h=171.83678>171.83678 | Modele non qualifie
+25308	SPEED up PHASE BASELINE goal=3.0
+25320	STATUS HOLDING h=171.90593>171.84973 | Modele non qualifie
+25340	STATUS HOLDING h=171.89153>171.84973 | Modele non qualifie
+25348	SPEED up PHASE CRUISE goal=4.0
+25348	SPEED up REQUEST requested=4.0 revision=188 confirmation=false
+25360	STATUS HOLDING h=171.89085>174.0565 | Modele non qualifie
+25380	STATUS HOLDING h=173.59515>178.0565 | Modele non qualifie
+25400	STATUS HOLDING h=177.49078>182.0565 | Modele non qualifie
+25420	STATUS HOLDING h=182.15334>186.0565 | Modele non qualifie
+25440	STATUS HOLDING h=187.15681>190.0565 | Modele non qualifie
+25460	STATUS HOLDING h=191.67902>194.0565 | Modele non qualifie
+25480	STATUS HOLDING h=195.6579>198.0565 | Modele non qualifie
+25500	STATUS HOLDING h=199.54572>202.0565 | Modele non qualifie
+25520	STATUS HOLDING h=203.51114>206.0565 | Modele non qualifie
+25529	SPEED up RESULT CRUISE_STABLE mean=3.935796101888021
+25529	SPEED up PHASE BRAKE goal=4.0
+25540	STATUS HOLDING h=207.35594>205.71516 | Modele non qualifie
+25560	STATUS HOLDING h=208.26572>205.71516 | Modele non qualifie
+25580	STATUS HOLDING h=207.08455>205.71516 | Modele non qualifie
+25600	STATUS HOLDING h=206.68306>205.71516 | Modele non qualifie
+25620	STATUS HOLDING h=206.67479>205.71516 | Modele non qualifie
+25640	STATUS HOLDING h=206.52357>205.71516 | Modele non qualifie
+25660	STATUS HOLDING h=206.43779>205.71516 | Modele non qualifie
+25680	STATUS HOLDING h=206.3666>205.71516 | Modele non qualifie
+25693	SPEED up PHASE RESET_OFF goal=4.0
+25700	STATUS Pret: activer sans touche
+25720	STATUS Pret: activer sans touche
+25723	SPEED up PHASE RESET_LOCK goal=4.0
+25740	STATUS Pret: activer sans touche
+25753	SPEED up PHASE RESET_WARM goal=4.0
+25760	STATUS HOLDING h=171.83852>171.83852 | Modele non qualifie
+25780	STATUS HOLDING h=171.83852>171.83852 | Modele non qualifie
+25800	STATUS HOLDING h=171.83852>171.83852 | Modele non qualifie
+25820	STATUS HOLDING h=171.83852>171.83852 | Modele non qualifie
+25840	STATUS HOLDING h=171.83852>171.83852 | Modele non qualifie
+25853	SPEED up PHASE BASELINE goal=4.0
+25860	STATUS HOLDING h=171.88254>171.85144 | Modele non qualifie
+25880	STATUS HOLDING h=171.91046>171.85144 | Modele non qualifie
+25893	SPEED up PHASE CRUISE goal=5.0
+25893	SPEED up REQUEST requested=5.0 revision=191 confirmation=false
+25900	STATUS HOLDING h=171.85051>173.35828 | Modele non qualifie
+25920	STATUS HOLDING h=173.14645>178.35828 | Modele non qualifie
+25940	STATUS HOLDING h=177.54626>183.35828 | Modele non qualifie
+25960	STATUS HOLDING h=183.18053>188.35828 | Modele non qualifie
+25980	STATUS HOLDING h=189.35814>193.35828 | Modele non qualifie
+26000	STATUS HOLDING h=195.00046>198.35828 | Modele non qualifie
+26020	STATUS HOLDING h=199.96875>203.35828 | Modele non qualifie
+26040	STATUS HOLDING h=204.82935>208.35828 | Modele non qualifie
+26060	STATUS HOLDING h=209.78955>213.35828 | Modele non qualifie
+26080	STATUS HOLDING h=214.8048>218.35828 | Modele non qualifie
+26100	STATUS HOLDING h=219.81801>223.35828 | Modele non qualifie
+26120	STATUS HOLDING h=224.82057>228.35828 | Modele non qualifie
+26133	SPEED up RESULT CRUISE_NOT_STABLE mean=5.006876627604167
+26133	SPEED up DIRECTION_COMPLETE braking=true
+26133	SPEED down PHASE RESET_OFF goal=5.0
+26140	STATUS Pret: activer sans touche
+26160	STATUS Pret: activer sans touche
+26163	SPEED down PHASE RESET_LOCK goal=5.0
+26180	STATUS Pret: activer sans touche
+26193	SPEED down PHASE RESET_WARM goal=5.0
+26200	STATUS HOLDING h=171.86176>171.86176 | Modele non qualifie
+26220	STATUS HOLDING h=171.86176>171.86176 | Modele non qualifie
+26240	STATUS HOLDING h=171.86176>171.86176 | Modele non qualifie
+26260	STATUS HOLDING h=171.86176>171.86176 | Modele non qualifie
+26280	STATUS HOLDING h=171.86176>171.86176 | Modele non qualifie
+26293	SPEED down PHASE BASELINE goal=5.0
+26300	STATUS HOLDING h=171.90636>171.87474 | Modele non qualifie
+26320	STATUS HOLDING h=171.93373>171.87474 | Modele non qualifie
+26333	SPEED down PHASE CRUISE goal=1.0
+26333	SPEED down REQUEST requested=1.0 revision=193 confirmation=false
+26340	STATUS HOLDING h=171.8671>171.5801 | Modele non qualifie
+26360	STATUS HOLDING h=171.57204>170.5801 | Modele non qualifie
+26380	STATUS HOLDING h=170.54736>169.5801 | Modele non qualifie
+26400	STATUS HOLDING h=169.42064>168.5801 | Modele non qualifie
+26420	STATUS HOLDING h=168.334>167.5801 | Modele non qualifie
+26440	STATUS HOLDING h=167.25055>166.5801 | Modele non qualifie
+26460	STATUS HOLDING h=166.17876>165.5801 | Modele non qualifie
+26480	STATUS HOLDING h=165.11565>164.5801 | Modele non qualifie
+26493	SPEED down RESULT CRUISE_STABLE mean=1.0668996175130208
+26493	SPEED down PHASE BRAKE goal=1.0
+26500	STATUS HOLDING h=164.06429>164.32231 | Modele non qualifie
+26520	STATUS HOLDING h=163.61777>164.32231 | Modele non qualifie
+26540	STATUS HOLDING h=163.83105>164.32231 | Modele non qualifie
+26560	STATUS HOLDING h=163.93344>164.32231 | Modele non qualifie
+26580	STATUS HOLDING h=163.93622>164.32231 | Modele non qualifie
+26600	STATUS HOLDING h=163.93965>164.32231 | Modele non qualifie
+26620	STATUS HOLDING h=163.98936>164.32231 | Modele non qualifie
+26637	SPEED down PHASE RESET_OFF goal=1.0
+26640	STATUS Pret: activer sans touche
+26660	STATUS Pret: activer sans touche
+26667	SPEED down PHASE RESET_LOCK goal=1.0
+26680	STATUS Pret: activer sans touche
+26697	SPEED down PHASE RESET_WARM goal=1.0
+26700	STATUS HOLDING h=171.82986>171.82986 | Modele non qualifie
+26720	STATUS HOLDING h=171.82986>171.82986 | Modele non qualifie
+26740	STATUS HOLDING h=171.82986>171.82986 | Modele non qualifie
+26760	STATUS HOLDING h=171.82986>171.82986 | Modele non qualifie
+26780	STATUS HOLDING h=171.82986>171.82986 | Modele non qualifie
+26797	SPEED down PHASE BASELINE goal=1.0
+26800	STATUS HOLDING h=171.84929>171.84282 | Modele non qualifie
+26820	STATUS HOLDING h=171.91068>171.84282 | Modele non qualifie
+26837	SPEED down PHASE CRUISE goal=2.0
+26837	SPEED down REQUEST requested=2.0 revision=196 confirmation=false
+26840	STATUS HOLDING h=171.84573>171.6487 | Modele non qualifie
+26860	STATUS HOLDING h=171.4891>169.6487 | Modele non qualifie
+26880	STATUS HOLDING h=169.65038>167.6487 | Modele non qualifie
+26900	STATUS HOLDING h=167.37689>165.6487 | Modele non qualifie
+26920	STATUS HOLDING h=165.1967>163.6487 | Modele non qualifie
+26940	STATUS HOLDING h=163.0262>161.6487 | Modele non qualifie
+26960	STATUS HOLDING h=160.87752>159.6487 | Modele non qualifie
+26980	STATUS HOLDING h=158.74878>157.6487 | Modele non qualifie
+26997	SPEED down RESULT CRUISE_STABLE mean=2.1345672607421875
+26997	SPEED down PHASE BRAKE goal=2.0
+27000	STATUS HOLDING h=156.63037>156.73598 | Modele non qualifie
+27020	STATUS HOLDING h=155.32321>156.73598 | Modele non qualifie
+27040	STATUS HOLDING h=155.65001>156.73598 | Modele non qualifie
+27060	STATUS HOLDING h=155.88469>156.73598 | Modele non qualifie
+27080	STATUS HOLDING h=155.96211>156.73598 | Modele non qualifie
+27100	STATUS HOLDING h=155.99387>156.73598 | Modele non qualifie
+27120	STATUS HOLDING h=156.0635>156.73598 | Modele non qualifie
+27140	STATUS HOLDING h=156.15543>156.73598 | Modele non qualifie
+27158	SPEED down PHASE RESET_OFF goal=2.0
+27160	STATUS Pret: activer sans touche
+27180	STATUS Pret: activer sans touche
+27188	SPEED down PHASE RESET_LOCK goal=2.0
+27200	STATUS Pret: activer sans touche
+27218	SPEED down PHASE RESET_WARM goal=2.0
+27220	STATUS HOLDING h=171.82852>171.82852 | Modele non qualifie
+27240	STATUS HOLDING h=171.82852>171.82852 | Modele non qualifie
+27260	STATUS HOLDING h=171.82852>171.82852 | Modele non qualifie
+27280	STATUS HOLDING h=171.82852>171.82852 | Modele non qualifie
+27300	STATUS HOLDING h=171.82852>171.82852 | Modele non qualifie
+27318	SPEED down PHASE BASELINE goal=2.0
+27320	STATUS HOLDING h=171.84148>171.84148 | Modele non qualifie
+27340	STATUS HOLDING h=171.91156>171.84148 | Modele non qualifie
+27358	SPEED down PHASE CRUISE goal=3.0
+27358	SPEED down REQUEST requested=3.0 revision=199 confirmation=false
+27360	STATUS HOLDING h=171.84775>171.69775 | Modele non qualifie
+27380	STATUS HOLDING h=171.39195>168.69775 | Modele non qualifie
+27400	STATUS HOLDING h=168.72076>165.69775 | Modele non qualifie
+27420	STATUS HOLDING h=165.30977>162.69775 | Modele non qualifie
+27440	STATUS HOLDING h=162.03752>159.69775 | Modele non qualifie
+27460	STATUS HOLDING h=158.77924>156.69775 | Modele non qualifie
+27480	STATUS HOLDING h=155.55641>153.69775 | Modele non qualifie
+27500	STATUS HOLDING h=152.36398>150.69775 | Modele non qualifie
+27520	STATUS HOLDING h=149.26097>147.69775 | Modele non qualifie
+27540	STATUS HOLDING h=146.26968>144.69775 | Modele non qualifie
+27557	SPEED down RESULT CRUISE_STABLE mean=3.0400899251302085
+27557	SPEED down PHASE BRAKE goal=3.0
+27560	STATUS HOLDING h=143.26965>143.41998 | Modele non qualifie
+27580	STATUS HOLDING h=141.48701>143.41998 | Modele non qualifie
+27600	STATUS HOLDING h=142.0114>143.41998 | Modele non qualifie
+27620	STATUS HOLDING h=142.33737>143.41998 | Modele non qualifie
+27640	STATUS HOLDING h=142.44595>143.41998 | Modele non qualifie
+27660	STATUS HOLDING h=142.48643>143.41998 | Modele non qualifie
+27680	STATUS HOLDING h=142.56276>143.41998 | Modele non qualifie
+27700	STATUS HOLDING h=142.6739>143.41998 | Modele non qualifie
+27720	STATUS HOLDING h=142.76662>143.41998 | Modele non qualifie
+27732	SPEED down PHASE RESET_OFF goal=3.0
+27740	STATUS Pret: activer sans touche
+27760	STATUS Pret: activer sans touche
+27762	SPEED down PHASE RESET_LOCK goal=3.0
+27780	STATUS Pret: activer sans touche
+27792	SPEED down PHASE RESET_WARM goal=3.0
+27800	STATUS HOLDING h=171.826>171.826 | Modele non qualifie
+27820	STATUS HOLDING h=171.826>171.826 | Modele non qualifie
+27840	STATUS HOLDING h=171.826>171.826 | Modele non qualifie
+27860	STATUS HOLDING h=171.826>171.826 | Modele non qualifie
+27880	STATUS HOLDING h=171.826>171.826 | Modele non qualifie
+27892	SPEED down PHASE BASELINE goal=3.0
+27900	STATUS HOLDING h=171.8764>171.839 | Modele non qualifie
+27920	STATUS HOLDING h=171.8947>171.839 | Modele non qualifie
+27932	SPEED down PHASE CRUISE goal=4.0
+27932	SPEED down REQUEST requested=4.0 revision=202 confirmation=false
+27940	STATUS HOLDING h=171.82361>170.44467 | Modele non qualifie
+27960	STATUS HOLDING h=170.49>166.44467 | Modele non qualifie
+27980	STATUS HOLDING h=166.2949>162.44467 | Modele non qualifie
+28000	STATUS HOLDING h=161.81421>158.44467 | Modele non qualifie
+28020	STATUS HOLDING h=157.46344>154.44467 | Modele non qualifie
+28040	STATUS HOLDING h=153.1399>150.44467 | Modele non qualifie
+28060	STATUS HOLDING h=149.02939>146.44467 | Modele non qualifie
+28080	STATUS HOLDING h=145.04831>142.44467 | Modele non qualifie
+28100	STATUS HOLDING h=141.03903>138.44467 | Modele non qualifie
+28120	STATUS HOLDING h=137.03937>134.44467 | Modele non qualifie
+28140	STATUS HOLDING h=133.0412>130.44467 | Modele non qualifie
+28160	STATUS HOLDING h=129.04346>126.444664 | Modele non qualifie
+28172	SPEED down RESULT CRUISE_NOT_STABLE mean=3.998504638671875
+28172	SPEED down PHASE RESET_OFF goal=4.0
+28180	STATUS Pret: activer sans touche
+28200	STATUS Pret: activer sans touche
+28202	SPEED down PHASE RESET_LOCK goal=4.0
+28220	STATUS Pret: activer sans touche
+28232	SPEED down PHASE RESET_WARM goal=4.0
+28240	STATUS HOLDING h=171.82294>171.82294 | Modele non qualifie
+28260	STATUS HOLDING h=171.82294>171.82294 | Modele non qualifie
+28280	STATUS HOLDING h=171.82294>171.82294 | Modele non qualifie
+28300	STATUS HOLDING h=171.82294>171.82294 | Modele non qualifie
+28320	STATUS HOLDING h=171.82294>171.82294 | Modele non qualifie
+28332	SPEED down PHASE BASELINE goal=4.0
+28340	STATUS HOLDING h=171.87296>171.83589 | Modele non qualifie
+28360	STATUS HOLDING h=171.89226>171.83589 | Modele non qualifie
+28372	SPEED down PHASE CRUISE goal=5.0
+28372	SPEED down REQUEST requested=5.0 revision=204 confirmation=false
+28380	STATUS HOLDING h=171.81984>170.09303 | Modele non qualifie
+28400	STATUS HOLDING h=170.14888>165.09303 | Modele non qualifie
+28420	STATUS HOLDING h=164.90591>160.09303 | Modele non qualifie
+28440	STATUS HOLDING h=159.30704>155.09303 | Modele non qualifie
+28460	STATUS HOLDING h=153.88365>150.09303 | Modele non qualifie
+28480	STATUS HOLDING h=148.69551>145.09303 | Modele non qualifie
+28500	STATUS HOLDING h=143.72906>140.09303 | Modele non qualifie
+28520	STATUS HOLDING h=138.7156>135.09303 | Modele non qualifie
+28540	STATUS HOLDING h=133.7127>130.09303 | Modele non qualifie
+28560	STATUS HOLDING h=128.72032>125.09303 | Modele non qualifie
+28580	STATUS HOLDING h=123.71717>120.09303 | Modele non qualifie
+28600	STATUS HOLDING h=118.7215>115.09303 | Modele non qualifie
+28612	SPEED down RESULT CRUISE_NOT_STABLE mean=4.999043782552083
+28612	SPEED down DIRECTION_COMPLETE braking=true

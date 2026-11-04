@@ -101,6 +101,108 @@
       "steering": "no horizontal authority",
       "burner_setting": "read after native clamp; 500 in supplied pack",
       "warmup": "20 fresh native gas-force observations within 5 percent of measured weight"
+    },
+    {
+      "id": "quad",
+      "name": "Quad quatre sustentations",
+      "lift_rotors": 4,
+      "drive_banks": 0,
+      "group_count": 4,
+      "positions_xz": [
+        [
+          -6,
+          -5
+        ],
+        [
+          6,
+          -5
+        ],
+        [
+          -6,
+          5
+        ],
+        [
+          6,
+          5
+        ]
+      ],
+      "yaw_control_declared": false
+    },
+    {
+      "id": "hex",
+      "name": "Hexacoptere fixe",
+      "lift_rotors": 6,
+      "drive_banks": 0,
+      "group_count": 6,
+      "positions_xz": [
+        [
+          -12,
+          -8
+        ],
+        [
+          12,
+          -8
+        ],
+        [
+          -12,
+          8
+        ],
+        [
+          12,
+          8
+        ],
+        [
+          0,
+          -16
+        ],
+        [
+          0,
+          16
+        ]
+      ],
+      "yaw_control_declared": false
+    },
+    {
+      "id": "octo",
+      "name": "Octocoptere fixe",
+      "lift_rotors": 8,
+      "drive_banks": 0,
+      "group_count": 8,
+      "positions_xz": [
+        [
+          -12,
+          -12
+        ],
+        [
+          0,
+          -12
+        ],
+        [
+          12,
+          -12
+        ],
+        [
+          -12,
+          0
+        ],
+        [
+          12,
+          0
+        ],
+        [
+          -12,
+          12
+        ],
+        [
+          0,
+          12
+        ],
+        [
+          12,
+          12
+        ]
+      ],
+      "yaw_control_declared": false
     }
   ],
   "phases": [

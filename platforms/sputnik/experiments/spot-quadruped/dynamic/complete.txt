@@ -1,0 +1,1 @@
+Twelve individual direction tests and one chassis release recorded; inspect traces. No walking qualification.

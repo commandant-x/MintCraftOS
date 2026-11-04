@@ -1,0 +1,8 @@
+tick	event
+200	Recovered 10 t, one stopped motor, 12 pivots and four slime feet
+200	Removed 139 ballast blocks for recalibration
+200	Installed 24 Create redstone receivers and native Sputnik graph
+220	Ballast base=457.0 bedrock=9 iron=135 wool=12
+245	Mass 10000 and all 24 receivers checked safe
+250	128 RPM motor on; chassis locked
+620	PASS eight hip/knee cogs both directions; no simultaneous cogs

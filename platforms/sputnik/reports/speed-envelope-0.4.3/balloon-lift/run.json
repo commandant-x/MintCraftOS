@@ -1,0 +1,11 @@
+{
+  "case": "balloon-lift",
+  "start_utc_epoch": 1793536375.4126697,
+  "speed_campaign": true,
+  "source_world_copy": false,
+  "viewer": false,
+  "fixture_sha256": "4f07177bab99d07249f0616a5478788810b206d2615d70f0fce432e797338b7c",
+  "controller_sha256": "d30d41563f4426f6dff87436f6f78d83adb4c4927e39ee663bf6caad11258165",
+  "supervisor_sha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+  "graph_template_sha256": "f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca"
+}

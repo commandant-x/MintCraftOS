@@ -1,0 +1,1 @@
+Single rear-left knee/hip movement attempted on free four-legged chassis; inspect physical trace, contacts, and pose. Repeated walking not tested.

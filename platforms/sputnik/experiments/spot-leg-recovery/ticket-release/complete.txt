@@ -1,0 +1,1 @@
+Reload observations complete; bearing flags and Sable presence only, not a motion or constraint test.

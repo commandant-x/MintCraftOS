@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "flightScenarioCompleted": true,
+  "testedCurrentSources": true,
+  "controllerSha256": "c401eff8abab45fee65f35a624bff7ab60c06ed24fe74bae852ba7c7583d55e6",
+  "supervisorSha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+  "globallyQualified": false,
+  "architectures": [
+    "tri",
+    "quad",
+    "hex",
+    "octo",
+    "quad-turns",
+    "balloon-lift"
+  ],
+  "directionsTested": 46,
+  "directionsWithConfirmedBraking": 37,
+  "auditedStableStages": 243,
+  "report": "reports/speed-envelope-0.4.3/README.md",
+  "scope": "bounded speed campaign at configured 20 degree tilt and vertical commands 1..5 m/s; not absolute maxima; balloon uses dedicated archived source; no helicopter, airplane or V22 test"
+}

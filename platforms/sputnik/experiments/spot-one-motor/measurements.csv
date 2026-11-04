@@ -1,0 +1,7 @@
+tick,phase,source_rpm,branch1_rpm,branch2_rpm,branch3_rpm,branch4_rpm
+200,all_connected,64.0,64.0,-64.0,64.0,-64.0
+280,branch_1_disconnected,64.0,0.0,-64.0,64.0,-64.0
+380,branch_2_disconnected,64.0,64.0,0.0,64.0,-64.0
+480,branch_3_disconnected,64.0,64.0,-64.0,0.0,-64.0
+580,branch_4_disconnected,64.0,64.0,-64.0,64.0,0.0
+700,all_reconnected,64.0,64.0,-64.0,64.0,-64.0

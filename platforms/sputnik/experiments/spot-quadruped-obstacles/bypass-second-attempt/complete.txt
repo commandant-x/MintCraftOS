@@ -1,0 +1,1 @@
+Physical Sputnik obstacle stop completed; no avoidance claim.

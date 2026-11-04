@@ -1,0 +1,116 @@
+[
+  {
+    "ship": "1ce709e4-16e2-489a-9bf3-88533cef0f98",
+    "x": 39.51721954345703,
+    "y": 171.31883239746094,
+    "z": 20.192153930664062,
+    "nodes": 7,
+    "connections": 34,
+    "motors_stopped": 3,
+    "physics_staff_locked": true,
+    "test_transmitters_removed": true,
+    "id": "tri",
+    "name": "Tricoptere",
+    "clipboard_sha256": "ecad262f85bf29ca131e9049dba53db899ef1db87ecb8492272630dc9e5753cc",
+    "presentation_changes": [
+      "creative default spawn set through Minecraft",
+      "cheats enabled in distribution copy",
+      "instrumentation-only mod removed from saved loading metadata"
+    ]
+  },
+  {
+    "ship": "46ca5e1e-cd97-4ad9-bda5-5656ed4115bc",
+    "x": 37.175838470458984,
+    "y": 171.4485626220703,
+    "z": 22.51724624633789,
+    "nodes": 7,
+    "connections": 34,
+    "motors_stopped": 4,
+    "physics_staff_locked": true,
+    "test_transmitters_removed": true,
+    "id": "quad",
+    "name": "Quad-standard",
+    "clipboard_sha256": "119a06582a6ab0dcb659d6a5a4594f5cadbab9e35209220ea1b932f91abad085",
+    "presentation_changes": [
+      "creative default spawn set through Minecraft",
+      "cheats enabled in distribution copy",
+      "instrumentation-only mod removed from saved loading metadata"
+    ]
+  },
+  {
+    "ship": "bfc92364-ae78-47d1-9de9-ab6a5ec083d3",
+    "x": 64.8342514038086,
+    "y": 170.5786590576172,
+    "z": 165.37326049804688,
+    "nodes": 7,
+    "connections": 34,
+    "motors_stopped": 6,
+    "physics_staff_locked": true,
+    "test_transmitters_removed": true,
+    "id": "quad-drive",
+    "name": "Quad-propulse",
+    "clipboard_sha256": "f522e7367c246be90ac545dec36ccf0e6bd44b3b27108e54ada7ad59314a1ee6",
+    "presentation_changes": [
+      "creative default spawn set through Minecraft",
+      "cheats enabled in distribution copy",
+      "instrumentation-only mod removed from saved loading metadata"
+    ]
+  },
+  {
+    "ship": "a565d9fd-73b1-485b-b796-296135fa70bd",
+    "x": 37.715091705322266,
+    "y": 171.57174682617188,
+    "z": 22.86298370361328,
+    "nodes": 7,
+    "connections": 34,
+    "motors_stopped": 6,
+    "physics_staff_locked": true,
+    "test_transmitters_removed": true,
+    "id": "hex",
+    "name": "Hexacoptere",
+    "clipboard_sha256": "aea11043801a3ad99f94b81efc281e1082646060a482063382c724ca6b2d2092",
+    "presentation_changes": [
+      "creative default spawn set through Minecraft",
+      "cheats enabled in distribution copy",
+      "instrumentation-only mod removed from saved loading metadata"
+    ]
+  },
+  {
+    "ship": "1fbb67ef-af17-4d22-bb18-624a1f018187",
+    "x": 37.709049224853516,
+    "y": 171.7553253173828,
+    "z": 21.45906639099121,
+    "nodes": 7,
+    "connections": 34,
+    "motors_stopped": 8,
+    "physics_staff_locked": true,
+    "test_transmitters_removed": true,
+    "id": "octo",
+    "name": "Octocoptere",
+    "clipboard_sha256": "7a168d3b95cf4254f42098b0dffaee598c95642bda5eac79d27f9f5efcd9950e",
+    "presentation_changes": [
+      "creative default spawn set through Minecraft",
+      "cheats enabled in distribution copy",
+      "instrumentation-only mod removed from saved loading metadata"
+    ]
+  },
+  {
+    "ship": "fe457eb9-2bb2-45a8-8956-1c2a5eb502d1",
+    "x": 40.82113265991211,
+    "y": 179.09872436523438,
+    "z": 32.498085021972656,
+    "nodes": 7,
+    "connections": 34,
+    "motors_stopped": 0,
+    "physics_staff_locked": true,
+    "test_transmitters_removed": true,
+    "id": "balloon",
+    "name": "Ballon-vertical",
+    "clipboard_sha256": "75b4b6c40585de86f538566283942bbb57a618211763c4d8cf2bce5e40bd917f",
+    "presentation_changes": [
+      "creative default spawn set through Minecraft",
+      "cheats enabled in distribution copy",
+      "instrumentation-only mod removed from saved loading metadata"
+    ]
+  }
+]

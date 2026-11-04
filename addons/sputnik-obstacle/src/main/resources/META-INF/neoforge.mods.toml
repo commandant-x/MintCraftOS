@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+[[mods]]
+modId="mintcraft_sputnik_obstacle"
+version="0.1.0"
+displayName="MintCraft Sputnik Obstacle Sensor"
+description='''Experimental read-only forward terrain sensor for Sputnik.'''
+[[dependencies.mintcraft_sputnik_obstacle]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.264,)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.mintcraft_sputnik_obstacle]]
+modId="rocketnautics"
+type="required"
+versionRange="[0,)"
+ordering="AFTER"
+side="BOTH"
+[[dependencies.mintcraft_sputnik_obstacle]]
+modId="sable"
+type="required"
+versionRange="[2.0.6,)"
+ordering="AFTER"
+side="BOTH"

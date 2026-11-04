@@ -1,0 +1,18 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+220	All 12 receivers closed and reverser zero
+230	Motor set to 4 RPM after closed receiver check
+250	Armed saved Sputnik interface
+280	Started saved Sputnik interface
+280	Gait cycle=0 leg=rear_left source=Sputnik-reloaded
+400	Gait cycle=1 leg=front_right source=Sputnik-reloaded
+520	Gait cycle=2 leg=front_left source=Sputnik-reloaded
+640	Gait cycle=3 leg=rear_right source=Sputnik-reloaded
+760	Gait cycle=4 leg=rear_left source=Sputnik-reloaded
+880	Gait cycle=5 leg=front_right source=Sputnik-reloaded
+1000	Gait cycle=6 leg=front_left source=Sputnik-reloaded
+1120	Gait cycle=7 leg=rear_right source=Sputnik-reloaded
+1260	Saved Sputnik interface disarmed
+1270	Motor stopped
+1290	All 12 receivers closed and reverser zero

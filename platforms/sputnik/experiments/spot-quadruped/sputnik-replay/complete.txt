@@ -1,0 +1,1 @@
+Reloaded Sputnik graph and receivers commanded a gait; inspect trace and contact limitations.

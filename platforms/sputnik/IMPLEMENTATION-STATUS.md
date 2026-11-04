@@ -1,6 +1,8 @@
+> 0.4.2 : freinage adapté aux montages à trois groupes sans propulsion auxiliaire, avec 9/9 phases conformes sur le tricoptère du banc. [Campagne native, autres constructions et limites](reports/native-fleet-0.4.2/README.md). Hélicoptère complet, avion et transition V22 restent non implémentés par cette campagne.
+
 > Validation 0.4.1 : essai réel sur copie du monde VENATOR, huit phases et mesures d’arbres/récepteurs. Correction du journal et de la protection après freinage. Les critères de maintien final sont réussis sur ce montage préchauffé ; les transitoires verticaux, le lacet libre et les cas non essayés restent des limites. [Résultats](reports/minecraft-0.4.1/README.md).
 
-# État d'implémentation — Autopilote Sputnik 0.4.1
+# État d'implémentation — Autopilote Sputnik 0.4.2
 
 Le plan A–F reste la cible. Cette livraison ajoute le graphe commun et les contrôleurs effectifs ; **elle ne déclare pas tous les critères du plan terminés**. Les limites ci-dessous sont suivies explicitement plutôt que masquées par le sélecteur d'architecture.
 

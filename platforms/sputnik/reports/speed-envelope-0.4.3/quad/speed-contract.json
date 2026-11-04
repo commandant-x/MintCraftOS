@@ -1,0 +1,110 @@
+{
+  "architecture": "quad",
+  "directions": [
+    {
+      "name": "forward",
+      "angle": 0.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "reverse",
+      "angle": 180.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "left",
+      "angle": -90.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "right",
+      "angle": 90.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "forward_left",
+      "angle": -45.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "forward_right",
+      "angle": 45.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "reverse_left",
+      "angle": -135.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "reverse_right",
+      "angle": 135.0,
+      "vertical": 0,
+      "manual": 0
+    },
+    {
+      "name": "up",
+      "angle": 0.0,
+      "vertical": 1,
+      "manual": 0
+    },
+    {
+      "name": "down",
+      "angle": 0.0,
+      "vertical": -1,
+      "manual": 0
+    }
+  ],
+  "heading_reference": "fixed world vector relative to initial vehicle heading; no nose-heading guarantee",
+  "horizontal_requests_m_s": [
+    2.0,
+    4.0,
+    6.0,
+    8.0,
+    10.0,
+    12.0,
+    16.0,
+    20.0,
+    24.0,
+    32.0,
+    48.0,
+    64.0
+  ],
+  "vertical_requests_m_s": [
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0
+  ],
+  "configured_tilt_degrees": 20,
+  "horizontal_fresh_window_ticks": 100,
+  "vertical_fresh_window_ticks": 60,
+  "braking_fresh_window_ticks": 100,
+  "horizontal_altitude_error_m": 1,
+  "horizontal_vertical_speed_m_s": 0.15,
+  "horizontal_cross_speed_m_s": 0.5,
+  "vertical_cross_speed_m_s": 0.3,
+  "tilt_span_degrees": 3,
+  "speed_span_m_s": "max(0.25, 5% of measured mean)",
+  "half_window_mean_change_m_s": 0.1,
+  "tracking_tolerance_m_s": "max(0.3, 15% of requested); required for vertical rate, separately reported for horizontal",
+  "speed_phase_codes": [
+    "BASELINE",
+    "CRUISE",
+    "BRAKE",
+    "RESET_OFF",
+    "RESET_LOCK",
+    "RESET_WARM",
+    "DONE"
+  ],
+  "scope": "measured limits of supplied craft and deployed controller; not a theoretical maximum",
+  "reset": "OFF, independent lock, native teleport/velocity reset, fresh controller arm; all reset frames excluded"
+}

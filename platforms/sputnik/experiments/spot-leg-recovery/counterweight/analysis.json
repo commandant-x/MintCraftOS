@@ -1,0 +1,75 @@
+{
+  "axes": {
+    "hip_roll": {
+      "relative_rotation_degrees": 50.07300159161696,
+      "cog_rpm_samples": {
+        "cog_rpm": [
+          4.0,
+          4.0,
+          4.0
+        ],
+        "hip_cog_rpm": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "knee_cog_rpm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "selected_cog_received_rpm": true,
+      "other_cogs_stopped": true
+    },
+    "hip_pitch": {
+      "relative_rotation_degrees": -33.79052080196409,
+      "cog_rpm_samples": {
+        "cog_rpm": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "hip_cog_rpm": [
+          -4.0,
+          -4.0,
+          -4.0
+        ],
+        "knee_cog_rpm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "selected_cog_received_rpm": true,
+      "other_cogs_stopped": true
+    },
+    "knee": {
+      "relative_rotation_degrees": -45.62087474799653,
+      "cog_rpm_samples": {
+        "cog_rpm": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "hip_cog_rpm": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "knee_cog_rpm": [
+          -4.0,
+          -4.0,
+          -4.0
+        ]
+      },
+      "selected_cog_received_rpm": true,
+      "other_cogs_stopped": true
+    }
+  },
+  "one_creative_motor": true,
+  "test_only_impulse_applied": false,
+  "foot_contact_tested": false,
+  "walking_tested": false,
+  "redstone_input_method": "test fixture places or removes adjacent redstone blocks; no Sputnik control tested"
+}

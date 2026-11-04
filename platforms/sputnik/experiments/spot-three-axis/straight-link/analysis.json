@@ -1,0 +1,20 @@
+{
+  "complete": true,
+  "source_count_in_fixture": 1,
+  "link_intact_at_sampled_ticks": true,
+  "powered_target_low_tenths": 30,
+  "powered_target_high_tenths": 50,
+  "released_extension_x_blocks": 0.998992919921875,
+  "released_return_x_blocks": -1.9979705810546875,
+  "return_signal": 0,
+  "return_target_tenths": 30,
+  "return_target_changed": true,
+  "return_motion_observed": true,
+  "return_x_span_blocks": 1.5486679077148438,
+  "return_final_five_sample_max_axis_span_blocks": 0.0,
+  "return_final_motion_below_0_2_blocks": true,
+  "return_observed_and_stable": true,
+  "motor_stopped_signal": 15,
+  "motor_stopped_target_tenths": 30,
+  "physical_leg_or_walking_tested": false
+}

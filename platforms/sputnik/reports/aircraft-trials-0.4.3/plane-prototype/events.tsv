@@ -1,0 +1,28 @@
+40	GRAPH_TEMPLATE sha256=f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca
+40	BUILT plane-prototype blocks=345 native sublevel=27b0aace-0d0e-4088-8dc8-60633d78e2d4
+80	ASSEMBLED native bearings=1
+120	PREPARED: independent shaft/link mapping, measured geometry, physical Enable OFF; original controller retained
+120	STATUS Reglage margin invalide
+140	SHAFT 1 input=-256.0 actual=-255.99065 rx=0 electrical=0
+140	ENABLE_AUDIT physical=Block{minecraft:lever}[face=floor,facing=north,powered=false] graph=0.0
+140	COMMISSION signal=10 expected=80RPM, pilot OFF
+140	STATUS Sustentation requise
+160	STATUS Sustentation requise
+160	SHAFT 1 input=-80.0 actual=-106.41551 rx=10 electrical=10
+160	STATUS Sustentation requise
+180	SHAFT 1 input=-80.0 actual=-83.21151 rx=10 electrical=10
+180	STATUS Sustentation requise
+200	SHAFT 1 input=-80.0 actual=-80.39044 rx=10 electrical=10
+200	COMMISSION_PASS: each shaft observed at 80RPM, temporary writer removed before arming
+200	STATUS Sustentation requise
+220	SHAFT 1 input=-256.0 actual=-226.69563 rx=0 electrical=0
+220	STATUS Sustentation requise
+240	SHAFT 1 input=-256.0 actual=-252.43729 rx=0 electrical=0
+240	STATUS Sustentation requise
+260	SHAFT 1 input=-256.0 actual=-255.56686 rx=0 electrical=0
+260	STATUS Sustentation requise
+280	SHAFT 1 input=-256.0 actual=-255.94736 rx=0 electrical=0
+280	STATUS Sustentation requise
+300	SHAFT 1 input=-256.0 actual=-255.99362 rx=0 electrical=0
+300	WARMUP Sustentation requise
+300	ERROR java.lang.IllegalStateException: Controller not armed: Sustentation requise

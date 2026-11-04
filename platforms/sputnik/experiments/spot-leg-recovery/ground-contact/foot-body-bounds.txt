@@ -1,0 +1,2 @@
+knee_child=3e3a338a-4ee4-4ceb-bb76-5cb3e344130d
+plot_bounds=BoundingBox3i{minX=20481031, minY=123, minZ=20481032, maxX=20481032, maxY=129, maxZ=20481032}

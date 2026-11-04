@@ -1,0 +1,6 @@
+tick,phase,brass,linked,first_locked,second_locked,motor_rpm,source_joint_rpm,target_joint_rpm,shaft_rpm,second_x,second_y,second_z
+220,baseline,true,true,true,true,64.0,64.0,64.0,64.0,36.94270706176758,170.5,32.5
+340,offset_0_5,true,true,true,true,64.0,64.0,64.0,64.0,36.94270706176758,171.0,32.5
+460,offset_1_0,true,true,true,true,64.0,64.0,64.0,64.0,36.94270706176758,171.5,32.5
+580,motor_off,true,true,true,true,0.0,0.0,0.0,0.0,36.94270706176758,171.5,32.5
+700,motor_on,true,true,true,true,64.0,64.0,64.0,64.0,36.94270706176758,171.5,32.5

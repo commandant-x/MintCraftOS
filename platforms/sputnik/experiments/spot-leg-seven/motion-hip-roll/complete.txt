@@ -1,0 +1,1 @@
+Test-only angular velocity applied; inspect orientations and locks. No motor-driven movement or walking qualification.

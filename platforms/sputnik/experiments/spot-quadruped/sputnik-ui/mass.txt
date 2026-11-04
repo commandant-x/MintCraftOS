@@ -1,0 +1,1 @@
+chassis_mass=255.25

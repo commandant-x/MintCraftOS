@@ -1,0 +1,122 @@
+{
+  "result": "TIME_LIMIT tick=2080 progress=13.543964385986328 tilt=9.495356793159203 drop=-0.0030364990234375",
+  "samples": 1802,
+  "start_z": 42.58254623413086,
+  "last_z": 56.12651062011719,
+  "net_progress_z_blocks": 13.543964385986328,
+  "maximum_progress_z_blocks": 13.569526672363281,
+  "target_progress_blocks": 250,
+  "lateral_displacement_blocks": 3.4145355224609375,
+  "maximum_orientation_change_degrees": 9.805282923340538,
+  "maximum_vertical_drop_blocks": 0.0822601318359375,
+  "feet_reaching_obstacle_z": {
+    "64": {
+      "first_sample_foot_reaching_strip_z": 1023,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "82": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "112": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "152": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "202": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "252": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "286": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    }
+  },
+  "limitations": "one run per candidate on same saved world; settling may vary; lane error is measured at the Sputnik block and not foot contact; no player, variable load, or completed obstacle qualification",
+  "motor_rpm": 16.0,
+  "elapsed_game_ticks": 1800,
+  "nominal_game_seconds": 90.0,
+  "mean_forward_blocks_per_game_second": 0.15048849317762586,
+  "mean_horizontal_blocks_per_game_second": 0.15519721588242488,
+  "peak_single_tick_horizontal_blocks_per_game_second": 2.3231827819804876,
+  "target_blocks_per_second": 10,
+  "speed_at_nominal_20_tps": true,
+  "speed_note": "single-tick peak includes vibration or slip; not sustained speed, real-time speed varies with server tick rate",
+  "max_recorded_target_angle_change_degrees_per_tick": 4.800000190734863,
+  "target_angle_note": "change in commanded swivel target, not measured physical joint angle",
+  "maximum_tilt_from_world_up_degrees": 1.5324266101308235,
+  "maximum_abs_yaw_change_degrees": 9.793251083673027,
+  "maximum_lateral_shift_blocks": 3.4416847229003906,
+  "first_tick_all_foot_centers_beyond_first_strip": null,
+  "best_forward_blocks_in_one_game_second": 1.4047698974609375,
+  "best_horizontal_blocks_in_one_game_second": 1.5295397662435866,
+  "ticks_with_multiple_cogs_running": 0,
+  "slime_feet_count": 4,
+  "lane_error_range_blocks": [
+    -0.4798164367675781,
+    3.4145355224609375
+  ],
+  "steering_error_range_degrees": [
+    -2.816499961467514,
+    14.617147197471752
+  ],
+  "telemetry_pose_valid_all": true,
+  "telemetry_guard_tripped": false,
+  "pulse_pairs": {
+    "front_left_hip": {
+      "pulse_groups": 30,
+      "complete_pairs": 15,
+      "unequal_pairs": 0,
+      "last_unpaired_group": null
+    },
+    "front_left_knee": {
+      "pulse_groups": 30,
+      "complete_pairs": 15,
+      "unequal_pairs": 0,
+      "last_unpaired_group": null
+    },
+    "front_right_hip": {
+      "pulse_groups": 30,
+      "complete_pairs": 15,
+      "unequal_pairs": 0,
+      "last_unpaired_group": null
+    },
+    "front_right_knee": {
+      "pulse_groups": 30,
+      "complete_pairs": 15,
+      "unequal_pairs": 0,
+      "last_unpaired_group": null
+    },
+    "rear_left_hip": {
+      "pulse_groups": 30,
+      "complete_pairs": 15,
+      "unequal_pairs": 0,
+      "last_unpaired_group": null
+    },
+    "rear_left_knee": {
+      "pulse_groups": 30,
+      "complete_pairs": 15,
+      "unequal_pairs": 0,
+      "last_unpaired_group": null
+    },
+    "rear_right_hip": {
+      "pulse_groups": 29,
+      "complete_pairs": 14,
+      "unequal_pairs": 0,
+      "last_unpaired_group": 1
+    },
+    "rear_right_knee": {
+      "pulse_groups": 29,
+      "complete_pairs": 14,
+      "unequal_pairs": 0,
+      "last_unpaired_group": 3
+    }
+  }
+}

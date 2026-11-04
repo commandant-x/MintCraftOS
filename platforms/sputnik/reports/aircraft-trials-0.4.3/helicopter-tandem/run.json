@@ -1,0 +1,11 @@
+{
+  "case": "helicopter-tandem",
+  "start_utc_epoch": 1793543500.7883172,
+  "speed_campaign": false,
+  "source_world_copy": false,
+  "viewer": false,
+  "fixture_sha256": "555428e4e98dd3cbeafa1c516018583664d2f89c0eada7241624c6da2ee6ee79",
+  "controller_sha256": "d30d41563f4426f6dff87436f6f78d83adb4c4927e39ee663bf6caad11258165",
+  "supervisor_sha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+  "graph_template_sha256": "f65d33644e56cb58802a3af71343d322872b30fde490a80cd6f5d206642b1aca"
+}

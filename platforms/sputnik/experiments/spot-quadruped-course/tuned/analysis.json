@@ -1,0 +1,43 @@
+{
+  "result": "TIME_LIMIT tick=7480 progress=9.811233520507812 tilt=4.463463633640125 drop=-3.96728515625E-4",
+  "samples": 722,
+  "start_z": 42.372013092041016,
+  "last_z": 52.18324661254883,
+  "net_progress_z_blocks": 9.811233520507812,
+  "maximum_progress_z_blocks": 9.891738891601562,
+  "target_progress_blocks": 250,
+  "lateral_displacement_blocks": 0.9034652709960938,
+  "maximum_orientation_change_degrees": 4.4733643331290756,
+  "maximum_vertical_drop_blocks": 0.052093505859375,
+  "feet_reaching_obstacle_z": {
+    "64": {
+      "first_sample_foot_reaching_strip_z": 5180,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "82": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "112": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "152": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "202": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "252": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    },
+    "286": {
+      "first_sample_foot_reaching_strip_z": null,
+      "note": "longitudinal foot position only, does not prove contact or crossing"
+    }
+  },
+  "limitations": "sampled every 10 ticks; no obstacle contact-force sensing, player, terrain feedback, or independent steering"
+}

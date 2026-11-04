@@ -1,0 +1,19 @@
+{
+  "complete": true,
+  "two_sable_structures": true,
+  "one_creative_motor_in_fixture": true,
+  "brass_universal_rod": true,
+  "rpm_when_powered": 64,
+  "rpm_when_stopped": 0,
+  "endpoint_distances": [
+    2.9999987296760082,
+    3.9999987296760082,
+    4.0311276136297725,
+    4.0311276136297725,
+    4.0311276136297725
+  ],
+  "measured_axial_extension": 1.0,
+  "both_staff_locked_during_samples": true,
+  "fixture_repositioned_second_body_between_samples": true,
+  "dynamic_load_or_leg_tested": false
+}

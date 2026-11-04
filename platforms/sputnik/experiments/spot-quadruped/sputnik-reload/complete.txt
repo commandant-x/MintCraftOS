@@ -1,0 +1,1 @@
+Reload inventory only; inspect node, receiver and lock measurements.

@@ -1,0 +1,4 @@
+MCV1;1;bearing;lift;-5.863165650516748;2.0520833333332575;7.143984228372574;0;1;0;256;8;0.2;0.05;1;8;-1;1;minecraft:light_blue_wool;minecraft:netherite_block;;;;;0;0.15;0;1
+MCV1;2;bearing;lift;6.136834349483252;2.0520833333332575;7.143984228372574;0;1;0;256;8;0.2;0.05;1;8;-1;1;minecraft:magenta_wool;minecraft:netherite_block;;;;;0;0.15;0;1
+MCV1;3;bearing;lift;-5.863165650516748;2.0520833333332575;-2.856015771627426;0;1;0;256;8;0.2;0.05;1;8;-1;1;minecraft:orange_wool;minecraft:netherite_block;;;;;0;0.15;0;1
+MCV1;4;bearing;lift;6.136834349483252;2.0520833333332575;-2.856015771627426;0;1;0;256;8;0.2;0.05;1;8;-1;1;minecraft:white_wool;minecraft:netherite_block;;;;;0;0.15;0;1

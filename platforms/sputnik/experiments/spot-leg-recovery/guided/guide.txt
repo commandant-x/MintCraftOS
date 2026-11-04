@@ -1,0 +1,1 @@
+Experimental static guide locks X, Z, and all rotations; vertical Y is free. One creative motor only.

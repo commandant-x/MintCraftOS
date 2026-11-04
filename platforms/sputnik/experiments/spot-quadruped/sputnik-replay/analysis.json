@@ -1,0 +1,144 @@
+{
+  "cycles": [
+    {
+      "cycle": 0,
+      "leg": "rear_left",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    },
+    {
+      "cycle": 1,
+      "leg": "front_right",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    },
+    {
+      "cycle": 2,
+      "leg": "front_left",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    },
+    {
+      "cycle": 3,
+      "leg": "rear_right",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    },
+    {
+      "cycle": 4,
+      "leg": "rear_left",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    },
+    {
+      "cycle": 5,
+      "leg": "front_right",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    },
+    {
+      "cycle": 6,
+      "leg": "front_left",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    },
+    {
+      "cycle": 7,
+      "leg": "rear_right",
+      "axes": {
+        "hip": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        },
+        "knee": {
+          "positive": true,
+          "negative": true,
+          "receiver_zero": true
+        }
+      }
+    }
+  ],
+  "cycles_with_both_directions_on_both_selected_axes": 8,
+  "net_horizontal_displacement_blocks": 2.9223257013728423,
+  "body_displacement_x_blocks": 0.17018508911132812,
+  "body_displacement_z_blocks": 2.9173660278320312,
+  "max_orientation_change_degrees": 5.2632756424493525,
+  "max_vertical_drop_blocks": 0.10479736328125,
+  "ticks_with_multiple_cogs_running": 0,
+  "final_receivers_closed": true,
+  "final_reverse_signal": 0,
+  "final_motor_rpm": 0.0,
+  "aborted": false,
+  "limitations": "one unloaded robot on flat stone; UI checkboxes changed by fixture, no player, force measurement or terrain variation"
+}

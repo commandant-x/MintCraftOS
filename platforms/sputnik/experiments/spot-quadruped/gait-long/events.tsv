@@ -1,0 +1,37 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+80	Assembled front_left_knee child=14ceae5c-5cbb-42e6-bc89-8994e591498d
+80	Assembled front_right_knee child=69486fb6-51b1-4f07-a65a-9ccb3954ca36
+80	Assembled rear_left_knee child=26433d33-5b0c-4929-af79-82c5461a2f1b
+80	Assembled rear_right_knee child=3fc20e47-d5ff-4f10-9e63-11ad99d33a7f
+120	Assembled front_left_hip child=bfb640ad-92d1-4193-a689-2e7b33ca563e
+120	Assembled front_right_hip child=98aa6c73-7002-4229-81de-866291cd298e
+120	Assembled rear_left_hip child=a3480e01-4392-441f-bae0-0768ed1d3e4b
+120	Assembled rear_right_hip child=a4f273f2-5e54-4b4f-9a7a-02e3c18539b5
+160	Assembled front_left_roll child=efc3a9ae-9eae-4f66-a863-cb23b9678b67
+160	Assembled front_right_roll child=bd354d94-0d89-421f-aa73-282a7498ba1d
+160	Assembled rear_left_roll child=e4f72249-479f-4a2f-84a3-89ad9a33475d
+160	Assembled rear_right_roll child=d93e40d8-0552-48f3-9d29-854478e1d796
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+230	Released twelve leg bodies; chassis temporarily locked; motor set to 4 RPM
+240	Placed full-block instrumented contact surface
+280	Released chassis without guide; motor runs with all clutches disengaged
+330	Stored pre-gait chassis pose for abort monitoring
+340	Gait cycle=0 leg=rear_left initial_reverse=false
+460	Gait cycle=1 leg=front_right initial_reverse=false
+580	Gait cycle=2 leg=front_left initial_reverse=true
+700	Gait cycle=3 leg=rear_right initial_reverse=true
+820	Gait cycle=4 leg=rear_left initial_reverse=false
+940	Gait cycle=5 leg=front_right initial_reverse=false
+1060	Gait cycle=6 leg=front_left initial_reverse=true
+1180	Gait cycle=7 leg=rear_right initial_reverse=true
+1300	Gait cycle=8 leg=rear_left initial_reverse=false
+1420	Gait cycle=9 leg=front_right initial_reverse=false
+1540	Gait cycle=10 leg=front_left initial_reverse=true
+1660	Gait cycle=11 leg=rear_right initial_reverse=true
+1780	Gait cycle=12 leg=rear_left initial_reverse=false
+1900	Gait cycle=13 leg=front_right initial_reverse=false
+2020	Gait cycle=14 leg=front_left initial_reverse=true
+2140	Gait cycle=15 leg=rear_right initial_reverse=true
+2280	Gait motor stopped after sixteen reduced-amplitude cycles

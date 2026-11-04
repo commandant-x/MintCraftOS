@@ -1,0 +1,9 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1 slimeFeet=false
+210	Built 250-block marked course with seven transverse obstacle strips
+220	All 12 receivers closed and reverser zero
+230	Motor set to 0 RPM after closed receiver check
+250	Standing disturbance test; controls off
+400	Applied one lateral chassis impulse: nominal delta_v=2.0 chassis_mass=255.25
+880	TIME_LIMIT progress=-0.01483154296875 tilt=0.1113170695721882 drop=2.74658203125E-4

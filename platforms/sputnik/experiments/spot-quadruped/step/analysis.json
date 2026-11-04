@@ -1,0 +1,90 @@
+{
+  "single_leg": "rear_left",
+  "test": "one bend, hip movement, straighten and return under redstone; no repeated gait",
+  "foot_center_initial_y": 165.99675827992488,
+  "foot_center_max_y": 166.4392897658742,
+  "foot_center_peak_lift_blocks": 0.4425314859493312,
+  "foot_center_final_y": 166.00015700577785,
+  "body_displacement_x_blocks": -0.07815170288085938,
+  "body_displacement_y_blocks": 0.0028533935546875,
+  "body_displacement_z_blocks": -0.03159332275390625,
+  "maximum_orientation_change_degrees": 2.992081653356469,
+  "callbacks_per_foot_after_baseline": {
+    "front_left": 3227,
+    "front_right": 2352,
+    "rear_left": 1962,
+    "rear_right": 3434
+  },
+  "commands": {
+    "330": {
+      "knee_rpm": 0.0,
+      "knee_target": 0.0,
+      "hip_rpm": 0.0,
+      "hip_target": 0.0
+    },
+    "350": {
+      "knee_rpm": -4.0,
+      "knee_target": -12.000000476837158,
+      "hip_rpm": 0.0,
+      "hip_target": 0.0
+    },
+    "360": {
+      "knee_rpm": 0.0,
+      "knee_target": -18.000000715255737,
+      "hip_rpm": 0.0,
+      "hip_target": 0.0
+    },
+    "370": {
+      "knee_rpm": 0.0,
+      "knee_target": -18.000000715255737,
+      "hip_rpm": -4.0,
+      "hip_target": -6.000000238418579
+    },
+    "380": {
+      "knee_rpm": 0.0,
+      "knee_target": -18.000000715255737,
+      "hip_rpm": 0.0,
+      "hip_target": -12.000000476837158
+    },
+    "400": {
+      "knee_rpm": 4.0,
+      "knee_target": -12.000000476837158,
+      "hip_rpm": 0.0,
+      "hip_target": -12.000000476837158
+    },
+    "410": {
+      "knee_rpm": 0.0,
+      "knee_target": 0.0,
+      "hip_rpm": 0.0,
+      "hip_target": -12.000000476837158
+    },
+    "420": {
+      "knee_rpm": 0.0,
+      "knee_target": 0.0,
+      "hip_rpm": 0.0,
+      "hip_target": -12.000000476837158
+    },
+    "430": {
+      "knee_rpm": 0.0,
+      "knee_target": 0.0,
+      "hip_rpm": 0.0,
+      "hip_target": 0.0
+    },
+    "440": {
+      "knee_rpm": 0.0,
+      "knee_target": 0.0,
+      "hip_rpm": 0.0,
+      "hip_target": 0.0
+    },
+    "460": {
+      "knee_rpm": 0.0,
+      "knee_target": 0.0,
+      "hip_rpm": 0.0,
+      "hip_target": 0.0
+    }
+  },
+  "all_thirteen_bodies_staff_unlocked_after_release": true,
+  "test_guide_present": false,
+  "repeated_walking_tested": false,
+  "limitations": "one scripted test-only redstone cycle; no Sputnik, player, contact force measurement or repeated gait"
+}

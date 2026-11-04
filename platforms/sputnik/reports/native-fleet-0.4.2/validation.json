@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "version": "0.4.2",
+  "testedCurrentSources": true,
+  "flightScenarioCompleted": true,
+  "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
+  "supervisorSha256": "e7648e28c48b3ded80d264fbc5141bc454dd67d13de1ac16b650c0a52eab0caa",
+  "exactCurrentControllerCases": [
+    "tri-final",
+    "quad"
+  ],
+  "globallyQualified": false,
+  "notImplemented": [
+    "helicopter construction and flight",
+    "fixed-wing aircraft takeoff and flight",
+    "V22 takeoff and nacelle transition"
+  ],
+  "cases": {
+    "tri-baseline": {
+      "status": "FAIL",
+      "pass": 5,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
+      "controllerSource": "sources/baseline.lua",
+      "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
+      "traceSha256": "e654f3de8118ca92df55bc4caa559b70aafebaa014a987a1f608c4ce6b52e1c6",
+      "report": "tri-baseline/results.json"
+    },
+    "tri-final": {
+      "status": "PASS",
+      "pass": 9,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
+      "controllerSource": "sources/tricopter-1.2.lua",
+      "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
+      "traceSha256": "1f03269f1f78286df6dcaee8bccf35dc3ba6df48b20c380962546bcb8c41cad7",
+      "report": "tri-final/results.json"
+    },
+    "quad": {
+      "status": "FAIL",
+      "pass": 5,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "c7499ab7122857560a89a92347645189d8040f1dbec10f811c2e5f9e5462f925",
+      "controllerSource": "sources/tricopter-1.2.lua",
+      "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
+      "traceSha256": "0455ec294736a23acd294f2ad392cfb9d650b2b837dd1c93ea5eab2a96c6b42e",
+      "report": "quad/results.json"
+    },
+    "quad-drive": {
+      "status": "FAIL",
+      "pass": 7,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
+      "controllerSource": "sources/baseline.lua",
+      "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
+      "traceSha256": "67f9e8b5a42ca6d033efa1ccc2dfffa07d3503735b6cf81c799449183014f539",
+      "report": "quad-drive/results.json"
+    },
+    "hex": {
+      "status": "FAIL",
+      "pass": 6,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "96b017e7024fd2bfe50eafc89fa85df32625ecf91092f743dcba04cb771bca33",
+      "controllerSource": "sources/multirotor-0.8-conditional.lua",
+      "fixtureSha256": "be7c1fe1ff5d2327ce80b4cb5eca5d4d6cdfe428ed0872b14c7616b053b66f0c",
+      "traceSha256": "b14e88e93a82a753c1a140efaaf05fc782c02de0fb3ea5d43b79998a7192ed7b",
+      "report": "hex/results.json"
+    },
+    "octo": {
+      "status": "FAIL",
+      "pass": 7,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "96b017e7024fd2bfe50eafc89fa85df32625ecf91092f743dcba04cb771bca33",
+      "controllerSource": "sources/multirotor-0.8-conditional.lua",
+      "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
+      "traceSha256": "056184f14c2e31565468a6ff64931ae3669cbaaa3d170a8ae7e1e73ee17d1c19",
+      "report": "octo/results.json"
+    },
+    "balloon-baseline": {
+      "status": "FAIL",
+      "pass": 0,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "b8fe7dc8cce8d2e673f7d83ee864e4812e8fb772a67a45564dbb9ffee2390622",
+      "controllerSource": "sources/baseline.lua",
+      "fixtureSha256": "7caf811eb3da52ccdf620a2dc47e3ebb939fa4f1072223de0f2891ed3cc1406b",
+      "traceSha256": "3bd5cb355d941fd0d9e603bb4f5ff42cdb2bef4f9a9e6354353b05b4e7bf829c",
+      "report": "balloon-baseline/results.json"
+    },
+    "balloon-candidate1": {
+      "status": "FAIL",
+      "pass": 2,
+      "holdOnly": 5,
+      "total": 9,
+      "controllerSha256": "9ab8a232b61e37e81ba82cf35995ab89f4350ce8727732fd9ed1b897143bb564",
+      "controllerSource": "sources/balloon-candidate.lua",
+      "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
+      "traceSha256": "e025237940a45755eec65c0abcf917e861b1b445a7e5b8ea0be1a05cba9a7d40",
+      "report": "balloon-candidate1/results.json"
+    },
+    "balloon-final": {
+      "status": "DOMAIN_PASS",
+      "pass": 4,
+      "holdOnly": 5,
+      "total": 9,
+      "controllerSha256": "d69990e3cd56eba6bece1d555e3f4ee85c049634988693462a34ce311135a0c4",
+      "controllerSource": "sources/balloon-trial2.lua",
+      "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
+      "traceSha256": "7a7597e9885e4cbf96ab5a6f4cbbd158cafac524ff2418a3854ef611cb69e2ab",
+      "report": "balloon-final/results.json"
+    },
+    "quad-fpv-not-selected": {
+      "status": "FAIL",
+      "pass": 1,
+      "holdOnly": 0,
+      "total": 9,
+      "controllerSha256": "fa96cedcc5cbfcabb9142485c79192792c2bbb34ac2e1e4ec35d60250d70afa9",
+      "controllerSource": "sources/quad-fpv-tested.lua",
+      "fixtureSha256": "19557b02774d24d468aaa3654666513f173dc8bdd6a3309b545b7633d4c8ed18",
+      "traceSha256": "4b6c4d150ba228eb144a6ca836125f8318c0255597c1059ada480c3f64136bd3",
+      "report": "quad-fpv-not-selected/results.json"
+    }
+  },
+  "clipboards": {
+    "balloon-vertical.clipboard.txt": "75b4b6c40585de86f538566283942bbb57a618211763c4d8cf2bce5e40bd917f",
+    "quad-drive.clipboard.txt": "f522e7367c246be90ac545dec36ccf0e6bd44b3b27108e54ada7ad59314a1ee6",
+    "quadcopter.clipboard.txt": "119a06582a6ab0dcb659d6a5a4594f5cadbab9e35209220ea1b932f91abad085",
+    "hexacopter.clipboard.txt": "aea11043801a3ad99f94b81efc281e1082646060a482063382c724ca6b2d2092",
+    "tricopter.clipboard.txt": "ecad262f85bf29ca131e9049dba53db899ef1db87ecb8492272630dc9e5753cc",
+    "octocopter.clipboard.txt": "7a168d3b95cf4254f42098b0dffaee598c95642bda5eac79d27f9f5efcd9950e"
+  },
+  "preparedWorlds": "prepared-worlds/index.json",
+  "worldArchive": "../../worlds/mintcraft-sputnik-fleet-0.4.2.zip"
+}

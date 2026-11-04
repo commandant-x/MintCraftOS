@@ -41,6 +41,9 @@ def analyze(folder, architecture):
     stop=min([int(m.group(1)) for m in faults]+([int(complete.group(1))] if complete else [4400]))
     contract=json.loads((folder/'test-contract.json').read_text()) if (folder/'test-contract.json').exists() else {'steering':'lateral','provenance':'executed fixture v1/v2 sets steering checkbox false'}
     steering=contract['steering'];pure_balloon=architecture=='balloon-lift'
+    # Fixed multirotors translate by tilting; drive-bank vehicles use yaw.
+    # A new quad/hex/octo must not inherit the bank vehicle's HOLD_ONLY score.
+    tilt_translation=architecture in ('tri','quad','hex','octo')
     result=dict(architecture=architecture,contract=contract,constructed='\tBUILT ' in events,
                 commissioned=commissioned,released=bool(release),completed=bool(complete),
                 faults=[m.group(0) for m in faults],controller_globally_qualified=False,phases=[])
@@ -79,7 +82,7 @@ def analyze(folder, architecture):
         fwd=[(r['x']-first['x'])*math.sin(yaw)+(r['z']-first['z'])*math.cos(yaw) for r in pulse]
         lat=[-(r['x']-first['x'])*math.cos(yaw)+(r['z']-first['z'])*math.sin(yaw) for r in pulse]
         ydelta=[r['y']-first['y'] for r in pulse]
-        supported=not (pure_balloon and name in ('forward','reverse','left','right','diagonal')) and not (architecture!='tri' and steering=='lateral' and name in ('left','right','diagonal'))
+        supported=not (pure_balloon and name in ('forward','reverse','left','right','diagonal')) and not (not tilt_translation and steering=='lateral' and name in ('left','right','diagonal'))
         if name=='climb':intent=max(ydelta)>.2 and max(r['target_y'] for r in samples)>first['target_y']+.2
         elif name=='descend':intent=min(ydelta)<-.2 and min(r['target_y'] for r in samples)<first['target_y']-.2
         elif name=='forward':intent=max(fwd)>.2
@@ -87,8 +90,8 @@ def analyze(folder, architecture):
         elif name in ('left','right'):
             # Tri: translation through tilt. Banks: yaw is evaluated separately
             # from sideways motion, without imposing a heading convention.
-            intent=(max(lat)>.2 if name=='left' else min(lat)<-.2) if architecture=='tri' else (yaw_delta < -2 if name=='left' else yaw_delta > 2)
-        elif name=='diagonal':intent=max(fwd)>.2 and (max(lat)>.2 if architecture=='tri' else yaw_delta < -2)
+            intent=(max(lat)>.2 if name=='left' else min(lat)<-.2) if tilt_translation else (yaw_delta < -2 if name=='left' else yaw_delta > 2)
+        elif name=='diagonal':intent=max(fwd)>.2 and (max(lat)>.2 if tilt_translation else yaw_delta < -2)
         else:intent=True
         if 'commands_valid' in first and name not in ('hover','shock'):
             key='vertical_demand' if name in ('climb','descend') else 'left_demand' if name in ('left','right') else 'forward_demand'
@@ -142,7 +145,7 @@ def plots(output,result,rows):
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--run',type=Path,required=True);p.add_argument('--architecture',choices=['tri','quad-banks','quad-balanced','quad-turns','balloon','balloon-lift'],required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--run',type=Path,required=True);p.add_argument('--architecture',choices=['tri','quad','hex','octo','quad-banks','quad-balanced','quad-turns','balloon','balloon-lift'],required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
     a.output.mkdir(parents=True,exist_ok=True);result,rows=analyze(a.run/'fixture',a.architecture)
     for name in ('flight.csv','events.tsv','hardware.tsv','geometry.txt','descriptors.txt','writer-report.txt','test-contract.json'):
         src=a.run/'fixture'/name

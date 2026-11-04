@@ -1,0 +1,9 @@
+tick	event
+200	Recovered one motor and all four three-axis legs with all bodies unlocked
+200	Added honey alongside existing slime foot front_left at=BlockPos{x=20481033, y=123, z=20481032}
+200	Added honey alongside existing slime foot front_right at=BlockPos{x=20481033, y=128, z=20483080}
+200	Added honey alongside existing slime foot rear_left at=BlockPos{x=20481033, y=124, z=20485128}
+200	Added honey alongside existing slime foot rear_right at=BlockPos{x=20481033, y=123, z=20487176}
+200	Mass compensated: removed=1 iron; honey_mass=1.0 iron_mass=4.0 honey_friction=1.65 slime_friction=1.0
+240	total_sable=10000.0 sputnik_getShipMass=9833.0 orientation_change=0.01892268248866318 vertical_drop=-0.0031522668567163237 motor=0.0
+240	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1 slimeFeet=true

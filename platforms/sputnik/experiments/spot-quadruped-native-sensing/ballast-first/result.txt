@@ -1,0 +1,1 @@
+total_sable=10001.0 sputnik_getShipMass=9838.0 orientation_change=0.0770284742867831 vertical_drop=0.027557092185844567 motor=0.0

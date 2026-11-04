@@ -1,0 +1,1 @@
+blocked_peak=7 clear_peak=6 arrows_seen=true,true

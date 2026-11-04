@@ -1,0 +1,35 @@
+{
+  "modpackSha256": "11fcae670fb496045407989fb5fda9683c71f697d16d1c1be9b78b740c081f8a",
+  "linkageJarSha256": "2b1015c61e66e6e9df0e74e819e2797882b9ca246afc431984858fce95752c41",
+  "straightProbeJarSha256": "078ead08327ee885eaf9ea0e30b4fc14a62b80ca0b42439b33f33c910a989bb6",
+  "hingeProbeJarSha256": "15736e60dfbb8a2f51d199a429bc2d7a79479bc7dad53716b06aa76cda85757a",
+  "straightSourceSha256": "97ca38219487341295843ad8c0666a48320abee1ed6d16b988e62db34ccee22a",
+  "hingeSourceSha256": "0f88c1ae9af20ee87de6479d2061e4d3425ec26693460ae1b1eb6fded0990695",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "create": "6.0.10",
+  "simulated": "1.3.2",
+  "sable": "2.0.6",
+  "linkage": "0.2.9",
+  "linkageSourceRevision": "bd1f0bf",
+  "normalRod": true,
+  "creativeMotorCountPerFixture": 1,
+  "singleLegValidated": false,
+  "walkingValidated": false,
+  "hingeTunedProbeJarSha256": "8cc7b9593a20a04e4bf667515fa5f00020a52530869169f825ba9387cc513d5c",
+  "hingeTunedSourceSha256": "95c559a654b361630fa9a1048cd32fbc2cc79595697cc64a1cea8a64c1c5dd04",
+  "hingeBaselineProperties": {
+    "hinged": true,
+    "returnForce": 15,
+    "stretchResistance": 10
+  },
+  "hingeTunedProperties": {
+    "hinged": true,
+    "returnForce": 4,
+    "stretchResistance": 20
+  },
+  "samplingEveryTicks": 10,
+  "pivotFirstProbeJarSha256": "0b29ec31ea7747df5a985dcaa01aae50d6eb4f4fe951321f9f5dd371616db272",
+  "pivotDiagnosticProbeJarSha256": "aee33605347892646a321557424775050d29425c32570dda002ac6268d0e6865",
+  "pivotUnlockedProbeJarSha256": "1658bea7a64f48439145b4d83583e8d6aaecdb48060e30ed609bda498ff08750"
+}

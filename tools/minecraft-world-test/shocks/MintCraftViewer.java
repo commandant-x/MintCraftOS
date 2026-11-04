@@ -17,7 +17,7 @@ public class MintCraftViewer {
  private void tick(ClientTickEvent.Post event){
   Minecraft mc=Minecraft.getInstance();ticks++;
   if(mc.level==null && mc.getOverlay()==null && ticks-lastAttempt>=200 && (mc.screen instanceof TitleScreen || mc.screen instanceof DisconnectedScreen || mc.screen instanceof JoinMultiplayerScreen)){
-   lastAttempt=ticks;ConnectScreen.startConnecting(new TitleScreen(),mc,ServerAddress.parseString("127.0.0.1:25585"),new ServerData("MintCraft isolated test","127.0.0.1:25585",ServerData.Type.OTHER),false,null);
+   lastAttempt=ticks;String localWorld=System.getProperty("mintcraft.viewerWorld");try{Path selection=mc.gameDirectory.toPath().resolve("viewer-world.txt");if(Files.exists(selection))localWorld=Files.readString(selection).strip();}catch(Exception ignored){}if(localWorld!=null&&!localWorld.isBlank()){mc.createWorldOpenFlows().openWorld(localWorld,()->{});return;}ConnectScreen.startConnecting(new TitleScreen(),mc,ServerAddress.parseString("127.0.0.1:25585"),new ServerData("MintCraft isolated test","127.0.0.1:25585",ServerData.Type.OTHER),false,null);
   }
   if(mc.level!=null && mc.player!=null && ticks%40==0 && frames<600){
    String name="observer-"+System.currentTimeMillis()+".png";Screenshot.grab(mc.gameDirectory,name,mc.getMainRenderTarget(),message->{});frames++;

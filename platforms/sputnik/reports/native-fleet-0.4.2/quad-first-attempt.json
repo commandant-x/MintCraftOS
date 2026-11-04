@@ -1,0 +1,6 @@
+{
+  "status": "FIXTURE_ERROR_NO_FLIGHT",
+  "reason": "java.lang.IllegalStateException: Unexpected fleet actuator count",
+  "events": "40\tGRAPH_TEMPLATE sha256=18974b7cb430d1847637eb5d9361b37fce176432bb67b6806808cb5c5009fc3f\n40\tBUILT quad blocks=266 native sublevel=1808092d-ed8e-494d-a2da-16dbf1a6e7e5\n80\tASSEMBLED native bearings=4\n120\tERROR java.lang.IllegalStateException: Unexpected fleet actuator count\n",
+  "correction": "Expected rotor count is now selected explicitly for quad/hex/octo. A fresh quad campaign completed afterward."
+}

@@ -1,0 +1,10 @@
+{
+  "start_tick": 280,
+  "end_tick": 1480,
+  "nominal_game_seconds": 60.0,
+  "progress_z_blocks": 1.2126884460449219,
+  "mean_forward_blocks_per_nominal_game_second": 0.020211474100748698,
+  "lateral_displacement_blocks": 0.38372802734375,
+  "motor_rpm": 8,
+  "limitations": "single run at 10,000 Sable mass units established in prior reload, not measured continuously during walk; no foot force feedback or verified obstacle crossing; simulation seconds assume 20 ticks/s"
+}

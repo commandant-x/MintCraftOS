@@ -1,0 +1,1 @@
+Three physical pivot blocks/child bodies retained while staff-locked. No powered joint movement or walking qualification.

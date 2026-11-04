@@ -1,0 +1,14 @@
+{
+  "complete": true,
+  "single_source_constructed": true,
+  "branch_isolation": true,
+  "source_rpm": 64,
+  "observed_signed_branch_rpm": [
+    64,
+    -64,
+    64,
+    -64
+  ],
+  "physical_walking_tested": false,
+  "load_or_position_control_tested": false
+}

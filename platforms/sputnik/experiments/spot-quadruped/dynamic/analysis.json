@@ -1,0 +1,183 @@
+{
+  "axis_cases": [
+    {
+      "leg": "front_left",
+      "axis": "roll",
+      "forward_rpm": -4.0,
+      "reverse_rpm": 4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": -23.99753080127138,
+      "return_rotation_deg": 23.997385331736858,
+      "net_rotation_deg": -0.00014546940522531303,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "front_left",
+      "axis": "hip",
+      "forward_rpm": 4.0,
+      "reverse_rpm": -4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": 22.464183791905786,
+      "return_rotation_deg": -22.465105601233002,
+      "net_rotation_deg": -0.0009218125896716567,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "front_left",
+      "axis": "knee",
+      "forward_rpm": 4.0,
+      "reverse_rpm": -4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": 23.997118205781845,
+      "return_rotation_deg": -23.99709820296607,
+      "net_rotation_deg": 2.0002815753954474e-05,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "front_right",
+      "axis": "roll",
+      "forward_rpm": 4.0,
+      "reverse_rpm": -4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": 26.18759256065113,
+      "return_rotation_deg": -26.18722214880976,
+      "net_rotation_deg": 0.0003704103595089944,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "front_right",
+      "axis": "hip",
+      "forward_rpm": -4.0,
+      "reverse_rpm": 4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": -23.97243930138918,
+      "return_rotation_deg": 23.97284421586374,
+      "net_rotation_deg": 0.0004049143115034393,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "front_right",
+      "axis": "knee",
+      "forward_rpm": -4.0,
+      "reverse_rpm": 4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": -23.996914909725216,
+      "return_rotation_deg": 23.997088343803192,
+      "net_rotation_deg": 0.00017343407100479195,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "rear_left",
+      "axis": "roll",
+      "forward_rpm": 4.0,
+      "reverse_rpm": -4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": 26.093067314203996,
+      "return_rotation_deg": -26.092822350204166,
+      "net_rotation_deg": 0.00024496677041303046,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "rear_left",
+      "axis": "hip",
+      "forward_rpm": -4.0,
+      "reverse_rpm": 4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": -23.972059859083412,
+      "return_rotation_deg": 23.97256696550807,
+      "net_rotation_deg": 0.0005071061899183778,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "rear_left",
+      "axis": "knee",
+      "forward_rpm": -4.0,
+      "reverse_rpm": 4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": -23.997405776090517,
+      "return_rotation_deg": 23.997552729024573,
+      "net_rotation_deg": 0.00014695293404133898,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "rear_right",
+      "axis": "roll",
+      "forward_rpm": -4.0,
+      "reverse_rpm": 4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": -23.99753399168017,
+      "return_rotation_deg": 23.997239488436115,
+      "net_rotation_deg": -0.000294503202864158,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "rear_right",
+      "axis": "hip",
+      "forward_rpm": 4.0,
+      "reverse_rpm": -4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": 24.032471721743306,
+      "return_rotation_deg": -24.032836938240767,
+      "net_rotation_deg": -0.0003652135264836403,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    },
+    {
+      "leg": "rear_right",
+      "axis": "knee",
+      "forward_rpm": 4.0,
+      "reverse_rpm": -4.0,
+      "direction_reversed": true,
+      "other_cogs_stopped": true,
+      "forward_rotation_deg": 23.997064735859333,
+      "return_rotation_deg": -23.996984158976037,
+      "net_rotation_deg": 8.057684716472457e-05,
+      "movement_over_3_deg": true,
+      "return_observed": true
+    }
+  ],
+  "rpm_direction_successes": 12,
+  "physical_round_trip_observed": 12,
+  "standing": {
+    "floor_top_y": 166,
+    "initial_chassis_y": 181.9022674560547,
+    "max_drop_blocks": 0.004669189453125,
+    "max_horizontal_displacement_blocks": 0.007492590806180269,
+    "max_orientation_change_deg": 0.013331005115575474,
+    "last": {
+      "tick": 1500,
+      "horizontal_displacement_blocks": 0.007492590806180269,
+      "vertical_drop_blocks": 0.004669189453125,
+      "orientation_change_deg": 0.013237769175261977,
+      "foot_center_heights": [
+        165.99518334325026,
+        165.9968960449453,
+        165.99675827005265,
+        165.9995747633722
+      ]
+    },
+    "contact_force_measured": false,
+    "walking_tested": false
+  }
+}

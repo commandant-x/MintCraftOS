@@ -1,0 +1,1 @@
+blocked_peak=2 clear_peak=0 arrows_seen=true,true

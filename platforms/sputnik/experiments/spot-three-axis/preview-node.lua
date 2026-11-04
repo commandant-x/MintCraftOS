@@ -1,0 +1,28 @@
+-- Preview only: desired degrees, no motor writes, no stability claim.
+local phase=input('Phase')
+local height=input('Standing height')
+local stride=input('Stride')
+local clearance=input('Foot clearance')
+local lateral=input('Lateral amplitude')
+local upper=input('Upper leg')
+local lower=input('Lower leg')
+local angles,reason=GAIT.solve(IK,phase,height,stride,clearance,lateral,upper,lower)
+local state=_G.MintSpotPreview
+if not state then state={label=ui.label('Apercu geometrique seul; marche non qualifiee')};_G.MintSpotPreview=state end
+state.label.setText(angles and 'Apercu geometrique seul; marche non qualifiee' or ('Cible invalide: '..tostring(reason)))
+addElement(state.label)
+local function value(leg,axis)if angles then return angles[leg][axis] end return 0 end
+output('FL roll degrees',value(1,'roll'))
+output('FL hip degrees',value(1,'hip'))
+output('FL knee degrees',value(1,'knee'))
+output('FR roll degrees',value(2,'roll'))
+output('FR hip degrees',value(2,'hip'))
+output('FR knee degrees',value(2,'knee'))
+output('RL roll degrees',value(3,'roll'))
+output('RL hip degrees',value(3,'hip'))
+output('RL knee degrees',value(3,'knee'))
+output('RR roll degrees',value(4,'roll'))
+output('RR hip degrees',value(4,'hip'))
+output('RR knee degrees',value(4,'knee'))
+output('Geometry valid',angles and 1 or 0)
+output('Walk qualified',0)

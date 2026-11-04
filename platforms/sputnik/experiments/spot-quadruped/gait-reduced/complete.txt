@@ -1,0 +1,1 @@
+Eight reduced-amplitude cycles attempted; inspect support and trajectory.

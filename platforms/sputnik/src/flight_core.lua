@@ -13,7 +13,7 @@ end
 function M.new(groups,p,config)
  local valid,why=V.validate(groups,config.protected);if not valid then return nil,why end
  p,why=M.pose(p);if not p then return nil,why end
- if math.abs(p.pitch)>10 or math.abs(p.roll)>10 then return nil,'Depart a plat +/-10 deg requis' end
+ if math.abs(p.pitch)>10 or math.abs(p.roll)>10 then return nil,'Depart a plat +/-10 deg' end
  local s={groups=V.copy(groups),config=V.copy(config),referenceMass=p.mass,tick=p.tick,previous=p,velocity=vec(0,0,0),omega=vec(0,0,0),angularAcceleration=vec(0,0,0),acceleration=vec(0,0,0),
   filters={},target=vec(p.x,p.y,p.z),home=vec(p.x,p.y,p.z),mode='HOLD',phase='HOLDING',directions={},shifts={},spool={},quant={},events={},revision=0,integral=0,angleBias=vec(0,0,0),course=p.yaw,heading=p.yaw,progress=Progress.new(),samples=0}
  for _,axis in ipairs({'x','y','z'}) do s.filters[axis]=Filter.filter(p[axis],.0025,4);s.velocity[axis]=finite(p['v'..axis]) and p['v'..axis] or 0;s.filters[axis].v=s.velocity[axis] end
@@ -23,17 +23,17 @@ function M.new(groups,p,config)
  local gravity=Geometry.bodyVector(vec(0,p.gravity,0),p.q)
  local wanted={gravity.z-offset[1],gravity.x-offset[2],gravity.y-offset[3],-offset[4],-offset[5],-offset[6]}
  local allocation,result=V.solve(initial,wanted);if not allocation then return nil,result end
- if math.abs(result.actual[3]-wanted[3])>math.max(.5,p.gravity*.1) then return nil,'Portance modele insuffisante au depart' end
- if math.max(math.abs(result.actual[4]-wanted[4]),math.abs(result.actual[5]-wanted[5]),math.abs(result.actual[6]-wanted[6]))>.1 then return nil,'Equilibre sustentation invalide' end
+ if math.abs(result.actual[3]-wanted[3])>math.max(.5,p.gravity*.1) then return nil,'Portance initiale insuffisante' end
+ if math.max(math.abs(result.actual[4]-wanted[4]),math.abs(result.actual[5]-wanted[5]),math.abs(result.actual[6]-wanted[6]))>.1 then return nil,'Equilibre portance invalide' end
  for i,m in ipairs(metadata) do m.column=initial.columns[i].response end
  s.initialSignals=V.signals(metadata,allocation,s.quant)
- if not s.initialSignals then return nil,'Initialisation niveaux impossible' end
+ if not s.initialSignals then return nil,'Niveaux initiaux invalides' end
  s.capabilities=V.capabilities(initial,s.groups)
  function s:event(reason)
   self.events[#self.events+1]={tick=self.tick,reason=reason};if #self.events>64 then table.remove(self.events,1) end
  end
  function s:apply(c,p)
-  if type(c)~='table' or not finite(c.revision) or c.revision%1~=0 or c.revision<=self.revision then return false,'Commande ancienne/dupliquee' end
+  if type(c)~='table' or not finite(c.revision) or c.revision%1~=0 or c.revision<=self.revision then return false,'Commande perimee' end
   local modes={HOLD=true,ALTITUDE=true,HEADING=true,ROUTE=true,PAUSE=true,RESUME=true,CANCEL=true,RETURN=true,CALIBRATE=true,CAL_PAUSE=true,CAL_RESUME=true,CAL_ABORT=true,MANUAL=true}
   if not modes[c.mode] then return false,'Mode inconnu' end
   for _,key in ipairs({'altitude','speed','heading'}) do if not finite(c[key]) then return false,'Consigne '..key..' invalide' end end
@@ -82,11 +82,11 @@ function M.new(groups,p,config)
   local oldV=V.copy(self.velocity)
   for _,axis in ipairs({'x','y','z'}) do
    local k=self.filters[axis]
-   if math.abs(p[axis]-k.x-k.v*dt)>20 then return nil,'Discontinuite de pose' end
+   if math.abs(p[axis]-k.x-k.v*dt)>20 then return nil,'Pose discontinue' end
    if not Filter.update(k,p[axis],dt) then return nil,'Estimateur perdu' end
    self.velocity[axis]=k.v;self.acceleration[axis]=self.acceleration[axis]+dt/(.1+dt)*((k.v-oldV[axis])/dt-self.acceleration[axis])
   end
-  local worldRate=Geometry.angularVelocity(self.previous.q,p.q,dt);if not worldRate then return nil,'Rotation non observable' end
+  local worldRate=Geometry.angularVelocity(self.previous.q,p.q,dt);if not worldRate then return nil,'Rotation absente' end
   local rate=Geometry.bodyVector(worldRate,p.q)
   for _,axis in ipairs({'x','y','z'}) do local old=omegaNow[axis];omegaNow[axis]=old+dt/(.05+dt)*(rate[axis]-old);accelNow[axis]=accelNow[axis]+dt/(.1+dt)*((omegaNow[axis]-old)/dt-accelNow[axis]) end
   self.tick=p.tick;self.samples=self.samples+1
@@ -101,7 +101,7 @@ function M.new(groups,p,config)
    self.target=vec(p.x,self.target.y,p.z);self.target.y=self.target.y+command.vertical*(cfg.climb or 1)*dt
   end
   local provisional=V.matrix(groupList,p,v,mass0,nil)
-  if not provisional then return nil,'Modele physique indisponible' end
+  if not provisional then return nil,'Modele indisponible' end
   local caps=V.capabilities(provisional,groupList)
   local drive,yawAvailable=caps.drive,caps.yaw.available
   self.capabilities=caps;self.bodyYawControlled=yawAvailable
@@ -144,7 +144,7 @@ function M.new(groups,p,config)
    if drive and yawAvailable and not caps.surface and math.abs(wrap(desiredYaw-p.yaw))>20 then
     aligning=true;self.phase='ALIGNING';worldAx,worldAz=-1.2*v.x,-1.2*v.z
    end
-  elseif manual then
+  elseif forward~=0 or left~=0 then
    if (yawAvailable or caps.surface) and cfg.steering~=false then self.heading=wrap(self.heading-left*30*dt);desiredYaw=self.heading
    elseif cfg.steering~=false then
     if speed>.3 then self.course=self.course-left*math.deg(acceleration/math.max(.3,speed))*dt end
@@ -154,16 +154,21 @@ function M.new(groups,p,config)
     if forward==0 and speed<.3 then worldAx,worldAz=0,0 end
    end
    if yawAvailable or caps.surface or cfg.steering==false then worldAx=acceleration*(forward*math.sin(yaw)-left*math.cos(yaw));worldAz=acceleration*(forward*math.cos(yaw)+left*math.sin(yaw)) end
-  elseif self.mode=='HEADING' then
+  elseif not manual and self.mode=='HEADING' then
    desiredYaw=(yawAvailable or caps.surface) and self.heading or p.yaw
    local angle=math.rad(self.heading);local request=self.speed or 0
    worldAx=1.2*(request*math.sin(angle)-v.x);worldAz=1.2*(request*math.cos(angle)-v.z)
    forward=clip((request*math.cos(angle-yaw)-(v.x*math.sin(yaw)+v.z*math.cos(yaw)))*.5,-1,1)
    left=yawAvailable and clip(-wrap(self.heading-p.yaw)/45,-1,1) or 0
   else
+   -- Pure vertical keys retain horizontal braking/holding instead of
+   -- suppressing it. Horizontal manual commands still take precedence.
    desiredYaw=(yawAvailable or caps.surface) and self.heading or p.yaw
    if speed>.12 then
-    self.braking=true;worldAx=-1.2*(v.x+.4*self.acceleration.x);worldAz=-1.2*(v.z+.4*self.acceleration.z);self.target.x=p.x;self.target.z=p.z
+    -- Three-rotor tilt craft need more lead while attitude catches up.
+    -- Keep the existing law for the other architectures and mixed quads.
+    local lead=#groupList==3 and not drive and 1.2 or .4
+    self.braking=true;worldAx=-1.2*(v.x+lead*self.acceleration.x);worldAz=-1.2*(v.z+lead*self.acceleration.z);self.target.x=p.x;self.target.z=p.z
    else
     self.braking=false;worldAx=.3*(self.target.x-p.x)-.9*v.x;worldAz=.3*(self.target.z-p.z)-.9*v.z
    end
@@ -172,7 +177,7 @@ function M.new(groups,p,config)
   if not caps.travel or self.verticalLimited then worldAx,worldAz=0,0;forward,left=0,0 end
   local length=math.sqrt(worldAx^2+worldAz^2);if length>acceleration then worldAx,worldAz=worldAx*acceleration/length,worldAz*acceleration/length end
   local up=V.world(vec(0,1,0),p.q)
-  if up.y<=.1 then return nil,'Sustentation retournee: maintien impossible' end
+  if up.y<=.1 then return nil,'Sustentation retournee' end
   local recovering=math.acos(clip(up.y,-1,1))>math.rad(math.max(12,tilt+5))
   if recovering then
    worldAx,worldAz=0,0;forward,left=0,0;self.phase='DEGRADED';self.recovering=true
@@ -261,7 +266,7 @@ function M.new(groups,p,config)
   self.previous=p
   local info={phase=self.phase,mode=self.mode,targetY=self.target.y,altitude=p.y,verticalSpeed=v.y,speed=speed,bodyYaw=p.yaw,course=self.course,bodyYawControlled=yawAvailable,
    capabilities=caps,residual=allocation.normalizedResidual,saturated=allocation.saturated,pitchTarget=pitchTarget,rollTarget=rollTarget,mass=p.mass,
-   massChanged=self.massAdapted==true,rxConfirmed=false,shaftConfirmed=false,reason=cal and not cal.complete and cal.reason or mission and (mission.paused and mission.events[#mission.events] or mission.phase) or 'Modele declare; validation distincte'}
+   massChanged=self.massAdapted==true,rxConfirmed=false,shaftConfirmed=false,reason=cal and not cal.complete and cal.reason or mission and (mission.paused and mission.events[#mission.events] or mission.phase) or 'Modele non qualifie'}
   info.reversing=reversing;self.info=info;return signals,info
  end
  return s

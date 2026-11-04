@@ -1,0 +1,28 @@
+tick	event
+40	Placed one creative motor, three swivel bearings and two segments of 7 blocks each; motor speed 0; experimental counterweight and three redstone clutches, initially disengaged
+80	Assembled knee axis=x child=7ee4fb70-d83e-4bda-bfe6-69dccc54149d
+120	Assembled hip_pitch axis=x child=77a63c76-9754-41eb-9f01-a66ed2350b97
+160	Assembled hip_roll axis=z child=3abbe113-94da-488b-bcce-fcff6abb37d1
+220	AUDIT pivots=3 children=3
+225	Assembled free chassis with one creative motor and locked temporarily; root body=2bc45a57-e68a-4868-aa3a-efeb3078085b
+225	Found redstone control for knee at BlockPos{x=20481033, y=123, z=20483082}
+225	Found redstone control for hip_pitch at BlockPos{x=20481037, y=127, z=20485129}
+230	Released child bodies and set the single creative motor to 4 RPM; no impulse applied
+260	Redstone hip_roll set OFF
+300	Redstone hip_roll set ON
+310	Redstone common_direction_reversed set ON
+320	Redstone hip_roll set OFF
+360	Redstone hip_roll set ON
+370	Redstone common_direction_forward set OFF
+380	Redstone hip_pitch set OFF
+420	Redstone hip_pitch set ON
+430	Redstone common_direction_reversed set ON
+440	Redstone hip_pitch set OFF
+480	Redstone hip_pitch set ON
+490	Redstone common_direction_forward set OFF
+500	Redstone knee set OFF
+540	Redstone knee set ON
+550	Redstone common_direction_reversed set ON
+560	Redstone knee set OFF
+600	Redstone knee set ON
+660	Motor commanded to stop

@@ -1,0 +1,5 @@
+tick	event
+40	Built one motor, three swivel axes, three separate clutches and three 2:1 reducers; motor initially stopped
+80	Assembled knee axis=x child=457d0171-769e-42ce-91a2-f82f380355d8
+120	Assembled hip_pitch axis=x child=b63fb661-5cd0-44c3-8f27-6f5ebbc97afd
+160	Assembled hip_roll axis=z child=f9c1b9b8-94d9-4ab7-ac9f-8e61a2b5ba94

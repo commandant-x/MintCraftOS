@@ -5,7 +5,7 @@ import base64, fcntl, hashlib, json, re, struct, tempfile, uuid, zipfile
 from lua_compact import compact
 ROOT=Path(__file__).resolve().parent.parent
 BASE=ROOT/'platforms/sputnik'
-VERSION='0.4.1'
+VERSION='0.4.3'
 FLIGHT_EXCLUDED=('sdk/mintcraft-library.lua','mintcraft-autopilot.clipboard.txt','mintcraft-quad-flight.clipboard.txt','mintcraft-autopilot-control.clipboard.txt','mintcraft-autopilot-quad-fpv.clipboard.txt')
 MODULES=['system.ascendancy.contracts']+['system.navigation.'+name for name in (
  'geometry','state_estimator','authority','response_model','measured_controller','closed_loop_qualification',
@@ -214,13 +214,21 @@ def main():
  evidence_path=BASE/'reports/minecraft-0.4.1/validation.json'
  evidence=json.loads(evidence_path.read_text()) if evidence_path.exists() else {}
  world_tested=bool(evidence.get('flightScenarioCompleted') and evidence.get('controllerSha256')==artifacts['mintcraft-autopilot-quad-fpv.lua']['sha256'] and evidence.get('supervisorSha256')==artifacts['mintcraft-flight-operations.lua']['sha256'])
+ fleet_path=BASE/'reports/native-fleet-0.4.2/validation.json'
+ fleet=json.loads(fleet_path.read_text()) if fleet_path.exists() else {}
+ fleet_tested=bool(fleet.get('flightScenarioCompleted') and fleet.get('controllerSha256')==artifacts['mintcraft-autopilot-control.lua']['sha256'] and fleet.get('supervisorSha256')==artifacts['mintcraft-flight-operations.lua']['sha256'])
+ speed_path=BASE/'reports/speed-envelope-0.4.3/validation.json'
+ speed=json.loads(speed_path.read_text()) if speed_path.exists() else {}
+ speed_tested=bool(speed.get('flightScenarioCompleted') and speed.get('controllerSha256')==artifacts['mintcraft-autopilot-control.lua']['sha256'] and speed.get('supervisorSha256')==artifacts['mintcraft-flight-operations.lua']['sha256'])
  manifest={'schema':1,'edition':'MintCraft Sputnik','version':VERSION,'target':'Cosmonautics 26.08.307 / Minecraft 1.21.1',
   'hostJarSha256':'3fd9dac868400905a55164d2c9d74abc2080ae3269ca51e54e1899874945973e',
-  'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':world_tested,'minecraftWorldValidation':evidence if world_tested else {'testedCurrentSources':False},
+  'import':'Base64 UTF-8 SNBT, WNodeScreen clipboard nodes/conns','testedInMinecraft':world_tested or fleet_tested or speed_tested,'minecraftWorldValidation':evidence if world_tested else fleet if fleet_tested else speed if speed_tested else {'testedCurrentSources':False},
+  'nativeSpeedValidation':speed if speed_tested else {'testedCurrentSources':False},
+  'nativeFleetValidation':fleet if fleet_tested else {'testedCurrentSources':False},
   'flightArchiveExcludes':list(FLIGHT_EXCLUDED),'qualifiedAutopilot':False,'defaultActuation':False,'nativeNodeModifiedUtf8Budget':60000,
   'contracts':{'mount':'MCV1','settings':'MCU1 (10 legacy / 11 current fields)','request':'MCC1','candidateModel':'MCAL1','flightSample':'MCF1','flightLog':'MCLOG1','mountLibrary':'MCFLEET1','missionSchema':1,'observations':{'schema':1,'encoding':'id,rpm,universeTick','meaning':'optional observed shaft speed; no gearshift ACK'}},
   'nativeSources':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((BASE/'src').glob('*.lua'))},
-  'experimentalQuadFpv':{'file':'mintcraft-quad-fpv.clipboard.txt','nodes':len(nodes),'connections':len(edges),'scope':'four declared vertical rotors, per-rotor model and collective priority; synthetic validation only','controllerSha256':hashlib.sha256(scripts['autopilot-quad-fpv'].encode()).hexdigest()},
+  'experimentalQuadFpv':{'file':'mintcraft-quad-fpv.clipboard.txt','nodes':len(nodes),'connections':len(edges),'scope':'four declared vertical rotors; nativeFleetValidation identifies measured cases and failures; no global qualification','controllerSha256':hashlib.sha256(scripts['autopilot-quad-fpv'].encode()).hexdigest()},
   'architectureGraphs':architecture_graphs,'developerLibraryImportableAsSingleNode':False,'nodeModifiedUtf8Bytes':{name:nbt_utf8_size(code) for name,code in scripts.items()},'modules':modules,'artifacts':artifacts}
  (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
  files=sorted(p for p in out.rglob('*') if p.is_file() and p.suffix!='.zip' and p.name!='SHA256SUMS' and p.relative_to(out).as_posix() not in FLIGHT_EXCLUDED)
@@ -233,16 +241,28 @@ def main():
    path=ROOT/name if name=='LICENSE' else BASE/name
    if path.exists():
     entry=zipfile.ZipInfo(name,(2026,10,24,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
+  for name in ('README.md','SHA256SUMS')+tuple(path.name for path in sorted((BASE/'worlds').glob('*.zip'))):
+   path=BASE/'worlds'/name
+   if path.exists():
+    entry=zipfile.ZipInfo('worlds/'+name,(2026,11,1,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
  # Readable sources, test programs and completed reports accompany this edition.
   source_paths=set((BASE/'src').glob('*.lua')) | set((BASE/'tests').rglob('*')) | set((BASE/'profiles').glob('*.json'))
   source_paths.update(BASE.glob('*.md'));source_paths.add(ROOT/'LICENSE')
   source_paths.update(ROOT/(name.replace('.','/')+'.lua') for name in MODULES)
   source_paths.update(ROOT/'tests'/(name+'.lua') for name in ('response-model','measured-controller','tilt-response','motion-progress','tilt-flight'))
+  source_paths.update(path for path in (ROOT/'tools/minecraft-world-test').rglob('*') if path.suffix in ('.py','.java','.md','.json','.toml'))
+  source_paths.update(ROOT/'tools'/name for name in ('report-sputnik-fleet.py','test-sputnik-fleet-report.py','report-sputnik-speed.py','test-sputnik-speed-report.py'))
   source_paths.update(ROOT/'tools'/name for name in ('report-sputnik-minecraft.py','report-sputnik-operations.py','replay-sputnik-flight.py','sputnik-observation-replay.lua','test-sputnik-flight-pages.py','test-sputnik-operations-physics.py','build-sputnik.py','lua_compact.py','test-sputnik.py','test-sputnik-universal.py','report-sputnik-universal.py','sputnik-universal-twin.lua','test-sputnik-quad-fpv.py','sputnik-quad-fpv-twin.lua','test-quad-load-contract.py','test-sputnik-quad-load.py','report-sputnik-quad-load.py','verify-sputnik-quad-load.py','quad_load_contract.py','sputnik-load-twin.lua','test-sputnik-quad-com.py','report-sputnik-quad-com.py','verify-sputnik-quad-com.py','quad_com_contract.py','test-quad-com-contract.py','sputnik-com-twin.lua','test-sputnik-quad-pwm.py','report-sputnik-quad-pwm.py','verify-sputnik-quad-pwm.py','report-sputnik-quad-campaign.py','test-quad-ringing-diagnostics.py','run-sputnik-quad-campaign.py','quad_campaign_contract.py','sputnik-quad-campaign.lua','analyze-sputnik-quad-ringing.py','sputnik-digital-twin.lua','VerifySputnikLua.java','VerifySputnikClipboard.java','VerifySablePressure.java'))
   for path in sorted(source_paths):
    if path.is_file() and path.name not in ('README.md','OPERATIONS.md','AUTOPILOT.md','IMPLEMENTATION-STATUS.md','COMPATIBILITY.md','VEHICLE-PROFILES.md','WIRING-AND-TESTS.md','QUAD-FLIGHT.md','QUAD-FPV.md','LICENSE'):
     entry=zipfile.ZipInfo('sources/'+path.relative_to(ROOT).as_posix(),(2026,10,25,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
-  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','operations-0.4.0','minecraft-0.4.1'):
+  for report_name in ('universal-0.2.0','architecture-0.2.1','interface-0.2.2','operations-0.4.0','minecraft-0.4.1','native-fleet-0.4.2','speed-envelope-0.4.3'):
+   if report_name in ('native-fleet-0.4.2','speed-envelope-0.4.3'):
+    reports=BASE/'reports'/report_name
+    for path in sorted(reports.rglob('*')):
+     if path.is_file():
+      entry=zipfile.ZipInfo('reports/'+report_name+'/'+path.relative_to(reports).as_posix(),(2026,11,1,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.external_attr=0o644<<16;z.writestr(entry,path.read_bytes())
+    continue
    if report_name=='minecraft-0.4.1':
     report=BASE/'reports'/report_name/'README.md'
     if report.exists():

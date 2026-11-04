@@ -34,3 +34,15 @@ Le fixture enregistre `flight.csv`, `hardware.tsv`, les descripteurs, événemen
 Une nouvelle séquence exige une **nouvelle copie de l'original**, sans nœud émetteur de test laissé par la précédente. Ne pas réutiliser cette instance pour une partie ordinaire : ses graphes et commandes ont été modifiés par les essais. L'essai démarre avec des rotors préchauffés ; il ne valide pas un départ avec moteurs froids, une charge suspendue, une nouvelle répartition de masse ou une récupération à l'envers.
 
 Les critères et excursions figurent dans `platforms/sputnik/reports/minecraft-0.4.1/`. Utiliser les résultats de mouvement et la présence de protection : une fin de scénario ou un moteur qui tourne ne suffisent pas à attribuer PASS.
+
+## Campagne de vitesse native (0.4.3)
+
+Compiler le fixture `fleet` avec `build.py`, puis utiliser `fleet/run.py` sur une instance serveur jetable liée à `127.0.0.1`. Les commandes `--speed --timeout 7200` remplacent la séquence normale par la recherche de vitesse et les freinages. `--speed-directions` limite les axes ; `--controller-for CASE=LUA` archive le contrôleur réellement chargé. Conserver `--output` hors du serveur. Exemple après préparation des mods et du JDK 21 :
+
+```sh
+python tools/minecraft-world-test/fleet/run.py --server SERVEUR_JETABLE --graph-template platforms/sputnik/dist/mintcraft-hybrid-autopilot.clipboard.txt --probe PROBE_FLEET.jar --java-home JDK21 --output RESULTATS --architectures tri quad hex octo quad-turns --speed --timeout 7200
+```
+
+Le ballon vertical exige son contrôleur dédié archivé dans `reports/speed-envelope-0.4.3/balloon-lift/mintcraft-generic-controller.lua` ; le profil ballon général n'est pas équivalent. Le rapport conserve le graphe de départ exact de chaque essai. Le nouveau graphe généré peut avoir un hash différent de ce graphe archivé.
+
+`python tools/report-sputnik-speed.py CAMPAGNE RAPPORT` relit les fenêtres des CSV, vérifie les paliers et les arrêts, et archive les traces en gzip déterministe. Le rapport attend les six constructions et 46 directions de la campagne complète. Les resets avec verrou et téléportation sont exclus des mesures. Voir le [rapport et ses limites](../../platforms/sputnik/reports/speed-envelope-0.4.3/README.md).

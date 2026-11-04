@@ -1,0 +1,23 @@
+{
+  "guide": "static physics constraint locks horizontal translation and all rotations; vertical translation remains free",
+  "initial_y": 181.56494140625,
+  "y_at_tick_250": 181.56153869628906,
+  "minimum_y": 176.95660400390625,
+  "maximum_y": 182.7746124267578,
+  "final_y": 181.55018615722656,
+  "final_vertical_displacement_blocks": -0.0147552490234375,
+  "max_horizontal_deviation_blocks": 0.2978671799465491,
+  "lower_leg_contact": {
+    "callback_increase_after_release": 4079,
+    "sampled_contact_records": 200,
+    "sampled_records_matching_lower_leg_and_test_floor": 200,
+    "matching_records_after_release": 188,
+    "lower_leg_contact_observed_after_release": true,
+    "floor": "instrumented solid test block; Sable collision callback",
+    "body_support_tested": true,
+    "walking_tested": false,
+    "interpretation": "the chassis is guided in X, Z and rotation but is free in Y; contact counts are not force measurements"
+  },
+  "unguided_balance_tested_here": false,
+  "walking_tested": false
+}

@@ -1,0 +1,38 @@
+tick	event
+100	Vanilla dispenser, sculk sensor, wool barrier, open gap beyond target placed
+150	Prepared stone rep=1
+190	Shot stone rep=1
+261	Result stone rep=1 peak=3 arrow=true lastX=110.48853076154074
+270	Prepared stone rep=2
+310	Shot stone rep=2
+381	Result stone rep=2 peak=2 arrow=true lastX=111.95367400071703
+390	Prepared stone rep=3
+430	Shot stone rep=3
+501	Result stone rep=3 peak=2 arrow=true lastX=111.95311974913623
+510	Prepared log rep=1
+550	Shot log rep=1
+621	Result log rep=1 peak=2 arrow=true lastX=111.95633871357971
+630	Prepared log rep=2
+670	Shot log rep=2
+741	Result log rep=2 peak=2 arrow=true lastX=111.95366593253028
+750	Prepared log rep=3
+790	Shot log rep=3
+861	Result log rep=3 peak=3 arrow=true lastX=111.41416755553666
+870	Prepared leaves rep=1
+910	Shot leaves rep=1
+981	Result leaves rep=1 peak=3 arrow=true lastX=111.9535954508581
+990	Prepared leaves rep=2
+1030	Shot leaves rep=2
+1101	Result leaves rep=2 peak=3 arrow=true lastX=111.95250329005796
+1110	Prepared leaves rep=3
+1150	Shot leaves rep=3
+1221	Result leaves rep=3 peak=3 arrow=true lastX=111.9551369199232
+1230	Prepared clear rep=1
+1270	Shot clear rep=1
+1341	Result clear rep=1 peak=0 arrow=true lastX=122.31727874487878
+1350	Prepared clear rep=2
+1390	Shot clear rep=2
+1461	Result clear rep=2 peak=0 arrow=true lastX=121.62301285861777
+1470	Prepared clear rep=3
+1510	Shot clear rep=3
+1581	Result clear rep=3 peak=0 arrow=true lastX=123.08481963684903

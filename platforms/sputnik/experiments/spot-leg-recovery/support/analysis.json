@@ -1,0 +1,37 @@
+{
+  "initial_chassis_position": [
+    33.149349212646484,
+    181.56494140625,
+    31.2450008392334
+  ],
+  "at_first_axis_command": {
+    "tick": 260,
+    "horizontal_displacement_blocks": 2.5757925324117825,
+    "vertical_drop_blocks": 0.3399505603303794,
+    "orientation_change_degrees": 9.204243955889822
+  },
+  "maximum_horizontal_displacement_blocks": 78.9424730524775,
+  "maximum_vertical_drop_blocks": 238.81633377075195,
+  "maximum_orientation_change_degrees": 178.07150432044867,
+  "first_orientation_change_over_45_deg_tick": 290,
+  "final": {
+    "tick": 680,
+    "horizontal_displacement_blocks": 78.92476638288444,
+    "vertical_drop_blocks": 238.48784255981445,
+    "orientation_change_degrees": 103.31850241965833
+  },
+  "ground": {
+    "callback_increase_after_release": 827,
+    "sampled_contact_records": 200,
+    "sampled_records_matching_lower_leg_and_test_floor": 200,
+    "matching_records_after_release": 188,
+    "lower_leg_contact_observed_after_release": true,
+    "floor": "instrumented solid test block; Sable collision callback",
+    "body_support_tested": true,
+    "walking_tested": false,
+    "interpretation": "free chassis released before movement; callback counts are contact events, not a force or load measurement"
+  },
+  "free_chassis_remained_upright": false,
+  "walking_tested": false,
+  "limitations": "one free test chassis and one leg; no active balance controller or robot body"
+}

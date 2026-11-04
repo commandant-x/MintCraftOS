@@ -1,0 +1,11 @@
+{
+  "callback_increase_after_release": 3132,
+  "sampled_contact_records": 200,
+  "sampled_records_matching_lower_leg_and_test_floor": 200,
+  "matching_records_after_release": 192,
+  "lower_leg_contact_observed_after_release": true,
+  "floor": "instrumented solid test block; Sable collision callback",
+  "body_support_tested": false,
+  "walking_tested": false,
+  "interpretation": "root motor and bearing remain fixed to the world; callback counts are contact events, not a force or load measurement"
+}

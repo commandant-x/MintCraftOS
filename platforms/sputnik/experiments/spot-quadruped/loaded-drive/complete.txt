@@ -1,0 +1,1 @@
+Single knee/hip redstone cycle after reload on free chassis; inspect trace. No sustained walking claim.
