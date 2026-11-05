@@ -1,0 +1,16 @@
+tick	event
+100	Optical sensor, Create transmitter and Sputnik installed in isolated world
+150	Prepared empty
+215	Sample 215,empty,false,minecraft:air,15.5,15,false,0,0.0
+230	Prepared stone4
+295	Sample 295,stone4,true,minecraft:stone,3.5,15,true,12,12.0
+310	Prepared stone8
+375	Sample 375,stone8,true,minecraft:stone,7.5,15,true,8,8.0
+390	Prepared stone12
+455	Sample 455,stone12,true,minecraft:stone,11.5,15,true,4,4.0
+470	Prepared leaves8
+535	Sample 535,leaves8,true,minecraft:oak_leaves,7.5,15,true,8,8.0
+550	Prepared glass8
+615	Sample 615,glass8,false,minecraft:air,15.5,15,false,0,0.0
+630	Prepared empty_again
+695	Sample 695,empty_again,false,minecraft:air,15.5,15,false,0,0.0

@@ -1,0 +1,37 @@
+tick	event
+40	Built one motor, three swivel axes, three separate clutches and three 2:1 reducers; motor initially stopped
+70	All six lower-leg glue links available after 9 wait ticks
+80	Assembled knee axis=x child=8fbbde06-9a04-4ff9-bad4-684ad82fcc2b
+80	DIAGNOSTIC after=knee child=8fbbde06-9a04-4ff9-bad4-684ad82fcc2b wood=6 box=BoundingBox3i{minX=20481031, minY=122, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+80	DIAGNOSTIC overworld_lower_planks=0
+120	Assembled hip_pitch axis=x child=8b0e5893-b398-4723-9ac9-0f378a3b5c3e
+120	DIAGNOSTIC after=hip_pitch child=8fbbde06-9a04-4ff9-bad4-684ad82fcc2b wood=6 box=BoundingBox3i{minX=20481031, minY=122, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+120	DIAGNOSTIC after=hip_pitch child=8b0e5893-b398-4723-9ac9-0f378a3b5c3e wood=7 box=BoundingBox3i{minX=20481028, minY=122, minZ=20509702, maxX=20481032, maxY=129, maxZ=20509704}
+120	DIAGNOSTIC overworld_lower_planks=0
+160	Assembled hip_roll axis=z child=72f73ff3-1e33-42b7-8ffe-44e3e398640e
+160	DIAGNOSTIC after=hip_roll child=8fbbde06-9a04-4ff9-bad4-684ad82fcc2b wood=6 box=BoundingBox3i{minX=20481031, minY=122, minZ=20507656, maxX=20481032, maxY=128, maxZ=20507656}
+160	DIAGNOSTIC after=hip_roll child=8b0e5893-b398-4723-9ac9-0f378a3b5c3e wood=7 box=BoundingBox3i{minX=20481028, minY=122, minZ=20509702, maxX=20481032, maxY=129, maxZ=20509704}
+160	DIAGNOSTIC after=hip_roll child=72f73ff3-1e33-42b7-8ffe-44e3e398640e wood=0 box=BoundingBox3i{minX=20481032, minY=128, minZ=20511750, maxX=20481034, maxY=131, maxZ=20511753}
+160	DIAGNOSTIC overworld_lower_planks=0
+220	AUDIT pivots=3 children=3
+225	Found redstone control for knee at BlockPos{x=20481031, y=123, z=20509702}
+225	Found redstone control for hip_pitch at BlockPos{x=20481032, y=130, z=20511753}
+230	Released child bodies and set the single creative motor to 128 RPM with independent 2:1 reducers; no impulse applied
+260	Redstone knee flex set OFF (clutch engaged)
+262	Redstone knee flex set ON (clutch disengaged)
+272	Redstone knee flex set OFF (clutch engaged)
+274	Redstone knee flex set ON (clutch disengaged)
+284	Redstone knee flex set OFF (clutch engaged)
+286	Redstone knee flex set ON (clutch disengaged)
+296	Redstone knee flex set OFF (clutch engaged)
+298	Redstone knee flex set ON (clutch disengaged)
+320	knee extension direction selected
+330	Redstone knee extend set OFF (clutch engaged)
+332	Redstone knee extend set ON (clutch disengaged)
+342	Redstone knee extend set OFF (clutch engaged)
+344	Redstone knee extend set ON (clutch disengaged)
+354	Redstone knee extend set OFF (clutch engaged)
+356	Redstone knee extend set ON (clutch disengaged)
+366	Redstone knee extend set OFF (clutch engaged)
+368	Redstone knee extend set ON (clutch disengaged)
+420	Motor stopped

@@ -12,7 +12,7 @@ Le lest est volontairement une solution de prototype en mode créatif : les neuf
 
 ## Piste de perception avec sculk et flèches
 
-Sputnik fournit position, orientation, vitesse, altitude et masse, mais les capteurs natifs examinés ne fournissent pas une mesure directe de distance à un bloc du terrain. Son altitude correspond à la position verticale mondiale, pas à la hauteur du sol sous chaque patte. Les radars et le sonar présents ciblent des entités et sous-structures Sable ; rien dans leur interface inspectée ne démontre une carte des blocs fixes du terrain lisible par Sputnik.
+Sputnik fournit position, orientation, vitesse, altitude et masse. Les premiers capteurs examinés ne fournissaient pas de mesure directe de distance à un bloc ; cette recherche était incomplète : le capteur optique de Simulated déjà présent détecte certains blocs et transmet un signal de proximité à Sputnik sur banc fixe. Voir [essai optique](../quadruped-functional/native-optical-v3/results.csv). Son altitude correspond à la position verticale mondiale, pas à la hauteur du sol sous chaque patte. Les radars et le sonar présents ciblent des entités et sous-structures Sable ; rien dans leur interface inspectée ne démontre une carte des blocs fixes du terrain lisible par Sputnik.
 
 Le banc a testé un distributeur et des flèches vanilla, un capteur sculk, un écran en laine et une cible fixe. Un premier essai n’a pas discriminé la cible car la flèche touchait le sol même sans elle. Avec le tir plus haut, un essai a donné un signal pour la cible et aucun sans cible, mais ce seul couple n’établissait aucune fiabilité.
 

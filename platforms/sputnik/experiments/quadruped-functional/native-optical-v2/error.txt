@@ -1,0 +1,1 @@
+tick=100 java.lang.IllegalArgumentException: Cannot set property DirectionProperty{name=facing, clazz=class net.minecraft.core.Direction, values=[north, east, south, west, up, down]} as it does not exist in Block{simulated:optical_sensor}
