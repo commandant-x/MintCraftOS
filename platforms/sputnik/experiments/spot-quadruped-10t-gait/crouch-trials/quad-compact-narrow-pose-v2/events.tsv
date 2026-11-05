@@ -1,0 +1,15 @@
+tick	event
+200	Recovered 10 t, one stopped motor, 12 pivots and four slime feet
+200	Test-only force-load tickets for chassis and 12 leg bodies
+200	Removed 143 ballast blocks for recalibration
+200	Installed 24 Create redstone receivers and native Sputnik graph
+200	Flat stone floor; independent stationary push test
+220	Ballast base=471.0 bedrock=9 iron=132 wool=4
+250	Released chassis and legs; motor stopped
+350	Settled y=181.466064453125 tilt=0.13030680455046353
+360	Experimental active balance: motor rpm=32
+380	Active balance enabled
+571	DISTURBANCE SERIES PAUSED; recovery remains enabled tilt=30.606739664626 drop=1.4001617431640625
+950	Bench reference reset after crouch; recovery remains active; y=180.07041931152344
+950	DISTURBANCE SERIES PAUSED; recovery remains enabled tilt=44.02176020861112 drop=0.0
+2525	END impulses_applied=0 final_mass=10000.0

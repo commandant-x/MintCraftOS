@@ -1,0 +1,1 @@
+Twelve independent 2:1 branches actuated in both directions independently at 64 RPM with one 128 RPM motor and total 10000 mass; chassis held, no walking claim.

@@ -1,0 +1,1 @@
+tick=40 java.lang.IllegalStateException: Overlapping block at BlockPos{x=34, y=180, z=32}: Block{create:shaft}[axis=z,waterlogged=false] -> Block{create:gearbox}[axis=x]

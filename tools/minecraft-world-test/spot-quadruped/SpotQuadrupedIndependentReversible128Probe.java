@@ -23,11 +23,13 @@ import java.util.*;
 @Mod("mintcraft_probe")
 public class SpotQuadrupedIndependentReversible128Probe {
  final boolean assemblyOnly=Boolean.getBoolean("mintcraft.spot.assemblyOnly");
+ final boolean compactBody=Boolean.getBoolean("mintcraft.spot.compactBody");
+ int bodyWidth(){return compactBody?14:20;} int bodyLength(){return compactBody?24:16;}
  final Path out=Path.of("mintcraft-quadruped-reversible128"); final BlockPos base=new BlockPos(32,180,32);
  final Set<BlockPos> chassisBlocks=new HashSet<>(); final List<Leg> legs=new ArrayList<>();
  ServerSubLevel chassis; CreativeMotorBlockEntity motor; BlockPos reverseControl; int tick,glueWait;
  static class Leg { final String name;final int x,z; UUID kneeId,hipId,rollId;SwivelBearingBlockEntity roll,hip,knee;BlockPos rollControl,hipControl,kneeControl,rollReverse,hipReverse,kneeReverse,footLocal;Leg(String n,int x,int z){name=n;this.x=x;this.z=z;} }
- public SpotQuadrupedIndependentReversible128Probe(){NeoForge.EVENT_BUS.addListener(this::tick);legs.add(new Leg("front_left",0,0));legs.add(new Leg("front_right",20,0));legs.add(new Leg("rear_left",0,16));legs.add(new Leg("rear_right",20,16));}
+ public SpotQuadrupedIndependentReversible128Probe(){NeoForge.EVENT_BUS.addListener(this::tick);legs.add(new Leg("front_left",0,0));legs.add(new Leg("front_right",bodyWidth(),0));legs.add(new Leg("rear_left",0,bodyLength()));legs.add(new Leg("rear_right",bodyWidth(),bodyLength()));}
  BlockPos p(int x,int y,int z){return base.offset(x,y,z);} BlockPos q(Leg a,int x,int y,int z){return p(a.x+x,y,a.z+z);}
  BlockState b(String id){return BuiltInRegistries.BLOCK.get(ResourceLocation.parse(id)).defaultBlockState();}
  BlockState axis(String id,Direction.Axis axis){return b(id).setValue(BlockStateProperties.AXIS,axis);}
@@ -43,8 +45,8 @@ public class SpotQuadrupedIndependentReversible128Probe {
   body(l,-12,0,-4,b("create:creative_motor").setValue(BlockStateProperties.FACING,Direction.EAST));
   ((CreativeMotorBlockEntity)l.getBlockEntity(p(-12,0,-4))).generatedSpeed.setValue(0);
   body(l,-11,0,-4,axis("create:gearshift",Direction.Axis.X));
-  for(int x=-10;x<=10;x++)body(l,x,0,-4,axis(x==-10||x==10?"create:gearbox":"create:shaft",x==-10||x==10?Direction.Axis.Y:Direction.Axis.X));
-  for(int x:new int[]{-10,10})for(int z=-3;z<=15;z++)body(l,x,0,z,axis(z==-1||z==15?"create:gearbox":"create:shaft",z==-1||z==15?Direction.Axis.Y:Direction.Axis.Z));
+  for(int x=-10;x<=bodyWidth()-10;x++)body(l,x,0,-4,axis(x==-10||x==bodyWidth()-10?"create:gearbox":"create:shaft",x==-10||x==bodyWidth()-10?Direction.Axis.Y:Direction.Axis.X));
+  for(int x:new int[]{-10,bodyWidth()-10})for(int z=-3;z<=bodyLength()-1;z++)body(l,x,0,z,axis(z==-1||z==bodyLength()-1?"create:gearbox":"create:shaft",z==-1||z==bodyLength()-1?Direction.Axis.Y:Direction.Axis.Z));
   for(Leg a:legs){
    int trunk=a.x-10;
    for(int x=trunk+1;x<a.x;x++)body(l,x,0,a.z-1,axis("create:shaft",Direction.Axis.X));
@@ -101,7 +103,7 @@ public class SpotQuadrupedIndependentReversible128Probe {
    glue(l,q(a,-1,-7,0),q(a,-1,-7,1));glue(l,q(a,-2,-7,1),q(a,-1,-7,1));glue(l,q(a,-2,-7,1),q(a,-2,-8,0));
    glue(l,q(a,-2,-8,0),q(a,1,-8,0));for(int y=-14;y< -8;y++)glue(l,q(a,2,y,1),q(a,2,y+1,1));
   }
-  for(int x=0;x<=20;x++)for(int z=0;z<=16;z++)body(l,x,2,z,plank);
+  for(int x=0;x<=bodyWidth();x++)for(int z=0;z<=bodyLength();z++)body(l,x,2,z,plank);
   event("Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered");
  }
  UUID assemble(ServerLevel l,BlockPos pos,String label)throws Exception{
@@ -161,7 +163,7 @@ public class SpotQuadrupedIndependentReversible128Probe {
   Files.writeString(out.resolve("stand.csv"),line.append('\n'),StandardOpenOption.APPEND);}
  void releaseTickets(ServerLevel l)throws Exception{var c=SubLevelContainer.getContainer(l);int n=0;for(var sub:new ArrayList<>(c.getAllSubLevels()))if(c.removeForceLoadTicket(sub,dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType.COMMAND_FORCED,net.minecraft.util.Unit.INSTANCE))n++;event("Removed "+n+" forced tickets before saving");}
  double robotMass(ServerLevel l){var c=SubLevelContainer.getContainer(l);double sum=chassis.getMassTracker().getMass();for(Leg a:legs)for(UUID id:List.of(a.kneeId,a.hipId,a.rollId))sum+=((ServerSubLevel)c.getSubLevel(id)).getMassTracker().getMass();return sum;}
- void addBallast(ServerLevel l)throws Exception{double current=robotMass(l);double remaining=10000-current;int bed=(int)Math.floor(remaining/1000);remaining-=bed*1000;int iron=(int)Math.floor(remaining/4);remaining-=iron*4;int wool=(int)Math.round(remaining*4);if(bed<0||iron<0||wool<0||Math.abs(remaining-wool*.25)>.001)throw new IllegalStateException("cannot calibrate mass="+current);var root=legs.get(0).roll.getBlockPos();List<BlockPos> slots=new ArrayList<>();for(int x=2;x<=18;x++)for(int z=2;z<=14;z++){var at=root.offset(x,1,z);if(l.getBlockState(at).isAir())slots.add(at);}slots.sort(Comparator.comparingInt(at->(at.getX()-root.getX()-10)*(at.getX()-root.getX()-10)+(at.getZ()-root.getZ()-8)*(at.getZ()-root.getZ()-8)));if(slots.size()<bed+iron+wool)throw new IllegalStateException("insufficient ballast space");int i=0;for(int j=0;j<bed;j++)put(l,slots.get(i++),b("minecraft:bedrock"));for(int j=0;j<iron;j++)put(l,slots.get(i++),b("minecraft:iron_block"));for(int j=0;j<wool;j++)put(l,slots.get(i++),b("minecraft:white_wool"));event("Ballast base="+current+" bedrock="+bed+" iron="+iron+" wool="+wool);}
+ void addBallast(ServerLevel l)throws Exception{double current=robotMass(l);double remaining=10000-current;int bed=(int)Math.floor(remaining/1000);remaining-=bed*1000;int iron=(int)Math.floor(remaining/4);remaining-=iron*4;int wool=(int)Math.round(remaining*4);if(bed<0||iron<0||wool<0||Math.abs(remaining-wool*.25)>.001)throw new IllegalStateException("cannot calibrate mass="+current);var root=legs.get(0).roll.getBlockPos();List<BlockPos> slots=new ArrayList<>();for(int x=2;x<=bodyWidth()-2;x++)for(int z=2;z<=bodyLength()-2;z++){var at=root.offset(x,1,z);if(l.getBlockState(at).isAir())slots.add(at);}slots.sort(Comparator.comparingInt(at->(at.getX()-root.getX()-bodyWidth()/2)*(at.getX()-root.getX()-bodyWidth()/2)+(at.getZ()-root.getZ()-bodyLength()/2)*(at.getZ()-root.getZ()-bodyLength()/2)));if(slots.size()<bed+iron+wool)throw new IllegalStateException("insufficient ballast space");int i=0;for(int j=0;j<bed;j++)put(l,slots.get(i++),b("minecraft:bedrock"));for(int j=0;j<iron;j++)put(l,slots.get(i++),b("minecraft:iron_block"));for(int j=0;j<wool;j++)put(l,slots.get(i++),b("minecraft:white_wool"));event("Ballast base="+current+" bedrock="+bed+" iron="+iron+" wool="+wool);}
  void tick(ServerTickEvent.Post e){var server=e.getServer();var l=server.overworld();tick++;
   try{
    if(tick==40)setup(l);
