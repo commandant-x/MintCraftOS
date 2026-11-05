@@ -1,0 +1,116 @@
+{
+  "reference": "before_crouch",
+  "poses": [
+    {
+      "tick": 380,
+      "phase": "before_crouch",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "front_right": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "rear_left": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "rear_right": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        }
+      }
+    },
+    {
+      "tick": 950,
+      "phase": "after_crouch",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 42.83033415046011,
+          "target_degrees": 38.400001525878906
+        },
+        "front_right": {
+          "relative_change_degrees": 42.038791127525705,
+          "target_degrees": 38.400001525878906
+        },
+        "rear_left": {
+          "relative_change_degrees": 45.65077725549778,
+          "target_degrees": -38.400001525878906
+        },
+        "rear_right": {
+          "relative_change_degrees": 39.83297649737112,
+          "target_degrees": -38.400001525878906
+        }
+      }
+    },
+    {
+      "tick": 1250,
+      "phase": "after_extension",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 42.82621487428847,
+          "target_degrees": 38.400001525878906
+        },
+        "front_right": {
+          "relative_change_degrees": 42.00581498542561,
+          "target_degrees": 38.400001525878906
+        },
+        "rear_left": {
+          "relative_change_degrees": 45.70296326969452,
+          "target_degrees": -38.400001525878906
+        },
+        "rear_right": {
+          "relative_change_degrees": 39.816692115374934,
+          "target_degrees": -38.400001525878906
+        }
+      }
+    },
+    {
+      "tick": 1495,
+      "phase": "before_push",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 42.821773164949185,
+          "target_degrees": 38.400001525878906
+        },
+        "front_right": {
+          "relative_change_degrees": 41.99887184519735,
+          "target_degrees": 38.400001525878906
+        },
+        "rear_left": {
+          "relative_change_degrees": 45.69651064783739,
+          "target_degrees": -38.400001525878906
+        },
+        "rear_right": {
+          "relative_change_degrees": 39.82188043798713,
+          "target_degrees": -38.400001525878906
+        }
+      }
+    },
+    {
+      "tick": 1600,
+      "phase": "after_push",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 33.166976695281505,
+          "target_degrees": 38.400001525878906
+        },
+        "front_right": {
+          "relative_change_degrees": 33.11177057249089,
+          "target_degrees": 38.400001525878906
+        },
+        "rear_left": {
+          "relative_change_degrees": 36.84828156939013,
+          "target_degrees": -38.400001525878906
+        },
+        "rear_right": {
+          "relative_change_degrees": 30.856957416868596,
+          "target_degrees": -38.400001525878906
+        }
+      }
+    }
+  ],
+  "note": "Physical relative orientation change; unsigned angle, not contact, torque or biomechanical range."
+}

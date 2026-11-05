@@ -1,0 +1,14 @@
+{
+  "initial_tick": 500,
+  "final_tick": 596,
+  "final_dx": -24.35521697998047,
+  "final_dz": 4.309593200683594,
+  "final_horizontal_distance": 24.733563991008396,
+  "final_height_change": -7.898468017578125,
+  "maximum_tilt_degrees": 153.76785769180933,
+  "final_tilt_degrees": 153.76785769180933,
+  "ticks_with_measured_joint_rpm": 1,
+  "complete_marker": false,
+  "fixture_error": "tick=597 java.lang.NullPointerException: Cannot invoke \"dev.ryanhcode.sable.sublevel.SubLevel.logicalPose()\" because the return value of \"dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer.getSubLevel(java.util.UUID)\" is null",
+  "note": "A complete marker means the protocol ended, not that recovery succeeded. No contact or force measured."
+}

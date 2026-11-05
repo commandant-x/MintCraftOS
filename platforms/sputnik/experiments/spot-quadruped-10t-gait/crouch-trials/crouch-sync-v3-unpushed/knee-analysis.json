@@ -1,0 +1,72 @@
+{
+  "reference": "before_crouch",
+  "poses": [
+    {
+      "tick": 380,
+      "phase": "before_crouch",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "front_right": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "rear_left": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "rear_right": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        }
+      }
+    },
+    {
+      "tick": 950,
+      "phase": "after_crouch",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 42.843696040253405,
+          "target_degrees": 38.400001525878906
+        },
+        "front_right": {
+          "relative_change_degrees": 41.18234537721014,
+          "target_degrees": 38.400001525878906
+        },
+        "rear_left": {
+          "relative_change_degrees": 45.08517701575587,
+          "target_degrees": -38.400001525878906
+        },
+        "rear_right": {
+          "relative_change_degrees": 39.10924961311524,
+          "target_degrees": -38.400001525878906
+        }
+      }
+    },
+    {
+      "tick": 1250,
+      "phase": "after_extension",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 23.470564355594707,
+          "target_degrees": 19.200000762939453
+        },
+        "front_right": {
+          "relative_change_degrees": 22.185340333057184,
+          "target_degrees": 19.200000762939453
+        },
+        "rear_left": {
+          "relative_change_degrees": 25.14052652999405,
+          "target_degrees": -19.200000762939453
+        },
+        "rear_right": {
+          "relative_change_degrees": 19.930396201801308,
+          "target_degrees": -19.200000762939453
+        }
+      }
+    }
+  ],
+  "note": "Physical relative orientation change; unsigned angle, not contact, torque or biomechanical range."
+}

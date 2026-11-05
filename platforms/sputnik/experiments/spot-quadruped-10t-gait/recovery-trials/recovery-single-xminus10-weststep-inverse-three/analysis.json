@@ -1,0 +1,14 @@
+{
+  "initial_tick": 500,
+  "final_tick": 1525,
+  "final_dx": -8.382137298583984,
+  "final_dz": -4.573211669921875,
+  "final_horizontal_distance": 9.548533430334862,
+  "final_height_change": -3.230438232421875,
+  "maximum_tilt_degrees": 36.14306603824618,
+  "final_tilt_degrees": 27.007861904027788,
+  "ticks_with_measured_joint_rpm": 3,
+  "complete_marker": true,
+  "fixture_error": null,
+  "note": "A complete marker means the protocol ended, not that recovery succeeded. No contact or force measured."
+}

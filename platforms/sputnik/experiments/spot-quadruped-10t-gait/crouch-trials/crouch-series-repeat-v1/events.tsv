@@ -1,0 +1,22 @@
+tick	event
+200	Recovered 10 t, one stopped motor, 12 pivots and four slime feet
+200	Test-only force-load tickets for chassis and 12 leg bodies
+200	Removed 139 ballast blocks for recalibration
+200	Installed 24 Create redstone receivers and native Sputnik graph
+200	Flat stone floor; independent stationary push test
+220	Ballast base=457.0 bedrock=9 iron=135 wool=12
+250	Released chassis and legs; motor stopped
+350	Settled y=181.4664764404297 tilt=0.06830585864998259
+360	Experimental active balance: motor rpm=32
+380	Active balance enabled
+522	DISTURBANCE SERIES PAUSED; recovery remains enabled tilt=2.5402791834198717 drop=2.017730712890625
+950	Bench reference reset after crouch; recovery remains active; y=176.40396118164062
+1500	IMPULSE i=0 x=5.0 z=0.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+1625	IMPULSE i=1 x=-5.0 z=0.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+1750	IMPULSE i=2 x=0.0 z=5.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+1875	IMPULSE i=3 x=0.0 z=-5.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+2000	IMPULSE i=4 x=10.0 z=0.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+2125	IMPULSE i=5 x=-10.0 z=0.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+2250	IMPULSE i=6 x=0.0 z=10.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+2375	IMPULSE i=7 x=0.0 z=-10.0 chassis_mass=9815.0 nominal chassis delta velocity, active=true
+2525	END impulses_applied=8 final_mass=10000.0

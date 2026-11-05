@@ -1,0 +1,50 @@
+{
+  "reference": "before_crouch",
+  "poses": [
+    {
+      "tick": 380,
+      "phase": "before_crouch",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "front_right": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "rear_left": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        },
+        "rear_right": {
+          "relative_change_degrees": 0.0,
+          "target_degrees": 0.0
+        }
+      }
+    },
+    {
+      "tick": 950,
+      "phase": "after_crouch",
+      "knees": {
+        "front_left": {
+          "relative_change_degrees": 59.118815030977096,
+          "target_degrees": 57.60000228881836
+        },
+        "front_right": {
+          "relative_change_degrees": 63.4360442619032,
+          "target_degrees": 57.60000228881836
+        },
+        "rear_left": {
+          "relative_change_degrees": 57.91526022058061,
+          "target_degrees": -57.60000228881836
+        },
+        "rear_right": {
+          "relative_change_degrees": 56.561534428169544,
+          "target_degrees": -57.60000228881836
+        }
+      }
+    }
+  ],
+  "note": "Physical relative orientation change; unsigned angle, not contact, torque or biomechanical range."
+}

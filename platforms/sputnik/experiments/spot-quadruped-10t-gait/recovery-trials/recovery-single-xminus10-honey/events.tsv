@@ -1,0 +1,12 @@
+tick	event
+200	Recovered 10 t, one stopped motor, 12 pivots and four slime feet
+200	Removed 139 ballast blocks for recalibration
+200	Installed 24 Create redstone receivers and native Sputnik graph
+200	Added honey blocks alongside the four slime feet; ballast recalibrated later
+200	Flat stone floor; independent stationary push test
+220	Ballast base=461.0 bedrock=9 iron=134 wool=12
+250	Released chassis and legs; motor stopped
+350	Settled y=181.4791259765625 tilt=0.05594478718855047
+500	IMPULSE i=0 x=-10.0 z=0.0 chassis_mass=9811.0 nominal chassis delta velocity, active=false
+533	SAFETY STOP remaining impulses cancelled tilt=30.22190610712748 drop=-1.84808349609375
+1525	END impulses_applied=1 final_mass=10000.0
