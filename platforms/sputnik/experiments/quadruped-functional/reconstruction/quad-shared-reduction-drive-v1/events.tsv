@@ -1,0 +1,35 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+70	All lower-leg glue links available after 0 wait ticks
+80	Assembled front_left_knee child=8cc10a8a-a445-4a7c-8928-4de80b28274f
+80	Assembled front_right_knee child=b80dd28d-833b-4132-8bff-ee0d32adfe43
+80	Assembled rear_left_knee child=d2922b2c-3aae-4803-81d7-e2ffe2fe1669
+80	Assembled rear_right_knee child=60352809-2ae7-4dee-9cc3-2690510e07af
+120	Assembled front_left_hip child=dfc1188a-c904-45f2-b873-eb2a0b9185bd
+120	Assembled front_right_hip child=5b8db65f-91d4-44ee-b351-3c733d1ecdc6
+120	Assembled rear_left_hip child=46f6900d-d3b3-4d5d-8fb6-ce29219c454a
+120	Assembled rear_right_hip child=78d6283b-1b86-425f-b849-8645be1f0822
+160	Assembled front_left_roll child=6d1045d4-1f0b-436c-adfc-11a089642191
+160	Assembled front_right_roll child=47a3201e-35de-4c7a-afba-f0762f743d80
+160	Assembled rear_left_roll child=24ad5f1e-94d3-475a-b52d-a7466b6b4a71
+160	Assembled rear_right_roll child=207e496b-90f1-4a79-bfb1-ad618175caba
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+220	Replaced four lowest planks with slime; motor 0
+235	Ballast base=511.5 bedrock=9 iron=122 wool=2
+255	Audited total mass=10000.0
+260	Released leg bodies, kept 10 t chassis locked; motor set to 128 RPM
+290	Select front_left axis=0 forward
+318	Select front_left axis=1 forward
+346	Select front_left axis=2 forward
+374	Select front_right axis=0 forward
+402	Select front_right axis=1 forward
+430	Select front_right axis=2 forward
+458	Select rear_left axis=0 forward
+486	Select rear_left axis=1 forward
+514	Select rear_left axis=2 forward
+542	Select rear_right axis=0 forward
+570	Select rear_right axis=1 forward
+598	Select rear_right axis=2 forward
+640	Stopped motor after 12 independently reversible axis trials
+650	PASS all 12 selected axes 16 RPM forward and reverse; others zero; total mass 10000; chassis held

@@ -1,0 +1,21 @@
+tick	event
+40	Built four legs, two 7-block segments each, twelve swivels and one creative motor; all clutches initially powered
+70	All lower-leg glue links available after 0 wait ticks
+80	Assembled front_left_knee child=18fe416f-a9eb-4795-bb32-1b1c4d3a4824
+80	Assembled front_right_knee child=95be275d-62ab-4880-8ce5-0a67eb55f57f
+80	Assembled rear_left_knee child=e167c417-27c2-403f-85d0-583ce8fe61fd
+80	Assembled rear_right_knee child=d0c1cc6f-6967-477a-a193-cfa5df678d3b
+120	Assembled front_left_hip child=071fa956-f745-434a-8cfe-d7f19fa010f8
+120	Assembled front_right_hip child=5b416bbf-1396-4010-b659-bf173f3aed05
+120	Assembled rear_left_hip child=c6a0850d-45f8-4ca4-b7a6-499bf0df8206
+120	Assembled rear_right_hip child=e4a93061-0bb6-4c99-9bf1-e86b377bd855
+160	Assembled front_left_roll child=ae70f3b9-0b64-4dd9-8f87-bcee0bcb1e8f
+160	Assembled front_right_roll child=a39903f2-88bc-4132-92a8-4364b0dad42a
+160	Assembled rear_left_roll child=8ae101f2-35d5-4d8d-a6c8-a68653e67ec4
+160	Assembled rear_right_roll child=bb12ee7d-1176-4a6d-b64f-5bc0dff3cb9a
+200	Chassis assembled and locked; one motor, four root pivots and eight nested pivots found
+220	AUDIT pivots=12 leg_bodies=12 chassis=1 motor=1
+220	Replaced four lowest planks with slime; motor 0
+235	Ballast base=511.5 bedrock=9 iron=122 wool=2
+255	Audited total mass=10000.0
+255	Removed 13 forced tickets before saving

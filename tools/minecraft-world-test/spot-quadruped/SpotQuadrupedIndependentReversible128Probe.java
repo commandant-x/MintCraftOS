@@ -24,6 +24,7 @@ import java.util.*;
 public class SpotQuadrupedIndependentReversible128Probe {
  final boolean assemblyOnly=Boolean.getBoolean("mintcraft.spot.assemblyOnly");
  final boolean compactBody=Boolean.getBoolean("mintcraft.spot.compactBody");
+ final boolean sharedReduction=Boolean.getBoolean("mintcraft.spot.sharedReduction");
  int bodyWidth(){return compactBody?14:20;} int bodyLength(){return compactBody?24:16;}
  final Path out=Path.of("mintcraft-quadruped-reversible128"); final BlockPos base=new BlockPos(32,180,32);
  final Set<BlockPos> chassisBlocks=new HashSet<>(); final List<Leg> legs=new ArrayList<>();
@@ -42,8 +43,15 @@ public class SpotQuadrupedIndependentReversible128Probe {
   Files.createDirectories(out);Files.writeString(out.resolve("events.tsv"),"tick\tevent\n");
   for(int cx=1;cx<=3;cx++)for(int cz=1;cz<=3;cz++)l.setChunkForced(cx,cz,true);
   var plank=b("minecraft:oak_planks");var red=b("minecraft:redstone_block");var bearing=b("simulated:swivel_bearing");
-  body(l,-12,0,-4,b("create:creative_motor").setValue(BlockStateProperties.FACING,Direction.EAST));
-  ((CreativeMotorBlockEntity)l.getBlockEntity(p(-12,0,-4))).generatedSpeed.setValue(0);
+  if(sharedReduction){
+   body(l,-15,2,-2,b("create:creative_motor").setValue(BlockStateProperties.FACING,Direction.EAST));
+   ((CreativeMotorBlockEntity)l.getBlockEntity(p(-15,2,-2))).generatedSpeed.setValue(0);
+   body(l,-14,2,-2,axis("create:cogwheel",Direction.Axis.X));body(l,-14,1,-3,axis("create:large_cogwheel",Direction.Axis.X));
+   body(l,-13,1,-3,axis("create:cogwheel",Direction.Axis.X));body(l,-13,0,-4,axis("create:large_cogwheel",Direction.Axis.X));body(l,-12,0,-4,axis("create:shaft",Direction.Axis.X));
+  }else{
+   body(l,-12,0,-4,b("create:creative_motor").setValue(BlockStateProperties.FACING,Direction.EAST));
+   ((CreativeMotorBlockEntity)l.getBlockEntity(p(-12,0,-4))).generatedSpeed.setValue(0);
+  }
   body(l,-11,0,-4,axis("create:gearshift",Direction.Axis.X));
   for(int x=-10;x<=bodyWidth()-10;x++)body(l,x,0,-4,axis(x==-10||x==bodyWidth()-10?"create:gearbox":"create:shaft",x==-10||x==bodyWidth()-10?Direction.Axis.Y:Direction.Axis.X));
   for(int x:new int[]{-10,bodyWidth()-10})for(int z=-3;z<=bodyLength()-1;z++)body(l,x,0,z,axis(z==-1||z==bodyLength()-1?"create:gearbox":"create:shaft",z==-1||z==bodyLength()-1?Direction.Axis.Y:Direction.Axis.Z));
@@ -187,7 +195,7 @@ public class SpotQuadrupedIndependentReversible128Probe {
     if(phase==18)setPower(l,reversal(a,j),false);
    }
    if(tick==640){motor.generatedSpeed.setValue(0);event("Stopped motor after 12 independently reversible axis trials");}
-   if(tick==650){if(Math.abs(robotMass(l)-10000)>.001)throw new IllegalStateException("mass changed after tests");var rows=Files.readAllLines(out.resolve("drive.csv"));if(rows.size()!=25)throw new IllegalStateException("expected 24 samples, got "+(rows.size()-1));for(int k=1;k<rows.size();k++){String[] v=rows.get(k).split(",");int c=Integer.parseInt(v[1]);if(Math.abs(Double.parseDouble(v[3])-128)>.01)throw new IllegalStateException("motor not 128 on case "+c);for(int j=0;j<12;j++){double rpm=Double.parseDouble(v[4+j*2]);if(j==c){if(Math.abs(Math.abs(rpm)-64)>.01)throw new IllegalStateException("axis "+c+" selected speed="+rpm);}else if(Math.abs(rpm)>.01)throw new IllegalStateException("unexpected axis "+j+" active during case "+c);}}for(int k=1;k<rows.size();k+=2){String[] f=rows.get(k).split(","),r=rows.get(k+1).split(",");int c=Integer.parseInt(f[1]);double a=Double.parseDouble(f[4+c*2]),b=Double.parseDouble(r[4+c*2]);if(Math.abs(a+b)>.01)throw new IllegalStateException("axis "+c+" did not reverse");}Files.writeString(out.resolve("complete.txt"),"Twelve independent 2:1 branches actuated in both directions independently at 64 RPM with one 128 RPM motor and total 10000 mass; chassis held, no walking claim.\n");event("PASS all 12 selected axes 64 RPM forward and reverse; others zero; total mass 10000; chassis held");server.halt(false);return;}
+   if(tick==650){if(Math.abs(robotMass(l)-10000)>.001)throw new IllegalStateException("mass changed after tests");var rows=Files.readAllLines(out.resolve("drive.csv"));if(rows.size()!=25)throw new IllegalStateException("expected 24 samples, got "+(rows.size()-1));for(int k=1;k<rows.size();k++){String[] v=rows.get(k).split(",");int c=Integer.parseInt(v[1]);if(Math.abs(Double.parseDouble(v[3])-128)>.01)throw new IllegalStateException("motor not 128 on case "+c);for(int j=0;j<12;j++){double rpm=Double.parseDouble(v[4+j*2]);if(j==c){if(Math.abs(Math.abs(rpm)-(sharedReduction?16:64))>.01)throw new IllegalStateException("axis "+c+" selected speed="+rpm);}else if(Math.abs(rpm)>.01)throw new IllegalStateException("unexpected axis "+j+" active during case "+c);}}for(int k=1;k<rows.size();k+=2){String[] f=rows.get(k).split(","),r=rows.get(k+1).split(",");int c=Integer.parseInt(f[1]);double a=Double.parseDouble(f[4+c*2]),b=Double.parseDouble(r[4+c*2]);if(Math.abs(a+b)>.01)throw new IllegalStateException("axis "+c+" did not reverse");}Files.writeString(out.resolve("complete.txt"),"Twelve independent branches actuated both directions at "+(sharedReduction?16:64)+" RPM with one 128 RPM motor and total 10000 mass; chassis held, no walking claim.\n");event("PASS all 12 selected axes "+(sharedReduction?16:64)+" RPM forward and reverse; others zero; total mass 10000; chassis held");server.halt(false);return;}
   }catch(Exception ex){try{Files.createDirectories(out);Files.writeString(out.resolve("error.txt"),"tick="+tick+" "+ex+"\n");}catch(Exception ignored){}ex.printStackTrace();server.halt(false);}
  }
 }

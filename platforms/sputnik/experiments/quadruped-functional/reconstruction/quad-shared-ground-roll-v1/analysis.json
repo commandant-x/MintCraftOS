@@ -1,0 +1,293 @@
+{
+  "description": "Ten-tick body-angle change after isolated grounded pulse; one trial, not a force or contact measurement.",
+  "samples": [
+    {
+      "axis": "front_left_roll",
+      "tick": 888,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.16789517285278066,
+      "roll_change": -0.48021819436621627,
+      "drop_change": -0.0629882812716005
+    },
+    {
+      "axis": "front_left_roll",
+      "tick": 938,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.0590572191575518,
+      "roll_change": 0.4002493412907029,
+      "drop_change": 0.05126953125
+    },
+    {
+      "axis": "front_left_hip",
+      "tick": 428,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "front_left_hip",
+      "tick": 438,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "front_left_knee",
+      "tick": 428,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "front_left_knee",
+      "tick": 438,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "front_left_knee",
+      "tick": 448,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.12471097620772298,
+      "roll_change": 0.46864982696180846,
+      "drop_change": 0.216217041015625
+    },
+    {
+      "axis": "front_left_knee",
+      "tick": 458,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": 0.43090995873558313,
+      "roll_change": 0.5017479574826211,
+      "drop_change": 0.3496856689453125
+    },
+    {
+      "axis": "front_right_roll",
+      "tick": 1008,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.28474762783250185,
+      "roll_change": -0.20720729091246426,
+      "drop_change": 0.0673980712890625
+    },
+    {
+      "axis": "front_right_roll",
+      "tick": 1058,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": 0.3319908081101062,
+      "roll_change": 0.44391304914313423,
+      "drop_change": -0.08184814453125
+    },
+    {
+      "axis": "front_right_hip",
+      "tick": 428,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "front_right_hip",
+      "tick": 438,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "front_right_knee",
+      "tick": 428,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "front_right_knee",
+      "tick": 438,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "front_right_knee",
+      "tick": 448,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.12471097620772298,
+      "roll_change": 0.46864982696180846,
+      "drop_change": 0.216217041015625
+    },
+    {
+      "axis": "front_right_knee",
+      "tick": 458,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.43090995873558313,
+      "roll_change": 0.5017479574826211,
+      "drop_change": 0.3496856689453125
+    },
+    {
+      "axis": "rear_left_roll",
+      "tick": 1128,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.5102009839639265,
+      "roll_change": 0.9013846876734988,
+      "drop_change": 0.08447265625
+    },
+    {
+      "axis": "rear_left_roll",
+      "tick": 1178,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.704692171989052,
+      "roll_change": -0.9682708799484487,
+      "drop_change": -0.06402587890625
+    },
+    {
+      "axis": "rear_left_hip",
+      "tick": 428,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "rear_left_hip",
+      "tick": 438,
+      "rpm": 16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "rear_left_knee",
+      "tick": 428,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "rear_left_knee",
+      "tick": 438,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "rear_left_knee",
+      "tick": 448,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.12471097620772298,
+      "roll_change": 0.46864982696180846,
+      "drop_change": 0.216217041015625
+    },
+    {
+      "axis": "rear_left_knee",
+      "tick": 458,
+      "rpm": -16.0,
+      "reverse_signal": 15,
+      "pitch_change": 0.43090995873558313,
+      "roll_change": 0.5017479574826211,
+      "drop_change": 0.3496856689453125
+    },
+    {
+      "axis": "rear_right_roll",
+      "tick": 1248,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.19521519470592352,
+      "roll_change": -0.1528967791222442,
+      "drop_change": -0.0484466552734375
+    },
+    {
+      "axis": "rear_right_roll",
+      "tick": 1298,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": 0.17277570783920737,
+      "roll_change": 0.0670751229291966,
+      "drop_change": 0.0455322265625
+    },
+    {
+      "axis": "rear_right_hip",
+      "tick": 428,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "rear_right_hip",
+      "tick": 438,
+      "rpm": 16.0,
+      "reverse_signal": 15,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "rear_right_knee",
+      "tick": 428,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.1538202217772664,
+      "roll_change": -0.05555334367451792,
+      "drop_change": 0.0729827880859375
+    },
+    {
+      "axis": "rear_right_knee",
+      "tick": 438,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.8086831548806117,
+      "roll_change": 0.1818293253466834,
+      "drop_change": 0.216094970703125
+    },
+    {
+      "axis": "rear_right_knee",
+      "tick": 448,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": -0.12471097620772298,
+      "roll_change": 0.46864982696180846,
+      "drop_change": 0.216217041015625
+    },
+    {
+      "axis": "rear_right_knee",
+      "tick": 458,
+      "rpm": -16.0,
+      "reverse_signal": 0,
+      "pitch_change": 0.43090995873558313,
+      "roll_change": 0.5017479574826211,
+      "drop_change": 0.3496856689453125
+    }
+  ]
+}
